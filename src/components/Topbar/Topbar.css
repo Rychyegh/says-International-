@@ -1,0 +1,190 @@
+/* ============================
+   ICS Ghana – Main Topbar
+   Matching icsghana.org header
+   ============================ */
+
+/* ── Pre-header utility bar ──────────────────── */
+.pre-header {
+  background: var(--ics-green-900);
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 32px;
+  gap: 24px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: calc(var(--z-topbar) + 1);
+}
+
+.pre-header__link {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: rgba(255,255,255,.75);
+  letter-spacing: .04em;
+  transition: color var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+.pre-header__link:hover { color: var(--white); }
+.pre-header__link.highlight {
+  color: var(--ics-green-200);
+  font-weight: 700;
+}
+
+/* ── Main nav bar ────────────────────────────── */
+.topbar {
+  position: fixed;
+  top: 36px;
+  left: 0;
+  right: 0;
+  z-index: var(--z-topbar);
+  height: 70px;
+  background: var(--white);
+  border-bottom: 2px solid var(--gray-100);
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+  display: flex;
+  align-items: center;
+}
+
+.topbar__inner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  gap: 20px;
+}
+
+/* Logo */
+.topbar__logo {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.topbar__logo img {
+  height: 48px;
+  width: auto;
+  object-fit: contain;
+}
+
+/* Portal switcher pills */
+.topbar__portal-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--gray-100);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-full);
+  padding: 5px;
+}
+
+.topbar__portal-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 20px;
+  border-radius: var(--radius-full);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  white-space: nowrap;
+}
+
+.topbar__portal-tab:hover {
+  color: var(--gray-800);
+  background: rgba(0,0,0,.04);
+}
+
+.topbar__portal-tab.active {
+  color: var(--white);
+  box-shadow: var(--shadow-sm);
+}
+
+.topbar__portal-tab.active[data-portal="teacher"] {
+  background: var(--teacher-bg);
+}
+.topbar__portal-tab.active[data-portal="parent"] {
+  background: var(--parent-bg);
+}
+.topbar__portal-tab.active[data-portal="student"] {
+  background: var(--student-bg);
+}
+
+.topbar__portal-tab-icon { font-size: 15px; line-height: 1; }
+
+/* Main nav links (right side) */
+.topbar__nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.topbar__nav-link {
+  padding: 8px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--gray-600);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: none;
+  background: none;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+
+.topbar__nav-link:hover {
+  color: var(--ics-green-600);
+  background: var(--ics-green-50);
+}
+
+.topbar__contact-btn {
+  margin-left: 8px;
+  background: var(--ics-green-500);
+  color: var(--white);
+  padding: 9px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+.topbar__contact-btn:hover { background: var(--ics-green-400); transform: translateY(-1px); }
+
+/* ── Responsive ──────────────────────────────── */
+@media (max-width: 1100px) {
+  .topbar__nav { display: none; }
+}
+
+@media (max-width: 768px) {
+  .topbar__inner { padding: 0 16px; }
+  .topbar__portal-tab { padding: 7px 14px; font-size: 11px; }
+  .pre-header { display: none; }
+  .topbar { top: 0; }
+}
+
+@media (max-width: 480px) {
+  .topbar__portal-tab-label { display: none; }
+  .topbar__portal-tab { padding: 8px 12px; }
+}

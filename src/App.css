@@ -1,0 +1,25 @@
+/* App shell */
+.app {
+  min-height: 100vh;
+  background: var(--gray-50);
+}
+
+/* Portal switch animation */
+@keyframes portalEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.portal-wrapper {
+  will-change: opacity, transform;
+}
+
+.animate-portal {
+  animation: portalEnter 0.3s cubic-bezier(.4,0,.2,1) both;
+}
