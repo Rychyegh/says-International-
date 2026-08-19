@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import './Login.css';
 
@@ -47,11 +47,71 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   const [password, setPassword] = useState('');
   const [cardId,   setCardId]   = useState('');
   const [loginMethod, setLoginMethod] = useState('password');
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStatus, setCameraStatus] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [remember, setRemember] = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
   const [success,  setSuccess]  = useState(false);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const scanTimerRef = useRef(null);
+
+  const stopCamera = () => {
+    if (scanTimerRef.current) window.clearInterval(scanTimerRef.current);
+    scanTimerRef.current = null;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setCameraOpen(false);
+  };
+
+  const startCamera = async () => {
+    setError('');
+    setCameraStatus('Requesting camera access…');
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError('Camera scanning is not supported in this browser. Please enter your card ID.');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setCameraOpen(true);
+      setCameraStatus('Point the camera at your school card barcode or QR code.');
+
+      window.setTimeout(async () => {
+        const video = videoRef.current;
+        if (!video) return;
+        video.srcObject = stream;
+        await video.play();
+
+        if ('BarcodeDetector' in window) {
+          const detector = new window.BarcodeDetector({ formats: ['qr_code', 'code_128', 'code_39', 'ean_13'] });
+          scanTimerRef.current = window.setInterval(async () => {
+            if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+            const results = await detector.detect(video);
+            if (results[0]?.rawValue) {
+              setCardId(results[0].rawValue);
+              setCameraStatus('Card detected. You can now continue.');
+              stopCamera();
+            }
+          }, 450);
+        }
+      }, 0);
+    } catch (cameraError) {
+      setCameraStatus('');
+      setError(cameraError.name === 'NotAllowedError'
+        ? 'Camera permission was denied. Allow camera access and try again.'
+        : 'We could not start the camera. Please enter your card ID instead.');
+    }
+  };
+
+  useEffect(() => () => stopCamera(), []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -82,6 +142,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   };
 
   const chooseLoginMethod = (method) => {
+    stopCamera();
     setLoginMethod(method);
     setError('');
   };
@@ -211,8 +272,22 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                     <div className="card-access__icon"><ScanLine size={27} /></div>
                     <div>
                       <h3>Tap or scan your school card</h3>
-                      <p>Your card reader can enter the card ID automatically. You can also type the ID below.</p>
+                      <p>Use a card reader, scan the barcode with your camera, or type the card ID below.</p>
                     </div>
+                    {!cameraOpen ? (
+                      <button type="button" className="card-camera-button" onClick={startCamera}>
+                        <Camera size={16} /> Scan card with camera
+                      </button>
+                    ) : (
+                      <div className="card-camera">
+                        <video ref={videoRef} className="card-camera__video" playsInline muted />
+                        <div className="card-camera__guide" aria-hidden="true" />
+                        <button type="button" className="card-camera__close" onClick={stopCamera} aria-label="Close camera">
+                          <X size={16} />
+                        </button>
+                      </div>
+                    )}
+                    {cameraStatus && <div className="card-camera__status">{cameraStatus}</div>}
                     <div className="form-group">
                       <label className="form-label" htmlFor={`${portal}-card`}>School card ID</label>
                       <div className="form-input-wrap">

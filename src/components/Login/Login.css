@@ -295,6 +295,71 @@
 
 .card-access__security svg { flex: 0 0 auto; margin-top: 1px; }
 
+.card-camera-button {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 11px 14px;
+  border: 1px solid var(--ics-green-600);
+  border-radius: var(--radius-md);
+  background: white;
+  color: var(--ics-green-700);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.card-camera-button:hover { background: var(--ics-green-50); }
+
+.card-camera {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  height: 180px;
+  margin: 0 0 10px;
+  border-radius: var(--radius-md);
+  background: var(--ics-green-950);
+}
+
+.card-camera__video { width: 100%; height: 100%; object-fit: cover; }
+
+.card-camera__guide {
+  position: absolute;
+  inset: 21% 13%;
+  border: 2px solid white;
+  border-radius: 12px;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, .25);
+}
+
+.card-camera__close {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .65);
+  color: white;
+}
+
+.card-camera__status {
+  position: relative;
+  z-index: 1;
+  margin: -2px 0 12px;
+  color: var(--ics-green-700);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
 /* QR approval sign-in */
 .qr-access {
   display: flex;
@@ -583,7 +648,20 @@
   .login-right { padding: 40px 24px; }
 }
 
+@media (max-width: 768px) {
+  .login-page { min-height: 100dvh; padding-top: 70px; }
+  .login-right { align-items: flex-start; min-height: calc(100dvh - 70px); padding: 28px 18px 36px; }
+  .login-form-wrap { max-width: 480px; }
+  .login-form__portal-badge { margin-bottom: 15px; }
+  .login-form__title { font-size: 25px; }
+  .login-form__subtitle { margin-bottom: 22px; }
+  .login-footer { padding-bottom: 8px; }
+}
+
 @media (max-width: 420px) {
-  .login-method { font-size: 10px; gap: 4px; }
+  .login-method { min-height: 42px; padding: 5px 2px; font-size: 9px; gap: 3px; }
   .qr-access { align-items: flex-start; flex-direction: column; }
+  .qr-access__code { align-self: center; }
+  .card-access { padding: 18px 14px 14px; }
+  .card-camera { height: 205px; }
 }
