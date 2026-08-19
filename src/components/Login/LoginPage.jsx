@@ -18,7 +18,7 @@ const PORTAL_CONFIG = {
       { text: 'Grade entry & report generation',    dot: '#e0a24a' },
       { text: 'Parent communication tools',         dot: '#34c57a' },
     ],
-    demoEmail: 'amponsah@says.edu.gh',
+    demoEmail: 'staff@remaljcarewell.edu.gh',
     demoPass:  'staff2024',
   },
   parent: {
@@ -35,7 +35,7 @@ const PORTAL_CONFIG = {
       { text: 'Fee payments & receipts',           dot: '#e0a24a' },
       { text: 'Teacher messages & notices',        dot: '#c87a34' },
     ],
-    demoEmail: 'edwards@parent.says.edu.gh',
+    demoEmail: 'parent@remaljcarewell.edu.gh',
     demoPass:  'parent2024',
   },
 };
@@ -153,12 +153,12 @@ export default function LoginPage({ portal, onLoginSuccess }) {
       <div className="login-left">
         <div className="login-left__circles" />
         <div className="login-left__content">
-          {/* Logo */}
+          {/* School logo */}
           <div className="login-left__logo">
-            <div className="login-left__logo-mark">S</div>
+            <img className="login-left__logo-mark" src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Inspirational School logo" />
             <div className="login-left__logo-text">
-              Says International School
-              <span>Academic Excellence · Accra, Ghana</span>
+              REMALJ Carewell
+              <span>Inspirational School · Bogoso</span>
             </div>
           </div>
 
@@ -170,7 +170,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
             Empowering<br />Every Learner.
           </h1>
           <p className="login-left__subtitle">
-            Sign in to your {cfg.label.toLowerCase()} to manage academics, track the school bus, and stay connected with the Says International School community.
+            Sign in to your {cfg.label.toLowerCase()} to manage academics, track school transport, and stay connected with the REMALJ Carewell community.
           </p>
 
           <div className="login-left__features">
@@ -301,7 +301,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                   <div className="qr-access animate-fade-up">
                     <div className="qr-access__code" aria-label="QR code for mobile sign-in">
                       <QRCodeSVG
-                        value={`SAYS-PORTAL-ACCESS:${portal.toUpperCase()}:DEMO`}
+                        value={`REMALJ-CAREWELL-PORTAL-ACCESS:${portal.toUpperCase()}:DEMO`}
                         size={164}
                         level="M"
                         includeMargin
@@ -310,7 +310,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                     </div>
                     <div className="qr-access__copy">
                       <h3>Scan to sign in securely</h3>
-                      <p>Open the Says School app, then use its QR scanner to approve this {cfg.label.toLowerCase()} sign-in.</p>
+                      <p>Open the REMALJ Carewell School app, then use its QR scanner to approve this {cfg.label.toLowerCase()} sign-in.</p>
                       <span><ShieldCheck size={14} /> This code is unique to this sign-in session.</span>
                     </div>
                   </div>
@@ -355,11 +355,12 @@ export default function LoginPage({ portal, onLoginSuccess }) {
               </button>
 
               <div className="login-footer">
-                Having trouble signing in?{' '}
-                <a>Contact the school administrator</a>
+                REMALJ Carewell Inspirational School<br />
+                P.O. Box 139, Bogoso
                 <br />
                 <span style={{ marginTop: 8, display: 'block' }}>
-                  © 2024 Says International School — All rights reserved.
+                  Prestea Huni-Valley Municipality, Bogoso – Anikoko<br />
+                  Opposite Shining Star Hotel
                 </span>
               </div>
             </>

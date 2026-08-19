@@ -113,7 +113,7 @@ export default function ParentPortal() {
               <div className="page-header">
                 <p className="page-header__eyebrow" style={{ color: PARENT_ACCENT }}>
                   <span style={{ background: PARENT_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #b0ccee' }}>
-                    Transport — ICS Ghana
+                    Transport — REMALJ Carewell
                   </span>
                 </p>
                 <h1 className="page-header__title">Track Your Child's Bus 🚌</h1>
@@ -136,7 +136,7 @@ export default function ParentPortal() {
                     <div style={{ fontWeight: 800, fontSize: 15 }}>{c.name} {i === 0 ? '👦' : '👧'}</div>
                     <div style={{ fontSize: 12, color: 'rgba(255,255,255,.6)', marginTop: 2 }}>{c.grade} • Bus 01 – Route A</div>
                     <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                      <div><div style={{ color: 'rgba(255,255,255,.5)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>Next Stop</div><div style={{ fontWeight: 700 }}>East Legon Gate</div></div>
+                      <div><div style={{ color: 'rgba(255,255,255,.5)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>Next Stop</div><div style={{ fontWeight: 700 }}>Anikoko</div></div>
                       <div style={{ textAlign: 'right' }}><div style={{ color: 'rgba(255,255,255,.5)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>ETA</div><div style={{ fontWeight: 800, fontSize: 18 }}>15:45</div></div>
                     </div>
                   </div>
@@ -151,7 +151,7 @@ export default function ParentPortal() {
             <>
               <div className="page-header">
                 <p className="page-header__eyebrow" style={{ color: PARENT_ACCENT }}>
-                  <span style={{ background: PARENT_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #b0ccee' }}>Parent Portal — ICS Ghana</span>
+                  <span style={{ background: PARENT_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #b0ccee' }}>Parent Portal — REMALJ Carewell</span>
                 </p>
                 <h1 className="page-header__title">Welcome back, Mrs. Edwards 👩</h1>
                 <p className="page-header__subtitle">Stay on top of your children's education, fees, and school activities.</p>
@@ -268,7 +268,7 @@ export default function ParentPortal() {
                     <div className="transport-widget__row">
                       <div>
                         <div className="transport-widget__stop-label">Next Stop</div>
-                        <div className="transport-widget__stop">🚌 East Legon Gate</div>
+                        <div className="transport-widget__stop">🚌 Anikoko</div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div className="transport-widget__eta">15:45</div>
@@ -279,7 +279,7 @@ export default function ParentPortal() {
                       <div className="transport-track__fill" style={{ width: '62%' }}/>
                       <div className="transport-track__bus" style={{ left: 'calc(62% - 7px)' }}/>
                     </div>
-                    <div className="transport-stops"><span>School</span><span>On Route</span><span>East Legon</span></div>
+                    <div className="transport-stops"><span>School</span><span>On Route</span><span>Anikoko</span></div>
                     <div style={{ marginTop: 10, fontSize: 11, color: 'rgba(255,255,255,.5)', textAlign: 'center' }}>Click to open full tracker →</div>
                   </div>
                 </div>

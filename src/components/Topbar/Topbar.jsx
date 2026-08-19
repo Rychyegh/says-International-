@@ -74,24 +74,28 @@ export default function Topbar({ activePortal, onPortalChange, isAuthed, onSignO
       {/* Main topbar */}
       <header className="topbar" role="banner">
         <div className="topbar__inner">
-          {/* SAYS Logo */}
-          <div className="topbar__logo" title="Says International School">
+          {/* School logo */}
+          <div className="topbar__logo" title="REMALJ Carewell Inspirational School">
             <img
-              src="/says-logo.png"
-              alt="Says International School"
+              src="/remalj-carewell-logo.jpg"
+              alt="REMALJ Carewell Inspirational School logo"
               style={{ height: 52, width: 'auto', objectFit: 'contain', display: 'block' }}
               onError={(e) => {
                 e.target.onerror = null;
                 e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'flex';
+                e.target.parentElement.querySelector('.topbar__logo-fallback').style.display = 'flex';
               }}
             />
+            <div className="topbar__school-name" aria-label="REMALJ Carewell Inspirational School">
+              <strong>REMALJ Carewell</strong>
+              <span>Inspirational School · Bogoso</span>
+            </div>
             {/* Fallback */}
-            <div style={{ display: 'none', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 40, height: 40, background: 'var(--ics-green-800)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20, color: '#fff' }}>S</div>
+            <div className="topbar__logo-fallback" style={{ display: 'none', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 40, height: 40, background: 'var(--ics-green-800)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14, color: '#fff' }}>R</div>
               <div style={{ lineHeight: 1.15 }}>
-                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, color: 'var(--ics-green-800)' }}>Says International School</div>
-                <div style={{ fontSize: 10, color: 'var(--ics-green-500)', fontWeight: 600, letterSpacing: '.05em' }}>Academic Excellence · Ghana</div>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, color: 'var(--ics-green-800)' }}>REMALJ Carewell</div>
+                <div style={{ fontSize: 10, color: 'var(--ics-green-500)', fontWeight: 600, letterSpacing: '.05em' }}>Inspirational School · Bogoso</div>
               </div>
             </div>
           </div>

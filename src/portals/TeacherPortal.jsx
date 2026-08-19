@@ -32,11 +32,11 @@ const STATS = [
 ];
 
 const STUDENTS = [
-  { name: 'Abena Mensah', class: 'JHS 3A', score: 92, id: 'ICS-2024-041', attendance: 98, mathGrade: 'A+', sciGrade: 'A',  color: '#204d2d' },
-  { name: 'Kwame Asante', class: 'JHS 3A', score: 76, id: 'ICS-2024-112', attendance: 82, mathGrade: 'B+', sciGrade: 'A-', color: '#1e3a8a' },
-  { name: 'Efua Darko',   class: 'JHS 2B', score: 64, id: 'ICS-2024-088', attendance: 74, mathGrade: 'C+', sciGrade: 'B',  color: '#78350f' },
-  { name: 'Kofi Boateng', class: 'JHS 2B', score: 55, id: 'ICS-2024-055', attendance: 61, mathGrade: 'D',  sciGrade: 'C',  color: '#991b1b' },
-  { name: 'Ama Owusu',    class: 'JHS 1C', score: 88, id: 'ICS-2024-033', attendance: 96, mathGrade: 'A',  sciGrade: 'A+', color: '#204d2d' },
+  { name: 'Abena Mensah', class: 'JHS 3A', score: 92, id: 'REMALJ-2026-041', attendance: 98, mathGrade: 'A+', sciGrade: 'A',  color: '#204d2d' },
+  { name: 'Kwame Asante', class: 'JHS 3A', score: 76, id: 'REMALJ-2026-112', attendance: 82, mathGrade: 'B+', sciGrade: 'A-', color: '#1e3a8a' },
+  { name: 'Efua Darko',   class: 'JHS 2B', score: 64, id: 'REMALJ-2026-088', attendance: 74, mathGrade: 'C+', sciGrade: 'B',  color: '#78350f' },
+  { name: 'Kofi Boateng', class: 'JHS 2B', score: 55, id: 'REMALJ-2026-055', attendance: 61, mathGrade: 'D',  sciGrade: 'C',  color: '#991b1b' },
+  { name: 'Ama Owusu',    class: 'JHS 1C', score: 88, id: 'REMALJ-2026-033', attendance: 96, mathGrade: 'A',  sciGrade: 'A+', color: '#204d2d' },
 ];
 
 const ACTIVITY = [
@@ -105,7 +105,7 @@ export default function TeacherPortal() {
               <div className="page-header">
                 <p className="page-header__eyebrow" style={{ color: TEACHER_ACCENT }}>
                   <span style={{ background: TEACHER_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #c4dfc9' }}>
-                    Transport — ICS Ghana
+                    Transport — REMALJ Carewell
                   </span>
                 </p>
                 <h1 className="page-header__title">Bus Tracking & Fleet Management 🚌</h1>
@@ -136,7 +136,7 @@ export default function TeacherPortal() {
             <>
               <div className="page-header">
                 <p className="page-header__eyebrow" style={{ color: TEACHER_ACCENT }}>
-                  <span style={{ background: TEACHER_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #c4dfc9' }}>Staff Portal — ICS Ghana</span>
+                  <span style={{ background: TEACHER_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #c4dfc9' }}>Staff Portal — REMALJ Carewell</span>
                 </p>
                 <h1 className="page-header__title">Good morning, Mr. Amponsah 👋</h1>
                 <p className="page-header__subtitle">
@@ -170,7 +170,7 @@ export default function TeacherPortal() {
                               <div className="avatar" style={{ background: s.color }}>{s.name.charAt(0)}</div>
                               <div>
                                 <div style={{ fontWeight: 600, color: 'var(--gray-900)' }}>{s.name}</div>
-                                <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{s.name.toLowerCase().replace(' ', '.')}@icsghana.edu.gh</div>
+                                <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{s.name.toLowerCase().replace(' ', '.')}@remaljcarewell.edu.gh</div>
                               </div>
                             </div>
                           </td>
@@ -224,7 +224,7 @@ export default function TeacherPortal() {
                     <div className="transport-widget__row">
                       <div>
                         <div className="transport-widget__stop-label">Next Stop</div>
-                        <div className="transport-widget__stop">🚌 East Legon Gate</div>
+                        <div className="transport-widget__stop">🚌 Anikoko</div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div className="transport-widget__eta">15:45</div>
@@ -235,7 +235,7 @@ export default function TeacherPortal() {
                       <div className="transport-track__fill" style={{ width: '62%' }}/>
                       <div className="transport-track__bus" style={{ left: 'calc(62% - 7px)' }}/>
                     </div>
-                    <div className="transport-stops"><span>School</span><span>3 stops left</span><span>East Legon</span></div>
+                    <div className="transport-stops"><span>School</span><span>3 stops left</span><span>Anikoko</span></div>
                     <div style={{ marginTop: 10, fontSize: 11, color: 'rgba(255,255,255,.5)', textAlign: 'center' }}>Click to open full tracker →</div>
                   </div>
                 </div>

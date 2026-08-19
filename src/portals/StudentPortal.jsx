@@ -132,7 +132,7 @@ export default function StudentPortal() {
             <div className="animate-fade-up">
               <div className="page-header">
                 <p className="page-header__eyebrow" style={{ color: STUDENT_ACCENT }}>
-                  <span style={{ background: STUDENT_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #e8c4a8' }}>My Bus — ICS Ghana</span>
+                  <span style={{ background: STUDENT_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #e8c4a8' }}>My Bus — REMALJ Carewell</span>
                 </p>
                 <h1 className="page-header__title">My School Bus 🚌</h1>
                 <p className="page-header__subtitle">
@@ -144,7 +144,7 @@ export default function StudentPortal() {
                 <div>
                   <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'rgba(255,255,255,.5)', marginBottom: 4 }}>Your Bus</div>
                   <div style={{ fontWeight: 800, fontSize: 18 }}>Bus 01 – Route A</div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,.65)', marginTop: 3 }}>Boarded at East Legon • Seat 12</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,.65)', marginTop: 3 }}>Boarded at Anikoko • Seat 12</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: 'rgba(255,255,255,.5)', marginBottom: 2 }}>Status</div>
@@ -170,7 +170,7 @@ export default function StudentPortal() {
                 borderRadius: 'var(--radius-lg)', padding: '28px',
                 color: '#fff', marginBottom: 28, position: 'relative', overflow: 'hidden',
               }}>
-                <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '45%', background: 'linear-gradient(135deg, transparent, rgba(0,0,0,.2))', backgroundImage: 'url(https://icsghana.org/wp-content/uploads/2022/09/ICS-FRONT.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', opacity: .25, borderRadius: '0 var(--radius-lg) var(--radius-lg) 0' }} />
+                <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '45%', background: 'linear-gradient(135deg, transparent, rgba(25,152,221,.28))', backgroundImage: 'url(/remalj-carewell-logo.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', opacity: .25, borderRadius: '0 var(--radius-lg) var(--radius-lg) 0' }} />
                 <div style={{ position: 'relative', zIndex: 1 }}>
                   <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,.55)', marginBottom: 6 }}>Academic Excellence</p>
                   <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Welcome Back, Kwame 👋</h1>
@@ -283,12 +283,12 @@ export default function StudentPortal() {
                     </div>
                   </div>
 
-                  {/* ICS Ghana school news card */}
+                  {/* REMALJ Carewell school news card */}
                   <div style={{ background: '#1e4028', borderRadius: 'var(--radius-lg)', padding: '18px', color: '#fff' }}>
                     <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6ee89a', marginBottom: 8 }}>Institutional</div>
                     <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, lineHeight: 1.3, marginBottom: 8 }}>Founder's Day Celebration 2024</h3>
                     <p style={{ fontSize: 12, color: 'rgba(255,255,255,.65)', lineHeight: 1.6, marginBottom: 14 }}>
-                      Join us this Friday as we celebrate 30 years of academic excellence at ICS Ghana. Alumni and staff dinner to follow.
+                      Join us this Friday as we celebrate the spirit of excellence at REMALJ Carewell Inspirational School. Families and staff are welcome.
                     </p>
                     <button style={{ fontSize: 12, color: '#6ee89a', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}>Read Article →</button>
                   </div>

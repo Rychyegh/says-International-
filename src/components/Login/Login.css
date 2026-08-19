@@ -1,5 +1,5 @@
 /* ============================
-   Login Page – Says International School
+   Login Page – REMALJ Carewell Inspirational School
    ============================ */
 
 .login-page {
@@ -24,7 +24,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background-image: url('https://icsghana.org/wp-content/uploads/2022/09/ICS-FRONT.jpg');
+  background: radial-gradient(circle at 90% 10%, rgba(25, 152, 221, .22), transparent 35%);
   background-size: cover;
   background-position: center;
   opacity: .12;
@@ -64,15 +64,9 @@
 .login-left__logo-mark {
   width: 48px;
   height: 48px;
-  background: var(--ics-green-500);
+  background: white;
   border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 800;
-  color: white;
+  object-fit: cover;
 }
 
 .login-left__logo-text {

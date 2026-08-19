@@ -3,7 +3,7 @@ import { MapPin, Phone } from 'lucide-react';
 import './BusTracker.css';
 
 const ROUTES = [
-  { id: 'A', name: 'Bus 01 – Route A', color: '#2563eb', stops: ['School Gate', 'Accra Mall', 'East Legon', 'Adenta'], students: 22, capacity: 25, speed: '38 km/h', driver: 'Daniel Appiah', driverRole: 'Bus Supervisor', nextStop: 'East Legon Gate', eta: '15:45', progress: 62, status: 'On Route' },
+  { id: 'A', name: 'Bus 01 – Bogoso Route', color: '#2563eb', stops: ['School Gate', 'Shining Star Hotel', 'Anikoko', 'Bogoso Township'], students: 22, capacity: 25, speed: '38 km/h', driver: 'Daniel Appiah', driverRole: 'Bus Supervisor', nextStop: 'Anikoko', eta: '15:45', progress: 62, status: 'On Route' },
   { id: 'B', name: 'Bus 02 – Route B', color: '#dc2626', stops: ['School Gate', 'Airport Res.', 'Roman Ridge', 'Cantonments'], students: 18, capacity: 25, speed: '42 km/h', driver: 'Kweku Mensah', driverRole: 'Driver', nextStop: 'Roman Ridge', eta: '16:05', progress: 40, status: 'On Route' },
   { id: 'C', name: 'Bus 03 – Route C', color: '#d97706', stops: ['School Gate', 'Tema Station', 'Spintex', 'Sakumono'], students: 14, capacity: 25, speed: '0 km/h', driver: 'Ama Konadu', driverRole: 'Driver', nextStop: 'School Gate', eta: '–',     progress: 0,  status: 'At School' },
   { id: 'D', name: 'Bus 04 – Route D', color: '#16a34a', stops: ['School Gate', 'Green Valley', 'Kumasi Rd', 'Pakyi'], students: 20, capacity: 25, speed: '45 km/h', driver: 'Kofi Acheampong', driverRole: 'Bus Supervisor', nextStop: 'Green Valley', eta: '16:15', progress: 30, status: 'On Route' },
@@ -11,10 +11,10 @@ const ROUTES = [
 
 const MANIFEST = {
   A: [
-    { name: 'Abena Mensa',  stop: 'Boarded at East Legon',        on: true  },
+    { name: 'Abena Mensa',  stop: 'Boarded at Anikoko',           on: true  },
     { name: 'Kofi Mensah',  stop: 'Boarded at Airport Residential',on: true  },
     { name: 'Yaa Boateng',  stop: 'Boarded at Roman Ridge',       on: true  },
-    { name: 'Kwame Adu',    stop: 'Boarded at East Legon',         on: true  },
+    { name: 'Kwame Adu',    stop: 'Boarded at Anikoko',            on: true  },
     { name: 'Efua Sarpong', stop: 'Expected: Green Valley',        on: false },
   ],
   B: [
@@ -105,7 +105,7 @@ export default function BusTracker({ mode = 'teacher' }) {
           <g>
             <circle cx="60" cy="400" r="12" fill="#204d2d" />
             <text x="60" y="404" textAnchor="middle" fontSize="11" fill="#fff">🏫</text>
-            <text x="60" y="420" textAnchor="middle" fontSize="9" fill="#374151" fontWeight="700">ICS Ghana</text>
+            <text x="60" y="420" textAnchor="middle" fontSize="9" fill="#374151" fontWeight="700">REMALJ Carewell</text>
           </g>
         </svg>
 
