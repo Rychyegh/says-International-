@@ -189,6 +189,166 @@
   line-height: 1.55;
 }
 
+/* Sign-in method switcher */
+.login-methods {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  margin: 0 0 24px;
+  background: var(--gray-100);
+  border-radius: var(--radius-md);
+}
+
+.login-method {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--gray-500);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  transition: all var(--transition-fast);
+}
+
+.login-method:hover { color: var(--ics-green-700); }
+
+.login-method--active {
+  background: white;
+  color: var(--ics-green-700);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .12);
+}
+
+/* Card reader access */
+.card-access {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 22px;
+  padding: 22px 18px 16px;
+  border: 1px solid #cfe7d6;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #f2fbf5, #fff);
+}
+
+.card-access::after {
+  content: '';
+  position: absolute;
+  right: -42px;
+  top: -42px;
+  width: 120px;
+  height: 120px;
+  border: 1px solid rgba(46, 122, 68, .12);
+  border-radius: 50%;
+}
+
+.card-access__icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 13px;
+  border-radius: 16px;
+  background: var(--ics-green-700);
+  color: white;
+  box-shadow: 0 8px 18px rgba(32, 77, 45, .2);
+}
+
+.card-access h3 {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 5px;
+  color: var(--gray-900);
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.card-access p {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 18px;
+  color: var(--gray-600);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.card-access .form-group { margin-bottom: 12px; }
+
+.card-access__security {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  color: var(--ics-green-700);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.card-access__security svg { flex: 0 0 auto; margin-top: 1px; }
+
+/* QR approval sign-in */
+.qr-access {
+  display: flex;
+  align-items: center;
+  gap: 19px;
+  min-height: 226px;
+  margin-bottom: 22px;
+  padding: 18px;
+  border: 1px solid #cfe7d6;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #f2fbf5, #fff);
+}
+
+.qr-access__code {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 8px;
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 4px 12px rgba(16, 24, 40, .08);
+}
+
+.qr-access__code svg { display: block; width: 138px; height: 138px; }
+
+.qr-access__copy h3 {
+  margin: 0 0 7px;
+  color: var(--gray-900);
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.qr-access__copy p {
+  margin: 0 0 12px;
+  color: var(--gray-600);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.qr-access__copy span {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--ics-green-700);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.qr-access__copy span svg { flex: 0 0 auto; margin-top: 1px; }
+
 /* Form fields */
 .form-group {
   margin-bottom: 18px;
@@ -421,4 +581,9 @@
   .login-page { grid-template-columns: 1fr; }
   .login-left { display: none; }
   .login-right { padding: 40px 24px; }
+}
+
+@media (max-width: 420px) {
+  .login-method { font-size: 10px; gap: 4px; }
+  .qr-access { align-items: flex-start; flex-direction: column; }
 }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import './Login.css';
 
 const PORTAL_CONFIG = {
@@ -44,6 +45,8 @@ export default function LoginPage({ portal, onLoginSuccess }) {
 
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
+  const [cardId,   setCardId]   = useState('');
+  const [loginMethod, setLoginMethod] = useState('password');
   const [showPass, setShowPass] = useState(false);
   const [remember, setRemember] = useState(false);
   const [loading,  setLoading]  = useState(false);
@@ -54,8 +57,13 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     e.preventDefault();
     setError('');
 
-    if (!email.trim())    { setError('Please enter your email address.'); return; }
-    if (!password.trim()) { setError('Please enter your password.'); return; }
+    if (loginMethod === 'password') {
+      if (!email.trim())    { setError('Please enter your email address.'); return; }
+      if (!password.trim()) { setError('Please enter your password.'); return; }
+    } else if (!cardId.trim()) {
+      setError('Please scan your school card or enter its ID.');
+      return;
+    }
 
     setLoading(true);
     // Simulate auth (accept demo credentials OR any non-empty input)
@@ -67,8 +75,14 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   };
 
   const fillDemo = () => {
+    setLoginMethod('password');
     setEmail(cfg.demoEmail);
     setPassword(cfg.demoPass);
+    setError('');
+  };
+
+  const chooseLoginMethod = (method) => {
+    setLoginMethod(method);
     setError('');
   };
 
@@ -132,62 +146,100 @@ export default function LoginPage({ portal, onLoginSuccess }) {
               <h2 className="login-form__title">{cfg.title}</h2>
               <p className="login-form__subtitle">{cfg.subtitle}</p>
 
+              <div className="login-methods" role="tablist" aria-label="Sign-in method">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={loginMethod === 'password'}
+                  className={`login-method${loginMethod === 'password' ? ' login-method--active' : ''}`}
+                  onClick={() => chooseLoginMethod('password')}
+                >
+                  <Lock size={15} /> Email & password
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={loginMethod === 'card'}
+                  className={`login-method${loginMethod === 'card' ? ' login-method--active' : ''}`}
+                  onClick={() => chooseLoginMethod('card')}
+                >
+                  <CreditCard size={15} /> School card
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={loginMethod === 'qr'}
+                  className={`login-method${loginMethod === 'qr' ? ' login-method--active' : ''}`}
+                  onClick={() => chooseLoginMethod('qr')}
+                >
+                  <ScanLine size={15} /> QR code
+                </button>
+              </div>
+
               <form onSubmit={handleSubmit} noValidate>
-                {/* Email */}
-                <div className="form-group">
-                  <label className="form-label" htmlFor={`${portal}-email`}>Email Address</label>
-                  <div className="form-input-wrap">
-                    <Mail size={16} className="form-input-icon" />
-                    <input
-                      id={`${portal}-email`}
-                      type="email"
-                      className="form-input"
-                      placeholder={`e.g. ${cfg.demoEmail}`}
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      autoComplete="email"
-                    />
-                  </div>
-                </div>
+                {loginMethod === 'password' ? (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor={`${portal}-email`}>Email Address</label>
+                      <div className="form-input-wrap">
+                        <Mail size={16} className="form-input-icon" />
+                        <input id={`${portal}-email`} type="email" className="form-input" placeholder={`e.g. ${cfg.demoEmail}`} value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+                      </div>
+                    </div>
 
-                {/* Password */}
-                <div className="form-group">
-                  <label className="form-label" htmlFor={`${portal}-password`}>Password</label>
-                  <div className="form-input-wrap">
-                    <Lock size={16} className="form-input-icon" />
-                    <input
-                      id={`${portal}-password`}
-                      type={showPass ? 'text' : 'password'}
-                      className="form-input"
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoComplete="current-password"
-                    />
-                    <button
-                      type="button"
-                      className="form-input-action"
-                      onClick={() => setShowPass(!showPass)}
-                      aria-label={showPass ? 'Hide password' : 'Show password'}
-                    >
-                      {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor={`${portal}-password`}>Password</label>
+                      <div className="form-input-wrap">
+                        <Lock size={16} className="form-input-icon" />
+                        <input id={`${portal}-password`} type={showPass ? 'text' : 'password'} className="form-input" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+                        <button type="button" className="form-input-action" onClick={() => setShowPass(!showPass)} aria-label={showPass ? 'Hide password' : 'Show password'}>
+                          {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </div>
 
-                {/* Remember + Forgot */}
-                <div className="form-row">
-                  <label className="form-checkbox-wrap">
-                    <input
-                      type="checkbox"
-                      className="form-checkbox"
-                      checked={remember}
-                      onChange={(e) => setRemember(e.target.checked)}
-                    />
-                    <span className="form-checkbox-label">Remember me</span>
-                  </label>
-                  <button type="button" className="form-forgot">Forgot password?</button>
-                </div>
+                    <div className="form-row">
+                      <label className="form-checkbox-wrap">
+                        <input type="checkbox" className="form-checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                        <span className="form-checkbox-label">Remember me</span>
+                      </label>
+                      <button type="button" className="form-forgot">Forgot password?</button>
+                    </div>
+                  </>
+                ) : loginMethod === 'card' ? (
+                  <div className="card-access animate-fade-up">
+                    <div className="card-access__icon"><ScanLine size={27} /></div>
+                    <div>
+                      <h3>Tap or scan your school card</h3>
+                      <p>Your card reader can enter the card ID automatically. You can also type the ID below.</p>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor={`${portal}-card`}>School card ID</label>
+                      <div className="form-input-wrap">
+                        <CreditCard size={16} className="form-input-icon" />
+                        <input id={`${portal}-card`} type="text" className="form-input" placeholder="Scan card or enter ID" value={cardId} onChange={(e) => setCardId(e.target.value)} autoComplete="off" autoFocus />
+                      </div>
+                    </div>
+                    <div className="card-access__security"><ShieldCheck size={15} /> Card details are securely verified before access is granted.</div>
+                  </div>
+                ) : (
+                  <div className="qr-access animate-fade-up">
+                    <div className="qr-access__code" aria-label="QR code for mobile sign-in">
+                      <QRCodeSVG
+                        value={`SAYS-PORTAL-ACCESS:${portal.toUpperCase()}:DEMO`}
+                        size={164}
+                        level="M"
+                        includeMargin
+                        fgColor="#204d2d"
+                      />
+                    </div>
+                    <div className="qr-access__copy">
+                      <h3>Scan to sign in securely</h3>
+                      <p>Open the Says School app, then use its QR scanner to approve this {cfg.label.toLowerCase()} sign-in.</p>
+                      <span><ShieldCheck size={14} /> This code is unique to this sign-in session.</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Error */}
                 {error && (
@@ -197,23 +249,26 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                 )}
 
                 {/* Submit */}
-                <button
-                  type="submit"
-                  className={`login-submit${loading ? ' login-submit--loading' : ''}`}
-                  disabled={loading}
-                  style={{ background: cfg.accentBg }}
-                >
-                  {loading ? (
-                    <>
-                      <span style={{ display: 'inline-block', width: 16, height: 16, border: '2px solid rgba(255,255,255,.35)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-                      Signing in…
-                    </>
-                  ) : (
-                    <>
-                      <LogIn size={15} /> Sign In <ArrowRight size={14} />
-                    </>
-                  )}
-                </button>
+                {loginMethod !== 'qr' && (
+                  <button
+                    type="submit"
+                    className={`login-submit${loading ? ' login-submit--loading' : ''}`}
+                    disabled={loading}
+                    style={{ background: cfg.accentBg }}
+                  >
+                    {loading ? (
+                      <>
+                        <span style={{ display: 'inline-block', width: 16, height: 16, border: '2px solid rgba(255,255,255,.35)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                        {loginMethod === 'card' ? 'Verifying card…' : 'Signing in…'}
+                      </>
+                    ) : (
+                      <>
+                        {loginMethod === 'card' ? <CreditCard size={15} /> : <LogIn size={15} />}
+                        {loginMethod === 'card' ? 'Access with card' : 'Sign In'} <ArrowRight size={14} />
+                      </>
+                    )}
+                  </button>
+                )}
               </form>
 
               <div className="login-divider">or</div>
