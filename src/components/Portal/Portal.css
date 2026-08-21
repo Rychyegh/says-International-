@@ -342,6 +342,27 @@
 
 /* ── Responsive ─────────────────────────────── */
 @media (max-width: 900px) {
-  .portal__sidebar { display: none; }
+  .portal { padding-top: 70px; }
+  .portal__layout { display: block; }
+  .portal__sidebar {
+    position: sticky;
+    top: 70px;
+    z-index: 20;
+    width: 100%;
+    height: auto;
+    max-width: 100vw;
+    padding: 8px 10px;
+    flex-direction: row;
+    align-items: center;
+    gap: 5px;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--gray-200);
+    scrollbar-width: thin;
+  }
+  .portal__sidebar > div:first-child,
+  .sidebar-section-label { display: none; }
+  .sidebar-item { width: auto; flex: 0 0 auto; padding: 8px 10px; white-space: nowrap; }
+  .sidebar-item__badge { margin-left: 2px; }
   .portal__content { padding: 20px 16px; }
 }

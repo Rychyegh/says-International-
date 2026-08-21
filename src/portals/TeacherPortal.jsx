@@ -1,11 +1,18 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard, Users, BookOpen, Calendar, ClipboardList,
-  MessageSquare, Settings, TrendingUp, Award, Bell, Bus
+  MessageSquare, Settings, TrendingUp, Award, Bell, Bus, ClipboardCheck
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import '../components/BusTracker/BusTracker.css';
 import BusTracker from '../components/BusTracker/BusTracker';
+import { LecturerGrades, LecturerSchedule } from '../components/Academic/AcademicViews';
+import TeacherMessages from '../components/TeacherMessages/TeacherMessages';
+import ContactDirectory from '../components/ContactDirectory/ContactDirectory';
+import { TeacherReports } from '../components/ReportWorkflow/ReportWorkflow';
+import OperationsCentre from '../components/OperationsCentre/OperationsCentre';
+import { PortalSettings, StaffAssignments, StaffCalendar } from '../components/SchoolWorkflows/SchoolWorkflows';
+import { AdmissionsRegister } from '../components/Onboarding/Onboarding';
 
 const TEACHER_GREEN = '#204d2d';
 const TEACHER_LIGHT = '#edf8f0';
@@ -14,9 +21,11 @@ const TEACHER_ACCENT = '#2e7a44';
 const NAV = [
   { icon: <LayoutDashboard size={15}/>, label: 'Dashboard',    badge: null },
   { icon: <Users size={15}/>,           label: 'Students',     badge: null },
+  { icon: <ClipboardCheck size={15}/>,  label: 'Admissions',   badge: null },
   { icon: <ClipboardList size={15}/>,   label: 'Assignments',  badge: '3'  },
   { icon: <BookOpen size={15}/>,        label: 'Grades',       badge: null },
   { icon: <Calendar size={15}/>,        label: 'Schedule',     badge: null },
+  { icon: <Calendar size={15}/>,        label: 'Academic Calendar', badge: null },
   { icon: <MessageSquare size={15}/>,   label: 'Messages',     badge: '12' },
   { icon: <Bus size={15}/>,             label: 'Transport',    badge: null },
   { icon: <TrendingUp size={15}/>,      label: 'Reports',      badge: null },
@@ -68,7 +77,7 @@ export default function TeacherPortal() {
             <div style={{ fontSize: 11, color: '#4a7a5a', marginTop: 2 }}>Mr. Samuel Amponsah</div>
           </div>
           <span className="sidebar-section-label">Navigation</span>
-          {NAV.slice(0, 6).map((item) => (
+          {NAV.slice(0, 8).map((item) => (
             <button key={item.label} className={`sidebar-item${activeNav === item.label ? ' active' : ''}`}
               style={activeNav === item.label ? { background: TEACHER_GREEN } : {}}
               onClick={() => setActiveNav(item.label)}>
@@ -77,6 +86,12 @@ export default function TeacherPortal() {
               {item.badge && <span className="sidebar-item__badge" style={{ background: TEACHER_GREEN, color: '#fff' }}>{item.badge}</span>}
             </button>
           ))}
+          <button className={`sidebar-item${activeNav === 'Contacts' ? ' active' : ''}`}
+            style={activeNav === 'Contacts' ? { background: TEACHER_GREEN } : {}}
+            onClick={() => setActiveNav('Contacts')}>
+            <span className="sidebar-item__icon"><Users size={15}/></span>
+            Contacts
+          </button>
           <span className="sidebar-section-label">Transport</span>
           <button className={`sidebar-item${activeNav === 'Transport' ? ' active' : ''}`}
             style={activeNav === 'Transport' ? { background: TEACHER_GREEN } : {}}
@@ -85,7 +100,7 @@ export default function TeacherPortal() {
             Transport
           </button>
           <span className="sidebar-section-label">Analytics</span>
-          {NAV.slice(7, 9).map((item) => (
+          {NAV.slice(9, 11).map((item) => (
             <button key={item.label} className={`sidebar-item${activeNav === item.label ? ' active' : ''}`}
               style={activeNav === item.label ? { background: TEACHER_GREEN } : {}}
               onClick={() => setActiveNav(item.label)}>
@@ -93,8 +108,15 @@ export default function TeacherPortal() {
               {item.label}
             </button>
           ))}
+          <span className="sidebar-section-label">Campus control</span>
+          <button className={`sidebar-item${activeNav === 'Operations' ? ' active' : ''}`}
+            style={activeNav === 'Operations' ? { background: TEACHER_GREEN } : {}}
+            onClick={() => setActiveNav('Operations')}>
+            <span className="sidebar-item__icon"><ClipboardCheck size={15}/></span>
+            Operations & Governance
+          </button>
           <span className="sidebar-section-label">System</span>
-          <button className="sidebar-item"><span className="sidebar-item__icon"><Settings size={15}/></span>Settings</button>
+          <button className={`sidebar-item${activeNav === 'Settings' ? ' active' : ''}`} style={activeNav === 'Settings' ? { background: TEACHER_GREEN } : {}} onClick={() => setActiveNav('Settings')}><span className="sidebar-item__icon"><Settings size={15}/></span>Settings</button>
         </aside>
 
         {/* Main content */}
@@ -255,8 +277,20 @@ export default function TeacherPortal() {
             </>
           )}
 
+          {activeNav === 'Schedule' && <LecturerSchedule />}
+          {activeNav === 'Grades' && <LecturerGrades />}
+          {activeNav === 'Messages' && <TeacherMessages />}
+          {activeNav === 'Students' && <TeacherMessages initialAudience="Students" />}
+          {activeNav === 'Admissions' && <AdmissionsRegister />}
+          {activeNav === 'Assignments' && <StaffAssignments />}
+          {activeNav === 'Academic Calendar' && <StaffCalendar />}
+          {activeNav === 'Contacts' && <ContactDirectory />}
+          {activeNav === 'Reports' && <TeacherReports />}
+          {activeNav === 'Operations' && <OperationsCentre />}
+          {activeNav === 'Settings' && <PortalSettings portal="teacher" />}
+
           {/* ── OTHER VIEWS placeholder ── */}
-          {!['Dashboard', 'Transport'].includes(activeNav) && (
+          {!['Dashboard', 'Transport', 'Students', 'Admissions', 'Assignments', 'Schedule', 'Academic Calendar', 'Grades', 'Messages', 'Contacts', 'Reports', 'Operations', 'Settings'].includes(activeNav) && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 12 }}>
               <div style={{ fontSize: 48 }}>🚧</div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--gray-700)' }}>{activeNav} — Coming Soon</h2>

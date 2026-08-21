@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Phone } from 'lucide-react';
+import { MapPin, Phone, LocateFixed } from 'lucide-react';
 import './BusTracker.css';
 
 const ROUTES = [
@@ -31,83 +31,39 @@ const MANIFEST = {
   ],
 };
 
-/* SVG fake map paths per route */
-const MAP_PATHS = {
-  A: 'M 60 400  Q 150 300 250 250  Q 350 200 420 150  Q 480 120 550 80',
-  B: 'M 60 400  Q 100 380 180 350  Q 280 300 350 260  Q 430 220 520 180',
-  C: 'M 60 400  Q 80 380 100 360',
-  D: 'M 60 400  Q 160 360 260 300  Q 360 250 450 200  Q 520 160 580 130',
-};
-
-const BUS_POS = { A: [65,12], B: [50,28], C: [10,85], D: [38,40] };
+const ROUTE_COORDINATES = { A: [6.409, -1.952], B: [6.402, -1.94], C: [6.394, -1.972], D: [6.419, -1.93] };
 
 export default function BusTracker({ mode = 'teacher' }) {
   const [selectedRoute, setSelectedRoute] = useState('A');
   const [busPos, setBusPos] = useState(0);
+  const [zoom, setZoom] = useState(14);
 
   const route = ROUTES.find(r => r.id === selectedRoute);
   const students = MANIFEST[selectedRoute] || [];
 
-  // Animate bus position along progress
+  // Simulated GPS feed: progresses continuously while the route is active.
   useEffect(() => {
-    const t = setTimeout(() => setBusPos(route.progress), 300);
-    return () => clearTimeout(t);
+    setBusPos(route.progress);
+    if (route.status !== 'On Route') return undefined;
+    const timer = window.setInterval(() => setBusPos((position) => position >= 96 ? route.progress : position + 1), 5000);
+    return () => window.clearInterval(timer);
   }, [selectedRoute, route.progress]);
 
   const trackPct = `${busPos}%`;
   const trackLeft = `calc(${busPos}% - 7px)`;
+  const [baseLat, baseLng] = ROUTE_COORDINATES[selectedRoute];
+  const busLat = (baseLat + (busPos - route.progress) * 0.00008).toFixed(5);
+  const busLng = (baseLng + (busPos - route.progress) * 0.0001).toFixed(5);
+  // All route coordinates are in Ghana. Google Maps keeps the visual map familiar
+  // while the simulated GPS position refreshes every five seconds in this demo.
+  const mapUrl = `https://www.google.com/maps?q=${busLat},${busLng}&z=${zoom}&output=embed`;
 
   return (
     <div className="bus-tracker">
       {/* Left: Map + popup */}
       <div className="bus-map-panel">
-        {/* SVG road map */}
-        <svg className="bus-map-svg" viewBox="0 0 700 450" preserveAspectRatio="xMidYMid slice">
-          {/* Road background paths */}
-          {ROUTES.map(r => (
-            <path
-              key={r.id}
-              d={MAP_PATHS[r.id]}
-              fill="none"
-              stroke={r.id === selectedRoute ? r.color : 'rgba(0,0,0,0.12)'}
-              strokeWidth={r.id === selectedRoute ? 5 : 3}
-              strokeLinecap="round"
-              strokeDasharray={r.id === selectedRoute ? 'none' : '8 6'}
-              style={{ filter: r.id === selectedRoute ? `drop-shadow(0 0 4px ${r.color}66)` : 'none' }}
-            />
-          ))}
-
-          {/* Stop circles */}
-          {route.stops.map((stop, i) => {
-            const t = i / (route.stops.length - 1);
-            // Approx positions along path A
-            const positions = [
-              [60, 400], [180, 310], [330, 220], [480, 140], [550, 85]
-            ];
-            const p = positions[Math.min(i, positions.length - 1)];
-            const isPast = (i / route.stops.length) * 100 < busPos;
-            return (
-              <g key={stop}>
-                <circle cx={p[0]} cy={p[1]} r="8" fill={isPast ? route.color : '#fff'} stroke={route.color} strokeWidth="2.5" />
-                <text x={p[0]} y={p[1] - 14} textAnchor="middle" fontSize="10" fill="#374151" fontWeight="600">{stop}</text>
-              </g>
-            );
-          })}
-
-          {/* Animated bus icon */}
-          <g className="bus-marker" style={{ transform: `translate(${BUS_POS[selectedRoute][0]}px, ${BUS_POS[selectedRoute][1]}px)` }}>
-            <circle cx="0" cy="0" r="16" fill={route.color} opacity=".2" />
-            <circle cx="0" cy="0" r="11" fill={route.color} />
-            <text x="0" y="4" textAnchor="middle" fontSize="12" fill="#fff">🚌</text>
-          </g>
-
-          {/* School marker */}
-          <g>
-            <circle cx="60" cy="400" r="12" fill="#204d2d" />
-            <text x="60" y="404" textAnchor="middle" fontSize="11" fill="#fff">🏫</text>
-            <text x="60" y="420" textAnchor="middle" fontSize="9" fill="#374151" fontWeight="700">REMALJ Carewell</text>
-          </g>
-        </svg>
+        <iframe className="bus-map-live" src={mapUrl} title={`Live map for ${route.name}`} loading="lazy" />
+        <div className="bus-map-live-status"><LocateFixed size={13} /> Ghana live GPS · {busLat}, {busLng} · zoom {zoom} · refreshed 5s ago</div>
 
         {/* Bus info popup */}
         <div className="bus-popup">
@@ -136,7 +92,7 @@ export default function BusTracker({ mode = 'teacher' }) {
               <div className="bus-popup__eta">{route.eta}</div>
             </div>
           </div>
-          <button className="bus-popup__live-btn">
+          <button className="bus-popup__live-btn" onClick={() => setBusPos((position) => Math.min(100, position + 3))}>
             <span className="bus-popup__live-dot" />
             Live Dashcam
           </button>
@@ -157,9 +113,9 @@ export default function BusTracker({ mode = 'teacher' }) {
 
         {/* Map controls */}
         <div className="map-controls">
-          <button className="map-ctrl-btn">+</button>
-          <button className="map-ctrl-btn">−</button>
-          <button className="map-ctrl-btn" title="My location">◎</button>
+          <button className="map-ctrl-btn" onClick={() => setZoom((level) => Math.min(18, level + 1))} aria-label="Zoom in">+</button>
+          <button className="map-ctrl-btn" onClick={() => setZoom((level) => Math.max(10, level - 1))} aria-label="Zoom out">−</button>
+          <button className="map-ctrl-btn" title="Center on live bus" onClick={() => setBusPos(route.progress)} aria-label="Center on live bus"><MapPin size={15}/></button>
         </div>
       </div>
 

@@ -1,0 +1,29 @@
+.academic-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(280px, .8fr); gap: 18px; }
+.academic-form .panel__title { display: flex; align-items: center; gap: 7px; }
+.academic-form label { display: grid; gap: 6px; margin-bottom: 13px; color: var(--gray-600); font-size: 12px; font-weight: 700; }
+.academic-form input, .academic-form select { width: 100%; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 10px; color: var(--gray-800); font: inherit; background: var(--white); }
+.academic-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: var(--radius-sm); padding: 9px 12px; color: #fff; background: #204d2d; cursor: pointer; font: inherit; font-size: 12px; font-weight: 800; }
+.academic-button:hover { background: #2e7a44; }
+.academic-button--muted { background: #e8f3eb; color: #166534; cursor: default; }
+.schedule-list { display: grid; }
+.schedule-row, .student-class { display: grid; gap: 3px; padding: 14px 18px; border-bottom: 1px solid var(--gray-100); }
+.schedule-row:last-child { border-bottom: 0; }
+.schedule-row strong, .student-class strong { color: #204d2d; font-size: 12px; }
+.schedule-row span, .student-class span { color: var(--gray-900); font-size: 14px; font-weight: 700; }
+.schedule-row small, .student-class small, .course-row small { color: var(--gray-400); font-size: 11px; }
+.academic-success { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; color: #166534; font-size: 12px; font-weight: 700; }
+.timetable-grid { display: grid; grid-template-columns: repeat(5, minmax(180px, 1fr)); gap: 14px; overflow-x: auto; padding-bottom: 4px; }
+.timetable-day { min-width: 180px; }
+.student-class { padding: 12px 0; }
+.student-class:first-child { padding-top: 0; }
+.student-class:last-child { border-bottom: 0; padding-bottom: 0; }
+.empty-state { font-size: 12px; color: var(--gray-400); }
+.course-list { display: grid; }
+.course-row { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--gray-100); }
+.course-row span { display: grid; gap: 3px; }
+.course-notice { padding: 0 20px 18px; }
+@media (max-width: 900px) { .academic-layout { grid-template-columns: 1fr; } }
+@media (max-width: 700px) {
+  .academic-view .panel { overflow-x: auto; }
+  .academic-view .data-table { min-width: 620px; }
+}

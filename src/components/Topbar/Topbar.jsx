@@ -21,7 +21,7 @@ const PORTAL_USER = {
   student: { name: 'Kwame Edwards',   role: 'Student' },
 };
 
-export default function Topbar({ activePortal, onPortalChange, isAuthed, onSignOut }) {
+export default function Topbar({ activePortal, onPortalChange, isAuthed, onSignOut, onNavChange }) {
   const user = PORTAL_USER[activePortal];
   const showSignOut = isAuthed && (activePortal === 'teacher' || activePortal === 'parent');
 
@@ -106,6 +106,7 @@ export default function Topbar({ activePortal, onPortalChange, isAuthed, onSignO
               <button
                 key={tab.id}
                 role="tab"
+                aria-label={tab.label}
                 aria-selected={activePortal === tab.id}
                 data-portal={tab.id}
                 className={`topbar__portal-tab${activePortal === tab.id ? ' active' : ''}`}
@@ -121,7 +122,7 @@ export default function Topbar({ activePortal, onPortalChange, isAuthed, onSignO
           {/* Main nav links */}
           <nav className="topbar__nav" aria-label="Main navigation">
             {NAV_LINKS.map((link) => (
-              <button key={link} className="topbar__nav-link">{link}</button>
+              <button key={link} className="topbar__nav-link" onClick={() => onNavChange?.(link)}>{link}</button>
             ))}
             {/* Sign-out button in nav bar (prominent) */}
             {showSignOut && (

@@ -68,6 +68,29 @@
   --z-modal:   300;
 }
 
+/* The preference is set by the shared portal settings screen. */
+:root[data-theme='dark'] {
+  --white: #17212b;
+  --gray-50: #101820;
+  --gray-100: #17212b;
+  --gray-200: #263442;
+  --gray-300: #3a4a59;
+  --gray-400: #9aa9b8;
+  --gray-500: #b2bdc8;
+  --gray-600: #c6d0d9;
+  --gray-700: #d7e0e7;
+  --gray-800: #e8eef3;
+  --gray-900: #f8fbfd;
+  --ics-green-50: #183425;
+  --teacher-light: #183425;
+  --parent-light: #1b355a;
+  --student-light: #402315;
+  --shadow-xs: 0 1px 2px rgba(0,0,0,.28);
+  --shadow-sm: 0 1px 4px rgba(0,0,0,.35);
+  --shadow-md: 0 4px 16px rgba(0,0,0,.42);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,.5);
+}
+
 /* ── Reset ──────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 16px; scroll-behavior: smooth; }

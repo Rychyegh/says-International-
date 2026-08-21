@@ -4,6 +4,8 @@ import LoginPage     from './components/Login/LoginPage';
 import TeacherPortal from './portals/TeacherPortal';
 import ParentPortal  from './portals/ParentPortal';
 import StudentPortal from './portals/StudentPortal';
+import { PortalDataProvider } from './data/PortalStore';
+import PublicPages from './components/PublicPages/PublicPages';
 import './App.css';
 
 /**
@@ -15,12 +17,14 @@ const REQUIRES_AUTH = ['teacher', 'parent'];
 
 export default function App() {
   const [activePortal, setActivePortal] = useState('teacher');
+  const [activePublicPage, setActivePublicPage] = useState(null);
 
   // Track which portals are authenticated this session
   const [authed, setAuthed] = useState({ teacher: false, parent: false, student: true });
 
   const handlePortalChange = (portal) => {
     setActivePortal(portal);
+    setActivePublicPage(null);
   };
 
   const handleLoginSuccess = () => {
@@ -41,15 +45,17 @@ export default function App() {
   };
 
   return (
+    <PortalDataProvider>
     <div className="app" id="app-root">
       <Topbar
         activePortal={activePortal}
         onPortalChange={handlePortalChange}
         isAuthed={isAuthed}
         onSignOut={handleSignOut}
+        onNavChange={setActivePublicPage}
       />
 
-      <div
+      {activePublicPage ? <PublicPages page={activePublicPage} /> : <div
         key={`${activePortal}-${isAuthed}`}
         className="portal-wrapper animate-portal"
         role="tabpanel"
@@ -59,7 +65,8 @@ export default function App() {
           ? <LoginPage portal={activePortal} onLoginSuccess={handleLoginSuccess} />
           : portals[activePortal]
         }
-      </div>
+      </div>}
     </div>
+    </PortalDataProvider>
   );
 }

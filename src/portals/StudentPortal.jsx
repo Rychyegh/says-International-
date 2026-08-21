@@ -5,6 +5,10 @@ import {
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import '../components/BusTracker/BusTracker.css';
+import BusTracker from '../components/BusTracker/BusTracker';
+import { CourseRegistration, StudentResults, StudentTimetable } from '../components/Academic/AcademicViews';
+import { PortalSettings, StudentMessagesAssignments } from '../components/SchoolWorkflows/SchoolWorkflows';
+import { LearnerOnboarding } from '../components/Onboarding/Onboarding';
 
 const STUDENT_BG    = '#5e2d0e';
 const STUDENT_LIGHT = '#fff1e8';
@@ -103,7 +107,7 @@ export default function StudentPortal() {
             My Bus
           </button>
           <span className="sidebar-section-label">More</span>
-          {NAV.slice(7, 9).map((item) => (
+          {NAV.slice(7, 10).map((item) => (
             <button key={item.label}
               className={`sidebar-item${activeNav === item.label ? ' active' : ''}`}
               style={activeNav === item.label ? { background: STUDENT_BG } : {}}
@@ -114,11 +118,10 @@ export default function StudentPortal() {
             </button>
           ))}
           <span className="sidebar-section-label">System</span>
-          <button className="sidebar-item"><span className="sidebar-item__icon"><Settings size={15}/></span>Settings</button>
 
           {/* New Admission CTA */}
           <div style={{ marginTop: 'auto', paddingTop: 20 }}>
-            <button style={{ width: '100%', padding: '11px', background: STUDENT_BG, color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 800, fontSize: 12, cursor: 'pointer', letterSpacing: '.04em' }}>
+            <button onClick={() => setActiveNav('Onboarding')} style={{ width: '100%', padding: '11px', background: STUDENT_BG, color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 800, fontSize: 12, cursor: 'pointer', letterSpacing: '.04em' }}>
               + New Admission
             </button>
           </div>
@@ -328,8 +331,15 @@ export default function StudentPortal() {
             </>
           )}
 
+          {activeNav === 'Timetable' && <StudentTimetable />}
+          {activeNav === 'My Grades' && <StudentResults />}
+          {activeNav === 'Subjects' && <CourseRegistration />}
+          {(activeNav === 'Assignments' || activeNav === 'Messages') && <StudentMessagesAssignments />}
+          {activeNav === 'Settings' && <PortalSettings portal="student" />}
+          {activeNav === 'Onboarding' && <LearnerOnboarding />}
+
           {/* Other nav placeholders */}
-          {!['My Dashboard', 'My Bus'].includes(activeNav) && (
+          {!['My Dashboard', 'My Bus', 'Timetable', 'My Grades', 'Subjects', 'Assignments', 'Messages', 'Settings', 'Onboarding'].includes(activeNav) && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 12 }}>
               <div style={{ fontSize: 48 }}>🚧</div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--gray-700)' }}>{activeNav} — Coming Soon</h2>

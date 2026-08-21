@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
 import {
-  LayoutDashboard, User, BookOpen, Calendar, CreditCard,
+  LayoutDashboard, User, Calendar, CreditCard,
   MessageSquare, FileText, Settings, TrendingUp, Bus, Bell
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import '../components/BusTracker/BusTracker.css';
 import BusTracker from '../components/BusTracker/BusTracker';
+import ParentCommunication from '../components/ParentCommunication/ParentCommunication';
+import ContactDirectory from '../components/ContactDirectory/ContactDirectory';
+import { ParentReports } from '../components/ReportWorkflow/ReportWorkflow';
+import { ParentFees, ParentProgress, PortalSettings } from '../components/SchoolWorkflows/SchoolWorkflows';
+import { usePortalData } from '../data/PortalStore';
 
 const PARENT_BG    = '#1a3668';
 const PARENT_LIGHT = '#ddeeff';
@@ -14,12 +19,13 @@ const PARENT_ACCENT= '#3a72c8';
 const NAV = [
   { icon: <LayoutDashboard size={15}/>, label: 'Dashboard',   badge: null },
   { icon: <User size={15}/>,            label: 'My Children', badge: '2'  },
-  { icon: <BookOpen size={15}/>,        label: 'Academics',   badge: null },
   { icon: <TrendingUp size={15}/>,      label: 'Progress',    badge: null },
   { icon: <Calendar size={15}/>,        label: 'Calendar',    badge: null },
   { icon: <CreditCard size={15}/>,      label: 'Fees',        badge: null },
   { icon: <Bus size={15}/>,             label: 'Transport',   badge: null },
+  { icon: <User size={15}/>,            label: 'Teachers',    badge: null },
   { icon: <MessageSquare size={15}/>,   label: 'Messages',    badge: '4'  },
+  { icon: <User size={15}/>,            label: 'Contacts',    badge: null },
   { icon: <FileText size={15}/>,        label: 'Reports',     badge: null },
   { icon: <Settings size={15}/>,        label: 'Settings',    badge: null },
 ];
@@ -59,6 +65,7 @@ const TEACHER_UPDATES = [
 export default function ParentPortal() {
   const [activeNav, setActiveNav] = useState('Dashboard');
   const [activeChild, setActiveChild] = useState(0);
+  const { results: staffResults } = usePortalData();
 
   const child = CHILDREN[activeChild];
 
@@ -72,7 +79,7 @@ export default function ParentPortal() {
             <div style={{ fontSize: 11, color: '#3a5a8a', marginTop: 2 }}>Mrs. Angela Edwards</div>
           </div>
           <span className="sidebar-section-label">Navigation</span>
-          {NAV.slice(0, 6).map((item) => (
+          {NAV.slice(0, 5).map((item) => (
             <button key={item.label}
               className={`sidebar-item${activeNav === item.label ? ' active' : ''}`}
               style={activeNav === item.label ? { background: PARENT_BG } : {}}
@@ -90,7 +97,7 @@ export default function ParentPortal() {
             Track Bus
           </button>
           <span className="sidebar-section-label">Communication</span>
-          {NAV.slice(7, 9).map((item) => (
+          {NAV.slice(6, 10).map((item) => (
             <button key={item.label}
               className={`sidebar-item${activeNav === item.label ? ' active' : ''}`}
               style={activeNav === item.label ? { background: PARENT_BG } : {}}
@@ -101,7 +108,7 @@ export default function ParentPortal() {
             </button>
           ))}
           <span className="sidebar-section-label">System</span>
-          <button className="sidebar-item"><span className="sidebar-item__icon"><Settings size={15}/></span>Settings</button>
+          <button className={`sidebar-item${activeNav === 'Settings' ? ' active' : ''}`} style={activeNav === 'Settings' ? { background: PARENT_BG } : {}} onClick={() => setActiveNav('Settings')}><span className="sidebar-item__icon"><Settings size={15}/></span>Settings</button>
         </aside>
 
         {/* Main */}
@@ -217,21 +224,21 @@ export default function ParentPortal() {
                     </div>
                   </div>
 
-                  {/* Academic performance */}
+                  {/* Progress is read-only here and is published by staff. */}
                   <div className="panel">
                     <div className="panel__header">
-                      <h2 className="panel__title">Academic Performance</h2>
-                      <button style={{ fontSize: 12, color: PARENT_ACCENT, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>View Transcript →</button>
+                      <h2 className="panel__title">Staff-published progress</h2>
+                      <button onClick={() => setActiveNav('Progress')} style={{ fontSize: 12, color: PARENT_ACCENT, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>View full progress →</button>
                     </div>
                     <div className="panel__body">
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                        {RESULTS.slice(0, 2).map((r) => {
-                          const [score, grade] = activeChild === 0 ? r.kweku : r.adwoa;
+                        {staffResults.slice(0, 2).map((r) => {
+                          const { score, grade } = r;
                           return (
                             <div key={r.subject} style={{ padding: '14px', background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-200)' }}>
                               <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--gray-400)', marginBottom: 4 }}>{r.subject}</div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--gray-900)' }}>{r.subject === 'Mathematics' ? 'Advanced Calculus' : 'Molecular Biology'}</div>
+                                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--gray-900)' }}>Published by {r.lecturer}</div>
                                 <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 22, color: score >= 80 ? '#166534' : '#78350f' }}>{grade}</div>
                               </div>
                               <div className="progress-bar" style={{ marginTop: 8 }}>
@@ -243,8 +250,8 @@ export default function ParentPortal() {
                         })}
                       </div>
                       <div style={{ display: 'flex', gap: 20 }}>
-                        {RESULTS.slice(2).map((r) => {
-                          const [score, grade] = activeChild === 0 ? r.kweku : r.adwoa;
+                        {staffResults.slice(2).map((r) => {
+                          const { score, grade } = r;
                           return (
                             <div key={r.subject} style={{ textAlign: 'center' }}>
                               <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--gray-400)', marginBottom: 4 }}>{r.subject}</div>
@@ -333,8 +340,16 @@ export default function ParentPortal() {
             </>
           )}
 
+          {(activeNav === 'Teachers' || activeNav === 'Messages') && <ParentCommunication child={child} />}
+          {activeNav === 'Progress' && <ParentProgress childName={child.name} />}
+          {activeNav === 'Calendar' && <ParentProgress childName={child.name} />}
+          {activeNav === 'Fees' && <ParentFees childName={child.name} />}
+          {activeNav === 'Contacts' && <ContactDirectory parentMode />}
+          {activeNav === 'Reports' && <ParentReports child={child} />}
+          {activeNav === 'Settings' && <PortalSettings portal="parent" />}
+
           {/* Other nav placeholders */}
-          {!['Dashboard', 'Transport'].includes(activeNav) && (
+          {!['Dashboard', 'Transport', 'Teachers', 'Messages', 'Progress', 'Calendar', 'Fees', 'Contacts', 'Reports', 'Settings'].includes(activeNav) && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 12 }}>
               <div style={{ fontSize: 48 }}>🚧</div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--gray-700)' }}>{activeNav} — Coming Soon</h2>

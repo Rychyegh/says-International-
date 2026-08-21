@@ -1,0 +1,23 @@
+.teacher-grid { display: grid; grid-template-columns: minmax(260px, .85fr) minmax(0, 1.15fr); gap: 18px; }
+.teacher-list { display: grid; gap: 2px; padding: 8px; }
+.teacher-card { display: flex; align-items: center; gap: 11px; width: 100%; padding: 12px; border: 1px solid transparent; border-radius: var(--radius-md); text-align: left; background: transparent; cursor: pointer; }
+.teacher-card:hover, .teacher-card--selected { border-color: #b0ccee; background: #eef5ff; }
+.teacher-card > span:last-child, .message-recipient > span:last-child { display: grid; gap: 3px; }
+.teacher-card strong, .message-recipient strong { color: var(--gray-900); font-size: 13px; }
+.teacher-card small, .message-recipient small { color: var(--gray-400); font-size: 11px; }
+.message-panel .panel__title { display: flex; align-items: center; gap: 7px; }
+.message-form { display: grid; gap: 14px; }
+.message-recipient { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: var(--radius-md); background: var(--gray-50); }
+.message-form label { display: grid; gap: 6px; color: var(--gray-600); font-size: 12px; font-weight: 700; }
+.message-form select, .message-form textarea { width: 100%; padding: 10px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); background: var(--white); color: var(--gray-800); font: inherit; resize: vertical; }
+.parent-send { display: inline-flex; width: max-content; align-items: center; gap: 7px; border: 0; border-radius: var(--radius-sm); padding: 10px 13px; background: #1a3668; color: #fff; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.parent-send:hover { background: #254d8f; }
+.parent-notice { display: flex; align-items: center; gap: 6px; margin: 0; color: #166534; font-size: 12px; font-weight: 700; }
+.sent-messages { margin-top: 18px; }
+.sent-message { padding: 14px 20px; border-bottom: 1px solid var(--gray-100); }
+.sent-message:last-child { border-bottom: 0; }
+.sent-message strong { color: var(--gray-800); font-size: 12px; }
+.sent-message p { margin: 6px 0; color: var(--gray-600); font-size: 13px; line-height: 1.5; }
+.sent-message small, .message-empty { color: var(--gray-400); font-size: 11px; }
+.message-empty { padding: 18px 20px; margin: 0; }
+@media (max-width: 850px) { .teacher-grid { grid-template-columns: 1fr; } }
