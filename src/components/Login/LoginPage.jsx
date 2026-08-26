@@ -21,27 +21,63 @@ const PORTAL_CONFIG = {
     demoEmail: 'staff@remaljcarewell.edu.gh',
     demoPass:  'staff2024',
   },
-  parent: {
-    label:    'Parent Portal',
-    badgeBg:  '#ddeeff',
-    badgeCol: '#1a3668',
-    accentBg: '#1a3668',
-    title:    'Parent Sign In',
-    subtitle: "Track your child's progress, fees, events and school bus in real time.",
-    icon:     '👨‍👩‍👦',
+  admin: {
+    label:    'Admin Portal',
+    badgeBg:  '#f3e8ff',
+    badgeCol: '#4a1d6e',
+    accentBg: '#4a1d6e',
+    title:    'Administrator Sign In',
+    subtitle: 'Manage student onboarding, admissions applications, and institutional operations.',
+    icon:     '⚡',
     features: [
-      { text: "Live bus tracking for your child",  dot: '#4a9fe0' },
-      { text: 'Real-time academic progress',       dot: '#34c57a' },
-      { text: 'Fee payments & receipts',           dot: '#e0a24a' },
-      { text: 'Teacher messages & notices',        dot: '#c87a34' },
+      { text: 'Onboard new students & create accounts', dot: '#7c3ac8' },
+      { text: 'Manage complete student roster & records', dot: '#34c57a' },
+      { text: 'Review admissions & applications', dot: '#e0a24a' },
+      { text: 'Class & staff assignments', dot: '#4a9fe0' },
     ],
-    demoEmail: 'parent@remaljcarewell.edu.gh',
-    demoPass:  'parent2024',
+    demoEmail: 'admin@remaljcarewell.edu.gh',
+    demoPass:  'admin2024',
+  },
+  accountant: {
+    label:    'Account Portal',
+    badgeBg:  '#e0f2fe',
+    badgeCol: '#0f3a4b',
+    accentBg: '#0f3a4b',
+    title:    'Accountant Sign In',
+    subtitle: 'Process student fee payments, monitor owing balances, and dispatch reminders.',
+    icon:     '💰',
+    features: [
+      { text: 'Record student fee payments (MoMo, Bank)', dot: '#0284c7' },
+      { text: 'Send payment reminder notices to parents', dot: '#e0a24a' },
+      { text: 'Monitor revenue billed & debt balances', dot: '#34c57a' },
+      { text: 'Student & assigned teacher ledger view', dot: '#7c3ac8' },
+    ],
+    demoEmail: 'accountant@remaljcarewell.edu.gh',
+    demoPass:  'accountant2024',
+  },
+  student: {
+    label:    'Student Portal',
+    badgeBg:  '#fff1e8',
+    badgeCol: '#5e2d0e',
+    accentBg: '#5e2d0e',
+    title:    'Student Sign In',
+    subtitle: 'Sign in with your official Student ID or scan your Student Card to view timetable, grades & assignments.',
+    icon:     '📚',
+    isStudent: true,
+    idLabel:  'Student ID',
+    features: [
+      { text: 'Personal academic timetable & schedule', dot: '#c8703a' },
+      { text: 'Published grades & coursework', dot: '#34c57a' },
+      { text: 'Assignment submissions & staff messaging', dot: '#4a9fe0' },
+      { text: 'e-Library digital resources', dot: '#e0a24a' },
+    ],
+    demoEmail: 'REMALJ-2026-001',
+    demoPass:  'student2024',
   },
 };
 
 export default function LoginPage({ portal, onLoginSuccess }) {
-  const cfg = PORTAL_CONFIG[portal];
+  const cfg = PORTAL_CONFIG[portal] || PORTAL_CONFIG.admin;
 
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
@@ -118,7 +154,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     setError('');
 
     if (loginMethod === 'password') {
-      if (!email.trim())    { setError('Please enter your email address.'); return; }
+      if (!email.trim())    { setError(`Please enter your ${cfg.idLabel || 'email address'}.`); return; }
       if (!password.trim()) { setError('Please enter your password.'); return; }
     } else if (!cardId.trim()) {
       setError('Please scan your school card or enter its ID.');
@@ -207,44 +243,54 @@ export default function LoginPage({ portal, onLoginSuccess }) {
               <h2 className="login-form__title">{cfg.title}</h2>
               <p className="login-form__subtitle">{cfg.subtitle}</p>
 
-              <div className="login-methods" role="tablist" aria-label="Sign-in method">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={loginMethod === 'password'}
-                  className={`login-method${loginMethod === 'password' ? ' login-method--active' : ''}`}
-                  onClick={() => chooseLoginMethod('password')}
-                >
-                  <Lock size={15} /> Email & password
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={loginMethod === 'card'}
-                  className={`login-method${loginMethod === 'card' ? ' login-method--active' : ''}`}
-                  onClick={() => chooseLoginMethod('card')}
-                >
-                  <CreditCard size={15} /> School card
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={loginMethod === 'qr'}
-                  className={`login-method${loginMethod === 'qr' ? ' login-method--active' : ''}`}
-                  onClick={() => chooseLoginMethod('qr')}
-                >
-                  <ScanLine size={15} /> QR code
-                </button>
-              </div>
+              {cfg.isStudent && (
+                <div className="login-methods" role="tablist" aria-label="Sign-in method">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={loginMethod === 'password'}
+                    className={`login-method${loginMethod === 'password' ? ' login-method--active' : ''}`}
+                    onClick={() => chooseLoginMethod('password')}
+                  >
+                    <Lock size={15} /> Student ID & password
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={loginMethod === 'card'}
+                    className={`login-method${loginMethod === 'card' ? ' login-method--active' : ''}`}
+                    onClick={() => chooseLoginMethod('card')}
+                  >
+                    <CreditCard size={15} /> Student card
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={loginMethod === 'qr'}
+                    className={`login-method${loginMethod === 'qr' ? ' login-method--active' : ''}`}
+                    onClick={() => chooseLoginMethod('qr')}
+                  >
+                    <ScanLine size={15} /> QR code
+                  </button>
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} noValidate>
                 {loginMethod === 'password' ? (
                   <>
                     <div className="form-group">
-                      <label className="form-label" htmlFor={`${portal}-email`}>Email Address</label>
+                      <label className="form-label" htmlFor={`${portal}-email`}>{cfg.idLabel || 'Email Address'}</label>
                       <div className="form-input-wrap">
-                        <Mail size={16} className="form-input-icon" />
-                        <input id={`${portal}-email`} type="email" className="form-input" placeholder={`e.g. ${cfg.demoEmail}`} value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+                        {cfg.isStudent ? <CreditCard size={16} className="form-input-icon" /> : <Mail size={16} className="form-input-icon" />}
+                        <input
+                          id={`${portal}-email`}
+                          type={cfg.isStudent ? 'text' : 'email'}
+                          className="form-input"
+                          placeholder={cfg.isStudent ? 'e.g. REMALJ-2026-001' : `e.g. ${cfg.demoEmail}`}
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          autoComplete={cfg.isStudent ? 'username' : 'email'}
+                        />
                       </div>
                     </div>
 

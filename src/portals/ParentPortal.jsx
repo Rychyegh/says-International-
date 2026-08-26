@@ -65,9 +65,19 @@ const TEACHER_UPDATES = [
 export default function ParentPortal() {
   const [activeNav, setActiveNav] = useState('Dashboard');
   const [activeChild, setActiveChild] = useState(0);
-  const { results: staffResults } = usePortalData();
+  const { results: staffResults, studentFees = [] } = usePortalData();
 
   const child = CHILDREN[activeChild];
+  const currentFee = (studentFees || []).find((f) => f.studentName?.toLowerCase() === child.name.toLowerCase()) || { balance: 0 };
+  const dynamicFeeValue = `GHS ${currentFee.balance.toLocaleString()}`;
+  const dynamicFeeTrend = currentFee.balance > 0 ? 'Balance due' : 'All paid';
+
+  const DYNAMIC_STATS = [
+    { label: 'Children Enrolled', value: '2', trend: 'Both active', up: true, icon: '👨‍👩‍👦', bg: '#dbeafe', ic: '#1e3a8a' },
+    { label: 'Attendance Rate', value: '96%', trend: '+1% this term', up: true, icon: '✅', bg: '#dcfce7', ic: '#166534' },
+    { label: 'Fees Outstanding', value: dynamicFeeValue, trend: dynamicFeeTrend, up: currentFee.balance === 0, icon: '💳', bg: currentFee.balance > 0 ? '#fee2e2' : '#dcfce7', ic: currentFee.balance > 0 ? '#b91c1c' : '#166534' },
+    { label: 'Upcoming Events', value: '3', trend: 'Next: Sports Day', up: null, icon: '📅', bg: '#fef9c3', ic: '#78350f' },
+  ];
 
   return (
     <div className="portal">
@@ -166,7 +176,7 @@ export default function ParentPortal() {
 
               {/* Stats */}
               <div className="stats-grid">
-                {STATS.map((s, i) => (
+                {DYNAMIC_STATS.map((s, i) => (
                   <div className="stat-card" key={s.label} style={{ animationDelay: `${i * 70}ms` }}>
                     <div className="stat-card__icon" style={{ background: s.bg, color: s.ic, fontSize: 20 }}>{s.icon}</div>
                     <div><div className="stat-card__value">{s.value}</div><div className="stat-card__label">{s.label}</div></div>

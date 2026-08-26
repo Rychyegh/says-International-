@@ -8,7 +8,6 @@ import '../components/BusTracker/BusTracker.css';
 import BusTracker from '../components/BusTracker/BusTracker';
 import { CourseRegistration, StudentResults, StudentTimetable } from '../components/Academic/AcademicViews';
 import { PortalSettings, StudentMessagesAssignments } from '../components/SchoolWorkflows/SchoolWorkflows';
-import { LearnerOnboarding } from '../components/Onboarding/Onboarding';
 
 const STUDENT_BG    = '#5e2d0e';
 const STUDENT_LIGHT = '#fff1e8';
@@ -336,10 +335,9 @@ export default function StudentPortal() {
           {activeNav === 'Subjects' && <CourseRegistration />}
           {(activeNav === 'Assignments' || activeNav === 'Messages') && <StudentMessagesAssignments />}
           {activeNav === 'Settings' && <PortalSettings portal="student" />}
-          {activeNav === 'Onboarding' && <LearnerOnboarding />}
 
           {/* Other nav placeholders */}
-          {!['My Dashboard', 'My Bus', 'Timetable', 'My Grades', 'Subjects', 'Assignments', 'Messages', 'Settings', 'Onboarding'].includes(activeNav) && (
+          {!['My Dashboard', 'My Bus', 'Timetable', 'My Grades', 'Subjects', 'Assignments', 'Messages', 'Settings'].includes(activeNav) && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 12 }}>
               <div style={{ fontSize: 48 }}>🚧</div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--gray-700)' }}>{activeNav} — Coming Soon</h2>

@@ -1,143 +1,93 @@
 import React from 'react';
-import { GraduationCap, Users, BookOpen, LogOut, Phone } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { GraduationCap, Users, BookOpen, LogOut, ShieldCheck, CreditCard } from 'lucide-react';
 import './Topbar.css';
 
-const PORTAL_TABS = [
-  { id: 'teacher', label: 'Staff Portal',   icon: <GraduationCap size={14} /> },
-  { id: 'parent',  label: 'Parent Portal',  icon: <Users size={14} />          },
-  { id: 'student', label: 'Student Portal', icon: <BookOpen size={14} />       },
-];
-
-const NAV_LINKS = ['About Us', 'Academics', 'Admissions', 'Our Campuses', 'Community', 'News & Events'];
-
-const PRE_LINKS = [
-  { label: 'Email Login', icon: '✉' },
-  { label: 'Careers',     icon: '💼' },
-];
+const PORTAL_INFO = {
+  teacher: { label: 'Staff Portal', icon: <GraduationCap size={15} />, color: '#1b4d3e' },
+  parent: { label: 'Parent Portal', icon: <Users size={15} />, color: '#1a3668' },
+  student: { label: 'Student Portal', icon: <BookOpen size={15} />, color: '#5e2d0e' },
+  admin: { label: 'Admin Portal', icon: <ShieldCheck size={15} />, color: '#4a1d6e' },
+  accountant: { label: 'Account Portal', icon: <CreditCard size={15} />, color: '#0f3a4b' },
+};
 
 const PORTAL_USER = {
   teacher: { name: 'Mr. S. Amponsah', role: 'Staff' },
-  parent:  { name: 'Mrs. A. Edwards', role: 'Parent' },
-  student: { name: 'Kwame Edwards',   role: 'Student' },
+  parent: { name: 'Mrs. A. Edwards', role: 'Parent' },
+  student: { name: 'Kwame Edwards', role: 'Student' },
+  admin: { name: 'Mr. John Admin', role: 'Administrator' },
+  accountant: { name: 'Mrs. Grace Accountant', role: 'Finance Head' },
 };
 
-export default function Topbar({ activePortal, onPortalChange, isAuthed, onSignOut, onNavChange }) {
-  const user = PORTAL_USER[activePortal];
-  const showSignOut = isAuthed && (activePortal === 'teacher' || activePortal === 'parent');
+export default function Topbar({ activePortal, isAuthed, onSignOut }) {
+  const currentInfo = PORTAL_INFO[activePortal] || PORTAL_INFO.admin;
+  const user = PORTAL_USER[activePortal] || PORTAL_USER.admin;
 
   return (
-    <>
-      {/* Pre-header */}
-      <div className="pre-header">
-        {PRE_LINKS.map((l) => (
-          <button key={l.label} className="pre-header__link">
-            <span>{l.icon}</span> {l.label}
-          </button>
-        ))}
-        <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,.2)' }} />
-        <button className="pre-header__link highlight">
-          <Phone size={11} /> Contact Us
-        </button>
+    <header className="topbar" role="banner" style={{ borderBottom: '1px solid var(--gray-200)', background: '#fff' }}>
+      <div className="topbar__inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px' }}>
+        {/* School logo */}
+        <Link to={`/${activePortal}`} className="topbar__logo" title="REMALJ Carewell Inspirational School" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <img
+            src="/remalj-carewell-logo.jpg"
+            alt="REMALJ Carewell Inspirational School logo"
+            style={{ height: 46, width: 'auto', objectFit: 'contain', display: 'block' }}
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.style.display = 'none';
+            }}
+          />
+          <div className="topbar__school-name">
+            <strong style={{ fontSize: 16, fontFamily: 'var(--font-display)', color: 'var(--gray-900)' }}>REMALJ Carewell</strong>
+            <span style={{ fontSize: 11, color: 'var(--gray-500)', display: 'block' }}>Inspirational School · Bogoso</span>
+          </div>
+        </Link>
 
-        {/* Authed user chip in pre-header */}
-        {showSignOut && (
-          <>
-            <div style={{ flex: 1 }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: 'rgba(255,255,255,.8)' }}>
-                <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 11 }}>
-                  {user.name.charAt(0)}
-                </div>
-                <span>{user.name}</span>
-                <span style={{ color: 'rgba(255,255,255,.45)' }}>·</span>
-                <span style={{ color: 'rgba(255,255,255,.5)' }}>{user.role}</span>
+        {/* Current Portal Badge */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px',
+          borderRadius: 99, background: currentInfo.color, color: '#fff',
+          fontWeight: 800, fontSize: 13, boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+        }}>
+          <span>{currentInfo.icon}</span>
+          <span>{currentInfo.label}</span>
+        </div>
+
+        {/* User profile & Sign out */}
+        {isAuthed ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--gray-700)' }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%', background: currentInfo.color,
+                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 800, fontSize: 12
+              }}>
+                {user.name.charAt(0)}
               </div>
-              <button
-                onClick={onSignOut}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '3px 10px', borderRadius: 99,
-                  background: 'rgba(255,255,255,.12)', border: '1px solid rgba(255,255,255,.2)',
-                  color: 'rgba(255,255,255,.85)', fontSize: 11, fontWeight: 700,
-                  cursor: 'pointer', transition: 'all 150ms',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,80,80,.35)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,.12)'; }}
-              >
-                <LogOut size={11} /> Sign Out
-              </button>
+              <div>
+                <div style={{ fontWeight: 700 }}>{user.name}</div>
+                <div style={{ fontSize: 10, color: 'var(--gray-500)' }}>{user.role}</div>
+              </div>
             </div>
-          </>
+            <button
+              onClick={onSignOut}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', borderRadius: 8,
+                background: '#fee2e2', border: '1px solid #fca5a5',
+                color: '#dc2626', fontSize: 12, fontWeight: 700,
+                cursor: 'pointer', transition: 'all 150ms',
+              }}
+            >
+              <LogOut size={13} /> Sign Out
+            </button>
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: 'var(--gray-400)', fontWeight: 600 }}>
+            Secure Authentication Required
+          </div>
         )}
       </div>
-
-      {/* Main topbar */}
-      <header className="topbar" role="banner">
-        <div className="topbar__inner">
-          {/* School logo */}
-          <div className="topbar__logo" title="REMALJ Carewell Inspirational School">
-            <img
-              src="/remalj-carewell-logo.jpg"
-              alt="REMALJ Carewell Inspirational School logo"
-              style={{ height: 52, width: 'auto', objectFit: 'contain', display: 'block' }}
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.style.display = 'none';
-                e.target.parentElement.querySelector('.topbar__logo-fallback').style.display = 'flex';
-              }}
-            />
-            <div className="topbar__school-name" aria-label="REMALJ Carewell Inspirational School">
-              <strong>REMALJ Carewell</strong>
-              <span>Inspirational School · Bogoso</span>
-            </div>
-            {/* Fallback */}
-            <div className="topbar__logo-fallback" style={{ display: 'none', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 40, height: 40, background: 'var(--ics-green-800)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14, color: '#fff' }}>R</div>
-              <div style={{ lineHeight: 1.15 }}>
-                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, color: 'var(--ics-green-800)' }}>REMALJ Carewell</div>
-                <div style={{ fontSize: 10, color: 'var(--ics-green-500)', fontWeight: 600, letterSpacing: '.05em' }}>Inspirational School · Bogoso</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Portal switcher */}
-          <nav className="topbar__portal-bar" role="tablist" aria-label="Portal switcher">
-            {PORTAL_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                role="tab"
-                aria-label={tab.label}
-                aria-selected={activePortal === tab.id}
-                data-portal={tab.id}
-                className={`topbar__portal-tab${activePortal === tab.id ? ' active' : ''}`}
-                onClick={() => onPortalChange(tab.id)}
-                id={`tab-${tab.id}`}
-              >
-                <span className="topbar__portal-tab-icon" aria-hidden="true">{tab.icon}</span>
-                <span className="topbar__portal-tab-label">{tab.label}</span>
-              </button>
-            ))}
-          </nav>
-
-          {/* Main nav links */}
-          <nav className="topbar__nav" aria-label="Main navigation">
-            {NAV_LINKS.map((link) => (
-              <button key={link} className="topbar__nav-link" onClick={() => onNavChange?.(link)}>{link}</button>
-            ))}
-            {/* Sign-out button in nav bar (prominent) */}
-            {showSignOut && (
-              <button
-                className="topbar__contact-btn"
-                onClick={onSignOut}
-                style={{ background: 'transparent', border: '1.5px solid var(--ics-green-600)', color: 'var(--ics-green-700)', gap: 6 }}
-              >
-                <LogOut size={13} style={{ display: 'inline' }} />
-                Sign Out
-              </button>
-            )}
-          </nav>
-        </div>
-      </header>
-    </>
+    </header>
   );
 }
