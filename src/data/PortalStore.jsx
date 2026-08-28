@@ -198,6 +198,14 @@ export function PortalDataProvider({ children }) {
       ...current,
       applications: (current.applications || []).map((item) => item.id === id ? { ...item, status } : item),
     })),
+    updateApplicationOfficeUse: (id, officeData) => setData((current) => ({
+      ...current,
+      applications: (current.applications || []).map((item) => item.id === id ? { ...item, ...officeData } : item),
+    })),
+    deleteApplication: (id) => setData((current) => ({
+      ...current,
+      applications: (current.applications || []).filter((item) => item.id !== id),
+    })),
     addServiceRecord: ({ module, person, detail, status }) => setData((current) => ({
       ...current,
       serviceRecords: [{ id: crypto.randomUUID?.() || String(Date.now()), module, person, detail, status, recordedAt: new Date().toLocaleString() }, ...(current.serviceRecords || [])],

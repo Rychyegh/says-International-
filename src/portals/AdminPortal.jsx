@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import {
   LayoutDashboard, Users, UserPlus, FileText, Settings,
   TrendingUp, School, CreditCard, Search, Trash2, Edit,
-  CheckCircle2, X, Save, ShieldCheck, Mail, Phone, MapPin
+  CheckCircle2, X, Save, ShieldCheck, Mail, Phone, MapPin,
+  Printer, Download, Eye, Plus, FileCheck, UserCheck
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import { usePortalData } from '../data/PortalStore';
+import OfficialApplicationForm from '../components/Onboarding/OfficialApplicationForm';
 
 const ADMIN_BG = '#4a1d6e';
 const ADMIN_LIGHT = '#f3e8ff';
@@ -15,7 +17,7 @@ const NAV = [
   { icon: <LayoutDashboard size={15} />, label: 'Dashboard', badge: null },
   { icon: <Users size={15} />, label: 'Student Roster', badge: null },
   { icon: <UserPlus size={15} />, label: 'Onboard Student', badge: null },
-  { icon: <FileText size={15} />, label: 'Applications', badge: null },
+  { icon: <FileText size={15} />, label: 'Applications & Forms', badge: null },
   { icon: <School size={15} />, label: 'Classes & Staff', badge: null },
 ];
 
@@ -31,6 +33,10 @@ export default function AdminPortal({ onSignOut }) {
   const [editingStudent, setEditingStudent] = useState({});
   const [successMsg, setSuccessMsg] = useState('');
 
+  // Application Forms state
+  const [selectedApp, setSelectedApp] = useState(null);
+  const [isCreatingApp, setIsCreatingApp] = useState(false);
+
   const {
     onboardedStudents,
     applications,
@@ -40,6 +46,9 @@ export default function AdminPortal({ onSignOut }) {
     updateOnboardedStudent,
     deleteOnboardedStudent,
     updateApplicationStatus,
+    updateApplicationOfficeUse,
+    submitApplication,
+    deleteApplication,
   } = usePortalData();
 
   const [onboardingForm, setOnboardingForm] = useState({
@@ -72,8 +81,41 @@ export default function AdminPortal({ onSignOut }) {
       homeAddress: '',
     });
 
-    setSuccessMsg('Student onboarded successfully! Student ID, school email, and fee account initialized for Account Portal.');
+    setSuccessMsg('Student onboarded successfully! Student ID, school email, and fee account initialized.');
     setTimeout(() => setSuccessMsg(''), 5000);
+  };
+
+  const handleEnrollApplicant = (app) => {
+    const learnerName = app.learner || `${app.firstName || ''} ${app.surname || ''}`.trim() || 'Student';
+    const guardianName = app.guardian || app.fatherName || app.motherName || 'Parent';
+    const guardianEmail = app.email || app.fatherEmail || 'parent@remaljcarewell.edu.gh';
+    const guardianPhone = app.phone || app.fatherPhone || app.motherPhone || '';
+    const level = app.level || app.applyingClass || 'JHS 1';
+    const homeAddress = app.residentialAddress || app.address || 'Bogoso';
+
+    onboardStudent({
+      fullName: learnerName,
+      dob: app.dob || '',
+      gender: app.sex || 'Male',
+      level: level,
+      classSection: app.officeFormAssigned || 'A',
+      guardianName: guardianName,
+      guardianEmail: guardianEmail,
+      guardianPhone: guardianPhone,
+      homeAddress: homeAddress,
+    });
+
+    updateApplicationStatus(app.id, 'Enrolled');
+    setSuccessMsg(`Applicant ${learnerName} officially admitted and enrolled into Student Roster!`);
+    setTimeout(() => setSuccessMsg(''), 5000);
+  };
+
+  const handleSaveOfficeEvaluation = (id, officeData) => {
+    if (updateApplicationOfficeUse) {
+      updateApplicationOfficeUse(id, officeData);
+      setSuccessMsg('Office evaluation and examination results saved to application record.');
+      setTimeout(() => setSuccessMsg(''), 5000);
+    }
   };
 
   const filteredStudents = (onboardedStudents || []).filter((s) =>
@@ -83,6 +125,16 @@ export default function AdminPortal({ onSignOut }) {
     s.guardianName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredApplications = (applications || []).filter((a) => {
+    const name = a.learner || `${a.firstName || ''} ${a.surname || ''}`;
+    const gName = a.guardian || a.fatherName || a.motherName || '';
+    return (
+      name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      gName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (a.level || a.applyingClass || '').toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
+
   const totalStudents = (onboardedStudents || []).length;
   const activeStudents = (onboardedStudents || []).filter((s) => s.status === 'Active').length;
   const totalApplications = (applications || []).length;
@@ -90,7 +142,7 @@ export default function AdminPortal({ onSignOut }) {
 
   const STATS = [
     { label: 'Total Enrolled Students', value: String(totalStudents), trend: `${activeStudents} Active`, icon: '👥', bg: '#f3e8ff', ic: ADMIN_BG },
-    { label: 'Admissions Applications', value: String(totalApplications), trend: 'Review pending', icon: '📋', bg: '#fef9c3', ic: '#78350f' },
+    { label: 'Admissions Applications', value: String(totalApplications), trend: 'Official forms active', icon: '📋', bg: '#fef9c3', ic: '#78350f' },
     { label: 'Total Revenue Billed', value: `GHS ${totalFeesBilled.toLocaleString()}`, trend: 'Term 1 · 2026', icon: '💰', bg: '#dcfce7', ic: '#166534' },
     { label: 'Teaching Staff', value: String((teacherDirectory || []).length), trend: 'All departments', icon: '👨‍🏫', bg: '#e0f2fe', ic: '#0369a1' },
   ];
@@ -129,9 +181,13 @@ export default function AdminPortal({ onSignOut }) {
           {NAV.map((item) => (
             <button
               key={item.label}
-              className={`sidebar-item${activeNav === item.label ? ' active' : ''}`}
-              style={activeNav === item.label ? { background: ADMIN_BG } : {}}
-              onClick={() => setActiveNav(item.label)}
+              className={`sidebar-item${activeNav === item.label || (activeNav === 'Applications' && item.label.includes('Applications')) ? ' active' : ''}`}
+              style={activeNav === item.label || (activeNav === 'Applications' && item.label.includes('Applications')) ? { background: ADMIN_BG } : {}}
+              onClick={() => {
+                setActiveNav(item.label);
+                setSelectedApp(null);
+                setIsCreatingApp(false);
+              }}
             >
               <span className="sidebar-item__icon">{item.icon}</span>
               {item.label}
@@ -162,7 +218,7 @@ export default function AdminPortal({ onSignOut }) {
                   </span>
                 </p>
                 <h1 className="page-header__title">Administrator Dashboard ⚡</h1>
-                <p className="page-header__subtitle">Manage student onboarding, admissions applications, and institutional overview.</p>
+                <p className="page-header__subtitle">Manage student onboarding, official 4-page application forms, and institutional roster.</p>
               </div>
 
               {/* Stats */}
@@ -222,8 +278,14 @@ export default function AdminPortal({ onSignOut }) {
                   </div>
                   <div className="panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <button
-                      onClick={() => setActiveNav('Onboard Student')}
+                      onClick={() => setActiveNav('Applications & Forms')}
                       style={{ padding: 12, background: ADMIN_LIGHT, color: ADMIN_BG, border: '1px solid #d8b4fe', borderRadius: 'var(--radius-md)', fontWeight: 700, textAlign: 'left', cursor: 'pointer' }}
+                    >
+                      📄 Official Application Forms & PDF
+                    </button>
+                    <button
+                      onClick={() => setActiveNav('Onboard Student')}
+                      style={{ padding: 12, background: 'var(--gray-100)', color: 'var(--gray-800)', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius-md)', fontWeight: 700, textAlign: 'left', cursor: 'pointer' }}
                     >
                       ➕ Onboard New Student
                     </button>
@@ -232,12 +294,6 @@ export default function AdminPortal({ onSignOut }) {
                       style={{ padding: 12, background: 'var(--gray-100)', color: 'var(--gray-800)', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius-md)', fontWeight: 700, textAlign: 'left', cursor: 'pointer' }}
                     >
                       📋 View Complete Roster
-                    </button>
-                    <button
-                      onClick={() => setActiveNav('Applications')}
-                      style={{ padding: 12, background: 'var(--gray-100)', color: 'var(--gray-800)', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius-md)', fontWeight: 700, textAlign: 'left', cursor: 'pointer' }}
-                    >
-                      📁 Admissions Register
                     </button>
                   </div>
                 </div>
@@ -434,54 +490,186 @@ export default function AdminPortal({ onSignOut }) {
             </div>
           )}
 
-          {/* ── APPLICATIONS ── */}
-          {activeNav === 'Applications' && (
+          {/* ── APPLICATIONS & FORMS ── */}
+          {(activeNav === 'Applications' || activeNav === 'Applications & Forms') && (
             <div className="animate-fade-up">
-              <div className="page-header">
-                <h1 className="page-header__title">Admissions & Applications</h1>
-                <p className="page-header__subtitle">Review submitted online admission applications.</p>
+              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <h1 className="page-header__title">Official Application Forms & Admissions 📄</h1>
+                  <p className="page-header__subtitle">
+                    Review filled online 4-page REMALJ application forms, record office examination marks, and download local PDF copies.
+                  </p>
+                </div>
+
+                {!selectedApp && !isCreatingApp && (
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      onClick={() => setIsCreatingApp(true)}
+                      style={{
+                        padding: '9px 16px', background: ADMIN_BG, color: '#fff',
+                        border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 700,
+                        fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
+                      }}
+                    >
+                      <Plus size={15} /> Fill New Application Form
+                    </button>
+                  </div>
+                )}
               </div>
 
-              <div className="panel">
-                <div className="panel__body">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Learner Name</th>
-                        <th>Level</th>
-                        <th>Guardian</th>
-                        <th>Contact Email</th>
-                        <th>Submitted At</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(applications || []).map((app) => (
-                        <tr key={app.id}>
-                          <td><strong>{app.learner}</strong></td>
-                          <td>{app.level}</td>
-                          <td>{app.guardian}</td>
-                          <td>{app.email}</td>
-                          <td>{app.submittedAt}</td>
-                          <td>
-                            <select
-                              value={app.status}
-                              onChange={(e) => updateApplicationStatus(app.id, e.target.value)}
-                              style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--gray-300)', fontSize: 12 }}
-                            >
-                              <option>Submitted</option>
-                              <option>Documents review</option>
-                              <option>Assessment scheduled</option>
-                              <option>Accepted</option>
-                              <option>Enrolled</option>
-                            </select>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {selectedApp ? (
+                <div>
+                  <OfficialApplicationForm
+                    initialData={selectedApp}
+                    readOnly={true}
+                    isAdmin={true}
+                    onCancel={() => setSelectedApp(null)}
+                    onSaveOfficeUse={handleSaveOfficeEvaluation}
+                  />
                 </div>
-              </div>
+              ) : isCreatingApp ? (
+                <div>
+                  <OfficialApplicationForm
+                    readOnly={false}
+                    isAdmin={true}
+                    onCancel={() => setIsCreatingApp(false)}
+                    onSubmit={(newForm) => {
+                      submitApplication(newForm);
+                      setIsCreatingApp(false);
+                      setSuccessMsg('New Application Form created and submitted successfully!');
+                      setTimeout(() => setSuccessMsg(''), 5000);
+                    }}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div style={{ position: 'relative', marginBottom: 16 }}>
+                    <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--gray-400)' }} />
+                    <input
+                      type="text"
+                      placeholder="Search applications by learner name, level, or guardian..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      style={{ width: '100%', padding: '10px 10px 10px 36px', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-300)', fontSize: 13 }}
+                    />
+                  </div>
+
+                  <div className="panel">
+                    <div className="panel__body">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Learner Name</th>
+                            <th>Class/Form</th>
+                            <th>Guardian Details</th>
+                            <th>Enrolment Type</th>
+                            <th>Status</th>
+                            <th>Office Evaluation</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredApplications.map((app) => {
+                            const learnerName = app.learner || `${app.firstName || ''} ${app.surname || ''}`.trim() || 'Applicant';
+                            const guardianName = app.guardian || app.fatherName || app.motherName || 'Parent';
+
+                            return (
+                              <tr key={app.id}>
+                                <td>
+                                  <strong>{learnerName}</strong>
+                                  <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>Submitted: {app.submittedAt || 'Online'}</div>
+                                </td>
+                                <td><span style={{ fontWeight: 700 }}>{app.applyingClass || app.level || 'JHS 1'}</span></td>
+                                <td>
+                                  <div>{guardianName}</div>
+                                  <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{app.email || app.fatherEmail || app.phone}</div>
+                                </td>
+                                <td>
+                                  <span style={{
+                                    padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 700,
+                                    background: app.enrolmentType === 'Boarding' ? '#fef3c7' : '#e0f2fe',
+                                    color: app.enrolmentType === 'Boarding' ? '#92400e' : '#0369a1'
+                                  }}>
+                                    {app.enrolmentType || 'Day'}
+                                  </span>
+                                </td>
+                                <td>
+                                  <select
+                                    value={app.status}
+                                    onChange={(e) => updateApplicationStatus(app.id, e.target.value)}
+                                    style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--gray-300)', fontSize: 12, fontWeight: 700 }}
+                                  >
+                                    <option>Submitted</option>
+                                    <option>Documents review</option>
+                                    <option>Assessment scheduled</option>
+                                    <option>Accepted</option>
+                                    <option>Enrolled</option>
+                                  </select>
+                                </td>
+                                <td>
+                                  {app.officeExamEnglishMark || app.officeAdmit ? (
+                                    <span style={{ fontSize: 11, color: '#166534', fontWeight: 700 }}>
+                                      ✅ Office Reviewed (Admit: {app.officeAdmit || 'Yes'})
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: 11, color: '#92400e', fontStyle: 'italic' }}>
+                                      Pending Office Exam Results
+                                    </span>
+                                  )}
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                    <button
+                                      onClick={() => setSelectedApp(app)}
+                                      style={{
+                                        padding: '4px 8px', background: ADMIN_LIGHT, color: ADMIN_BG,
+                                        border: '1px solid #d8b4fe', borderRadius: 4, cursor: 'pointer',
+                                        fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4
+                                      }}
+                                      title="Inspect 4-page form, record office marks & print/download PDF"
+                                    >
+                                      <Eye size={13} /> View Form PDF
+                                    </button>
+
+                                    {app.status !== 'Enrolled' && (
+                                      <button
+                                        onClick={() => handleEnrollApplicant(app)}
+                                        style={{
+                                          padding: '4px 8px', background: '#dcfce7', color: '#166534',
+                                          border: '1px solid #86efac', borderRadius: 4, cursor: 'pointer',
+                                          fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4
+                                        }}
+                                        title="Transfer to Student Roster & Create Fee Account"
+                                      >
+                                        <UserCheck size={13} /> Enrol Student
+                                      </button>
+                                    )}
+
+                                    <button
+                                      onClick={() => {
+                                        if (window.confirm('Delete this application form record?')) {
+                                          deleteApplication(app.id);
+                                        }
+                                      }}
+                                      style={{
+                                        padding: '4px 8px', background: '#fee2e2', color: '#dc2626',
+                                        border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer'
+                                      }}
+                                      title="Delete application"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
