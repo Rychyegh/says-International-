@@ -340,6 +340,278 @@
   margin: 24px 0;
 }
 
+/* ── SIMS v2025 Portal Extension Styles ──────────────── */
+.sims-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.sims-header {
+  background: #fce7f3;
+  border: 1px solid #fbcfe8;
+  border-radius: var(--radius-md);
+  padding: 10px 14px 0px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sims-header__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sims-header__brand {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 700;
+  color: #9d174d;
+  letter-spacing: -0.01em;
+}
+
+.sims-header__tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 0px;
+}
+
+.sims-tab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #831843;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.sims-tab-btn:hover {
+  background: #fbcfe8;
+  color: #9f1239;
+}
+
+.sims-tab-btn.active {
+  background: #ffffff;
+  border: 1px solid #9f1239;
+  border-bottom: 1px solid #ffffff;
+  color: #881337;
+  font-weight: 800;
+  margin-bottom: -1px;
+  box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.03);
+}
+
+.sims-content-panel {
+  background: #ffffff;
+  border: 1px solid #fbcfe8;
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  box-shadow: var(--shadow-sm);
+  min-height: 520px;
+}
+
+.sims-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 28px 36px;
+  align-items: start;
+}
+
+.sims-category {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sims-category-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #881337;
+  margin-bottom: 4px;
+  font-family: system-ui, -apple-system, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.sims-subcategory-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #9f1239;
+  margin-top: 6px;
+  margin-bottom: 2px;
+  padding-left: 4px;
+  border-left: 2px solid #f43f5e;
+}
+
+.sims-link-item {
+  background: none;
+  border: none;
+  padding: 3px 0;
+  text-align: left;
+  font-size: 12.5px;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #1d4ed8;
+  text-decoration: underline;
+  cursor: pointer;
+  line-height: 1.4;
+  display: block;
+  transition: color 0.15s ease, transform 0.1s ease;
+}
+
+.sims-link-item:hover {
+  color: #1e40af;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.sims-link-item:active {
+  color: #1e3a8a;
+}
+
+/* SIMS Interactive Modal */
+.sims-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+
+.sims-modal-card {
+  background: #ffffff;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  width: 100%;
+  max-width: 680px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border: 1px solid var(--gray-200);
+  animation: scaleUp 0.2s ease;
+}
+
+.sims-modal-header {
+  padding: 16px 22px;
+  background: #881337;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+}
+
+.sims-modal-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sims-modal-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+.sims-modal-close:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.sims-modal-body {
+  padding: 24px;
+}
+
+.sims-form-group {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sims-form-group label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--gray-700);
+}
+
+.sims-form-group input,
+.sims-form-group select,
+.sims-form-group textarea {
+  padding: 9px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  font-size: 13.5px;
+  font-family: inherit;
+}
+
+.sims-form-group input:focus,
+.sims-form-group select:focus,
+.sims-form-group textarea:focus {
+  outline: none;
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.sims-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--gray-100);
+}
+
+.sims-btn {
+  padding: 9px 18px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s ease;
+}
+
+.sims-btn-primary {
+  background: #881337;
+  color: white;
+}
+
+.sims-btn-primary:hover {
+  background: #9f1239;
+}
+
+.sims-btn-secondary {
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+.sims-btn-secondary:hover {
+  background: var(--gray-200);
+}
+
 /* ── Responsive ─────────────────────────────── */
 @media (max-width: 900px) {
   .portal { padding-top: 70px; }
