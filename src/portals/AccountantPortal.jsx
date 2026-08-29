@@ -6,12 +6,15 @@ import {
 import '../components/Portal/Portal.css';
 import { usePortalData } from '../data/PortalStore';
 
+import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeStructure';
+
 const ACCOUNT_BG = '#0f3a4b';
 const ACCOUNT_LIGHT = '#e0f2fe';
 const ACCOUNT_ACCENT = '#0284c7';
 
 const NAV = [
   { icon: <School size={15} />, label: 'SIMS v2025 Module', badge: 'v2025' },
+  { icon: <DollarSign size={15} />, label: 'Official Fee Schedule', badge: 'Bill' },
   { icon: <LayoutDashboard size={15} />, label: 'Financial Overview', badge: null },
   { icon: <CreditCard size={15} />, label: 'Fee Ledgers & Payments', badge: null },
   { icon: <Send size={15} />, label: 'Send Owing Reminders', badge: null },
@@ -876,6 +879,11 @@ export default function AccountantPortal({ onSignOut }) {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* ── OFFICIAL FEE SCHEDULE VIEW ── */}
+          {activeNav === 'Official Fee Schedule' && (
+            <OfficialSchoolFeeStructure />
           )}
 
           {/* ── DYNAMIC TAILORED SIMS MODAL RENDERER ── */}

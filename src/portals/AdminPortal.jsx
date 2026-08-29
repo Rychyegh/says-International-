@@ -9,12 +9,15 @@ import '../components/Portal/Portal.css';
 import { usePortalData } from '../data/PortalStore';
 import OfficialApplicationForm from '../components/Onboarding/OfficialApplicationForm';
 
+import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeStructure';
+
 const ADMIN_BG = '#4a1d6e';
 const ADMIN_LIGHT = '#f3e8ff';
 const ADMIN_ACCENT = '#7c3ac8';
 
 const NAV = [
   { icon: <LayoutDashboard size={15} />, label: 'Dashboard', badge: null },
+  { icon: <CreditCard size={15} />, label: 'Official Fee Schedule', badge: 'Bill' },
   { icon: <Users size={15} />, label: 'Student Roster', badge: null },
   { icon: <FileText size={15} />, label: 'Applications & Forms', badge: null },
   { icon: <School size={15} />, label: 'Classes & Staff', badge: null },
@@ -670,6 +673,11 @@ export default function AdminPortal({ onSignOut }) {
                 </>
               )}
             </div>
+          )}
+
+          {/* ── OFFICIAL FEE SCHEDULE VIEW ── */}
+          {activeNav === 'Official Fee Schedule' && (
+            <OfficialSchoolFeeStructure />
           )}
 
           {/* ── CLASSES & STAFF ── */}
