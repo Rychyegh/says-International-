@@ -5,6 +5,108 @@ import {
 } from 'lucide-react';
 import './OfficialApplicationForm.css';
 
+// SVG Crest Emblem Logo for REMALJ Carewell Inspirational School matching official crest
+export function SchoolLogoSVG({ size = 110 }) {
+  return (
+    <svg width={size} height={size * 1.05} viewBox="0 0 200 210" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Top Header Text */}
+      <text x="100" y="16" fill="#0088cc" fontSize="13.5" fontWeight="900" textAnchor="middle" fontFamily="system-ui, Arial, sans-serif">
+        REMALJ
+      </text>
+      <text x="100" y="28" fill="#0088cc" fontSize="10" fontWeight="900" textAnchor="middle" fontFamily="system-ui, Arial, sans-serif" letterSpacing="0.2">
+        CAREWELL INSPIRATIONAL SCHOOL
+      </text>
+
+      {/* Main Shield Outer Red Border Line */}
+      <path d="M 40 44 C 40 44, 100 38, 160 44 C 160 115, 150 155, 100 178 C 50 155, 40 115, 40 44 Z" fill="none" stroke="#d91b1b" strokeWidth="2.5" />
+      {/* Inner Dark Blue Shield Body */}
+      <path d="M 43 47 C 43 47, 100 41, 157 47 C 157 113, 147 151, 100 173 C 53 151, 43 113, 43 47 Z" fill="#0b1b7f" stroke="#0b1b7f" strokeWidth="2" />
+      {/* White Shield Interior */}
+      <path d="M 47 51 C 47 51, 100 45, 153 51 C 153 110, 143 147, 100 167 C 57 147, 47 110, 47 51 Z" fill="#ffffff" />
+
+      {/* Internal Red Partition Lines */}
+      <path d="M 47 108 L 153 108" stroke="#d91b1b" strokeWidth="3" />
+      <path d="M 100 46 L 100 108" stroke="#d91b1b" strokeWidth="3" />
+      <path d="M 47 51 C 47 51, 100 45, 153 51" fill="none" stroke="#d91b1b" strokeWidth="3" />
+
+      {/* Top-Right Quadrant: Pink Diagonal Stripes + Open Book */}
+      <g>
+        <rect x="100" y="47" width="53" height="60" fill="#ffb6c1" clipPath="url(#topRightClip)" />
+        {/* Hatching Lines */}
+        <line x1="95" y1="50" x2="160" y2="115" stroke="#e05282" strokeWidth="1.5" />
+        <line x1="105" y1="50" x2="165" y2="110" stroke="#e05282" strokeWidth="1.5" />
+        <line x1="115" y1="50" x2="165" y2="100" stroke="#e05282" strokeWidth="1.5" />
+        <line x1="125" y1="50" x2="165" y2="90" stroke="#e05282" strokeWidth="1.5" />
+        <line x1="95" y1="60" x2="150" y2="115" stroke="#e05282" strokeWidth="1.5" />
+        <line x1="95" y1="70" x2="140" y2="115" stroke="#e05282" strokeWidth="1.5" />
+      </g>
+      {/* Open Book Graphic */}
+      <g transform="translate(105, 54)">
+        <path d="M 4 25 C 15 15, 20 22, 20 22 C 20 22, 25 15, 36 25 L 36 40 C 25 30, 20 37, 20 37 C 20 37, 15 30, 4 40 Z" fill="#ffffff" stroke="#000000" strokeWidth="2" strokeLinejoin="round" />
+        <path d="M 20 22 L 20 37" stroke="#000000" strokeWidth="2" />
+        <line x1="8" y1="26" x2="17" y2="28" stroke="#000" strokeWidth="1" />
+        <line x1="8" y1="30" x2="17" y2="32" stroke="#000" strokeWidth="1" />
+        <line x1="23" y1="28" x2="32" y2="26" stroke="#000" strokeWidth="1" />
+        <line x1="23" y1="32" x2="32" y2="30" stroke="#000" strokeWidth="1" />
+      </g>
+
+      {/* Top-Left Quadrant: Children holding hands */}
+      <g transform="translate(53, 56)">
+        {/* Boy */}
+        <circle cx="12" cy="11" r="5" fill="#fdb87d" />
+        <path d="M 7 8 Q 12 4 17 8" fill="#e65100" />
+        <rect x="8" y="16" width="8" height="12" fill="#0288d1" rx="2" />
+        <line x1="10" y1="28" x2="10" y2="36" stroke="#000" strokeWidth="2" />
+        <line x1="14" y1="28" x2="14" y2="36" stroke="#000" strokeWidth="2" />
+        <line x1="15" y1="18" x2="22" y2="22" stroke="#fdb87d" strokeWidth="2" />
+
+        {/* Girl */}
+        <circle cx="30" cy="12" r="5" fill="#fdb87d" />
+        <path d="M 25 9 Q 30 5 35 9" fill="#b71c1c" />
+        <path d="M 24 17 L 36 17 L 38 29 L 22 29 Z" fill="#8d6e63" />
+        <line x1="27" y1="29" x2="27" y2="36" stroke="#000" strokeWidth="2" />
+        <line x1="33" y1="29" x2="33" y2="36" stroke="#000" strokeWidth="2" />
+        <line x1="25" y1="19" x2="21" y2="22" stroke="#fdb87d" strokeWidth="2" />
+      </g>
+
+      {/* Bottom Compartment: Graduation Cap & Diploma Scroll */}
+      <g transform="translate(48, 110)">
+        {/* Mortarboard Cap */}
+        <path d="M 52 7 L 100 24 L 52 41 L 4 24 Z" fill="#0f172a" stroke="#000000" strokeWidth="1.5" />
+        <path d="M 28 27 L 28 42 C 28 42, 52 50, 76 42 L 76 27 Z" fill="#0f172a" stroke="#000000" strokeWidth="1.5" />
+        {/* Tassel */}
+        <line x1="52" y1="24" x2="18" y2="32" stroke="#f59e0b" strokeWidth="2.5" />
+        <circle cx="18" cy="38" r="3.5" fill="#f59e0b" />
+
+        {/* Diploma Certificate Scroll */}
+        <g transform="translate(24, 34) rotate(-8)">
+          <rect x="0" y="0" width="55" height="15" rx="3" fill="#ffffff" stroke="#000000" strokeWidth="1.5" />
+          <ellipse cx="55" cy="7.5" rx="3" ry="7.5" fill="#e2e8f0" stroke="#000000" strokeWidth="1.5" />
+          <rect x="22" y="-1" width="7" height="17" fill="#dc2626" />
+          <path d="M 25 15 L 20 25 L 25 22 L 30 25 Z" fill="#dc2626" />
+        </g>
+      </g>
+
+      {/* Stars on Left & Right */}
+      <path d="M 26 150 L 29 157 L 36 157 L 31 161 L 33 168 L 26 164 L 19 168 L 21 161 L 16 157 L 23 157 Z" fill="#00a8ff" stroke="#000000" strokeWidth="1.5" />
+      <path d="M 174 150 L 177 157 L 184 157 L 179 161 L 181 168 L 174 164 L 167 168 L 169 161 L 164 157 L 171 157 Z" fill="#00a8ff" stroke="#000000" strokeWidth="1.5" />
+
+      {/* Bottom Ribbon Banner: "Inspiring Excellence" */}
+      <g>
+        <path d="M 22 178 L 42 165 L 42 188 Z" fill="#0284c7" />
+        <path d="M 178 178 L 158 165 L 158 188 Z" fill="#0284c7" />
+        <path d="M 32 168 Q 100 196 168 168 L 162 198 Q 100 224 38 198 Z" fill="#00a8ff" stroke="#0b1b7f" strokeWidth="2" />
+        <path d="M 36 172 Q 100 199 164 172" fill="none" id="ribbonArcText" />
+        <text fill="#ffffff" fontSize="13" fontWeight="900" letterSpacing="0.4" fontFamily="system-ui, Arial, sans-serif">
+          <textPath href="#ribbonArcText" startOffset="50%" textAnchor="middle">
+            Inspiring Excellence
+          </textPath>
+        </text>
+      </g>
+    </svg>
+  );
+}
+
 const DEFAULT_FORM = {
   // Header / Page 1
   applyingClass: '',
@@ -38,6 +140,8 @@ const DEFAULT_FORM = {
 
   // Page 2: Previous Schools
   previousSchools: [
+    { name: '', address: '', fromYear: '', toYear: '', lastClass: '' },
+    { name: '', address: '', fromYear: '', toYear: '', lastClass: '' },
     { name: '', address: '', fromYear: '', toYear: '', lastClass: '' },
     { name: '', address: '', fromYear: '', toYear: '', lastClass: '' },
   ],
@@ -163,7 +267,7 @@ export default function OfficialApplicationForm({
     e.preventDefault();
     if (onSubmit) {
       onSubmit(formData);
-      setSuccessNotice('Application Form successfully submitted online!');
+      setSuccessNotice('Official Application Form successfully submitted online!');
       setTimeout(() => setSuccessNotice(''), 6000);
     }
   };
@@ -191,18 +295,6 @@ export default function OfficialApplicationForm({
     }
   };
 
-  // Local Download JSON
-  const downloadJSON = () => {
-    const filename = `REMALJ_Application_${formData.surname || 'Form'}_${formData.firstName || 'Student'}.json`;
-    const blob = new Blob([JSON.stringify(formData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   // Print / Save as PDF
   const handlePrint = () => {
     window.print();
@@ -211,7 +303,7 @@ export default function OfficialApplicationForm({
   // Clear for blank download template
   const handleBlankDownload = () => {
     setFormData(DEFAULT_FORM);
-    setActiveTab('page1');
+    setActiveTab('all');
     setTimeout(() => {
       window.print();
     }, 200);
@@ -223,11 +315,11 @@ export default function OfficialApplicationForm({
       <div className="official-form-toolbar no-print">
         <div>
           <div className="official-form-title">
-            <FileText size={20} />
+            <SchoolLogoSVG size={36} />
             REMALJ CAREWELL INSPIRATIONAL SCHOOL — APPLICATION FORM
           </div>
           <div className="official-form-subtitle">
-            P.O. BOX 139, BOGOSO • Online Submission & Printable PDF Download
+            P.O. BOX 139, BOGOSO • info@remaljschools.com • Online Submission & PDF Export
           </div>
         </div>
 
@@ -238,12 +330,12 @@ export default function OfficialApplicationForm({
             </button>
           )}
 
-          <button className="btn-form-action btn-form-action--secondary" type="button" onClick={handlePrint} title="Print or Save as PDF locally">
-            <Printer size={14} /> Print / Save PDF
+          <button className="btn-form-action btn-form-action--secondary" type="button" onClick={handlePrint} title="Download or Save Application Form as PDF">
+            <Download size={14} /> Download Form PDF
           </button>
 
-          <button className="btn-form-action btn-form-action--secondary" type="button" onClick={downloadJSON} title="Download offline data file">
-            <Download size={14} /> Download JSON
+          <button className="btn-form-action btn-form-action--secondary" type="button" onClick={handlePrint} title="Print or Save as PDF locally">
+            <Printer size={14} /> Print PDF
           </button>
 
           <button className="btn-form-action btn-form-action--outline" type="button" onClick={handleBlankDownload} title="Download empty blank form template">
@@ -279,7 +371,7 @@ export default function OfficialApplicationForm({
           Page 4: Declaration & Office Use
         </button>
         <button className={`official-form-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>
-          📄 Full 4-Page View
+          📄 Full 4-Page PDF View
         </button>
       </div>
 
@@ -299,13 +391,7 @@ export default function OfficialApplicationForm({
             {/* Header Box */}
             <div className="school-header-box">
               <div className="school-header-logo">
-                <div style={{
-                  width: 75, height: 75, borderRadius: '50%', background: '#1a3668',
-                  color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 'bold', fontSize: 11, textAlign: 'center', padding: 4, border: '2px solid #c89a3a'
-                }}>
-                  REMALJ<br/>BOGOSO
-                </div>
+                <SchoolLogoSVG size={100} />
               </div>
               <div className="school-header-text">
                 <div className="school-header-title">REMALJ CAREWELL INSPIRATIONAL SCHOOL</div>
@@ -510,7 +596,11 @@ export default function OfficialApplicationForm({
         {/* ── PAGE 2 ── */}
         {(activeTab === 'page2' || activeTab === 'all') && (
           <div className="official-document-page">
-            <div className="form-section-header">PREVIOUS SCHOOLS ATTENDED</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <SchoolLogoSVG size={50} />
+              <div className="form-section-header" style={{ margin: 0 }}>PREVIOUS SCHOOLS ATTENDED</div>
+            </div>
+
             <table className="form-custom-table">
               <thead>
                 <tr>
@@ -675,6 +765,11 @@ export default function OfficialApplicationForm({
         {/* ── PAGE 3 ── */}
         {(activeTab === 'page3' || activeTab === 'all') && (
           <div className="official-document-page">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <SchoolLogoSVG size={50} />
+              <div style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase', textDecoration: 'underline' }}>STUDENT SPECIAL NEEDS & MEDICAL EMERGENCY</div>
+            </div>
+
             {[
               { label: 'Has the student ever been expelled from or refused entry into another school?', keyFlag: 'expelledRefusedEntry', keyDetail: 'expelledDetails' },
               { label: 'Does the student have any behavioural problems you are aware of?', keyFlag: 'hasBehaviouralProblems', keyDetail: 'behaviouralProblemsDetails' },
@@ -771,7 +866,10 @@ export default function OfficialApplicationForm({
         {/* ── PAGE 4 ── */}
         {(activeTab === 'page4' || activeTab === 'all') && (
           <div className="official-document-page">
-            <div className="form-section-header">DECLARATION</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <SchoolLogoSVG size={50} />
+              <div className="form-section-header" style={{ margin: 0 }}>DECLARATION & OFFICE USE</div>
+            </div>
 
             <p style={{ fontSize: 12, lineHeight: 1.6, marginBottom: 12 }}>
               I understand that this form must be completed and returned to Administration accompanied by my ward's school reports (the last 3 terms), a written report from his/her Head Teacher and a medical report from a reputable medical laboratory.
@@ -791,21 +889,6 @@ export default function OfficialApplicationForm({
               <input className="form-line-input" value={formData.declarationSignature} onChange={(e) => handleChange('declarationSignature', e.target.value)} placeholder="Type digital signature name" disabled={readOnly && !isAdmin} />
               <span className="form-line-label" style={{ marginLeft: 16 }}>Date:</span>
               <input type="date" className="form-line-input" value={formData.declarationDate} onChange={(e) => handleChange('declarationDate', e.target.value)} disabled={readOnly && !isAdmin} />
-            </div>
-
-            {/* Other Requirements */}
-            <div className="form-section-header" style={{ marginTop: 24 }}>OTHER REQUIREMENTS</div>
-            <div className="form-line-row">
-              <span className="form-line-label">PARENTS GHANA CARD NO.:</span>
-              <input className="form-line-input" value={formData.parentsGhanaCard} onChange={(e) => handleChange('parentsGhanaCard', e.target.value)} placeholder="e.g. GHA-123456789-0" disabled={readOnly && !isAdmin} />
-            </div>
-            <div className="form-line-row">
-              <span className="form-line-label">CHILD'S HEALTH INSURANCE CARD NO.:</span>
-              <input className="form-line-input" value={formData.childHealthInsuranceCard} onChange={(e) => handleChange('childHealthInsuranceCard', e.target.value)} placeholder="NHIS Card Number" disabled={readOnly && !isAdmin} />
-            </div>
-            <div className="form-line-row">
-              <span className="form-line-label">GPS ADDRESS:</span>
-              <input className="form-line-input" value={formData.gpsAddress} onChange={(e) => handleChange('gpsAddress', e.target.value)} placeholder="e.g. WS-123-4567" disabled={readOnly && !isAdmin} />
             </div>
 
             {/* Office Use Only Section */}
@@ -882,6 +965,21 @@ export default function OfficialApplicationForm({
               </div>
             </div>
 
+            {/* Other Requirements */}
+            <div className="form-section-header" style={{ marginTop: 24 }}>OTHER REQUIREMENTS</div>
+            <div className="form-line-row">
+              <span className="form-line-label">PARENTS GHANA CARD NO.:</span>
+              <input className="form-line-input" value={formData.parentsGhanaCard} onChange={(e) => handleChange('parentsGhanaCard', e.target.value)} placeholder="e.g. GHA-123456789-0" disabled={readOnly && !isAdmin} />
+            </div>
+            <div className="form-line-row">
+              <span className="form-line-label">CHILD'S HEALTH INSURANCE CARD NO.:</span>
+              <input className="form-line-input" value={formData.childHealthInsuranceCard} onChange={(e) => handleChange('childHealthInsuranceCard', e.target.value)} placeholder="NHIS Card Number" disabled={readOnly && !isAdmin} />
+            </div>
+            <div className="form-line-row">
+              <span className="form-line-label">GPS ADDRESS:</span>
+              <input className="form-line-input" value={formData.gpsAddress} onChange={(e) => handleChange('gpsAddress', e.target.value)} placeholder="e.g. WS-123-4567" disabled={readOnly && !isAdmin} />
+            </div>
+
             <div className="document-page-num">4</div>
           </div>
         )}
@@ -921,7 +1019,7 @@ export default function OfficialApplicationForm({
 
           <div style={{ display: 'flex', gap: 10 }}>
             <button className="btn-form-action btn-form-action--secondary" style={{ color: '#1a3668', background: '#e0e7ff' }} type="button" onClick={handlePrint}>
-              <Printer size={14} /> Print / Save PDF
+              <Download size={14} /> Download Form PDF
             </button>
 
             {!readOnly && (

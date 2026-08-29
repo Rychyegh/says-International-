@@ -16,7 +16,6 @@ const ADMIN_ACCENT = '#7c3ac8';
 const NAV = [
   { icon: <LayoutDashboard size={15} />, label: 'Dashboard', badge: null },
   { icon: <Users size={15} />, label: 'Student Roster', badge: null },
-  { icon: <UserPlus size={15} />, label: 'Onboard Student', badge: null },
   { icon: <FileText size={15} />, label: 'Applications & Forms', badge: null },
   { icon: <School size={15} />, label: 'Classes & Staff', badge: null },
 ];
