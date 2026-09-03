@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
+import { api } from '../services/api';
 
 const STORAGE_KEY = 'remalj-portal-live-data-v1';
 
@@ -96,7 +97,12 @@ const INITIAL_DATA = {
     { id: 'acc-msg-001', from: 'Mrs. Grace Accountant', senderRole: 'Accountant', to: 'Mrs. Ama Asante', recipientEmail: 'ama.asante@example.com', studentName: 'Kwame Asante', subject: 'Outstanding Fees Reminder', body: 'Dear Mrs. Asante, this is a friendly reminder that Kwame has an outstanding balance of GHS 3,200 for Term 1. Please arrange payment by 30th September to avoid late fees. Thank you.', sentAt: '25 Aug 2026, 10:30 AM', status: 'Sent' },
     { id: 'acc-msg-002', from: 'Mrs. Grace Accountant', senderRole: 'Accountant', to: 'Mr. Yaw Darko', recipientEmail: 'yaw.darko@example.com', studentName: 'Efua Darko', subject: 'Urgent: Fee Payment Required', body: 'Dear Mr. Darko, Efua\'s school fees for Term 1 (GHS 4,900) are currently outstanding. Please contact the accounts office to discuss payment arrangements. We appreciate your prompt attention to this matter.', sentAt: '26 Aug 2026, 09:15 AM', status: 'Sent' },
   ],
+  busRoutes: [
+    { id: 'A', name: 'Bus 01 – Bogoso Route', color: '#16a34a', stops: ['School Grounds', 'Anikoko Junction', 'Bogoso Market', 'Post Office'], driverName: 'Mr. Kweku Mensah', driverPhone: '024 444 5555', currentLat: 6.409, currentLng: -1.952, speed: '38 km/h', status: 'On Route' },
+    { id: 'B', name: 'Bus 02 – Tarkwa Route', color: '#2563eb', stops: ['School Grounds', 'Tamso Junction', 'Tarkwa Main Station', 'University Roundabout'], driverName: 'Mr. Emmanuel Darko', driverPhone: '024 555 6666', currentLat: 6.415, currentLng: -1.96, speed: '45 km/h', status: 'On Route' }
+  ],
   theme: 'light',
+  backendConnected: false,
 };
 
 const PortalDataContext = createContext(null);
@@ -129,8 +135,213 @@ export function PortalDataProvider({ children }) {
     return () => window.removeEventListener('storage', sync);
   }, []);
 
+  // Sync with live backend API endpoints on mount & token availability
+  const refreshBackendData = useCallback(async () => {
+    try {
+      // 1. Bus Routes
+      try {
+        const routesRes = await api.getBusRoutes();
+        if (routesRes && routesRes.routes) {
+          setData(current => ({ ...current, busRoutes: routesRes.routes, backendConnected: true }));
+        }
+      } catch (e) { /* fallback to local */ }
+
+      // 2. Timetable
+      try {
+        const timetables = await api.getTimetables();
+        if (Array.isArray(timetables) && timetables.length > 0) {
+          const mapped = timetables.map(t => ({
+            id: t.id,
+            day: t.day,
+            time: `${t.start_time}${t.end_time ? ' - ' + t.end_time : ''}`,
+            subject: t.subject,
+            room: t.room,
+            lecturer: t.lecturer_name,
+            classLevel: t.class_level
+          }));
+          setData(current => ({ ...current, timetable: mapped, backendConnected: true }));
+        }
+      } catch (e) { /* fallback */ }
+
+      // 3. Results
+      try {
+        const results = await api.getResults();
+        if (Array.isArray(results) && results.length > 0) {
+          const mapped = results.map(r => ({
+            id: r.id,
+            subject: r.subject,
+            score: r.score,
+            grade: r.grade,
+            lecturer: r.lecturer,
+            updatedAt: r.updated_at
+          }));
+          setData(current => ({ ...current, results: mapped, backendConnected: true }));
+        }
+      } catch (e) { /* fallback */ }
+
+      // 4. Report Requests
+      try {
+        const reports = await api.getReportRequests();
+        if (Array.isArray(reports) && reports.length > 0) {
+          const mapped = reports.map(r => ({
+            id: r.id,
+            child: r.child_name,
+            semester: r.semester,
+            note: r.note,
+            status: r.status,
+            fileName: r.file_name,
+            fileUrl: r.file_url,
+            requestedAt: r.requested_at,
+            uploadedAt: r.uploaded_at
+          }));
+          setData(current => ({ ...current, reportRequests: mapped, backendConnected: true }));
+        }
+      } catch (e) { /* fallback */ }
+
+      // 5. Incidents
+      try {
+        const incidents = await api.getIncidents();
+        if (Array.isArray(incidents) && incidents.length > 0) {
+          const mapped = incidents.map(i => ({
+            id: i.id,
+            category: i.category,
+            person: i.person,
+            severity: i.severity,
+            status: i.status,
+            loggedAt: i.logged_at
+          }));
+          setData(current => ({ ...current, incidents: mapped, backendConnected: true }));
+        }
+      } catch (e) { /* fallback */ }
+
+      // 6. Asset Tasks
+      try {
+        const tasks = await api.getAssetTasks();
+        if (Array.isArray(tasks) && tasks.length > 0) {
+          const mapped = tasks.map(t => ({
+            id: t.id,
+            asset: t.asset,
+            task: t.task,
+            owner: t.owner,
+            status: t.status,
+            due: t.due_date
+          }));
+          setData(current => ({ ...current, assetTasks: mapped, backendConnected: true }));
+        }
+      } catch (e) { /* fallback */ }
+
+      // 7. Messages
+      try {
+        const msgs = await api.getMessages();
+        if (Array.isArray(msgs) && msgs.length > 0) {
+          const mapped = msgs.map(m => ({
+            id: m.id,
+            from: m.sender_name,
+            senderRole: m.sender_role,
+            to: m.recipient_role,
+            recipient: m.recipient_name,
+            subject: m.subject,
+            body: m.body,
+            sentAt: m.sent_at
+          }));
+          setData(current => ({ ...current, messages: mapped, backendConnected: true }));
+        }
+      } catch (e) { /* fallback */ }
+
+      // 8. Assignments
+      try {
+        const assignments = await api.getAssignments();
+        if (Array.isArray(assignments) && assignments.length > 0) {
+          const mapped = assignments.map(a => ({
+            id: a.id,
+            title: a.title,
+            instructions: a.instructions,
+            audience: a.audience,
+            due: a.due_date,
+            author: a.author_name,
+            status: a.status
+          }));
+          setData(current => ({ ...current, assignments: mapped, backendConnected: true }));
+        }
+      } catch (e) { /* fallback */ }
+
+      // 9. Admissions Applications
+      try {
+        const apps = await api.getApplications();
+        if (Array.isArray(apps) && apps.length > 0) {
+          const mapped = apps.map(a => ({
+            id: a.id,
+            learner: a.learner_name,
+            guardian: a.guardian_name,
+            email: a.contact_email,
+            phone: a.contact_phone,
+            level: a.applying_level,
+            status: a.status,
+            submittedAt: a.submitted_at,
+            office_use_notes: a.office_use_notes
+          }));
+          setData(current => ({ ...current, applications: mapped, backendConnected: true }));
+        }
+      } catch (e) { /* fallback */ }
+
+      // 10. Onboarded Students
+      try {
+        const students = await api.getStudents();
+        if (Array.isArray(students) && students.length > 0) {
+          const mapped = students.map(s => ({
+            id: s.id,
+            studentId: s.student_code || s.id,
+            fullName: s.full_name,
+            dob: s.dob,
+            gender: s.gender,
+            level: s.class_level,
+            classSection: s.class_section || 'A',
+            guardianName: s.guardian_name,
+            guardianEmail: s.guardian_email,
+            guardianPhone: s.guardian_phone,
+            homeAddress: s.home_address,
+            enrollmentDate: s.enrollment_date || new Date().toISOString().split('T')[0],
+            status: s.status || 'Active',
+            studentEmail: s.student_email
+          }));
+          setData(current => ({ ...current, onboardedStudents: mapped, backendConnected: true }));
+        }
+      } catch (e) { /* fallback */ }
+
+      // 11. Fees
+      try {
+        const fees = await api.getFees();
+        if (Array.isArray(fees) && fees.length > 0) {
+          const mapped = fees.map(f => ({
+            id: f.id,
+            studentId: f.student_id || f.student_code,
+            studentName: f.student_name,
+            guardianName: f.guardian_name,
+            guardianEmail: f.guardian_email,
+            term: f.term || 'Term 1 · 2026',
+            billedAmount: f.billed_amount,
+            paidAmount: f.paid_amount,
+            balance: f.balance,
+            status: f.status,
+            dueDate: f.due_date,
+            paymentDate: f.payment_date
+          }));
+          setData(current => ({ ...current, studentFees: mapped, backendConnected: true }));
+        }
+      } catch (e) { /* fallback */ }
+
+    } catch (err) {
+      console.warn('Backend sync failed:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshBackendData();
+  }, [refreshBackendData]);
+
   const value = useMemo(() => ({
     ...data,
+    refreshBackendData,
     saveTimetableEntry: (entry) => setData((current) => ({
       ...current,
       timetable: current.timetable.some((item) => item.id === entry.id)
@@ -147,25 +358,48 @@ export function PortalDataProvider({ children }) {
       ...current,
       courses: current.courses.includes(course) ? current.courses : [...current.courses, course],
     })),
-    requestReport: ({ child, semester, note }) => setData((current) => ({
-      ...current,
-      reportRequests: [{ id: crypto.randomUUID?.() || String(Date.now()), child, semester, note, status: 'Requested', requestedAt: new Date().toLocaleString() }, ...current.reportRequests],
-    })),
-    uploadRequestedReport: ({ id, fileName, fileData, fileType }) => setData((current) => {
-      const request = current.reportRequests.find((item) => item.id === id);
-      if (!request) return current;
-      const uploadedAt = new Date().toLocaleString();
-      const published = { id, child: request.child, semester: request.semester, fileName, fileData, fileType, uploadedAt };
-      return {
+    requestReport: async ({ child, semester, note }) => {
+      try {
+        await api.createReportRequest({ child, semester, note });
+      } catch (e) {
+        console.warn('Backend report request fallback:', e);
+      }
+      setData((current) => ({
         ...current,
-        reportRequests: current.reportRequests.map((item) => item.id === id ? { ...item, status: 'Available', fileName, uploadedAt } : item),
-        publishedReports: [published, ...current.publishedReports.filter((item) => item.id !== id)],
-      };
-    }),
-    logIncident: ({ category, person, severity }) => setData((current) => ({
-      ...current,
-      incidents: [{ id: crypto.randomUUID?.() || String(Date.now()), category, person, severity, status: 'Open', loggedAt: new Date().toLocaleString() }, ...current.incidents],
-    })),
+        reportRequests: [{ id: crypto.randomUUID?.() || String(Date.now()), child, semester, note, status: 'Requested', requestedAt: new Date().toLocaleString() }, ...current.reportRequests],
+      }));
+    },
+    uploadRequestedReport: async ({ id, fileName, fileData, fileType, fileObj }) => {
+      if (fileObj) {
+        try {
+          await api.uploadReport(id, fileObj);
+        } catch (e) {
+          console.warn('Backend report upload fallback:', e);
+        }
+      }
+      setData((current) => {
+        const request = current.reportRequests.find((item) => item.id === id);
+        if (!request) return current;
+        const uploadedAt = new Date().toLocaleString();
+        const published = { id, child: request.child, semester: request.semester, fileName, fileData, fileType, uploadedAt };
+        return {
+          ...current,
+          reportRequests: current.reportRequests.map((item) => item.id === id ? { ...item, status: 'Available', fileName, uploadedAt } : item),
+          publishedReports: [published, ...current.publishedReports.filter((item) => item.id !== id)],
+        };
+      });
+    },
+    logIncident: async ({ category, person, severity }) => {
+      try {
+        await api.createIncident({ category, person, severity, status: 'Open' });
+      } catch (e) {
+        console.warn('Backend incident create fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        incidents: [{ id: crypto.randomUUID?.() || String(Date.now()), category, person, severity, status: 'Open', loggedAt: new Date().toLocaleString() }, ...current.incidents],
+      }));
+    },
     addAssetTask: ({ asset, task, owner, due }) => setData((current) => ({
       ...current,
       assetTasks: [{ id: crypto.randomUUID?.() || String(Date.now()), asset, task, owner, due, status: 'Scheduled' }, ...current.assetTasks],
@@ -182,22 +416,64 @@ export function PortalDataProvider({ children }) {
       ...current,
       academicCalendar: [{ id: crypto.randomUUID?.() || String(Date.now()), title, start, end: end || start, type }, ...current.academicCalendar],
     })),
-    sendMessage: ({ from, senderRole, to, recipient, subject, body }) => setData((current) => ({
-      ...current,
-      messages: [{ id: crypto.randomUUID?.() || String(Date.now()), from, senderRole, to, recipient, subject, body, sentAt: new Date().toLocaleString() }, ...current.messages],
-    })),
-    publishAssignment: ({ title, instructions, audience, due }) => setData((current) => ({
-      ...current,
-      assignments: [{ id: crypto.randomUUID?.() || String(Date.now()), title, instructions, audience, due, author: 'Mr. Samuel Amponsah', status: 'Published' }, ...current.assignments],
-    })),
-    submitApplication: (application) => setData((current) => ({
-      ...current,
-      applications: [{ id: crypto.randomUUID?.() || String(Date.now()), ...application, status: 'Submitted', submittedAt: new Date().toLocaleString() }, ...(current.applications || [])],
-    })),
-    updateApplicationStatus: (id, status) => setData((current) => ({
-      ...current,
-      applications: (current.applications || []).map((item) => item.id === id ? { ...item, status } : item),
-    })),
+    sendMessage: async ({ from, senderRole, to, recipient, recipientEmail, studentName, subject, body }) => {
+      try {
+        await api.sendMessage({
+          recipient_role: to || 'All',
+          recipient_name: recipient || 'Parents',
+          recipient_email: recipientEmail,
+          student_name: studentName,
+          subject,
+          body
+        });
+      } catch (e) {
+        console.warn('Backend send message fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        messages: [{ id: crypto.randomUUID?.() || String(Date.now()), from, senderRole, to, recipient, subject, body, sentAt: new Date().toLocaleString() }, ...current.messages],
+      }));
+    },
+    publishAssignment: async ({ title, instructions, audience, due }) => {
+      try {
+        await api.createAssignment({ title, instructions, audience, due_date: due });
+      } catch (e) {
+        console.warn('Backend publish assignment fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        assignments: [{ id: crypto.randomUUID?.() || String(Date.now()), title, instructions, audience, due, author: 'Mr. Samuel Amponsah', status: 'Published' }, ...current.assignments],
+      }));
+    },
+    submitApplication: async (application) => {
+      try {
+        await api.submitApplication({
+          learner_name: application.learner || application.fullName,
+          guardian_name: application.guardian || application.guardianName,
+          contact_email: application.email || application.guardianEmail,
+          contact_phone: application.phone || application.guardianPhone,
+          applying_level: application.level || 'JHS 1',
+          form_data: application
+        });
+      } catch (e) {
+        console.warn('Backend application submit fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        applications: [{ id: crypto.randomUUID?.() || String(Date.now()), ...application, status: 'Submitted', submittedAt: new Date().toLocaleString() }, ...(current.applications || [])],
+      }));
+    },
+    updateApplicationStatus: async (id, status) => {
+      try {
+        await api.updateApplicationStatus(id, { status });
+      } catch (e) {
+        console.warn('Backend application status fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        applications: (current.applications || []).map((item) => item.id === id ? { ...item, status } : item),
+      }));
+    },
     updateApplicationOfficeUse: (id, officeData) => setData((current) => ({
       ...current,
       applications: (current.applications || []).map((item) => item.id === id ? { ...item, ...officeData } : item),
@@ -212,55 +488,75 @@ export function PortalDataProvider({ children }) {
     })),
     updateProfile: (portal, updates) => setData((current) => ({ ...current, profiles: { ...current.profiles, [portal]: { ...current.profiles[portal], ...updates } } })),
     setTheme: (theme) => setData((current) => ({ ...current, theme })),
-    onboardStudent: (student) => setData((current) => {
-      const studentId = `REMALJ-${new Date().getFullYear()}-${String((current.onboardedStudents || []).length + 1).padStart(3, '0')}`;
-      const newStudent = {
-        id: crypto.randomUUID?.() || String(Date.now()),
-        studentId,
-        fullName: student.fullName,
-        dob: student.dob,
-        gender: student.gender,
-        level: student.level,
-        classSection: student.classSection || 'A',
-        guardianName: student.guardianName,
-        guardianEmail: student.guardianEmail,
-        guardianPhone: student.guardianPhone,
-        homeAddress: student.homeAddress,
-        enrollmentDate: new Date().toISOString().split('T')[0],
-        status: 'Active',
-        studentEmail: `${student.fullName.toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`,
-      };
-      const defaultBilled = student.level.includes('JHS') ? 5200 : student.level.includes('SHS') ? 5800 : 4800;
-      const newFee = {
-        id: `fee-${newStudent.id}`,
-        studentId,
-        studentName: student.fullName,
-        guardianName: student.guardianName,
-        guardianEmail: student.guardianEmail,
-        term: 'Term 1 · 2026',
-        billedAmount: defaultBilled,
-        paidAmount: 0,
-        balance: defaultBilled,
-        status: 'Not Paid',
-        dueDate: '2026-09-15',
-        paymentDate: null
-      };
-      const newFeeAccount = {
-        id: `fee-acc-${newStudent.id}`,
-        child: student.fullName,
-        school: 'REMALJ Carewell Inspirational School',
-        term: 'Term 1 · 2026',
-        billed: defaultBilled,
-        paid: 0,
-        status: 'Not Paid'
-      };
-      return {
-        ...current,
-        onboardedStudents: [newStudent, ...(current.onboardedStudents || [])],
-        studentFees: [newFee, ...(current.studentFees || [])],
-        feeAccounts: [newFeeAccount, ...(current.feeAccounts || [])],
-      };
-    }),
+    onboardStudent: async (student) => {
+      try {
+        await api.onboardStudent({
+          fullName: student.fullName,
+          dob: student.dob,
+          gender: student.gender,
+          level: student.level,
+          classSection: student.classSection || 'A',
+          guardianName: student.guardianName,
+          guardianEmail: student.guardianEmail,
+          guardianPhone: student.guardianPhone,
+          homeAddress: student.homeAddress,
+          initialBilledAmount: student.level.includes('JHS') ? 5200 : student.level.includes('SHS') ? 5800 : 4800,
+          term: 'Term 1 · 2026'
+        });
+      } catch (e) {
+        console.warn('Backend onboard student fallback:', e);
+      }
+
+      setData((current) => {
+        const studentId = `REMALJ-${new Date().getFullYear()}-${String((current.onboardedStudents || []).length + 1).padStart(3, '0')}`;
+        const newStudent = {
+          id: crypto.randomUUID?.() || String(Date.now()),
+          studentId,
+          fullName: student.fullName,
+          dob: student.dob,
+          gender: student.gender,
+          level: student.level,
+          classSection: student.classSection || 'A',
+          guardianName: student.guardianName,
+          guardianEmail: student.guardianEmail,
+          guardianPhone: student.guardianPhone,
+          homeAddress: student.homeAddress,
+          enrollmentDate: new Date().toISOString().split('T')[0],
+          status: 'Active',
+          studentEmail: `${student.fullName.toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`,
+        };
+        const defaultBilled = student.level.includes('JHS') ? 5200 : student.level.includes('SHS') ? 5800 : 4800;
+        const newFee = {
+          id: `fee-${newStudent.id}`,
+          studentId,
+          studentName: student.fullName,
+          guardianName: student.guardianName,
+          guardianEmail: student.guardianEmail,
+          term: 'Term 1 · 2026',
+          billedAmount: defaultBilled,
+          paidAmount: 0,
+          balance: defaultBilled,
+          status: 'Not Paid',
+          dueDate: '2026-09-15',
+          paymentDate: null
+        };
+        const newFeeAccount = {
+          id: `fee-acc-${newStudent.id}`,
+          child: student.fullName,
+          school: 'REMALJ Carewell Inspirational School',
+          term: 'Term 1 · 2026',
+          billed: defaultBilled,
+          paid: 0,
+          status: 'Not Paid'
+        };
+        return {
+          ...current,
+          onboardedStudents: [newStudent, ...(current.onboardedStudents || [])],
+          studentFees: [newFee, ...(current.studentFees || [])],
+          feeAccounts: [newFeeAccount, ...(current.feeAccounts || [])],
+        };
+      });
+    },
     updateOnboardedStudent: (id, updates) => setData((current) => ({
       ...current,
       onboardedStudents: (current.onboardedStudents || []).map((s) => s.id === id ? { ...s, ...updates } : s),
@@ -269,41 +565,49 @@ export function PortalDataProvider({ children }) {
       ...current,
       onboardedStudents: (current.onboardedStudents || []).filter((s) => s.id !== id),
     })),
-    recordFeePayment: ({ id, paidAmount, paymentDate, paymentMethod = 'Mobile Money', notes = '' }) => setData((current) => {
-      const updatedFees = (current.studentFees || []).map((fee) => {
-        if (fee.id !== id) return fee;
-        const addAmount = Number(paidAmount) || 0;
-        const newPaid = fee.paidAmount + addAmount;
-        const newBalance = Math.max(0, fee.billedAmount - newPaid);
-        const newStatus = newBalance <= 0 ? 'Paid' : newPaid > 0 ? 'Balance Due' : 'Not Paid';
+    recordFeePayment: async ({ id, paidAmount, paymentDate, paymentMethod = 'Mobile Money', notes = '' }) => {
+      try {
+        await api.recordFeePayment(id, { paidAmount: Number(paidAmount), paymentMethod, paymentDate, notes });
+      } catch (e) {
+        console.warn('Backend fee payment fallback:', e);
+      }
+
+      setData((current) => {
+        const updatedFees = (current.studentFees || []).map((fee) => {
+          if (fee.id !== id) return fee;
+          const addAmount = Number(paidAmount) || 0;
+          const newPaid = fee.paidAmount + addAmount;
+          const newBalance = Math.max(0, fee.billedAmount - newPaid);
+          const newStatus = newBalance <= 0 ? 'Paid' : newPaid > 0 ? 'Balance Due' : 'Not Paid';
+          return {
+            ...fee,
+            paidAmount: newPaid,
+            balance: newBalance,
+            status: newStatus,
+            paymentDate: paymentDate || new Date().toISOString().split('T')[0],
+            lastPaymentMethod: paymentMethod,
+            lastNotes: notes,
+          };
+        });
+        const targetFee = (current.studentFees || []).find((f) => f.id === id);
+        const updatedFeeAccounts = (current.feeAccounts || []).map((acc) => {
+          if (!targetFee || acc.child !== targetFee.studentName) return acc;
+          const addAmount = Number(paidAmount) || 0;
+          const newPaid = acc.paid + addAmount;
+          const newBalance = Math.max(0, acc.billed - newPaid);
+          return {
+            ...acc,
+            paid: newPaid,
+            status: newBalance <= 0 ? 'Paid' : 'Balance due',
+          };
+        });
         return {
-          ...fee,
-          paidAmount: newPaid,
-          balance: newBalance,
-          status: newStatus,
-          paymentDate: paymentDate || new Date().toISOString().split('T')[0],
-          lastPaymentMethod: paymentMethod,
-          lastNotes: notes,
+          ...current,
+          studentFees: updatedFees,
+          feeAccounts: updatedFeeAccounts,
         };
       });
-      const targetFee = (current.studentFees || []).find((f) => f.id === id);
-      const updatedFeeAccounts = (current.feeAccounts || []).map((acc) => {
-        if (!targetFee || acc.child !== targetFee.studentName) return acc;
-        const addAmount = Number(paidAmount) || 0;
-        const newPaid = acc.paid + addAmount;
-        const newBalance = Math.max(0, acc.billed - newPaid);
-        return {
-          ...acc,
-          paid: newPaid,
-          status: newBalance <= 0 ? 'Paid' : 'Balance due',
-        };
-      });
-      return {
-        ...current,
-        studentFees: updatedFees,
-        feeAccounts: updatedFeeAccounts,
-      };
-    }),
+    },
     addStudentFee: (feeRecord) => setData((current) => ({
       ...current,
       studentFees: [{
@@ -318,28 +622,63 @@ export function PortalDataProvider({ children }) {
         paymentDate: (feeRecord.paidAmount || 0) > 0 ? (feeRecord.paymentDate || new Date().toISOString().split('T')[0]) : null,
       }, ...(current.studentFees || [])],
     })),
-    sendAccountantMessage: (msg) => setData((current) => ({
-      ...current,
-      accountantMessages: [{
-        id: crypto.randomUUID?.() || String(Date.now()),
-        from: (current.profiles?.accountant?.name) || 'Mrs. Grace Accountant',
-        senderRole: 'Accountant',
-        ...msg,
-        sentAt: new Date().toLocaleString(),
-        status: 'Sent',
-      }, ...(current.accountantMessages || [])],
-      messages: [{
-        id: crypto.randomUUID?.() || String(Date.now()),
-        from: (current.profiles?.accountant?.name) || 'Mrs. Grace Accountant',
-        senderRole: 'Accountant',
-        to: msg.to || 'Parents',
-        recipient: msg.to || msg.guardianName || 'Parents',
-        subject: msg.subject,
-        body: msg.body,
-        sentAt: new Date().toLocaleString(),
-      }, ...(current.messages || [])],
-    })),
-  }), [data]);
+    sendAccountantMessage: async (msg) => {
+      try {
+        await api.sendFeeReminder({
+          to: msg.to || msg.recipientEmail || 'Parents',
+          recipientEmail: msg.recipientEmail || 'parent@remaljcarewell.edu.gh',
+          studentName: msg.studentName || 'Student',
+          subject: msg.subject,
+          body: msg.body
+        });
+      } catch (e) {
+        console.warn('Backend accountant message fallback:', e);
+      }
+
+      setData((current) => ({
+        ...current,
+        accountantMessages: [{
+          id: crypto.randomUUID?.() || String(Date.now()),
+          from: (current.profiles?.accountant?.name) || 'Mrs. Grace Accountant',
+          senderRole: 'Accountant',
+          ...msg,
+          sentAt: new Date().toLocaleString(),
+          status: 'Sent',
+        }, ...(current.accountantMessages || [])],
+        messages: [{
+          id: crypto.randomUUID?.() || String(Date.now()),
+          from: (current.profiles?.accountant?.name) || 'Mrs. Grace Accountant',
+          senderRole: 'Accountant',
+          to: msg.to || 'Parents',
+          recipient: msg.to || msg.guardianName || 'Parents',
+          subject: msg.subject,
+          body: msg.body,
+          sentAt: new Date().toLocaleString(),
+        }, ...(current.messages || [])],
+      }));
+    },
+    recordAttendanceScan: async (scanData) => {
+      try {
+        return await api.recordAttendanceScan(scanData);
+      } catch (e) {
+        console.warn('Attendance scan API warning:', e);
+      }
+    },
+    submitRollCall: async (rollCallData) => {
+      try {
+        return await api.submitRollCall(rollCallData);
+      } catch (e) {
+        console.warn('Submit roll call API warning:', e);
+      }
+    },
+    notifyAbsent: async (data) => {
+      try {
+        return await api.notifyAbsent(data);
+      } catch (e) {
+        console.warn('Notify absent API warning:', e);
+      }
+    },
+  }), [data, refreshBackendData]);
 
   return <PortalDataContext.Provider value={value}>{children}</PortalDataContext.Provider>;
 }

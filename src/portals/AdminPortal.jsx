@@ -3,13 +3,13 @@ import {
   LayoutDashboard, Users, UserPlus, FileText, Settings,
   TrendingUp, School, CreditCard, Search, Trash2, Edit,
   CheckCircle2, X, Save, ShieldCheck, Mail, Phone, MapPin,
-  Printer, Download, Eye, Plus, FileCheck, UserCheck
+  Printer, Download, Eye, Plus, FileCheck, UserCheck, Radio
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import { usePortalData } from '../data/PortalStore';
 import OfficialApplicationForm from '../components/Onboarding/OfficialApplicationForm';
-
 import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeStructure';
+import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
 
 const ADMIN_BG = '#4a1d6e';
 const ADMIN_LIGHT = '#f3e8ff';
@@ -17,6 +17,7 @@ const ADMIN_ACCENT = '#7c3ac8';
 
 const NAV = [
   { icon: <LayoutDashboard size={15} />, label: 'Dashboard', badge: null },
+  { icon: <Radio size={15} />, label: 'Attendance & SMS Control', badge: 'Live' },
   { icon: <CreditCard size={15} />, label: 'Official Fee Schedule', badge: 'Bill' },
   { icon: <Users size={15} />, label: 'Student Roster', badge: null },
   { icon: <FileText size={15} />, label: 'Applications & Forms', badge: null },
@@ -424,11 +425,19 @@ export default function AdminPortal({ onSignOut }) {
             </div>
           )}
 
+          {/* ── ATTENDANCE & SMS CONTROL ── */}
+          {activeNav === 'Attendance & SMS Control' && (
+            <div className="animate-fade-up">
+              <AttendanceControlTable />
+            </div>
+          )}
+
           {/* ── STUDENT ROSTER ── */}
           {activeNav === 'Student Roster' && (
             <div className="animate-fade-up">
+              <AttendanceControlTable />
               <div className="page-header">
-                <h1 className="page-header__title">Student Roster</h1>
+                <h1 className="page-header__title">Student Roster Database</h1>
                 <p className="page-header__subtitle">Manage registered learners, edit student profiles, or delete records.</p>
               </div>
 

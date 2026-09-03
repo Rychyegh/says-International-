@@ -139,6 +139,12 @@ This document provides complete backend implementation specifications for the **
 - `POST /api/v1/auth/card-scan`
   - **Body**: `{ "cardId": "...", "portal": "..." }`
   - **Response**: `{ "token": "JWT_TOKEN", "user": { ... } }`
+- `POST /api/v1/auth/request-otp`
+  - **Body**: `{ "phone": "0241112222", "purpose": "password_reset" }`
+  - **Response**: `{ "success": true, "message": "OTP sent via SMS", "otp": "482910" }`
+- `POST /api/v1/auth/verify-otp`
+  - **Body**: `{ "phone": "0241112222", "otp": "482910", "newPassword": "..." }`
+  - **Response**: `{ "success": true, "message": "Password reset successfully" }`
 - `POST /api/v1/auth/logout`
   - Clears authentication cookie/session token.
 - `GET /api/v1/users/profile`

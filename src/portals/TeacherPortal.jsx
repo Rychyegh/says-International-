@@ -13,6 +13,7 @@ import { TeacherReports } from '../components/ReportWorkflow/ReportWorkflow';
 import OperationsCentre from '../components/OperationsCentre/OperationsCentre';
 import { PortalSettings, StaffAssignments, StaffCalendar } from '../components/SchoolWorkflows/SchoolWorkflows';
 import { AdmissionsRegister } from '../components/Onboarding/Onboarding';
+import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
 
 const TEACHER_GREEN = '#204d2d';
 const TEACHER_LIGHT = '#edf8f0';
@@ -280,7 +281,11 @@ export default function TeacherPortal() {
           {activeNav === 'Schedule' && <LecturerSchedule />}
           {activeNav === 'Grades' && <LecturerGrades />}
           {activeNav === 'Messages' && <TeacherMessages />}
-          {activeNav === 'Students' && <TeacherMessages initialAudience="Students" />}
+          {activeNav === 'Students' && (
+            <div className="animate-fade-up">
+              <AttendanceControlTable />
+            </div>
+          )}
           {activeNav === 'Admissions' && <AdmissionsRegister />}
           {activeNav === 'Assignments' && <StaffAssignments />}
           {activeNav === 'Academic Calendar' && <StaffCalendar />}

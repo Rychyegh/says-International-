@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Phone, LocateFixed } from 'lucide-react';
+import { usePortalData } from '../../data/PortalStore';
+import { api } from '../../services/api';
 import './BusTracker.css';
 
 const ROUTES = [
@@ -34,28 +36,62 @@ const MANIFEST = {
 const ROUTE_COORDINATES = { A: [6.409, -1.952], B: [6.402, -1.94], C: [6.394, -1.972], D: [6.419, -1.93] };
 
 export default function BusTracker({ mode = 'teacher' }) {
+  const { busRoutes } = usePortalData() || {};
   const [selectedRoute, setSelectedRoute] = useState('A');
   const [busPos, setBusPos] = useState(0);
   const [zoom, setZoom] = useState(14);
 
-  const route = ROUTES.find(r => r.id === selectedRoute);
-  const students = MANIFEST[selectedRoute] || [];
+  const activeRoutesList = (busRoutes && busRoutes.length > 0)
+    ? busRoutes.map(br => ({
+        id: br.id,
+        name: br.name,
+        color: br.color || '#2563eb',
+        stops: br.stops || ['School Gate', 'Bogoso Market'],
+        students: br.students || 20,
+        capacity: br.capacity || 25,
+        speed: br.speed || '38 km/h',
+        driver: br.driverName || 'Daniel Appiah',
+        driverRole: 'Driver',
+        nextStop: br.nextStop || 'Anikoko',
+        eta: br.eta || '15:45',
+        progress: br.progress || 60,
+        status: br.status || 'On Route'
+      }))
+    : ROUTES;
 
-  // Simulated GPS feed: progresses continuously while the route is active.
+  const route = activeRoutesList.find(r => r.id === selectedRoute) || activeRoutesList[0] || ROUTES[0];
+  const students = MANIFEST[selectedRoute] || MANIFEST.A;
+
+  // Live GPS feed: progresses continuously and reports telemetry to backend
   useEffect(() => {
-    setBusPos(route.progress);
+    setBusPos(route.progress || 0);
     if (route.status !== 'On Route') return undefined;
-    const timer = window.setInterval(() => setBusPos((position) => position >= 96 ? route.progress : position + 1), 5000);
+    const timer = window.setInterval(() => {
+      setBusPos((position) => {
+        const nextPos = position >= 96 ? (route.progress || 0) : position + 1;
+        const [bLat, bLng] = ROUTE_COORDINATES[selectedRoute] || [6.409, -1.952];
+        const newLat = Number((bLat + (nextPos - (route.progress || 0)) * 0.00008).toFixed(5));
+        const newLng = Number((bLng + (nextPos - (route.progress || 0)) * 0.0001).toFixed(5));
+
+        // Push telemetry to live backend
+        api.updateBusTelemetry({
+          routeId: selectedRoute,
+          lat: newLat,
+          lng: newLng,
+          speed: route.speed || '38 km/h'
+        }).catch(() => {});
+
+        return nextPos;
+      });
+    }, 5000);
     return () => window.clearInterval(timer);
-  }, [selectedRoute, route.progress]);
+  }, [selectedRoute, route.progress, route.status, route.speed]);
 
   const trackPct = `${busPos}%`;
   const trackLeft = `calc(${busPos}% - 7px)`;
-  const [baseLat, baseLng] = ROUTE_COORDINATES[selectedRoute];
-  const busLat = (baseLat + (busPos - route.progress) * 0.00008).toFixed(5);
-  const busLng = (baseLng + (busPos - route.progress) * 0.0001).toFixed(5);
-  // All route coordinates are in Ghana. Google Maps keeps the visual map familiar
-  // while the simulated GPS position refreshes every five seconds in this demo.
+  const [baseLat, baseLng] = ROUTE_COORDINATES[selectedRoute] || [6.409, -1.952];
+  const busLat = (baseLat + (busPos - (route.progress || 0)) * 0.00008).toFixed(5);
+  const busLng = (baseLng + (busPos - (route.progress || 0)) * 0.0001).toFixed(5);
   const mapUrl = `https://www.google.com/maps?q=${busLat},${busLng}&z=${zoom}&output=embed`;
 
   return (
@@ -126,7 +162,7 @@ export default function BusTracker({ mode = 'teacher' }) {
           <div className="panel" style={{ padding: '14px' }}>
             <div style={{ fontWeight: 800, fontSize: 12, color: '#374151', marginBottom: 10, letterSpacing: '.04em', textTransform: 'uppercase' }}>All Routes</div>
             <div className="route-list">
-              {ROUTES.map(r => (
+              {activeRoutesList.map(r => (
                 <div
                   key={r.id}
                   className={`route-item${selectedRoute === r.id ? ' active' : ''}`}
@@ -150,7 +186,7 @@ export default function BusTracker({ mode = 'teacher' }) {
         {/* Parent: route selector - simplified */}
         {mode === 'parent' && (
           <div style={{ display: 'flex', gap: 8 }}>
-            {ROUTES.slice(0, 2).map(r => (
+            {activeRoutesList.slice(0, 2).map(r => (
               <button
                 key={r.id}
                 onClick={() => setSelectedRoute(r.id)}

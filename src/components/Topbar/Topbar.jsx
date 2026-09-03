@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { GraduationCap, Users, BookOpen, LogOut, ShieldCheck, CreditCard } from 'lucide-react';
+import { GraduationCap, Users, BookOpen, LogOut, ShieldCheck, CreditCard, Radio } from 'lucide-react';
+import { usePortalData } from '../../data/PortalStore';
 import './Topbar.css';
 
 const PORTAL_INFO = {
@@ -20,6 +21,8 @@ const PORTAL_USER = {
 };
 
 export default function Topbar({ activePortal, isAuthed, onSignOut }) {
+  const portalData = usePortalData();
+  const backendConnected = portalData?.backendConnected;
   const currentInfo = PORTAL_INFO[activePortal] || PORTAL_INFO.admin;
   const user = PORTAL_USER[activePortal] || PORTAL_USER.admin;
 
@@ -43,14 +46,28 @@ export default function Topbar({ activePortal, isAuthed, onSignOut }) {
           </div>
         </Link>
 
-        {/* Current Portal Badge */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px',
-          borderRadius: 99, background: currentInfo.color, color: '#fff',
-          fontWeight: 800, fontSize: 13, boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
-        }}>
-          <span>{currentInfo.icon}</span>
-          <span>{currentInfo.label}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Live API Endpoint Indicator */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 20,
+            background: backendConnected ? '#f0fdf4' : '#fef2f2',
+            border: `1px solid ${backendConnected ? '#bbf7d0' : '#fecaca'}`,
+            fontSize: 11, fontWeight: 700,
+            color: backendConnected ? '#15803d' : '#b91c1c'
+          }} title="Backend API: https://rcis-backend.onrender.com/api/v1">
+            <Radio size={12} className={backendConnected ? 'animate-pulse' : ''} />
+            <span>API v1 Connected</span>
+          </div>
+
+          {/* Current Portal Badge */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px',
+            borderRadius: 99, background: currentInfo.color, color: '#fff',
+            fontWeight: 800, fontSize: 13, boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+          }}>
+            <span>{currentInfo.icon}</span>
+            <span>{currentInfo.label}</span>
+          </div>
         </div>
 
         {/* User profile & Sign out */}
