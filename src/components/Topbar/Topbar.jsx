@@ -27,12 +27,22 @@ export default function Topbar({ activePortal, isAuthed, onSignOut }) {
   const currentInfo = PORTAL_INFO[activePortal] || PORTAL_INFO.admin;
   const defaultUser = PORTAL_USER[activePortal] || PORTAL_USER.admin;
 
-  const authUser = getAuthUser();
-  const userName = authUser?.fullName || authUser?.name || authUser?.email || defaultUser.name;
-  const userRole = authUser?.role
-    ? (authUser.role.charAt(0).toUpperCase() + authUser.role.slice(1))
-    : defaultUser.role;
-  const userInitial = (userName.charAt(0) || 'U').toUpperCase();
+  let userName = defaultUser.name;
+  let userRole = defaultUser.role;
+
+  try {
+    const authUser = getAuthUser();
+    if (authUser && typeof authUser === 'object') {
+      userName = authUser.fullName || authUser.name || authUser.email || defaultUser.name;
+      if (authUser.role) {
+        const rStr = String(authUser.role);
+        userRole = rStr.charAt(0).toUpperCase() + rStr.slice(1);
+      }
+    }
+  } catch (e) {}
+
+  const safeNameStr = String(userName || 'User');
+  const userInitial = (safeNameStr.length > 0 ? safeNameStr.charAt(0) : 'U').toUpperCase();
 
   return (
     <header className="topbar" role="banner" style={{ borderBottom: '1px solid var(--gray-200)', background: '#fff' }}>
