@@ -238,13 +238,12 @@ export default function LoginPage({ portal, onLoginSuccess }) {
 
     setLoading(true);
     try {
-      const res = await api.requestSmsOtp({ phone: forgotPhone });
-      setGeneratedOtp(res.otp || '482910');
+      await api.requestSmsOtp({ phone: forgotPhone });
       setLoading(false);
       setForgotStep(2);
     } catch (err) {
       setLoading(false);
-      setError(err.message || 'Failed to dispatch SMS verification code. Please check the phone number.');
+      setError(err.message || 'Failed to dispatch SMS verification code. Please check your phone number.');
     }
   };
 
@@ -257,8 +256,8 @@ export default function LoginPage({ portal, onLoginSuccess }) {
       setError('Please enter the 6-digit SMS verification code sent to your phone.');
       return;
     }
-    if (generatedOtp && forgotOtp.trim() !== generatedOtp) {
-      setError('Invalid SMS verification code. Please enter the exact 6-digit code sent to your phone.');
+    if (forgotOtp.trim().length !== 6) {
+      setError('SMS verification code must be 6 digits.');
       return;
     }
     if (!forgotNewPass) {
@@ -276,7 +275,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
 
     setLoading(true);
     try {
-      await api.verifyOtp({ phone: forgotPhone, otp: forgotOtp, newPassword: forgotNewPass });
+      await api.verifyOtp({ phone: forgotPhone, identifier: forgotPhone, otp: forgotOtp.trim(), newPassword: forgotNewPass });
       setLoading(false);
       setForgotStep(3);
     } catch (err) {

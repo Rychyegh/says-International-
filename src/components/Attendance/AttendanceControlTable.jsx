@@ -18,6 +18,11 @@ export default function AttendanceControlTable() {
 
   const [notification, setNotification] = useState('');
 
+  // Editable phone numbers per student ID
+  const [customPhones, setCustomPhones] = useState({
+    'REMALJ-2026-001': '054 176 9621',
+  });
+
   const handleMarkAttendanceAndSendSms = async (student, newStatus) => {
     const sId = student.studentId || student.id;
 
@@ -30,9 +35,9 @@ export default function AttendanceControlTable() {
     }));
 
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const phone = student.guardianPhone || '0241112222';
+    const phone = customPhones[sId] || student.guardianPhone || '0541769621';
     const guardianName = student.guardianName || 'Guardian';
-    const messageText = `REMALJ CARE: Dear ${guardianName}, your child ${student.fullName} (${student.level}) has been marked ${newStatus.toUpperCase()} at school today at ${timeStr}.`;
+    const messageText = `[RCIS] REMALJ CARE: Dear ${guardianName}, your child ${student.fullName} (${student.level}) has been marked ${newStatus.toUpperCase()} at school today at ${timeStr}.`;
 
     try {
       // 1. Record on backend
@@ -43,10 +48,19 @@ export default function AttendanceControlTable() {
       }).catch(() => {});
 
       // 2. Dispatch direct SMS via SMSOnlineGH
-      await api.sendSms({
+      const smsRes = await api.sendSms({
         recipientPhone: phone,
         messageText: messageText,
+        senderId: 'RCIS'
       });
+
+      const deliveryStatus = smsRes?.data?.destinations?.[0]?.status?.label;
+
+      if (deliveryStatus === 'DS_REJECTED_SENDER_UNREGISTERED') {
+        setNotification(`⚠ SMS Gateway Alert: Delivery to ${phone} rejected by telco. Sender ID 'RCIS' is not registered on your SMSOnlineGH dashboard.`);
+      } else {
+        setNotification(`SMS alert sent to ${guardianName} (${phone}) for ${student.fullName} (${newStatus})!`);
+      }
 
       setAttendanceState(prev => ({
         ...prev,
@@ -59,11 +73,9 @@ export default function AttendanceControlTable() {
         }
       }));
 
-      setNotification(`SMS alert sent to ${guardianName} (${phone}) for ${student.fullName} (${newStatus})!`);
-      setTimeout(() => setNotification(''), 6000);
+      setTimeout(() => setNotification(''), 9000);
     } catch (err) {
       console.warn('SMS send warning:', err);
-      // Still update UI status locally
       setAttendanceState(prev => ({
         ...prev,
         [sId]: {
@@ -80,11 +92,11 @@ export default function AttendanceControlTable() {
   };
 
   const studentsList = onboardedStudents && onboardedStudents.length > 0 ? onboardedStudents : [
-    { id: 'stu-001', studentId: 'REMALJ-2026-001', fullName: 'Benjamin Edwards', level: 'Grade 4', classSection: 'B', guardianName: 'Mrs. Angela Edwards', guardianPhone: '024 111 2222' },
-    { id: 'stu-002', studentId: 'REMALJ-2026-002', fullName: 'Adwoa Edwards', level: 'Primary 5', classSection: '5A', guardianName: 'Mrs. Angela Edwards', guardianPhone: '024 111 2222' },
-    { id: 'stu-003', studentId: 'REMALJ-2026-041', fullName: 'Abena Mensah', level: 'JHS 3', classSection: '3A', guardianName: 'Mr. Kofi Mensah', guardianPhone: '024 333 4444' },
-    { id: 'stu-004', studentId: 'REMALJ-2026-112', fullName: 'Kwame Asante', level: 'JHS 3', classSection: '3A', guardianName: 'Mrs. Ama Asante', guardianPhone: '024 555 6666' },
-    { id: 'stu-005', studentId: 'REMALJ-2026-088', fullName: 'Efua Darko', level: 'JHS 2', classSection: '2B', guardianName: 'Mr. Yaw Darko', guardianPhone: '024 777 8888' },
+    { id: 'stu-001', studentId: 'REMALJ-2026-001', fullName: 'Benjamin Edwards', level: 'Grade 4', classSection: 'B', guardianName: 'Mrs. Angela Edwards', guardianPhone: '054 176 9621' },
+    { id: 'stu-002', studentId: 'REMALJ-2026-002', fullName: 'Adwoa Edwards', level: 'Primary 5', classSection: '5A', guardianName: 'Mrs. Angela Edwards', guardianPhone: '054 176 9621' },
+    { id: 'stu-003', studentId: 'REMALJ-2026-041', fullName: 'Abena Mensah', level: 'JHS 3', classSection: '3A', guardianName: 'Mr. Kofi Mensah', guardianPhone: '054 176 9621' },
+    { id: 'stu-004', studentId: 'REMALJ-2026-112', fullName: 'Kwame Asante', level: 'JHS 3', classSection: '3A', guardianName: 'Mrs. Ama Asante', guardianPhone: '054 176 9621' },
+    { id: 'stu-005', studentId: 'REMALJ-2026-088', fullName: 'Efua Darko', level: 'JHS 2', classSection: '2B', guardianName: 'Mr. Yaw Darko', guardianPhone: '054 176 9621' },
   ];
 
   const filtered = studentsList.filter(s => {
@@ -168,8 +180,16 @@ export default function AttendanceControlTable() {
                   </td>
                   <td>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>{student.guardianName}</div>
-                    <div style={{ fontSize: 11, color: 'var(--gray-500)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Phone size={11} /> {student.guardianPhone || '024 111 2222'}
+                    <div style={{ fontSize: 11, color: 'var(--gray-500)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                      <Phone size={11} />
+                      <input
+                        type="tel"
+                        className="editable-phone-input"
+                        value={customPhones[sId] !== undefined ? customPhones[sId] : (student.guardianPhone || '054 176 9621')}
+                        onChange={(e) => setCustomPhones({ ...customPhones, [sId]: e.target.value })}
+                        placeholder="Parent Phone No."
+                        style={{ border: '1px solid var(--gray-300)', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 700, width: 120 }}
+                      />
                     </div>
                   </td>
                   <td>

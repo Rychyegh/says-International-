@@ -10,6 +10,7 @@ import { usePortalData } from '../data/PortalStore';
 import OfficialApplicationForm from '../components/Onboarding/OfficialApplicationForm';
 import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeStructure';
 import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
+import BulkStudentUpload from '../components/Onboarding/BulkStudentUpload';
 import { getAuthUser } from '../services/api';
 
 const ADMIN_BG = '#4a1d6e';
@@ -55,6 +56,7 @@ export default function AdminPortal({ onSignOut }) {
     deleteApplication,
   } = usePortalData();
 
+  const [adminOnboardTab, setAdminOnboardTab] = useState('single');
   const [onboardingForm, setOnboardingForm] = useState({
     fullName: '',
     dob: '',
@@ -308,13 +310,59 @@ export default function AdminPortal({ onSignOut }) {
           {/* ── ONBOARD STUDENT ── */}
           {activeNav === 'Onboard Student' && (
             <div className="animate-fade-up">
-              <div className="page-header">
-                <h1 className="page-header__title">Onboard New Student 🎓</h1>
-                <p className="page-header__subtitle">Register a new learner, assign grade placement, link guardian details, and generate system credentials.</p>
+              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+                <div>
+                  <h1 className="page-header__title">Onboard New Student 🎓</h1>
+                  <p className="page-header__subtitle">Register individual learners or bulk import multiple student records via CSV / Excel spreadsheet.</p>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, background: '#f1f5f9', padding: 4, borderRadius: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setAdminOnboardTab('single')}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      border: 'none',
+                      fontWeight: 800,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      background: adminOnboardTab === 'single' ? '#ffffff' : 'transparent',
+                      color: adminOnboardTab === 'single' ? '#0f172a' : '#64748b',
+                      boxShadow: adminOnboardTab === 'single' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }}
+                  >
+                    📝 Single Learner Form
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAdminOnboardTab('bulk')}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      border: 'none',
+                      fontWeight: 800,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      background: adminOnboardTab === 'bulk' ? ADMIN_BG : 'transparent',
+                      color: adminOnboardTab === 'bulk' ? '#ffffff' : '#64748b',
+                      boxShadow: adminOnboardTab === 'bulk' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }}
+                  >
+                    📊 Bulk CSV / Excel Upload
+                  </button>
+                </div>
               </div>
 
-              <div className="panel" style={{ maxWidth: 800 }}>
-                <form className="panel__body workflow-form" onSubmit={handleOnboardSubmit}>
+              {adminOnboardTab === 'bulk' ? (
+                <BulkStudentUpload onComplete={() => {
+                  setSuccessMsg('Bulk student onboarding completed successfully!');
+                  setTimeout(() => setSuccessMsg(''), 5000);
+                }} />
+              ) : (
+                <div className="panel" style={{ maxWidth: 800 }}>
+                  <form className="panel__body workflow-form" onSubmit={handleOnboardSubmit}>
                   <h2 style={{ fontSize: 16, fontWeight: 800, color: ADMIN_BG, marginBottom: 16 }}>1. Learner Information</h2>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                     <label>
@@ -423,8 +471,9 @@ export default function AdminPortal({ onSignOut }) {
                   </div>
                 </form>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
           {/* ── ATTENDANCE & SMS CONTROL ── */}
           {activeNav === 'Attendance & SMS Control' && (

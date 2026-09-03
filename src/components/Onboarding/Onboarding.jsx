@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CheckCircle2, FileText, Eye } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
 import OfficialApplicationForm from './OfficialApplicationForm';
+import BulkStudentUpload from './BulkStudentUpload';
 import './Onboarding.css';
 
 const statuses = ['Submitted', 'Documents review', 'Assessment scheduled', 'Accepted', 'Enrolled'];
@@ -9,6 +10,7 @@ const statuses = ['Submitted', 'Documents review', 'Assessment scheduled', 'Acce
 export function LearnerOnboarding() {
   const { submitApplication } = usePortalData();
   const [notice, setNotice] = useState('');
+  const [onboardMode, setOnboardMode] = useState('single'); // 'single' | 'bulk'
 
   const handleOfficialSubmit = (formData) => {
     const learnerName = `${formData.firstName || ''} ${formData.surname || ''}`.trim() || formData.learner || 'Applicant';
@@ -32,11 +34,52 @@ export function LearnerOnboarding() {
 
   return (
     <div className="onboarding animate-fade-up">
-      <div className="page-header">
-        <h1 className="page-header__title">Learner Onboarding & Official Admission Form</h1>
-        <p className="page-header__subtitle">
-          Fill out the official REMALJ Carewell Inspirational School application form online, or export printable PDF copy locally.
-        </p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+        <div>
+          <h1 className="page-header__title">Learner Onboarding & Official Admission</h1>
+          <p className="page-header__subtitle">
+            Fill out individual learner admission forms online, or bulk import multiple student records via CSV / Excel spreadsheet.
+          </p>
+        </div>
+
+        {/* Switcher Mode Buttons */}
+        <div style={{ display: 'flex', gap: 8, background: '#f1f5f9', padding: 4, borderRadius: 10 }}>
+          <button
+            type="button"
+            onClick={() => setOnboardMode('single')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: 'none',
+              fontWeight: 800,
+              fontSize: 12,
+              cursor: 'pointer',
+              background: onboardMode === 'single' ? '#ffffff' : 'transparent',
+              color: onboardMode === 'single' ? '#0f172a' : '#64748b',
+              boxShadow: onboardMode === 'single' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+            }}
+          >
+            📝 Single Learner Form
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setOnboardMode('bulk')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: 'none',
+              fontWeight: 800,
+              fontSize: 12,
+              cursor: 'pointer',
+              background: onboardMode === 'bulk' ? 'var(--ics-green-700, #166534)' : 'transparent',
+              color: onboardMode === 'bulk' ? '#ffffff' : '#64748b',
+              boxShadow: onboardMode === 'bulk' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+            }}
+          >
+            📊 Bulk CSV / Excel Upload
+          </button>
+        </div>
       </div>
 
       {notice && (
@@ -46,7 +89,11 @@ export function LearnerOnboarding() {
         </div>
       )}
 
-      <OfficialApplicationForm onSubmit={handleOfficialSubmit} />
+      {onboardMode === 'bulk' ? (
+        <BulkStudentUpload onComplete={() => setNotice('Bulk student onboarding completed successfully!')} />
+      ) : (
+        <OfficialApplicationForm onSubmit={handleOfficialSubmit} />
+      )}
     </div>
   );
 }

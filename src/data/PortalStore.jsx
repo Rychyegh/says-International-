@@ -557,6 +557,99 @@ export function PortalDataProvider({ children }) {
         };
       });
     },
+    onboardStudentsBulk: async (studentsArray) => {
+      if (!Array.isArray(studentsArray) || studentsArray.length === 0) return [];
+
+      const onboardedResults = [];
+
+      for (const student of studentsArray) {
+        try {
+          await api.onboardStudent({
+            fullName: student.fullName,
+            dob: student.dob || '2014-01-01',
+            gender: student.gender || 'Not Specified',
+            level: student.level || 'Grade 4',
+            classSection: student.classSection || 'A',
+            guardianName: student.guardianName || 'Guardian',
+            guardianEmail: student.guardianEmail || 'parent@remaljcarewell.edu.gh',
+            guardianPhone: student.guardianPhone || '0541769621',
+            homeAddress: student.homeAddress || 'Bogoso',
+            initialBilledAmount: (student.level || '').includes('JHS') ? 5200 : (student.level || '').includes('SHS') ? 5800 : 4800,
+            term: 'Term 1 · 2026'
+          }).catch(() => {});
+        } catch (e) {}
+      }
+
+      setData((current) => {
+        let currentCount = (current.onboardedStudents || []).length;
+        const newStudents = [];
+        const newFees = [];
+        const newAccounts = [];
+
+        studentsArray.forEach((student, idx) => {
+          currentCount++;
+          const studentId = `REMALJ-${new Date().getFullYear()}-${String(currentCount).padStart(3, '0')}`;
+          const id = `stu-bulk-${Date.now()}-${idx}`;
+
+          const newStudent = {
+            id,
+            studentId,
+            fullName: student.fullName,
+            dob: student.dob || '2014-01-01',
+            gender: student.gender || 'Male',
+            level: student.level || 'Grade 4',
+            classSection: student.classSection || 'A',
+            guardianName: student.guardianName || 'Guardian',
+            guardianEmail: student.guardianEmail || 'parent@remaljcarewell.edu.gh',
+            guardianPhone: student.guardianPhone || '054 176 9621',
+            homeAddress: student.homeAddress || 'Bogoso',
+            enrollmentDate: new Date().toISOString().split('T')[0],
+            status: 'Active',
+            studentEmail: `${(student.fullName || 'student').toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`,
+          };
+
+          const defaultBilled = (student.level || '').includes('JHS') ? 5200 : (student.level || '').includes('SHS') ? 5800 : 4800;
+          const newFee = {
+            id: `fee-${id}`,
+            studentId,
+            studentName: student.fullName,
+            guardianName: student.guardianName,
+            guardianEmail: student.guardianEmail || 'parent@remaljcarewell.edu.gh',
+            term: 'Term 1 · 2026',
+            billedAmount: defaultBilled,
+            paidAmount: 0,
+            balance: defaultBilled,
+            status: 'Not Paid',
+            dueDate: '2026-09-15',
+            paymentDate: null
+          };
+
+          const newFeeAccount = {
+            id: `fee-acc-${id}`,
+            child: student.fullName,
+            school: 'REMALJ Carewell Inspirational School',
+            term: 'Term 1 · 2026',
+            billed: defaultBilled,
+            paid: 0,
+            status: 'Not Paid'
+          };
+
+          newStudents.push(newStudent);
+          newFees.push(newFee);
+          newAccounts.push(newFeeAccount);
+          onboardedResults.push(newStudent);
+        });
+
+        return {
+          ...current,
+          onboardedStudents: [...newStudents, ...(current.onboardedStudents || [])],
+          studentFees: [...newFees, ...(current.studentFees || [])],
+          feeAccounts: [...newAccounts, ...(current.feeAccounts || [])],
+        };
+      });
+
+      return onboardedResults;
+    },
     updateOnboardedStudent: (id, updates) => setData((current) => ({
       ...current,
       onboardedStudents: (current.onboardedStudents || []).map((s) => s.id === id ? { ...s, ...updates } : s),
