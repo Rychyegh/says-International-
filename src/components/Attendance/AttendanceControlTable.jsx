@@ -40,26 +40,27 @@ export default function AttendanceControlTable() {
     const messageText = `[RCIS] REMALJ CARE: Dear ${guardianName}, your child ${student.fullName} (${student.level}) has been marked ${newStatus.toUpperCase()} at school today at ${timeStr}.`;
 
     try {
-      // 1. Record on backend
-      await api.recordAttendanceScan({
-        identifier: student.studentId || student.id,
-        scanType: newStatus === 'Present' ? 'Check-in' : 'Absence',
-        sendSms: true
-      }).catch(() => {});
-
-      // 2. Dispatch direct SMS via SMSOnlineGH
-      const smsRes = await api.sendSms({
+      // 1. Dispatch SMS and record attendance on backend concurrently in parallel (0 delay)
+      const smsPromise = api.sendSms({
         recipientPhone: phone,
         messageText: messageText,
         senderId: 'RCIS'
       });
+
+      const backendPromise = api.recordAttendanceScan({
+        identifier: student.studentId || student.id,
+        scanType: newStatus === 'Present' ? 'Check-in' : 'Absence',
+        sendSms: false
+      }).catch(() => {});
+
+      const [smsRes] = await Promise.all([smsPromise, backendPromise]);
 
       const deliveryStatus = smsRes?.data?.destinations?.[0]?.status?.label;
 
       if (deliveryStatus === 'DS_REJECTED_SENDER_UNREGISTERED') {
         setNotification(`⚠ SMS Gateway Alert: Delivery to ${phone} rejected by telco. Sender ID 'RCIS' is not registered on your SMSOnlineGH dashboard.`);
       } else {
-        setNotification(`SMS alert sent to ${guardianName} (${phone}) for ${student.fullName} (${newStatus})!`);
+        setNotification(`⚡ Instant SMS alert dispatched to ${guardianName} (${phone}) for ${student.fullName} (${newStatus})!`);
       }
 
       setAttendanceState(prev => ({
