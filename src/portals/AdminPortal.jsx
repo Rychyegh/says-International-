@@ -10,6 +10,7 @@ import { usePortalData } from '../data/PortalStore';
 import OfficialApplicationForm from '../components/Onboarding/OfficialApplicationForm';
 import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeStructure';
 import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
+import { getAuthUser } from '../services/api';
 
 const ADMIN_BG = '#4a1d6e';
 const ADMIN_LIGHT = '#f3e8ff';
@@ -178,7 +179,7 @@ export default function AdminPortal({ onSignOut }) {
         <aside className="portal__sidebar">
           <div style={{ margin: '0 0 16px', padding: '14px', background: ADMIN_LIGHT, borderRadius: 'var(--radius-md)', borderLeft: `4px solid ${ADMIN_BG}` }}>
             <div style={{ fontWeight: 800, fontSize: 13, color: ADMIN_BG }}>Admin Portal</div>
-            <div style={{ fontSize: 11, color: '#6b21a8', marginTop: 2 }}>School Administration Office</div>
+            <div style={{ fontSize: 11, color: '#6b21a8', marginTop: 2 }}>{getAuthUser()?.fullName || getAuthUser()?.name || 'School Administration Office'}</div>
           </div>
           <span className="sidebar-section-label">Management</span>
           {NAV.map((item) => (

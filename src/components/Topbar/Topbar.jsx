@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { GraduationCap, Users, BookOpen, LogOut, ShieldCheck, CreditCard, Radio } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
+import { getAuthUser } from '../../services/api';
 import './Topbar.css';
 
 const PORTAL_INFO = {
@@ -24,7 +25,14 @@ export default function Topbar({ activePortal, isAuthed, onSignOut }) {
   const portalData = usePortalData();
   const backendConnected = portalData?.backendConnected;
   const currentInfo = PORTAL_INFO[activePortal] || PORTAL_INFO.admin;
-  const user = PORTAL_USER[activePortal] || PORTAL_USER.admin;
+  const defaultUser = PORTAL_USER[activePortal] || PORTAL_USER.admin;
+
+  const authUser = getAuthUser();
+  const userName = authUser?.fullName || authUser?.name || authUser?.email || defaultUser.name;
+  const userRole = authUser?.role
+    ? (authUser.role.charAt(0).toUpperCase() + authUser.role.slice(1))
+    : defaultUser.role;
+  const userInitial = (userName.charAt(0) || 'U').toUpperCase();
 
   return (
     <header className="topbar" role="banner" style={{ borderBottom: '1px solid var(--gray-200)', background: '#fff' }}>
@@ -79,11 +87,11 @@ export default function Topbar({ activePortal, isAuthed, onSignOut }) {
                 color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontWeight: 800, fontSize: 12
               }}>
-                {user.name.charAt(0)}
+                {userInitial}
               </div>
               <div>
-                <div style={{ fontWeight: 700 }}>{user.name}</div>
-                <div style={{ fontSize: 10, color: 'var(--gray-500)' }}>{user.role}</div>
+                <div style={{ fontWeight: 700 }}>{userName}</div>
+                <div style={{ fontSize: 10, color: 'var(--gray-500)' }}>{userRole}</div>
               </div>
             </div>
             <button

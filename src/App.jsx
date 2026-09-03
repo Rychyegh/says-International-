@@ -7,7 +7,7 @@ import ParentPortal from './portals/ParentPortal';
 import StudentPortal from './portals/StudentPortal';
 import AdminPortal from './portals/AdminPortal';
 import AccountantPortal from './portals/AccountantPortal';
-import { PortalDataProvider } from './data/PortalStore';
+import { setAuthToken, setAuthUser } from './services/api';
 import './App.css';
 
 const REQUIRES_AUTH = ['admin', 'accountant', 'parent', 'teacher', 'student'];
@@ -70,6 +70,8 @@ function AppRoutes() {
   const isAuthed = authed[activePortal];
 
   const handleSignOut = () => {
+    setAuthToken(null);
+    setAuthUser(null);
     setAuthed((prev) => ({ ...prev, [activePortal]: false }));
   };
 

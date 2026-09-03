@@ -199,11 +199,23 @@ export default function LoginPage({ portal, onLoginSuccess }) {
       if (loginMethod === 'password') {
         const result = await api.login({ email, password, portal });
         if (result.token) setAuthToken(result.token);
-        if (result.user) setAuthUser(result.user);
+        const userObj = result.user || { email, role: portal };
+        setAuthUser({
+          ...userObj,
+          fullName: userObj.fullName || userObj.full_name || userObj.name || email,
+          name: userObj.fullName || userObj.name || email,
+          role: userObj.role || portal,
+        });
       } else if (loginMethod === 'card') {
         const result = await api.cardScan({ cardId, portal });
         if (result.token) setAuthToken(result.token);
-        if (result.user) setAuthUser(result.user);
+        const userObj = result.user || { cardId, role: portal };
+        setAuthUser({
+          ...userObj,
+          fullName: userObj.fullName || userObj.full_name || userObj.name || `Student ${cardId}`,
+          name: userObj.fullName || userObj.name || `Student ${cardId}`,
+          role: userObj.role || portal,
+        });
       }
       setLoading(false);
       setSuccess(true);
@@ -296,7 +308,14 @@ export default function LoginPage({ portal, onLoginSuccess }) {
         password: regPass
       });
       if (res.token) setAuthToken(res.token);
-      if (res.user) setAuthUser(res.user);
+      const userPayload = {
+        ...(res.user || {}),
+        fullName: res.user?.fullName || res.user?.full_name || regFullName,
+        name: regFullName,
+        email: regEmail,
+        role: regRole,
+      };
+      setAuthUser(userPayload);
 
       setLoading(false);
       setSuccess(true);
@@ -442,11 +461,13 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                         <input
                           id="forgot-otp"
                           type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           maxLength={6}
                           className="form-input"
                           placeholder="e.g. 482910"
                           value={forgotOtp}
-                          onChange={(e) => setForgotOtp(e.target.value)}
+                          onChange={(e) => setForgotOtp(e.target.value.replace(/\D/g, ''))}
                           autoFocus
                           style={{ letterSpacing: '0.15em', fontWeight: 800 }}
                         />

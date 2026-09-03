@@ -11,6 +11,7 @@ import ContactDirectory from '../components/ContactDirectory/ContactDirectory';
 import { ParentReports } from '../components/ReportWorkflow/ReportWorkflow';
 import { ParentFees, ParentProgress, PortalSettings } from '../components/SchoolWorkflows/SchoolWorkflows';
 import { usePortalData } from '../data/PortalStore';
+import { getAuthUser } from '../services/api';
 
 const PARENT_BG    = '#1a3668';
 const PARENT_LIGHT = '#ddeeff';
@@ -86,7 +87,7 @@ export default function ParentPortal() {
         <aside className="portal__sidebar">
           <div style={{ margin: '0 0 16px', padding: '14px', background: PARENT_LIGHT, borderRadius: 'var(--radius-md)', borderLeft: `4px solid ${PARENT_BG}` }}>
             <div style={{ fontWeight: 800, fontSize: 13, color: PARENT_BG }}>Parent Portal</div>
-            <div style={{ fontSize: 11, color: '#3a5a8a', marginTop: 2 }}>Mrs. Angela Edwards</div>
+            <div style={{ fontSize: 11, color: '#3a5a8a', marginTop: 2 }}>{getAuthUser()?.fullName || getAuthUser()?.name || 'Mrs. Angela Edwards'}</div>
           </div>
           <span className="sidebar-section-label">Navigation</span>
           {NAV.slice(0, 5).map((item) => (

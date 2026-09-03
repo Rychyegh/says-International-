@@ -8,6 +8,7 @@ import '../components/BusTracker/BusTracker.css';
 import BusTracker from '../components/BusTracker/BusTracker';
 import { CourseRegistration, StudentResults, StudentTimetable } from '../components/Academic/AcademicViews';
 import { PortalSettings, StudentMessagesAssignments } from '../components/SchoolWorkflows/SchoolWorkflows';
+import { getAuthUser } from '../services/api';
 
 const STUDENT_BG    = '#5e2d0e';
 const STUDENT_LIGHT = '#fff1e8';
@@ -85,7 +86,7 @@ export default function StudentPortal() {
         <aside className="portal__sidebar">
           <div style={{ margin: '0 0 16px', padding: '14px', background: STUDENT_LIGHT, borderRadius: 'var(--radius-md)', borderLeft: `4px solid ${STUDENT_BG}` }}>
             <div style={{ fontWeight: 800, fontSize: 13, color: STUDENT_BG }}>Student Portal</div>
-            <div style={{ fontSize: 11, color: '#8a5e3a', marginTop: 2 }}>Kwame Edwards — Senior High II</div>
+            <div style={{ fontSize: 11, color: '#8a5e3a', marginTop: 2 }}>{getAuthUser()?.fullName || getAuthUser()?.name || 'Kwame Edwards'} — Senior High II</div>
           </div>
           <span className="sidebar-section-label">My Space</span>
           {NAV.slice(0, 6).map((item) => (
@@ -116,14 +117,7 @@ export default function StudentPortal() {
               {item.badge && <span className="sidebar-item__badge" style={{ background: STUDENT_BG, color: '#fff' }}>{item.badge}</span>}
             </button>
           ))}
-          <span className="sidebar-section-label">System</span>
 
-          {/* New Admission CTA */}
-          <div style={{ marginTop: 'auto', paddingTop: 20 }}>
-            <button onClick={() => setActiveNav('Onboarding')} style={{ width: '100%', padding: '11px', background: STUDENT_BG, color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 800, fontSize: 12, cursor: 'pointer', letterSpacing: '.04em' }}>
-              + New Admission
-            </button>
-          </div>
         </aside>
 
         {/* Main */}

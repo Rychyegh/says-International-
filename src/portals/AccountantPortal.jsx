@@ -7,6 +7,7 @@ import '../components/Portal/Portal.css';
 import { usePortalData } from '../data/PortalStore';
 
 import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeStructure';
+import { getAuthUser } from '../services/api';
 
 const ACCOUNT_BG = '#0f3a4b';
 const ACCOUNT_LIGHT = '#e0f2fe';
@@ -393,7 +394,7 @@ export default function AccountantPortal({ onSignOut }) {
         <aside className="portal__sidebar">
           <div style={{ margin: '0 0 16px', padding: '14px', background: ACCOUNT_LIGHT, borderRadius: 'var(--radius-md)', borderLeft: `4px solid ${ACCOUNT_BG}` }}>
             <div style={{ fontWeight: 800, fontSize: 13, color: ACCOUNT_BG }}>Accountant Portal</div>
-            <div style={{ fontSize: 11, color: '#0369a1', marginTop: 2 }}>Mrs. Grace Accountant · Finance Office</div>
+            <div style={{ fontSize: 11, color: '#0369a1', marginTop: 2 }}>{getAuthUser()?.fullName || getAuthUser()?.name || 'Mrs. Grace Accountant'} · Finance Office</div>
           </div>
           <span className="sidebar-section-label">Financial Management</span>
           {NAV.map((item) => (
