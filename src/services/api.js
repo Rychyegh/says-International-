@@ -9,30 +9,21 @@ const SMS_API_KEY = import.meta.env.VITE_SMS_API_KEY || '67648ed5720ca875d42dc20
 const SMS_SENDER_ID = import.meta.env.VITE_SMS_SENDER_ID || 'REMALJ CARE';
 
 export function getAuthToken() {
-  try {
-    const token = localStorage.getItem('auth_token');
-    return token && token !== 'undefined' && token !== 'null' ? token : '';
-  } catch {
-    return '';
-  }
+  return localStorage.getItem('auth_token') || '';
 }
 
 export function setAuthToken(token) {
-  try {
-    if (token) {
-      localStorage.setItem('auth_token', token);
-    } else {
-      localStorage.removeItem('auth_token');
-    }
-  } catch (e) {}
+  if (token) {
+    localStorage.setItem('auth_token', token);
+  } else {
+    localStorage.removeItem('auth_token');
+  }
 }
 
 export function getAuthUser() {
   try {
     const saved = localStorage.getItem('auth_user');
-    if (!saved || saved === 'undefined' || saved === 'null') return null;
-    const parsed = JSON.parse(saved);
-    return parsed && typeof parsed === 'object' ? parsed : null;
+    return saved ? JSON.parse(saved) : null;
   } catch {
     return null;
   }
