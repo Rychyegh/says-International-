@@ -1,5 +1,5 @@
 /**
- * REMALJ Carewell Inspirational School - Backend & SMS Gateway API Service Client
+ * REMALJ Carewell Inspiration School - Bogoso - Backend & SMS Gateway API Service Client
  * Backend Base URL: https://rcis-backend.onrender.com/api/v1
  * SMS Gateway: SMSOnlineGH (v4 API)
  */

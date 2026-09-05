@@ -46,8 +46,8 @@ const INITIAL_DATA = {
     { id: 'cal-003', title: 'End-of-term examinations', start: '2026-11-23', end: '2026-12-04', type: 'Assessment' },
   ],
   feeAccounts: [
-    { id: 'fee-benjamin', child: 'Benjamin Edwards', school: 'REMALJ Carewell Inspirational School', term: 'Term 1 · 2026', billed: 4800, paid: 4800, status: 'Paid' },
-    { id: 'fee-adwoa', child: 'Adwoa Edwards', school: 'REMALJ Carewell Inspirational School', term: 'Term 1 · 2026', billed: 4800, paid: 3200, status: 'Balance due' },
+    { id: 'fee-benjamin', child: 'Benjamin Edwards', school: 'REMALJ Carewell Inspiration School - Bogoso', term: 'Term 1 · 2026', billed: 4800, paid: 4800, status: 'Paid' },
+    { id: 'fee-adwoa', child: 'Adwoa Edwards', school: 'REMALJ Carewell Inspiration School - Bogoso', term: 'Term 1 · 2026', billed: 4800, paid: 3200, status: 'Balance due' },
   ],
   messages: [
     { id: 'message-001', from: 'Mr. Samuel Amponsah', senderRole: 'Staff', to: 'Parents', recipient: 'Mrs. Angela Edwards', subject: 'Academic update', body: 'Term results will be published after moderation.', sentAt: '20 Aug 2026, 09:15' },
@@ -548,7 +548,7 @@ export function PortalDataProvider({ children }) {
         const newFeeAccount = {
           id: `fee-acc-${newStudent.id}`,
           child: student.fullName,
-          school: 'REMALJ Carewell Inspirational School',
+          school: 'REMALJ Carewell Inspiration School - Bogoso',
           term: 'Term 1 · 2026',
           billed: defaultBilled,
           paid: 0,
@@ -632,7 +632,7 @@ export function PortalDataProvider({ children }) {
           const newFeeAccount = {
             id: `fee-acc-${id}`,
             child: student.fullName,
-            school: 'REMALJ Carewell Inspirational School',
+            school: 'REMALJ Carewell Inspiration School - Bogoso',
             term: 'Term 1 · 2026',
             billed: defaultBilled,
             paid: 0,
