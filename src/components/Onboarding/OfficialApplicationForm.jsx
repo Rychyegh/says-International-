@@ -10,11 +10,11 @@ export function SchoolLogoSVG({ size = 110 }) {
   return (
     <svg width={size} height={size * 1.05} viewBox="0 0 200 210" fill="none" xmlns="http://www.w3.org/2000/svg">
       {/* Top Header Text */}
-      <text x="100" y="16" fill="#0088cc" fontSize="14" fontWeight="900" textAnchor="middle" fontFamily="system-ui, Arial, sans-serif">
+      <text x="100" y="16" fill="#0088cc" fontSize="13.5" fontWeight="900" textAnchor="middle" fontFamily="system-ui, Arial, sans-serif">
         REMALJ
       </text>
-      <text x="100" y="28" fill="#0088cc" fontSize="9" fontWeight="900" textAnchor="middle" fontFamily="system-ui, Arial, sans-serif" letterSpacing="0.2">
-        CAREWELL INSPIRATION SCHOOL - BOGOSO
+      <text x="100" y="28" fill="#0088cc" fontSize="10" fontWeight="900" textAnchor="middle" fontFamily="system-ui, Arial, sans-serif" letterSpacing="0.2">
+        CAREWELL INSPIRATIONAL SCHOOL
       </text>
 
       {/* Main Shield Outer Red Border Line */}
@@ -394,7 +394,7 @@ export default function OfficialApplicationForm({
                 <SchoolLogoSVG size={100} />
               </div>
               <div className="school-header-text">
-                <div className="school-header-title">REMALJ CAREWELL INSPIRATION SCHOOL - BOGOSO</div>
+                <div className="school-header-title">REMALJ CAREWELL INSPIRATIONAL SCHOOL</div>
                 <div className="school-header-sub">P. O. BOX 139, BOGOSO</div>
                 <div className="school-header-email">Email: info@remaljschools.com</div>
               </div>

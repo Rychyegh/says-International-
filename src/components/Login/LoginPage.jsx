@@ -350,10 +350,10 @@ export default function LoginPage({ portal, onLoginSuccess }) {
         <div className="login-left__content">
           {/* School logo */}
           <div className="login-left__logo">
-            <img className="login-left__logo-mark" src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Inspiration School - Bogoso logo" />
+            <img className="login-left__logo-mark" src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Inspirational School logo" />
             <div className="login-left__logo-text">
-              REMALJ
-              <span>Carewell Inspiration School - Bogoso</span>
+              REMALJ Carewell
+              <span>Inspirational School · Bogoso</span>
             </div>
           </div>
 
@@ -836,7 +836,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
               </div>
 
               <div className="login-footer" style={{ marginTop: 24 }}>
-                REMALJ Carewell Inspiration School - Bogoso<br />
+                REMALJ Carewell Inspirational School<br />
                 P.O. Box 139, Bogoso
                 <br />
                 <span style={{ marginTop: 8, display: 'block' }}>

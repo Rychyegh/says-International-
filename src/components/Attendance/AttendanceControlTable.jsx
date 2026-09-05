@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { CheckCircle2, XCircle, Send, Radio, Search, ShieldCheck, Phone, Check, CreditCard, Cpu, Sparkles, Download, Filter, ArrowUpDown } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { CheckCircle2, XCircle, Send, Radio, Search, ShieldCheck, Phone, Check, CreditCard, Cpu, Sparkles } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
 import { api } from '../../services/api';
 import './AttendanceControlTable.css';
 
 export default function AttendanceControlTable() {
-  const { onboardedStudents, updateOnboardedStudent, attendanceRecords, updateAttendanceRecord } = usePortalData();
+  const { onboardedStudents, updateOnboardedStudent } = usePortalData();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState('All');
-  const [classSearchQuery, setClassSearchQuery] = useState('');
 
   // Card Reader Input State
   const [cardInput, setCardInput] = useState('');
@@ -19,12 +18,12 @@ export default function AttendanceControlTable() {
   const [assignStudentId, setAssignStudentId] = useState('');
   const cardInputRef = useRef(null);
   
-  // Track local attendance and SMS state merged with global PortalStore
-  const [localAttendanceState, setLocalAttendanceState] = useState({});
-
-  const mergedAttendanceState = useMemo(() => {
-    return { ...(attendanceRecords || {}), ...localAttendanceState };
-  }, [attendanceRecords, localAttendanceState]);
+  // Track attendance and SMS state per student ID
+  // { [studentId]: { status: 'Present' | 'Absent' | 'CardScanned', cardScanned: boolean, smsSent: boolean, lastSentAt: string, sending: boolean } }
+  const [attendanceState, setAttendanceState] = useState({
+    'REMALJ-2026-001': { status: 'CardScanned', cardScanned: true, smsSent: true, lastSentAt: '08:15 AM' },
+    'REMALJ-2026-002': { status: 'Present', cardScanned: false, smsSent: true, lastSentAt: '08:30 AM' },
+  });
 
   const [notification, setNotification] = useState('');
 
@@ -83,20 +82,16 @@ export default function AttendanceControlTable() {
     const phone = customPhones[sId] || matchedStudent.guardianPhone || '0541769621';
     const guardianName = matchedStudent.guardianName || 'Guardian';
 
-    const recordPayload = {
-      status: 'CardScanned',
-      cardScanned: true,
-      smsSent: true,
-      lastSentAt: timeStr,
-      sending: false
-    };
-
-    if (updateAttendanceRecord) {
-      updateAttendanceRecord(sId, recordPayload);
-    }
-    setLocalAttendanceState(prev => ({
+    // Lock attendance as CardScanned (Present)
+    setAttendanceState(prev => ({
       ...prev,
-      [sId]: recordPayload
+      [sId]: {
+        status: 'CardScanned',
+        cardScanned: true,
+        smsSent: true,
+        lastSentAt: timeStr,
+        sending: false
+      }
     }));
 
     setLastScannedStudent({ ...matchedStudent, scannedCardCode, timeStr, phone });
@@ -224,31 +219,20 @@ export default function AttendanceControlTable() {
     const sId = student.studentId || student.id;
 
     // Do not modify if card scan already locked it
-    if (mergedAttendanceState[sId]?.cardScanned) return;
+    if (attendanceState[sId]?.cardScanned) return;
+
+    setAttendanceState(prev => ({
+      ...prev,
+      [sId]: { ...(prev[sId] || {}), sending: true }
+    }));
 
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const phone = customPhones[sId] || student.guardianPhone || '0541769621';
     const guardianName = student.guardianName || 'Guardian';
-
-    const recordPayload = {
-      status: newStatus,
-      cardScanned: false,
-      smsSent: true,
-      lastSentAt: timeStr,
-      sending: false
-    };
-
-    if (updateAttendanceRecord) {
-      updateAttendanceRecord(sId, recordPayload);
-    }
-    setLocalAttendanceState(prev => ({
-      ...prev,
-      [sId]: recordPayload
-    }));
-
     const messageText = `[RCIS] REMALJ CARE: Dear ${guardianName}, your child ${student.fullName} (${student.level}) has been marked ${newStatus.toUpperCase()} at school today at ${timeStr}.`;
 
     try {
+      // 1. Dispatch SMS and record attendance on backend concurrently in parallel (0 delay)
       const smsPromise = api.sendSms({
         recipientPhone: phone,
         messageText: messageText,
@@ -271,79 +255,43 @@ export default function AttendanceControlTable() {
         setNotification(`⚡ Instant SMS alert dispatched to ${guardianName} (${phone}) for ${student.fullName} (${newStatus})!`);
       }
 
+      setAttendanceState(prev => ({
+        ...prev,
+        [sId]: {
+          status: newStatus,
+          cardScanned: false,
+          smsSent: true,
+          lastSentAt: timeStr,
+          sending: false
+        }
+      }));
+
       setTimeout(() => setNotification(''), 9000);
     } catch (err) {
       console.warn('SMS send warning:', err);
+      setAttendanceState(prev => ({
+        ...prev,
+        [sId]: {
+          status: newStatus,
+          cardScanned: false,
+          smsSent: true,
+          lastSentAt: timeStr,
+          sending: false
+        }
+      }));
       setNotification(`Marked ${newStatus} for ${student.fullName}. SMS alert logged.`);
       setTimeout(() => setNotification(''), 6000);
     }
   };
 
-  // Filter students based on search query (Name, ID, RFID Card Code, Guardian), selected Level, and Class search
-  const filteredStudents = studentsList.filter(s => {
-    const q = searchQuery.toLowerCase().trim();
-    const cQ = classSearchQuery.toLowerCase().trim();
-    const sId = (s.studentId || s.id || '').toLowerCase();
-    const rfid = (s.rfidCardCode || '').toLowerCase();
-    const name = (s.fullName || '').toLowerCase();
-    const guardian = (s.guardianName || '').toLowerCase();
-    const phone = (customPhones[s.studentId || s.id] || s.guardianPhone || '').toLowerCase();
-    const level = (s.level || '').toLowerCase();
-    const section = (s.classSection || '').toLowerCase();
-
-    const matchesSearch = !q ||
-      name.includes(q) ||
-      sId.includes(q) ||
-      rfid.includes(q) ||
-      guardian.includes(q) ||
-      phone.includes(q);
-
+  const filtered = studentsList.filter(s => {
+    const matchesSearch = s.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          s.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (s.rfidCardCode || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (s.guardianName || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesLevel = selectedLevel === 'All' || s.level.includes(selectedLevel);
-    const matchesClass = !cQ || level.includes(cQ) || section.includes(cQ);
-
-    return matchesSearch && matchesLevel && matchesClass;
+    return matchesSearch && matchesLevel;
   });
-
-  // Alphabetical Order Sorting (A-Z) by Student Full Name
-  const sortedStudents = [...filteredStudents].sort((a, b) => a.fullName.localeCompare(b.fullName));
-
-  // Export Filtered / All Attendance Records to CSV
-  const handleDownloadCSV = () => {
-    if (sortedStudents.length === 0) {
-      alert('No attendance records found matching current filters to download.');
-      return;
-    }
-
-    const recordsToExport = sortedStudents.map(student => {
-      const sId = student.studentId || student.id;
-      const state = mergedAttendanceState[sId] || { status: 'Unmarked', cardScanned: false };
-      return {
-        'Student Code': student.studentId || student.id,
-        'Full Name': student.fullName,
-        'Class Level': `${student.level} (${student.classSection || 'A'})`,
-        'RFID Card Code': student.rfidCardCode || 'N/A',
-        'Guardian Name': student.guardianName || 'N/A',
-        'Guardian Phone': customPhones[sId] || student.guardianPhone || 'N/A',
-        'Scan Status': state.status === 'CardScanned' ? 'Card Scanned (Present)' : state.status || 'Unmarked',
-        'Time Recorded': state.lastSentAt || 'N/A',
-        'Date': new Date().toISOString().split('T')[0]
-      };
-    });
-
-    const headers = Object.keys(recordsToExport[0]).join(',');
-    const rows = recordsToExport.map(row =>
-      Object.values(row).map(val => `"${String(val).replace(/"/g, '""')}"`).join(',')
-    );
-
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers, ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `attendance_records_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   return (
     <div className="attendance-control-panel">
@@ -535,24 +483,14 @@ export default function AttendanceControlTable() {
           </p>
         </div>
 
-        <div className="attendance-filter-row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="attendance-filter-row">
           <div className="attendance-search-box">
             <Search size={15} />
             <input
               type="text"
-              placeholder="Search by Name, Student ID, Card UID..."
+              placeholder="Search student or guardian..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          <div className="attendance-search-box" style={{ width: 160 }}>
-            <Filter size={14} />
-            <input
-              type="text"
-              placeholder="Search Class..."
-              value={classSearchQuery}
-              onChange={(e) => setClassSearchQuery(e.target.value)}
             />
           </div>
 
@@ -562,34 +500,10 @@ export default function AttendanceControlTable() {
             onChange={(e) => setSelectedLevel(e.target.value)}
           >
             <option value="All">All Class Levels</option>
-            <option value="Creche">Creche / Nursery</option>
-            <option value="JHS">JHS (Junior High)</option>
-            <option value="Kindergarten">Kindergarten</option>
-            <option value="Primary">Primary Grade</option>
-            <option value="SHS">SHS (Senior High)</option>
+            <option value="Primary">Primary</option>
+            <option value="JHS">JHS</option>
+            <option value="SHS">SHS</option>
           </select>
-
-          <button
-            type="button"
-            className="btn-scan-card"
-            onClick={handleDownloadCSV}
-            style={{
-              background: '#047857',
-              color: '#ffffff',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 16px',
-              borderRadius: 8,
-              fontWeight: 800,
-              fontSize: 12,
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(4, 120, 87, 0.3)'
-            }}
-            title="Download CSV report of current filtered attendance records"
-          >
-            <Download size={15} /> Download Attendance Records
-          </button>
         </div>
       </div>
 
@@ -599,7 +513,7 @@ export default function AttendanceControlTable() {
           <thead>
             <tr>
               <th>Student Code</th>
-              <th>Student Name (A-Z)</th>
+              <th>Student Name</th>
               <th>Class Level</th>
               <th>Guardian Contact</th>
               <th>Scan Status</th>
@@ -607,9 +521,9 @@ export default function AttendanceControlTable() {
             </tr>
           </thead>
           <tbody>
-            {sortedStudents.map((student) => {
+            {filtered.map((student) => {
               const sId = student.studentId || student.id;
-              const state = mergedAttendanceState[sId] || { status: 'Unmarked', cardScanned: false, smsSent: false };
+              const state = attendanceState[sId] || { status: 'Unmarked', cardScanned: false, smsSent: false };
 
               return (
                 <tr key={sId} className={state.cardScanned ? 'row-card-scanned' : ''}>

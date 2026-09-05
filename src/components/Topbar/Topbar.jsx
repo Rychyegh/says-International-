@@ -38,10 +38,10 @@ export default function Topbar({ activePortal, isAuthed, onSignOut }) {
     <header className="topbar" role="banner" style={{ borderBottom: '1px solid var(--gray-200)', background: '#fff' }}>
       <div className="topbar__inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px' }}>
         {/* School logo */}
-        <Link to={`/${activePortal}`} className="topbar__logo" title="REMALJ Carewell Inspiration School - Bogoso" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Link to={`/${activePortal}`} className="topbar__logo" title="REMALJ Carewell Inspirational School" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12 }}>
           <img
             src="/remalj-carewell-logo.jpg"
-            alt="REMALJ Carewell Inspiration School - Bogoso logo"
+            alt="REMALJ Carewell Inspirational School logo"
             style={{ height: 46, width: 'auto', objectFit: 'contain', display: 'block' }}
             onError={(e) => {
               e.target.onerror = null;
@@ -49,8 +49,8 @@ export default function Topbar({ activePortal, isAuthed, onSignOut }) {
             }}
           />
           <div className="topbar__school-name">
-            <strong style={{ fontSize: 18, fontFamily: 'var(--font-display)', color: 'var(--gray-900)', letterSpacing: '0.04em', display: 'block', lineHeight: 1.15 }}>REMALJ</strong>
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-600)', display: 'block', marginTop: 1 }}>Carewell Inspiration School - Bogoso</span>
+            <strong style={{ fontSize: 16, fontFamily: 'var(--font-display)', color: 'var(--gray-900)' }}>REMALJ Carewell</strong>
+            <span style={{ fontSize: 11, color: 'var(--gray-500)', display: 'block' }}>Inspirational School · Bogoso</span>
           </div>
         </Link>
 

@@ -284,7 +284,7 @@ export default function StudentPortal() {
                     <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6ee89a', marginBottom: 8 }}>Institutional</div>
                     <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, lineHeight: 1.3, marginBottom: 8 }}>Founder's Day Celebration 2024</h3>
                     <p style={{ fontSize: 12, color: 'rgba(255,255,255,.65)', lineHeight: 1.6, marginBottom: 14 }}>
-                      Join us this Friday as we celebrate the spirit of excellence at REMALJ Carewell Inspiration School - Bogoso. Families and staff are welcome.
+                      Join us this Friday as we celebrate the spirit of excellence at REMALJ Carewell Inspirational School. Families and staff are welcome.
                     </p>
                     <button style={{ fontSize: 12, color: '#6ee89a', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}>Read Article →</button>
                   </div>

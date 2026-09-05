@@ -60,7 +60,7 @@ export default function PortalDirectory() {
   return (
     <div className="portal-directory animate-fade-up">
       <div className="portal-directory__hero">
-        <span className="portal-directory__badge">REMALJ Carewell Inspiration School - Bogoso</span>
+        <span className="portal-directory__badge">REMALJ Carewell Inspirational School</span>
         <h1 className="portal-directory__title">School Management Portals</h1>
         <p className="portal-directory__subtitle">
           Select your dedicated portal link below to access your role-specific dashboard and administrative features.

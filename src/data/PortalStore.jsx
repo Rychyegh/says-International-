@@ -46,8 +46,8 @@ const INITIAL_DATA = {
     { id: 'cal-003', title: 'End-of-term examinations', start: '2026-11-23', end: '2026-12-04', type: 'Assessment' },
   ],
   feeAccounts: [
-    { id: 'fee-benjamin', child: 'Benjamin Edwards', school: 'REMALJ Carewell Inspiration School - Bogoso', term: 'Term 1 · 2026', billed: 4800, paid: 4800, status: 'Paid' },
-    { id: 'fee-adwoa', child: 'Adwoa Edwards', school: 'REMALJ Carewell Inspiration School - Bogoso', term: 'Term 1 · 2026', billed: 4800, paid: 3200, status: 'Balance due' },
+    { id: 'fee-benjamin', child: 'Benjamin Edwards', school: 'REMALJ Carewell Inspirational School', term: 'Term 1 · 2026', billed: 4800, paid: 4800, status: 'Paid' },
+    { id: 'fee-adwoa', child: 'Adwoa Edwards', school: 'REMALJ Carewell Inspirational School', term: 'Term 1 · 2026', billed: 4800, paid: 3200, status: 'Balance due' },
   ],
   messages: [
     { id: 'message-001', from: 'Mr. Samuel Amponsah', senderRole: 'Staff', to: 'Parents', recipient: 'Mrs. Angela Edwards', subject: 'Academic update', body: 'Term results will be published after moderation.', sentAt: '20 Aug 2026, 09:15' },
@@ -103,10 +103,6 @@ const INITIAL_DATA = {
   ],
   theme: 'light',
   backendConnected: false,
-  attendanceRecords: {
-    'REMALJ-2026-001': { status: 'CardScanned', cardScanned: true, smsSent: true, lastSentAt: '08:15 AM', timeStr: '08:15 AM' },
-    'REMALJ-2026-002': { status: 'Present', cardScanned: false, smsSent: true, lastSentAt: '08:30 AM', timeStr: '08:30 AM' },
-  },
 };
 
 const PortalDataContext = createContext(null);
@@ -114,34 +110,8 @@ const PortalDataContext = createContext(null);
 function readData() {
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (!saved) return INITIAL_DATA;
-    const parsed = JSON.parse(saved);
-    if (!parsed || typeof parsed !== 'object') return INITIAL_DATA;
-
-    return {
-      ...INITIAL_DATA,
-      ...parsed,
-      onboardedStudents: Array.isArray(parsed.onboardedStudents) && parsed.onboardedStudents.length > 0
-        ? parsed.onboardedStudents
-        : INITIAL_DATA.onboardedStudents,
-      studentFees: Array.isArray(parsed.studentFees) && parsed.studentFees.length > 0
-        ? parsed.studentFees
-        : INITIAL_DATA.studentFees,
-      feeAccounts: Array.isArray(parsed.feeAccounts) && parsed.feeAccounts.length > 0
-        ? parsed.feeAccounts
-        : INITIAL_DATA.feeAccounts,
-      attendanceRecords: (parsed.attendanceRecords && typeof parsed.attendanceRecords === 'object')
-        ? parsed.attendanceRecords
-        : INITIAL_DATA.attendanceRecords,
-      messages: Array.isArray(parsed.messages) ? parsed.messages : INITIAL_DATA.messages,
-      accountantMessages: Array.isArray(parsed.accountantMessages) ? parsed.accountantMessages : INITIAL_DATA.accountantMessages,
-      applications: Array.isArray(parsed.applications) ? parsed.applications : INITIAL_DATA.applications,
-      teacherDirectory: Array.isArray(parsed.teacherDirectory) && parsed.teacherDirectory.length > 0
-        ? parsed.teacherDirectory
-        : INITIAL_DATA.teacherDirectory,
-    };
-  } catch (e) {
-    console.warn('LocalStorage parse warning:', e);
+    return saved ? { ...INITIAL_DATA, ...JSON.parse(saved) } : INITIAL_DATA;
+  } catch {
     return INITIAL_DATA;
   }
 }
@@ -574,7 +544,7 @@ export function PortalDataProvider({ children }) {
         const newFeeAccount = {
           id: `fee-acc-${newStudent.id}`,
           child: student.fullName,
-          school: 'REMALJ Carewell Inspiration School - Bogoso',
+          school: 'REMALJ Carewell Inspirational School',
           term: 'Term 1 · 2026',
           billed: defaultBilled,
           paid: 0,
@@ -658,7 +628,7 @@ export function PortalDataProvider({ children }) {
           const newFeeAccount = {
             id: `fee-acc-${id}`,
             child: student.fullName,
-            school: 'REMALJ Carewell Inspiration School - Bogoso',
+            school: 'REMALJ Carewell Inspirational School',
             term: 'Term 1 · 2026',
             billed: defaultBilled,
             paid: 0,
@@ -683,7 +653,7 @@ export function PortalDataProvider({ children }) {
     },
     updateOnboardedStudent: (id, updates) => setData((current) => ({
       ...current,
-      onboardedStudents: (current.onboardedStudents || []).map((s) => (s.id === id || s.studentId === id) ? { ...s, ...updates } : s),
+      onboardedStudents: (current.onboardedStudents || []).map((s) => s.id === id ? { ...s, ...updates } : s),
     })),
     deleteOnboardedStudent: (id) => setData((current) => ({
       ...current,
@@ -801,19 +771,6 @@ export function PortalDataProvider({ children }) {
       } catch (e) {
         console.warn('Notify absent API warning:', e);
       }
-    },
-    attendanceRecords: data.attendanceRecords || {},
-    updateAttendanceRecord: (studentId, recordData) => {
-      setData((current) => ({
-        ...current,
-        attendanceRecords: {
-          ...(current.attendanceRecords || {}),
-          [studentId]: {
-            ...(current.attendanceRecords?.[studentId] || {}),
-            ...recordData,
-          },
-        },
-      }));
     },
   }), [data, refreshBackendData]);
 
