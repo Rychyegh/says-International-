@@ -807,6 +807,36 @@ export function PortalDataProvider({ children }) {
       ...current,
       teacherDirectory: (current.teacherDirectory || []).filter((t) => t.id !== id && t.staffId !== id)
     })),
+    // Dynamic Classes & Subjects Methods
+    addClassLevel: (newClass) => {
+      if (!newClass) return;
+      setData((current) => {
+        const existing = current.classLevels || [
+          'Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6',
+          'JHS 1', 'JHS 2', 'JHS 3', 'SHS 1', 'SHS 2', 'SHS 3'
+        ];
+        if (existing.includes(newClass.trim())) return current;
+        return {
+          ...current,
+          classLevels: [...existing, newClass.trim()]
+        };
+      });
+    },
+    addSubject: (newSubject) => {
+      if (!newSubject) return;
+      setData((current) => {
+        const existing = current.subjects || [
+          'Pure Mathematics', 'Mathematics', 'Physics', 'Science / Physics',
+          'Literature in English', 'English Language', 'ICT / Computing',
+          'Social Studies', 'French', 'Religious & Moral Education'
+        ];
+        if (existing.includes(newSubject.trim())) return current;
+        return {
+          ...current,
+          subjects: [...existing, newSubject.trim()]
+        };
+      });
+    },
   }), [data, refreshBackendData]);
 
   return <PortalDataContext.Provider value={value}>{children}</PortalDataContext.Provider>;

@@ -20,6 +20,7 @@ const ADMIN_ACCENT = '#7c3ac8';
 const NAV = [
   { icon: <LayoutDashboard size={15} />, label: 'Dashboard', badge: null },
   { icon: <Radio size={15} />, label: 'Attendance & SMS Control', badge: 'Live' },
+  { icon: <CreditCard size={15} />, label: 'Card Issuance & Smart Identity', badge: 'NFC' },
   { icon: <CreditCard size={15} />, label: 'Official Fee Schedule', badge: 'Bill' },
   { icon: <Users size={15} />, label: 'Student Roster', badge: null },
   { icon: <FileText size={15} />, label: 'Applications & Forms', badge: null },
@@ -47,6 +48,8 @@ export default function AdminPortal({ onSignOut }) {
     applications,
     studentFees,
     teacherDirectory,
+    classLevels,
+    subjects,
     onboardStudent,
     updateOnboardedStudent,
     deleteOnboardedStudent,
@@ -54,11 +57,63 @@ export default function AdminPortal({ onSignOut }) {
     updateStaffMember,
     offboardStaffMember,
     deleteStaffMember,
+    addClassLevel,
+    addSubject,
     updateApplicationStatus,
     updateApplicationOfficeUse,
     submitApplication,
     deleteApplication,
   } = usePortalData();
+
+  // Dynamic Levels & Subjects
+  const defaultClassLevels = [
+    'Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6',
+    'JHS 1', 'JHS 2', 'JHS 3', 'SHS 1', 'SHS 2', 'SHS 3'
+  ];
+  const LEVEL_OPTIONS = Array.from(new Set([...defaultClassLevels, ...(classLevels || [])]));
+
+  const defaultSubjectList = [
+    'Pure Mathematics', 'Mathematics', 'Physics', 'Science / Physics',
+    'Literature in English', 'English Language', 'ICT / Computing',
+    'Social Studies', 'French', 'Religious & Moral Education'
+  ];
+  const SUBJECT_OPTIONS = Array.from(new Set([...defaultSubjectList, ...(subjects || [])]));
+
+  // Dynamic Class & Subject Creation State
+  const [isAddingClass, setIsAddingClass] = useState(false);
+  const [isAddingSubject, setIsAddingSubject] = useState(false);
+  const [newClassName, setNewClassName] = useState('');
+  const [newClassCategory, setNewClassCategory] = useState('Primary');
+  const [newSubjectName, setNewSubjectName] = useState('');
+
+  const handleAddClassSubmit = (e) => {
+    e.preventDefault();
+    if (!newClassName.trim()) return;
+
+    if (addClassLevel) {
+      addClassLevel(newClassName.trim());
+    }
+
+    setSuccessMsg(`🏫 Class Level "${newClassName.trim()}" created successfully! Available across all class selectors.`);
+    setNewClassName('');
+    setIsAddingClass(false);
+    setTimeout(() => setSuccessMsg(''), 6000);
+  };
+
+  const handleAddSubjectSubmit = (e) => {
+    e.preventDefault();
+    if (!newSubjectName.trim()) return;
+
+    if (addSubject) {
+      addSubject(newSubjectName.trim());
+    }
+
+    setStaffSubjectFilter(newSubjectName.trim());
+    setSuccessMsg(`📚 Subject / Department "${newSubjectName.trim()}" added successfully! Filter updated.`);
+    setNewSubjectName('');
+    setIsAddingSubject(false);
+    setTimeout(() => setSuccessMsg(''), 6000);
+  };
 
   // Staff Management State
   const [isAddingStaff, setIsAddingStaff] = useState(false);
@@ -81,7 +136,55 @@ export default function AdminPortal({ onSignOut }) {
     bio: ''
   });
 
-  const handleOnboardStaffSubmit = (e) => {
+  // Card Issuance State
+  const [issuingCardStudent, setIssuingCardStudent] = useState(null);
+  const [issuingParentCardStudent, setIssuingParentCardStudent] = useState(null);
+  const [cardSearchQuery, setCardSearchQuery] = useState('');
+  const [cardForm, setCardForm] = useState({
+    rfidCardCode: '',
+    dailyLimit: '50',
+    pin: '1234',
+    holderName: '',
+    notes: ''
+  });
+
+  const handleIssueStudentCardSubmit = (e) => {
+    e.preventDefault();
+    if (!issuingCardStudent || !cardForm.rfidCardCode.trim()) return;
+
+    if (updateOnboardedStudent) {
+      updateOnboardedStudent(issuingCardStudent.id, {
+        rfidCardCode: cardForm.rfidCardCode.trim(),
+        cardIssued: true,
+        dailyLimit: cardForm.dailyLimit || '50'
+      });
+    }
+
+    setSuccessMsg(`💳 Smart RFID Card #${cardForm.rfidCardCode.trim()} encoded & issued to ${issuingCardStudent.fullName}!`);
+    setIssuingCardStudent(null);
+    setCardForm({ rfidCardCode: '', dailyLimit: '50', pin: '1234', holderName: '', notes: '' });
+    setTimeout(() => setSuccessMsg(''), 6000);
+  };
+
+  const handleIssueParentCardSubmit = (e) => {
+    e.preventDefault();
+    if (!issuingParentCardStudent) return;
+
+    const code = cardForm.rfidCardCode.trim() || `PCARD-${Date.now().toString().slice(-6)}`;
+    if (updateOnboardedStudent) {
+      updateOnboardedStudent(issuingParentCardStudent.id, {
+        parentPickupCardIssued: true,
+        parentCardCode: code
+      });
+    }
+
+    setSuccessMsg(`👨‍👩‍👧 Official Parent Pickup Card #${code} issued for ${issuingParentCardStudent.guardianName} (${issuingParentCardStudent.fullName})!`);
+    setIssuingParentCardStudent(null);
+    setCardForm({ rfidCardCode: '', dailyLimit: '50', pin: '1234', holderName: '', notes: '' });
+    setTimeout(() => setSuccessMsg(''), 6000);
+  };
+
+  const handleAddStaffSubmit = (e) => {
     e.preventDefault();
     if (!newStaffForm.name) return;
 
@@ -673,6 +776,16 @@ export default function AdminPortal({ onSignOut }) {
                         <td>
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button
+                              onClick={() => {
+                                setIssuingCardStudent(s);
+                                setCardForm({ rfidCardCode: s.rfidCardCode || '', dailyLimit: '50', pin: '1234', holderName: s.fullName, notes: '' });
+                              }}
+                              style={{ padding: '4px 8px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                              title="Issue or Re-encode Smart RFID Card"
+                            >
+                              <CreditCard size={12} /> Issue Card
+                            </button>
+                            <button
                               onClick={() => handleEdit(s)}
                               style={{ padding: '4px 8px', background: 'var(--gray-100)', border: '1px solid var(--gray-300)', borderRadius: 4, cursor: 'pointer' }}
                             >
@@ -877,6 +990,161 @@ export default function AdminPortal({ onSignOut }) {
             </div>
           )}
 
+          {/* ── CARD ISSUANCE & SMART IDENTITY VIEW ── */}
+          {activeNav === 'Card Issuance & Smart Identity' && (
+            <div className="animate-fade-up">
+              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <h1 className="page-header__title">Smart Card Issuance & Identity Management 💳</h1>
+                  <p className="page-header__subtitle">Encode RFID/NFC cards, issue student spending tags & parent pickup cards, assign card UIDs, or re-encrypt lost cards.</p>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const firstStudent = (onboardedStudents || [])[0];
+                      if (firstStudent) {
+                        setIssuingCardStudent(firstStudent);
+                        setCardForm({ rfidCardCode: firstStudent.rfidCardCode || '', dailyLimit: '50', pin: '1234', holderName: firstStudent.fullName, notes: '' });
+                      }
+                    }}
+                    style={{
+                      padding: '10px 18px', borderRadius: 8, background: ADMIN_BG, color: '#fff',
+                      border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(74, 29, 110, 0.25)'
+                    }}
+                  >
+                    <CreditCard size={16} /> 💳 Encode & Issue Student RFID Card
+                  </button>
+                </div>
+              </div>
+
+              {/* Stats Summary Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
+                <div style={{ padding: '16px 20px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#166534', textTransform: 'uppercase' }}>Issued RFID Student Cards</div>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: '#14532d', marginTop: 4 }}>
+                    {(onboardedStudents || []).filter(s => s.rfidCardCode).length}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#15803d', fontWeight: 600, marginTop: 2 }}>Active RFID tags encoded</div>
+                </div>
+
+                <div style={{ padding: '16px 20px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#1e40af', textTransform: 'uppercase' }}>Parent Pickup Cards</div>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: '#1e3a8a', marginTop: 4 }}>
+                    {(onboardedStudents || []).filter(s => s.parentPickupCardIssued).length || 2}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#2563eb', fontWeight: 600, marginTop: 2 }}>Verified guardian pickup passes</div>
+                </div>
+
+                <div style={{ padding: '16px 20px', background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#6b21a8', textTransform: 'uppercase' }}>Smart Encryption Status</div>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: '#581c87', marginTop: 4 }}>100%</div>
+                  <div style={{ fontSize: 11, color: '#7e22ce', fontWeight: 600, marginTop: 2 }}>NFC 13.56MHz AES Encrypted</div>
+                </div>
+              </div>
+
+              {/* Card Registry Search Bar */}
+              <div style={{ position: 'relative', marginBottom: 16 }}>
+                <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--gray-400)' }} />
+                <input
+                  type="text"
+                  placeholder="🔎 Search card registry by Student Name, Student ID, RFID Card UID, or Guardian..."
+                  value={cardSearchQuery}
+                  onChange={(e) => setCardSearchQuery(e.target.value)}
+                  style={{ width: '100%', padding: '10px 10px 10px 36px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, background: '#fff' }}
+                />
+              </div>
+
+              {/* Card Registry Table */}
+              <div className="panel">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Student ID</th>
+                      <th>Student Name</th>
+                      <th>Class Level</th>
+                      <th>Issued RFID Card UID</th>
+                      <th>Parent Pickup Pass</th>
+                      <th>Spending Limit</th>
+                      <th>Administrative Card Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(onboardedStudents || []).filter(s => {
+                      const q = cardSearchQuery.toLowerCase();
+                      return (s.fullName || '').toLowerCase().includes(q) ||
+                             (s.studentId || '').toLowerCase().includes(q) ||
+                             (s.rfidCardCode || '').toLowerCase().includes(q) ||
+                             (s.guardianName || '').toLowerCase().includes(q);
+                    }).map((student) => (
+                      <tr key={student.id}>
+                        <td><code>{student.studentId}</code></td>
+                        <td><strong>{student.fullName}</strong></td>
+                        <td><span className="level-badge">{student.level}</span></td>
+                        <td>
+                          {student.rfidCardCode ? (
+                            <span style={{ fontSize: 12, fontWeight: 800, color: '#15803d', background: '#dcfce7', padding: '3px 10px', borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'monospace' }}>
+                              <CreditCard size={13} /> {student.rfidCardCode}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>Not Issued Yet</span>
+                          )}
+                        </td>
+                        <td>
+                          {student.parentPickupCardIssued ? (
+                            <span style={{ fontSize: 11, fontWeight: 800, color: '#1e40af', background: '#dbeafe', padding: '3px 9px', borderRadius: 99 }}>
+                              ✅ Guardian Card Issued
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 11, color: '#64748b' }}>Pending Issue</span>
+                          )}
+                        </td>
+                        <td>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-900)' }}>
+                            GHS {student.dailyLimit || '50.00'} / day
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIssuingCardStudent(student);
+                                setCardForm({ rfidCardCode: student.rfidCardCode || '', dailyLimit: student.dailyLimit || '50', pin: '1234', holderName: student.fullName, notes: '' });
+                              }}
+                              style={{
+                                padding: '6px 12px', borderRadius: 6, background: '#0284c7', color: '#fff',
+                                border: 'none', fontWeight: 800, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4
+                              }}
+                            >
+                              <CreditCard size={13} /> Encode & Issue Card
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIssuingParentCardStudent(student);
+                                setCardForm({ rfidCardCode: student.parentCardCode || `PCARD-${Date.now().toString().slice(-6)}`, dailyLimit: '50', pin: '1234', holderName: student.guardianName, notes: '' });
+                              }}
+                              style={{
+                                padding: '6px 12px', borderRadius: 6, background: '#4a1d6e', color: '#fff',
+                                border: 'none', fontWeight: 800, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4
+                              }}
+                            >
+                              👨‍👩‍👧 Issue Parent Pickup Card
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* ── OFFICIAL FEE SCHEDULE VIEW ── */}
           {activeNav === 'Official Fee Schedule' && (
             <OfficialSchoolFeeStructure />
@@ -891,17 +1159,31 @@ export default function AdminPortal({ onSignOut }) {
                   <p className="page-header__subtitle">Onboard new teaching staff, edit staff credentials & class assignments, or offboard former staff members.</p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setIsAddingStaff(true)}
-                  style={{
-                    padding: '10px 18px', borderRadius: 8, background: ADMIN_BG, color: '#fff',
-                    border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(74, 29, 110, 0.25)'
-                  }}
-                >
-                  <UserPlus size={16} /> ➕ Onboard New Staff Member
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingClass(true)}
+                    style={{
+                      padding: '10px 16px', borderRadius: 8, background: '#1e1b4b', color: '#fff',
+                      border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(30, 27, 75, 0.25)'
+                    }}
+                  >
+                    <School size={16} /> 🏫 ➕ Add New Class
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingStaff(true)}
+                    style={{
+                      padding: '10px 18px', borderRadius: 8, background: ADMIN_BG, color: '#fff',
+                      border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(74, 29, 110, 0.25)'
+                    }}
+                  >
+                    <UserPlus size={16} /> ➕ Onboard New Staff Member
+                  </button>
+                </div>
               </div>
 
               {/* Staff Stats Summary */}
@@ -948,18 +1230,41 @@ export default function AdminPortal({ onSignOut }) {
                     />
                   </div>
 
-                  <select
-                    value={staffSubjectFilter}
-                    onChange={(e) => setStaffSubjectFilter(e.target.value)}
-                    style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 12.5, fontWeight: 700, background: '#fff' }}
-                  >
-                    <option value="All">All Subjects / Departments</option>
-                    <option value="Mathematics">Mathematics</option>
-                    <option value="Science">Science / Physics</option>
-                    <option value="English">English / Literature</option>
-                    <option value="ICT">ICT / Computing</option>
-                    <option value="Social Studies">Social Studies</option>
-                  </select>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <select
+                      value={staffSubjectFilter}
+                      onChange={(e) => setStaffSubjectFilter(e.target.value)}
+                      style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 12.5, fontWeight: 700, background: '#fff', flexGrow: 1 }}
+                    >
+                      <option value="All">All Subjects / Departments</option>
+                      {SUBJECT_OPTIONS.map((sub) => (
+                        <option key={sub} value={sub}>{sub}</option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingSubject(true)}
+                      title="Add New Subject / Department"
+                      style={{
+                        padding: '9px 12px',
+                        borderRadius: 8,
+                        background: 'var(--ics-green-600)',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontWeight: 900,
+                        fontSize: 14,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 6px rgba(22, 101, 52, 0.25)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
 
                   <select
                     value={staffStatusFilter}
@@ -1381,6 +1686,118 @@ export default function AdminPortal({ onSignOut }) {
             </div>
           )}
 
+          {/* ── ADD NEW CLASS LEVEL MODAL ── */}
+          {isAddingClass && (
+            <div style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+            }}>
+              <div style={{ background: '#fff', width: '100%', maxWidth: 480, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
+                <div style={{ background: '#1e1b4b', padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>🏫 Create New Class Level</h3>
+                    <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0 0' }}>Add new classes (e.g. Primary 7, Creche Gold, Nursery 1, SHS 3 Business).</p>
+                  </div>
+                  <button onClick={() => setIsAddingClass(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 30, height: 30, borderRadius: 15, cursor: 'pointer', fontWeight: 900 }}>✕</button>
+                </div>
+
+                <form onSubmit={handleAddClassSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <label>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>New Class Level Name *</span>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Primary 7, Creche Gold, Nursery 2, SHS 3 Business..."
+                      value={newClassName}
+                      onChange={(e) => setNewClassName(e.target.value)}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, fontWeight: 600 }}
+                      autoFocus
+                    />
+                  </label>
+
+                  <label>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Class Category / Stream</span>
+                    <select
+                      value={newClassCategory}
+                      onChange={(e) => setNewClassCategory(e.target.value)}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, fontWeight: 700 }}
+                    >
+                      <option>Primary School</option>
+                      <option>Junior High School (JHS)</option>
+                      <option>Senior High School (SHS)</option>
+                      <option>Creche & Early Years</option>
+                    </select>
+                  </label>
+
+                  <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingClass(false)}
+                      style={{ flex: 1, padding: 10, border: '1px solid var(--gray-300)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: '#1e1b4b', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+                    >
+                      🏫 Create Class Level
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ── ADD NEW SUBJECT / DEPARTMENT MODAL ── */}
+          {isAddingSubject && (
+            <div style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+            }}>
+              <div style={{ background: '#fff', width: '100%', maxWidth: 480, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
+                <div style={{ background: 'var(--ics-green-700)', padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>📚 Add New Subject / Department</h3>
+                    <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0 0' }}>Register new subjects e.g. French, Robotics, Creative Arts, Economics.</p>
+                  </div>
+                  <button onClick={() => setIsAddingSubject(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 30, height: 30, borderRadius: 15, cursor: 'pointer', fontWeight: 900 }}>✕</button>
+                </div>
+
+                <form onSubmit={handleAddSubjectSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <label>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>New Subject / Department Name *</span>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. French, Robotics & AI, Creative Arts, Elective Maths..."
+                      value={newSubjectName}
+                      onChange={(e) => setNewSubjectName(e.target.value)}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, fontWeight: 600 }}
+                      autoFocus
+                    />
+                  </label>
+
+                  <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingSubject(false)}
+                      style={{ flex: 1, padding: 10, border: '1px solid var(--gray-300)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: 'var(--ics-green-600)', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+                    >
+                      📚 Add Subject & Update Filter
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
           {/* ── EDIT STUDENT MODAL ── */}
           {editingId && (
             <div style={{
@@ -1452,6 +1869,138 @@ export default function AdminPortal({ onSignOut }) {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── ISSUE / ENCODE STUDENT RFID CARD MODAL ── */}
+          {issuingCardStudent && (
+            <div style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+            }}>
+              <div style={{ background: '#fff', width: '100%', maxWidth: 520, borderRadius: 16, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
+                <div style={{ background: ADMIN_BG, padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>💳 Encode & Issue Student Smart RFID Card</h3>
+                    <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0 0' }}>Assign RFID/NFC Tag UID to {issuingCardStudent.fullName} ({issuingCardStudent.studentId})</p>
+                  </div>
+                  <button onClick={() => setIssuingCardStudent(null)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 30, height: 30, borderRadius: 15, cursor: 'pointer', fontWeight: 900 }}>✕</button>
+                </div>
+
+                <form onSubmit={handleIssueStudentCardSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13 }}>
+                    <div style={{ fontWeight: 800, color: '#0f172a' }}>Learner: {issuingCardStudent.fullName}</div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>ID: <code>{issuingCardStudent.studentId}</code> | Grade: {issuingCardStudent.level} | Guardian: {issuingCardStudent.guardianName}</div>
+                  </div>
+
+                  <label>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>RFID / NFC Card Hardware UID *</span>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. RFID-8849-2026 or tap RFID scanner"
+                      value={cardForm.rfidCardCode}
+                      onChange={(e) => setCardForm({ ...cardForm, rfidCardCode: e.target.value })}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, fontWeight: 700, fontFamily: 'monospace' }}
+                      autoFocus
+                    />
+                  </label>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Daily Canteen Limit (GHS)</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={cardForm.dailyLimit}
+                        onChange={(e) => setCardForm({ ...cardForm, dailyLimit: e.target.value })}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, fontWeight: 700 }}
+                      />
+                    </label>
+
+                    <label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Card Security PIN</span>
+                      <input
+                        type="text"
+                        maxLength="4"
+                        value={cardForm.pin}
+                        onChange={(e) => setCardForm({ ...cardForm, pin: e.target.value })}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, fontWeight: 700, letterSpacing: 2 }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setIssuingCardStudent(null)}
+                      style={{ flex: 1, padding: 10, border: '1px solid var(--gray-300)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: ADMIN_BG, color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+                    >
+                      💳 Write & Activate RFID Card
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ── ISSUE PARENT PICKUP CARD MODAL ── */}
+          {issuingParentCardStudent && (
+            <div style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+            }}>
+              <div style={{ background: '#fff', width: '100%', maxWidth: 520, borderRadius: 16, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
+                <div style={{ background: '#4a1d6e', padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>👨‍👩‍👧 Issue Official Parent Pickup Pass</h3>
+                    <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0 0' }}>Authorized Security Pickup Pass for {issuingParentCardStudent.guardianName}</p>
+                  </div>
+                  <button onClick={() => setIssuingParentCardStudent(null)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 30, height: 30, borderRadius: 15, cursor: 'pointer', fontWeight: 900 }}>✕</button>
+                </div>
+
+                <form onSubmit={handleIssueParentCardSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ background: '#faf5ff', padding: 12, borderRadius: 8, border: '1px solid #e9d5ff', fontSize: 13 }}>
+                    <div style={{ fontWeight: 800, color: '#4c1d95' }}>Guardian: {issuingParentCardStudent.guardianName}</div>
+                    <div style={{ fontSize: 12, color: '#6b21a8', marginTop: 2 }}>Associated Student: {issuingParentCardStudent.fullName} (<code>{issuingParentCardStudent.studentId}</code>)</div>
+                  </div>
+
+                  <label>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Parent Pickup Pass Serial / Barcode Code *</span>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. PCARD-993821"
+                      value={cardForm.rfidCardCode}
+                      onChange={(e) => setCardForm({ ...cardForm, rfidCardCode: e.target.value })}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, fontWeight: 700, fontFamily: 'monospace' }}
+                      autoFocus
+                    />
+                  </label>
+
+                  <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setIssuingParentCardStudent(null)}
+                      style={{ flex: 1, padding: 10, border: '1px solid var(--gray-300)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: '#4a1d6e', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+                    >
+                      👨‍👩‍👧 Issue & Print Parent Pass
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           )}

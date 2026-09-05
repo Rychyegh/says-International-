@@ -60,25 +60,6 @@ const SIMS_DATA = {
       ]
     },
     {
-      category: 'Card Services',
-      links: [
-        'Issue a New Student Services Spending Card',
-        'Issue a New Parent\'s Pickup Card',
-        'Re-Encrypt Pickup Card',
-        'Register Student for Bus Service',
-        'Onboard Student on the School Feeding Programme',
-        'Student Special Dietary Needs',
-        'Fund Student\'s Bus Tag',
-        'Morning Drop-Off Verification',
-        'Afternoon Pickup Verification',
-        'Issue a New Temporary Parent\'s Pickup Card',
-        'Modify Temporary Parent\'s Pickup Card',
-        'Morning Drop-Off Verification (Temp. Cards Only)',
-        'Afternoon Pickup Verification (Temp. Cards Only)',
-        'Morning Walker Verification (Temp. Cards Only)'
-      ]
-    },
-    {
       category: 'Registers',
       links: [
         'Preview Registers',
