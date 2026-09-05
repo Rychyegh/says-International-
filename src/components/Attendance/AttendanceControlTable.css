@@ -100,7 +100,8 @@
   align-items: flex-end;
   gap: 8px;
   flex-grow: 1;
-  max-width: 520px;
+  max-width: 680px;
+  width: 100%;
 }
 
 .card-reader-input-wrap {

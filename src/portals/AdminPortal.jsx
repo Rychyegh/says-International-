@@ -20,7 +20,7 @@ const ADMIN_ACCENT = '#7c3ac8';
 const NAV = [
   { icon: <LayoutDashboard size={15} />, label: 'Dashboard', badge: null },
   { icon: <Radio size={15} />, label: 'Attendance & SMS Control', badge: 'Live' },
-  { icon: <CreditCard size={15} />, label: 'Smart Card & RFID Issuance', badge: 'Admin' },
+  { icon: <CreditCard size={15} />, label: 'Card Reader & Smart Cards', badge: 'RFID' },
   { icon: <CreditCard size={15} />, label: 'Official Fee Schedule', badge: 'Bill' },
   { icon: <Users size={15} />, label: 'Student Roster', badge: null },
   { icon: <FileText size={15} />, label: 'Applications & Forms', badge: null },
@@ -558,8 +558,8 @@ export default function AdminPortal({ onSignOut }) {
             </div>
           )}
 
-          {/* ── SMART CARD & RFID ISSUANCE (ADMIN EXCLUSIVE) ── */}
-          {activeNav === 'Smart Card & RFID Issuance' && (
+          {/* ── CARD READER & SMART CARDS (ADMIN EXCLUSIVE) ── */}
+          {(activeNav === 'Card Reader & Smart Cards' || activeNav === 'Smart Card & RFID Issuance') && (
             <div className="animate-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div className="page-header">
                 <div>

@@ -657,7 +657,7 @@ export function PortalDataProvider({ children }) {
     },
     updateOnboardedStudent: (id, updates) => setData((current) => ({
       ...current,
-      onboardedStudents: (current.onboardedStudents || []).map((s) => s.id === id ? { ...s, ...updates } : s),
+      onboardedStudents: (current.onboardedStudents || []).map((s) => (s.id === id || s.studentId === id) ? { ...s, ...updates } : s),
     })),
     deleteOnboardedStudent: (id) => setData((current) => ({
       ...current,
