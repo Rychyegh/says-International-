@@ -114,8 +114,34 @@ const PortalDataContext = createContext(null);
 function readData() {
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
-    return saved ? { ...INITIAL_DATA, ...JSON.parse(saved) } : INITIAL_DATA;
-  } catch {
+    if (!saved) return INITIAL_DATA;
+    const parsed = JSON.parse(saved);
+    if (!parsed || typeof parsed !== 'object') return INITIAL_DATA;
+
+    return {
+      ...INITIAL_DATA,
+      ...parsed,
+      onboardedStudents: Array.isArray(parsed.onboardedStudents) && parsed.onboardedStudents.length > 0
+        ? parsed.onboardedStudents
+        : INITIAL_DATA.onboardedStudents,
+      studentFees: Array.isArray(parsed.studentFees) && parsed.studentFees.length > 0
+        ? parsed.studentFees
+        : INITIAL_DATA.studentFees,
+      feeAccounts: Array.isArray(parsed.feeAccounts) && parsed.feeAccounts.length > 0
+        ? parsed.feeAccounts
+        : INITIAL_DATA.feeAccounts,
+      attendanceRecords: (parsed.attendanceRecords && typeof parsed.attendanceRecords === 'object')
+        ? parsed.attendanceRecords
+        : INITIAL_DATA.attendanceRecords,
+      messages: Array.isArray(parsed.messages) ? parsed.messages : INITIAL_DATA.messages,
+      accountantMessages: Array.isArray(parsed.accountantMessages) ? parsed.accountantMessages : INITIAL_DATA.accountantMessages,
+      applications: Array.isArray(parsed.applications) ? parsed.applications : INITIAL_DATA.applications,
+      teacherDirectory: Array.isArray(parsed.teacherDirectory) && parsed.teacherDirectory.length > 0
+        ? parsed.teacherDirectory
+        : INITIAL_DATA.teacherDirectory,
+    };
+  } catch (e) {
+    console.warn('LocalStorage parse warning:', e);
     return INITIAL_DATA;
   }
 }

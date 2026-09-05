@@ -116,12 +116,93 @@ function AppRoutes() {
   );
 }
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Unhandled portal runtime error:', error, errorInfo);
+  }
+
+  handleReset = () => {
+    try {
+      window.localStorage.removeItem('remalj-portal-live-data-v1');
+    } catch (e) {}
+    window.location.reload();
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#f8fafc',
+          padding: 24,
+          fontFamily: 'system-ui, sans-serif'
+        }}>
+          <div style={{
+            maxWidth: 520,
+            width: '100%',
+            background: '#ffffff',
+            borderRadius: 16,
+            padding: 32,
+            boxShadow: '0 20px 40px rgba(0,0,0,0.08)',
+            textAlign: 'center',
+            border: '1px solid #e2e8f0'
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>⚡</div>
+            <h2 style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', marginBottom: 8 }}>
+              REMALJ Carewell Inspiration School - Bogoso
+            </h2>
+            <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, marginBottom: 20 }}>
+              The portal encountered a display state update. Click below to refresh and reload clean portal state.
+            </p>
+            {this.state.error?.message && (
+              <div style={{ padding: '8px 12px', background: '#f1f5f9', borderRadius: 8, fontSize: 11, color: '#475569', fontFamily: 'monospace', marginBottom: 20, textAlign: 'left', wordBreak: 'break-all' }}>
+                {this.state.error.message}
+              </div>
+            )}
+            <button
+              onClick={this.handleReset}
+              style={{
+                padding: '12px 24px',
+                background: '#1e293b',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 8,
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: 'pointer'
+              }}
+            >
+              🔄 Refresh & Reload Portal
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   return (
-    <PortalDataProvider>
-      <HashRouter>
-        <AppRoutes />
-      </HashRouter>
-    </PortalDataProvider>
+    <ErrorBoundary>
+      <PortalDataProvider>
+        <HashRouter>
+          <AppRoutes />
+        </HashRouter>
+      </PortalDataProvider>
+    </ErrorBoundary>
   );
 }
