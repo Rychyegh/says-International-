@@ -50,11 +50,94 @@ export default function AdminPortal({ onSignOut }) {
     onboardStudent,
     updateOnboardedStudent,
     deleteOnboardedStudent,
+    addStaffMember,
+    updateStaffMember,
+    offboardStaffMember,
+    deleteStaffMember,
     updateApplicationStatus,
     updateApplicationOfficeUse,
     submitApplication,
     deleteApplication,
   } = usePortalData();
+
+  // Staff Management State
+  const [isAddingStaff, setIsAddingStaff] = useState(false);
+  const [editingStaff, setEditingStaff] = useState(null);
+  const [offboardingStaff, setOffboardingStaff] = useState(null);
+  const [staffSearchQuery, setStaffSearchQuery] = useState('');
+  const [staffSubjectFilter, setStaffSubjectFilter] = useState('All');
+  const [staffStatusFilter, setStaffStatusFilter] = useState('All');
+
+  const [newStaffForm, setNewStaffForm] = useState({
+    name: '',
+    staffId: '',
+    role: 'Subject Teacher',
+    subject: 'Pure Mathematics',
+    classAssigned: 'Grade 4',
+    email: '',
+    phone: '',
+    gender: 'Male',
+    photo: '👨‍🏫',
+    bio: ''
+  });
+
+  const handleOnboardStaffSubmit = (e) => {
+    e.preventDefault();
+    if (!newStaffForm.name) return;
+
+    if (addStaffMember) {
+      addStaffMember(newStaffForm);
+    }
+
+    setSuccessMsg(`✅ Successfully onboarded staff member ${newStaffForm.name}! Portal credentials initialized.`);
+    setIsAddingStaff(false);
+    setNewStaffForm({
+      name: '',
+      staffId: '',
+      role: 'Subject Teacher',
+      subject: 'Pure Mathematics',
+      classAssigned: 'Grade 4',
+      email: '',
+      phone: '',
+      gender: 'Male',
+      photo: '👨‍🏫',
+      bio: ''
+    });
+    setTimeout(() => setSuccessMsg(''), 5000);
+  };
+
+  const handleUpdateStaffSubmit = (e) => {
+    e.preventDefault();
+    if (!editingStaff || !editingStaff.name) return;
+
+    if (updateStaffMember) {
+      updateStaffMember(editingStaff.id || editingStaff.staffId, editingStaff);
+    }
+
+    setSuccessMsg(`✅ Staff member ${editingStaff.name} details updated successfully!`);
+    setEditingStaff(null);
+    setTimeout(() => setSuccessMsg(''), 5000);
+  };
+
+  const handleOffboardStaffConfirm = () => {
+    if (!offboardingStaff) return;
+
+    if (offboardStaffMember) {
+      offboardStaffMember(offboardingStaff.id || offboardingStaff.staffId);
+    }
+
+    setSuccessMsg(`🚫 Staff member ${offboardingStaff.name} offboarded successfully. Access set to inactive.`);
+    setOffboardingStaff(null);
+    setTimeout(() => setSuccessMsg(''), 5000);
+  };
+
+  const handleReactivateStaff = (staff) => {
+    if (updateStaffMember) {
+      updateStaffMember(staff.id || staff.staffId, { status: 'Active' });
+    }
+    setSuccessMsg(`⚡ Reactivated staff member ${staff.name}! Active status restored.`);
+    setTimeout(() => setSuccessMsg(''), 5000);
+  };
 
   const [adminOnboardTab, setAdminOnboardTab] = useState('single');
   const [onboardingForm, setOnboardingForm] = useState({
@@ -222,7 +305,7 @@ export default function AdminPortal({ onSignOut }) {
               <div className="page-header">
                 <p className="page-header__eyebrow" style={{ color: ADMIN_ACCENT }}>
                   <span style={{ background: ADMIN_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #e9d5ff' }}>
-                    REMALJ Carewell Administration
+                    REMALJ · Carewell Inspirational School · Bogoso Administration
                   </span>
                 </p>
                 <h1 className="page-header__title">Administrator Dashboard ⚡</h1>
@@ -802,39 +885,498 @@ export default function AdminPortal({ onSignOut }) {
           {/* ── CLASSES & STAFF ── */}
           {activeNav === 'Classes & Staff' && (
             <div className="animate-fade-up">
-              <div className="page-header">
-                <h1 className="page-header__title">Classes & Teaching Staff</h1>
-                <p className="page-header__subtitle">List of teachers and their assigned classes across the school.</p>
+              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <h1 className="page-header__title">Classes & Teaching Staff Directory 👨‍🏫</h1>
+                  <p className="page-header__subtitle">Onboard new teaching staff, edit staff credentials & class assignments, or offboard former staff members.</p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAddingStaff(true)}
+                  style={{
+                    padding: '10px 18px', borderRadius: 8, background: ADMIN_BG, color: '#fff',
+                    border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(74, 29, 110, 0.25)'
+                  }}
+                >
+                  <UserPlus size={16} /> ➕ Onboard New Staff Member
+                </button>
               </div>
 
+              {/* Staff Stats Summary */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
+                <div style={{ padding: '16px 20px', background: '#f3e8ff', border: '1px solid #e9d5ff', borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#6b21a8', textTransform: 'uppercase' }}>Active Teaching Staff</div>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: '#581c87', marginTop: 4 }}>
+                    {(teacherDirectory || []).filter(t => t.status !== 'Offboarded').length}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#7e22ce', fontWeight: 600, marginTop: 2 }}>Faculty members active</div>
+                </div>
+
+                <div style={{ padding: '16px 20px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#166534', textTransform: 'uppercase' }}>Departments & Subjects</div>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: '#14532d', marginTop: 4 }}>
+                    {new Set((teacherDirectory || []).map(t => t.subject)).size}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#15803d', fontWeight: 600, marginTop: 2 }}>Core subject areas</div>
+                </div>
+
+                <div style={{ padding: '16px 20px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#991b1b', textTransform: 'uppercase' }}>Offboarded Staff</div>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: '#7f1d1d', marginTop: 4 }}>
+                    {(teacherDirectory || []).filter(t => t.status === 'Offboarded').length}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 600, marginTop: 2 }}>Access deactivated</div>
+                </div>
+              </div>
+
+              {/* Staff Filters Toolbar */}
+              <div style={{ background: '#f8fafc', border: '1px solid var(--gray-200)', borderRadius: 12, padding: '14px 18px', marginBottom: 20 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 12, alignItems: 'center' }}>
+                  <div style={{ position: 'relative' }}>
+                    <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--gray-400)' }} />
+                    <input
+                      type="text"
+                      placeholder="🔎 Search by Staff Name, Staff ID (STF-2026-001), Subject, Email..."
+                      value={staffSearchQuery}
+                      onChange={(e) => setStaffSearchQuery(e.target.value)}
+                      style={{
+                        width: '100%', padding: '9px 12px 9px 36px', borderRadius: 8,
+                        border: '1px solid var(--gray-300)', fontSize: 13, fontWeight: 600, outline: 'none', background: '#fff'
+                      }}
+                    />
+                  </div>
+
+                  <select
+                    value={staffSubjectFilter}
+                    onChange={(e) => setStaffSubjectFilter(e.target.value)}
+                    style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 12.5, fontWeight: 700, background: '#fff' }}
+                  >
+                    <option value="All">All Subjects / Departments</option>
+                    <option value="Mathematics">Mathematics</option>
+                    <option value="Science">Science / Physics</option>
+                    <option value="English">English / Literature</option>
+                    <option value="ICT">ICT / Computing</option>
+                    <option value="Social Studies">Social Studies</option>
+                  </select>
+
+                  <select
+                    value={staffStatusFilter}
+                    onChange={(e) => setStaffStatusFilter(e.target.value)}
+                    style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 12.5, fontWeight: 700, background: '#fff' }}
+                  >
+                    <option value="All">All Staff Statuses</option>
+                    <option value="Active">Active Staff</option>
+                    <option value="Offboarded">Offboarded Staff</option>
+                  </select>
+
+                  {(staffSearchQuery || staffSubjectFilter !== 'All' || staffStatusFilter !== 'All') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStaffSearchQuery('');
+                        setStaffSubjectFilter('All');
+                        setStaffStatusFilter('All');
+                      }}
+                      style={{ padding: '9px 14px', borderRadius: 8, border: '1px solid #fecaca', background: '#fef2f2', color: '#b91c1c', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Staff Directory Table */}
               <div className="panel">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Staff Member</th>
-                      <th>Subject</th>
+                      <th>Staff ID & Avatar</th>
+                      <th>Staff Name & Designation</th>
+                      <th>Primary Subject</th>
                       <th>Assigned Class</th>
-                      <th>Email</th>
-                      <th>Phone</th>
+                      <th>Contact Details</th>
+                      <th>Status</th>
+                      <th>Administrative Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(teacherDirectory || []).map((t) => (
-                      <tr key={t.id}>
+                    {(teacherDirectory || []).filter(t => {
+                      const matchesSearch = (t.name || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+                                            (t.staffId || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+                                            (t.subject || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+                                            (t.email || '').toLowerCase().includes(staffSearchQuery.toLowerCase());
+                      const matchesSubject = staffSubjectFilter === 'All' || (t.subject || '').toLowerCase().includes(staffSubjectFilter.toLowerCase());
+                      const matchesStatus = staffStatusFilter === 'All' ||
+                                            (staffStatusFilter === 'Active' && t.status !== 'Offboarded') ||
+                                            (staffStatusFilter === 'Offboarded' && t.status === 'Offboarded');
+                      return matchesSearch && matchesSubject && matchesStatus;
+                    }).map((t) => (
+                      <tr key={t.id || t.staffId} style={{ opacity: t.status === 'Offboarded' ? 0.6 : 1 }}>
                         <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 20 }}>{t.photo}</span>
-                            <strong>{t.name}</strong>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 24, background: '#f1f5f9', width: 38, height: 38, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {t.photo || '👨‍🏫'}
+                            </span>
+                            <code>{t.staffId || ('STF-' + String(t.id).split('-').pop())}</code>
                           </div>
                         </td>
-                        <td>{t.subject}</td>
-                        <td><span style={{ padding: '2px 8px', background: ADMIN_LIGHT, color: ADMIN_BG, borderRadius: 6, fontWeight: 700, fontSize: 12 }}>{t.classAssigned}</span></td>
-                        <td>{t.email}</td>
-                        <td>{t.phone}</td>
+                        <td>
+                          <strong style={{ fontSize: 13.5, color: 'var(--gray-900)' }}>{t.name}</strong>
+                          <div style={{ fontSize: 11, color: 'var(--gray-500)', fontWeight: 600 }}>{t.role || 'Subject Teacher'}</div>
+                        </td>
+                        <td>
+                          <strong style={{ color: '#0369a1', fontSize: 12 }}>{t.subject}</strong>
+                        </td>
+                        <td>
+                          <span style={{ padding: '3px 10px', background: ADMIN_LIGHT, color: ADMIN_BG, borderRadius: 6, fontWeight: 800, fontSize: 11.5 }}>
+                            {t.classAssigned}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ fontSize: 12, fontWeight: 600 }}>{t.email}</div>
+                          <div style={{ fontSize: 11, color: 'var(--gray-500)', fontWeight: 700 }}>{t.phone}</div>
+                        </td>
+                        <td>
+                          {t.status === 'Offboarded' ? (
+                            <span style={{ padding: '3px 10px', background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 99, fontWeight: 800, fontSize: 11 }}>
+                              🚫 Offboarded
+                            </span>
+                          ) : (
+                            <span style={{ padding: '3px 10px', background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: 99, fontWeight: 800, fontSize: 11 }}>
+                              🟢 Active Staff
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <button
+                              type="button"
+                              onClick={() => setEditingStaff({ ...t })}
+                              style={{
+                                padding: '6px 10px', borderRadius: 6, background: '#f0fdf4',
+                                color: '#15803d', border: '1px solid #bbf7d0', fontWeight: 800,
+                                fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4
+                              }}
+                            >
+                              <Edit size={12} /> Edit Details
+                            </button>
+
+                            {t.status === 'Offboarded' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleReactivateStaff(t)}
+                                style={{
+                                  padding: '6px 10px', borderRadius: 6, background: '#eff6ff',
+                                  color: '#1d4ed8', border: '1px solid #bfdbfe', fontWeight: 800,
+                                  fontSize: 11, cursor: 'pointer'
+                                }}
+                              >
+                                ⚡ Reactivate
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setOffboardingStaff(t)}
+                                style={{
+                                  padding: '6px 10px', borderRadius: 6, background: '#fef2f2',
+                                  color: '#b91c1c', border: '1px solid #fecaca', fontWeight: 800,
+                                  fontSize: 11, cursor: 'pointer'
+                                }}
+                              >
+                                🚫 Offboard Staff
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── ONBOARD NEW STAFF MODAL ── */}
+          {isAddingStaff && (
+            <div style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+            }}>
+              <div style={{ background: '#fff', width: '100%', maxWidth: 560, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
+                <div style={{ background: ADMIN_BG, padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>➕ Onboard New Staff Member</h3>
+                    <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0 0' }}>Register staff credentials, primary subject, and assigned class.</p>
+                  </div>
+                  <button onClick={() => setIsAddingStaff(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 30, height: 30, borderRadius: 15, cursor: 'pointer', fontWeight: 900 }}>✕</button>
+                </div>
+
+                <form onSubmit={handleOnboardStaffSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Full Name *</span>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Mr. S. Amponsah"
+                        value={newStaffForm.name}
+                        onChange={(e) => setNewStaffForm({ ...newStaffForm, name: e.target.value })}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
+                      />
+                    </label>
+
+                    <label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Staff ID (Auto or Custom)</span>
+                      <input
+                        type="text"
+                        placeholder="e.g. STF-2026-009"
+                        value={newStaffForm.staffId}
+                        onChange={(e) => setNewStaffForm({ ...newStaffForm, staffId: e.target.value })}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, fontFamily: 'monospace' }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Designation / Role</span>
+                      <select
+                        value={newStaffForm.role}
+                        onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value })}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
+                      >
+                        <option>Subject Teacher</option>
+                        <option>Form Master / Class Tutor</option>
+                        <option>Department Head</option>
+                        <option>Senior Tutor</option>
+                        <option>ICT Administrator</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Primary Subject</span>
+                      <input
+                        type="text"
+                        placeholder="e.g. Pure Mathematics"
+                        value={newStaffForm.subject}
+                        onChange={(e) => setNewStaffForm({ ...newStaffForm, subject: e.target.value })}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Assigned Class</span>
+                      <select
+                        value={newStaffForm.classAssigned}
+                        onChange={(e) => setNewStaffForm({ ...newStaffForm, classAssigned: e.target.value })}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
+                      >
+                        {LEVEL_OPTIONS.map((l) => (
+                          <option key={l}>{l}</option>
+                        ))}
+                        <option>All Levels</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Phone Number</span>
+                      <input
+                        type="tel"
+                        placeholder="e.g. 024 900 1100"
+                        value={newStaffForm.phone}
+                        onChange={(e) => setNewStaffForm({ ...newStaffForm, phone: e.target.value })}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
+                      />
+                    </label>
+                  </div>
+
+                  <label>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Official School Email</span>
+                    <input
+                      type="email"
+                      placeholder="e.g. user@remaljcarewell.edu.gh"
+                      value={newStaffForm.email}
+                      onChange={(e) => setNewStaffForm({ ...newStaffForm, email: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
+                    />
+                  </label>
+
+                  <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingStaff(false)}
+                      style={{ flex: 1, padding: 10, border: '1px solid var(--gray-300)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: ADMIN_BG, color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+                    >
+                      ✅ Onboard Staff Member
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ── EDIT STAFF DETAILS MODAL ── */}
+          {editingStaff && (
+            <div style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+            }}>
+              <div style={{ background: '#fff', width: '100%', maxWidth: 560, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
+                <div style={{ background: ADMIN_BG, padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>✏️ Edit Staff Details — {editingStaff.name}</h3>
+                    <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0 0' }}>Update staff subject, class assignment, or contact credentials.</p>
+                  </div>
+                  <button onClick={() => setEditingStaff(null)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 30, height: 30, borderRadius: 15, cursor: 'pointer', fontWeight: 900 }}>✕</button>
+                </div>
+
+                <form onSubmit={handleUpdateStaffSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Full Name</span>
+                      <input
+                        type="text"
+                        value={editingStaff.name || ''}
+                        onChange={(e) => setEditingStaff({ ...editingStaff, name: e.target.value })}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
+                      />
+                    </label>
+
+                    <label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Staff ID</span>
+                      <input
+                        type="text"
+                        value={editingStaff.staffId || ''}
+                        onChange={(e) => setEditingStaff({ ...editingStaff, staffId: e.target.value })}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, fontFamily: 'monospace' }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Designation / Role</span>
+                      <input
+                        type="text"
+                        value={editingStaff.role || ''}
+                        onChange={(e) => setEditingStaff({ ...editingStaff, role: e.target.value })}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
+                      />
+                    </label>
+
+                    <label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Primary Subject</span>
+                      <input
+                        type="text"
+                        value={editingStaff.subject || ''}
+                        onChange={(e) => setEditingStaff({ ...editingStaff, subject: e.target.value })}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Assigned Class</span>
+                      <input
+                        type="text"
+                        value={editingStaff.classAssigned || ''}
+                        onChange={(e) => setEditingStaff({ ...editingStaff, classAssigned: e.target.value })}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
+                      />
+                    </label>
+
+                    <label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Phone Number</span>
+                      <input
+                        type="tel"
+                        value={editingStaff.phone || ''}
+                        onChange={(e) => setEditingStaff({ ...editingStaff, phone: e.target.value })}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
+                      />
+                    </label>
+                  </div>
+
+                  <label>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Official Email</span>
+                    <input
+                      type="email"
+                      value={editingStaff.email || ''}
+                      onChange={(e) => setEditingStaff({ ...editingStaff, email: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
+                    />
+                  </label>
+
+                  <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                    <button
+                      type="button"
+                      onClick={() => setEditingStaff(null)}
+                      style={{ flex: 1, padding: 10, border: '1px solid var(--gray-300)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: ADMIN_BG, color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+                    >
+                      💾 Save Staff Changes
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ── OFFBOARD STAFF CONFIRMATION MODAL ── */}
+          {offboardingStaff && (
+            <div style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+            }}>
+              <div style={{ background: '#fff', width: '100%', maxWidth: 480, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
+                <div style={{ background: '#991b1b', padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>🚫 Confirm Staff Offboarding</h3>
+                    <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0 0' }}>Deactivate staff member portal access.</p>
+                  </div>
+                  <button onClick={() => setOffboardingStaff(null)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 30, height: 30, borderRadius: 15, cursor: 'pointer', fontWeight: 900 }}>✕</button>
+                </div>
+
+                <div style={{ padding: 24 }}>
+                  <p style={{ fontSize: 13.5, color: 'var(--gray-800)', lineHeight: 1.5, marginBottom: 16 }}>
+                    Are you sure you want to offboard <strong>{offboardingStaff.name}</strong> ({offboardingStaff.staffId || offboardingStaff.email})?
+                  </p>
+                  <div style={{ padding: 12, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#991b1b', fontSize: 12, fontWeight: 700, marginBottom: 20 }}>
+                    ⚠ This action will mark their account status as Offboarded and disable their active staff portal sign-in credentials.
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setOffboardingStaff(null)}
+                      style={{ flex: 1, padding: 10, border: '1px solid var(--gray-300)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleOffboardStaffConfirm}
+                      style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: '#dc2626', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+                    >
+                      🚫 Offboard Staff Member
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}

@@ -352,8 +352,8 @@ export default function LoginPage({ portal, onLoginSuccess }) {
           <div className="login-left__logo">
             <img className="login-left__logo-mark" src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Inspirational School logo" />
             <div className="login-left__logo-text">
-              REMALJ Carewell
-              <span>Inspirational School · Bogoso</span>
+              <div style={{ fontSize: 28, fontWeight: 900, letterSpacing: '0.02em', color: '#ffffff', lineHeight: 1.1 }}>REMALJ</div>
+              <span style={{ fontSize: 13, opacity: 0.95, fontWeight: 600, display: 'block', marginTop: 2 }}>Carewell Inspirational School · Bogoso</span>
             </div>
           </div>
 
@@ -836,7 +836,8 @@ export default function LoginPage({ portal, onLoginSuccess }) {
               </div>
 
               <div className="login-footer" style={{ marginTop: 24 }}>
-                REMALJ Carewell Inspirational School<br />
+                <strong style={{ fontSize: 14, color: 'var(--gray-900)' }}>REMALJ</strong><br />
+                Carewell Inspirational School · Bogoso<br />
                 P.O. Box 139, Bogoso
                 <br />
                 <span style={{ marginTop: 8, display: 'block' }}>

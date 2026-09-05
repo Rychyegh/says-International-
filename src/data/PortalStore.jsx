@@ -77,14 +77,14 @@ const INITIAL_DATA = {
     { id: 'stu-005', studentId: 'REMALJ-2026-088', rfidCardCode: '82930419', fullName: 'Efua Darko', dob: '2014-11-30', gender: 'Female', level: 'JHS 2', classSection: '2B', guardianName: 'Mr. Yaw Darko', guardianEmail: 'yaw.darko@example.com', guardianPhone: '024 777 8888', homeAddress: 'Bogoso', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'efua.darko@remaljcarewell.edu.gh' },
   ],
   teacherDirectory: [
-    { id: 'tch-001', name: 'Mr. Samuel Amponsah', subject: 'Pure Mathematics', classAssigned: 'SH2', email: 's.amponsah@remaljcarewell.edu.gh', phone: '024 900 1100', photo: '👨‍🏫', bio: '12 years teaching experience. BSc Mathematics, University of Ghana.' },
-    { id: 'tch-002', name: 'Prof. Mensah', subject: 'Mathematics', classAssigned: 'Grade 4', email: 'prof.mensah@remaljcarewell.edu.gh', phone: '024 900 1101', photo: '👨‍🏫', bio: 'PhD Mathematics Education. Passionate about early numeracy.' },
-    { id: 'tch-003', name: 'Mr. Boateng', subject: 'Physics / Science', classAssigned: 'SHS & Primary', email: 'k.boateng@remaljcarewell.edu.gh', phone: '024 900 1102', photo: '👨‍🔬', bio: 'BSc Physics. Head of Science Department.' },
-    { id: 'tch-004', name: 'Dr. Anane', subject: 'Literature in English', classAssigned: 'SHS', email: 'dr.anane@remaljcarewell.edu.gh', phone: '024 900 1103', photo: '👩‍🏫', bio: 'PhD English Literature. Author of two textbooks.' },
-    { id: 'tch-005', name: 'Ms. Mensah', subject: 'ICT / Computing', classAssigned: 'All Levels', email: 'm.mensah@remaljcarewell.edu.gh', phone: '024 900 1104', photo: '👩‍💻', bio: 'BSc Computer Science. Cisco and Microsoft certified instructor.' },
-    { id: 'tch-006', name: 'Mrs. Adjei', subject: 'English Language', classAssigned: 'JHS 2', email: 'a.adjei@remaljcarewell.edu.gh', phone: '024 900 1105', photo: '👩‍🏫', bio: 'MA English Language. Head of Languages Department.' },
-    { id: 'tch-007', name: 'Ms. Sarah Mensah', subject: 'Social Studies', classAssigned: 'Grade 4', email: 's.mensah@remaljcarewell.edu.gh', phone: '024 900 1106', photo: '👩‍🏫', bio: 'BA Social Sciences. 8 years teaching experience.' },
-    { id: 'tch-008', name: 'Mr. Kofi Appiah', subject: 'Mathematics', classAssigned: 'Grade 4', email: 'k.appiah@remaljcarewell.edu.gh', phone: '024 900 1107', photo: '👨‍🏫', bio: 'BEd Mathematics. Form tutor for Grade 4 Section B.' },
+    { id: 'tch-001', staffId: 'STF-2026-001', name: 'Mr. Samuel Amponsah', subject: 'Pure Mathematics', classAssigned: 'SH2', email: 's.amponsah@remaljcarewell.edu.gh', phone: '024 900 1100', photo: '👨‍🏫', role: 'Senior Tutor & Form Master', status: 'Active', bio: '12 years teaching experience. BSc Mathematics, University of Ghana.' },
+    { id: 'tch-002', staffId: 'STF-2026-002', name: 'Prof. Mensah', subject: 'Mathematics', classAssigned: 'Grade 4', email: 'prof.mensah@remaljcarewell.edu.gh', phone: '024 900 1101', photo: '👨‍🏫', role: 'Mathematics Department Head', status: 'Active', bio: 'PhD Mathematics Education. Passionate about early numeracy.' },
+    { id: 'tch-003', staffId: 'STF-2026-003', name: 'Mr. Boateng', subject: 'Physics / Science', classAssigned: 'SHS & Primary', email: 'k.boateng@remaljcarewell.edu.gh', phone: '024 900 1102', photo: '👨‍🔬', role: 'Science Department Head', status: 'Active', bio: 'BSc Physics. Head of Science Department.' },
+    { id: 'tch-004', staffId: 'STF-2026-004', name: 'Dr. Anane', subject: 'Literature in English', classAssigned: 'SHS', email: 'dr.anane@remaljcarewell.edu.gh', phone: '024 900 1103', photo: '👩‍🏫', role: 'Languages Senior Lecturer', status: 'Active', bio: 'PhD English Literature. Author of two textbooks.' },
+    { id: 'tch-005', staffId: 'STF-2026-005', name: 'Ms. Mensah', subject: 'ICT / Computing', classAssigned: 'All Levels', email: 'm.mensah@remaljcarewell.edu.gh', phone: '024 900 1104', photo: '👩‍💻', role: 'ICT Administrator', status: 'Active', bio: 'BSc Computer Science. Cisco and Microsoft certified instructor.' },
+    { id: 'tch-006', staffId: 'STF-2026-006', name: 'Mrs. Adjei', subject: 'English Language', classAssigned: 'JHS 2', email: 'a.adjei@remaljcarewell.edu.gh', phone: '024 900 1105', photo: '👩‍🏫', role: 'Languages Department Head', status: 'Active', bio: 'MA English Language. Head of Languages Department.' },
+    { id: 'tch-007', staffId: 'STF-2026-007', name: 'Ms. Sarah Mensah', subject: 'Social Studies', classAssigned: 'Grade 4', email: 's.mensah@remaljcarewell.edu.gh', phone: '024 900 1106', photo: '👩‍🏫', role: 'Subject Teacher', status: 'Active', bio: 'BA Social Sciences. 8 years teaching experience.' },
+    { id: 'tch-008', staffId: 'STF-2026-008', name: 'Mr. Kofi Appiah', subject: 'Mathematics', classAssigned: 'Grade 4', email: 'k.appiah@remaljcarewell.edu.gh', phone: '024 900 1107', photo: '👨‍🏫', role: 'Form Tutor', status: 'Active', bio: 'BEd Mathematics. Form tutor for Grade 4 Section B.' },
   ],
   studentFees: [
     { id: 'fee-stu-001', studentId: 'REMALJ-2026-001', studentName: 'Benjamin Edwards', guardianName: 'Mrs. Angela Edwards', guardianEmail: 'parent@remaljcarewell.edu.gh', term: 'Term 1 · 2026', billedAmount: 4800, paidAmount: 4800, balance: 0, status: 'Paid', dueDate: '2026-09-15', paymentDate: '2026-09-01' },
@@ -772,6 +772,41 @@ export function PortalDataProvider({ children }) {
         console.warn('Notify absent API warning:', e);
       }
     },
+    // Staff Onboarding & Management Methods
+    addStaffMember: (staffData) => setData((current) => {
+      const currentList = current.teacherDirectory || [];
+      const staffId = staffData.staffId || `STF-2026-${String(currentList.length + 1).padStart(3, '0')}`;
+      const newStaff = {
+        id: crypto.randomUUID?.() || String(Date.now()),
+        staffId,
+        name: staffData.name,
+        subject: staffData.subject || 'General Education',
+        classAssigned: staffData.classAssigned || 'Grade 4',
+        email: staffData.email || `${(staffData.name || 'staff').toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`,
+        phone: staffData.phone || '024 900 1100',
+        role: staffData.role || 'Subject Teacher',
+        status: staffData.status || 'Active',
+        joinedDate: staffData.joinedDate || new Date().toISOString().split('T')[0],
+        photo: staffData.photo || (staffData.gender === 'Female' ? '👩‍🏫' : '👨‍🏫'),
+        bio: staffData.bio || `${staffData.role || 'Teacher'} at REMALJ Carewell Inspirational School.`
+      };
+      return {
+        ...current,
+        teacherDirectory: [newStaff, ...currentList]
+      };
+    }),
+    updateStaffMember: (id, updates) => setData((current) => ({
+      ...current,
+      teacherDirectory: (current.teacherDirectory || []).map((t) => (t.id === id || t.staffId === id) ? { ...t, ...updates } : t)
+    })),
+    offboardStaffMember: (id) => setData((current) => ({
+      ...current,
+      teacherDirectory: (current.teacherDirectory || []).map((t) => (t.id === id || t.staffId === id) ? { ...t, status: 'Offboarded' } : t)
+    })),
+    deleteStaffMember: (id) => setData((current) => ({
+      ...current,
+      teacherDirectory: (current.teacherDirectory || []).filter((t) => t.id !== id && t.staffId !== id)
+    })),
   }), [data, refreshBackendData]);
 
   return <PortalDataContext.Provider value={value}>{children}</PortalDataContext.Provider>;

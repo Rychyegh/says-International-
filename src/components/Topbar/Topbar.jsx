@@ -38,7 +38,7 @@ export default function Topbar({ activePortal, isAuthed, onSignOut }) {
     <header className="topbar" role="banner" style={{ borderBottom: '1px solid var(--gray-200)', background: '#fff' }}>
       <div className="topbar__inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px' }}>
         {/* School logo */}
-        <Link to={`/${activePortal}`} className="topbar__logo" title="REMALJ Carewell Inspirational School" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Link to={`/${activePortal}`} className="topbar__logo" title="REMALJ Carewell Inspirational School · Bogoso" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12 }}>
           <img
             src="/remalj-carewell-logo.jpg"
             alt="REMALJ Carewell Inspirational School logo"
@@ -49,8 +49,8 @@ export default function Topbar({ activePortal, isAuthed, onSignOut }) {
             }}
           />
           <div className="topbar__school-name">
-            <strong style={{ fontSize: 16, fontFamily: 'var(--font-display)', color: 'var(--gray-900)' }}>REMALJ Carewell</strong>
-            <span style={{ fontSize: 11, color: 'var(--gray-500)', display: 'block' }}>Inspirational School · Bogoso</span>
+            <strong style={{ fontSize: 17, fontFamily: 'var(--font-display)', color: 'var(--gray-900)', letterSpacing: '0.02em', lineHeight: 1.1 }}>REMALJ</strong>
+            <span style={{ fontSize: 11, color: 'var(--gray-500)', display: 'block', marginTop: 1, fontWeight: 700 }}>Carewell Inspirational School · Bogoso</span>
           </div>
         </Link>
 

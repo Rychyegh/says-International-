@@ -1023,8 +1023,9 @@ function renderSpecificContent(link, m, setM, students) {
       <div>
         <div style={{ padding: 16, background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
           <div style={{ textAlign: 'center', borderBottom: '2px solid #881337', paddingBottom: 10, marginBottom: 12 }}>
-            <h3 style={{ fontSize: 16, color: '#881337', fontWeight: 800, margin: 0 }}>REMALJ CAREWELL INSPIRATIONAL ACADEMY</h3>
-            <p style={{ fontSize: 11, color: '#4b5563', margin: '2px 0' }}>OFFICIAL STUDENT PROGRESSIVE TERMINAL REPORT</p>
+            <h3 style={{ fontSize: 18, color: '#881337', fontWeight: 900, margin: 0, letterSpacing: '0.02em' }}>REMALJ</h3>
+            <p style={{ fontSize: 12, color: '#4b5563', margin: '2px 0 6px 0', fontWeight: 700 }}>Carewell Inspirational School · Bogoso</p>
+            <p style={{ fontSize: 11, color: '#6b7280', margin: '2px 0' }}>OFFICIAL STUDENT PROGRESSIVE TERMINAL REPORT</p>
             <small style={{ color: '#9ca3af' }}>Term 1 · Academic Year 2026/2027</small>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
@@ -1069,8 +1070,9 @@ function renderSpecificContent(link, m, setM, students) {
       <div>
         <div style={{ padding: 16, background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
           <div style={{ textAlign: 'center', borderBottom: '2px solid #881337', paddingBottom: 10, marginBottom: 12 }}>
-            <h3 style={{ fontSize: 16, color: '#881337', fontWeight: 800, margin: 0 }}>REMALJ CAREWELL ACADEMY</h3>
-            <p style={{ fontSize: 11, color: '#4b5563', margin: '2px 0' }}>CLASS BROADSHEET ASSESSMENT SUMMARY · JHS 2</p>
+            <h3 style={{ fontSize: 18, color: '#881337', fontWeight: 900, margin: 0, letterSpacing: '0.02em' }}>REMALJ</h3>
+            <p style={{ fontSize: 12, color: '#4b5563', margin: '2px 0 6px 0', fontWeight: 700 }}>Carewell Inspirational School · Bogoso</p>
+            <p style={{ fontSize: 11, color: '#6b7280', margin: '2px 0' }}>CLASS BROADSHEET ASSESSMENT SUMMARY · JHS 2</p>
           </div>
           <table className="data-table" style={{ fontSize: 11 }}>
             <thead>
@@ -1137,7 +1139,8 @@ function renderSpecificContent(link, m, setM, students) {
       <div>
         <div style={{ padding: 16, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
           <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 12 }}>
-            <h3 style={{ fontSize: 16, color: '#0f3a4b', fontWeight: 800, margin: 0 }}>REMALJ CAREWELL INSPIRATIONAL ACADEMY</h3>
+            <h3 style={{ fontSize: 18, color: '#0f3a4b', fontWeight: 900, margin: 0, letterSpacing: '0.02em' }}>REMALJ</h3>
+            <p style={{ fontSize: 12, color: '#0284c7', margin: '2px 0 6px 0', fontWeight: 700 }}>Carewell Inspirational School · Bogoso</p>
             <p style={{ fontSize: 11, color: '#0284c7', margin: '2px 0' }}>OFFICIAL ACADEMIC FEE INVOICE BILL</p>
             <small style={{ color: '#64748b' }}>Invoice #: INV-2026-992 · Due Date: 15th Sept 2026</small>
           </div>
@@ -1249,7 +1252,8 @@ function renderSpecificContent(link, m, setM, students) {
       <div>
         <div style={{ padding: 16, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
           <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 12 }}>
-            <h3 style={{ fontSize: 16, color: '#0f3a4b', fontWeight: 800, margin: 0 }}>REMALJ CAREWELL INSPIRATIONAL ACADEMY</h3>
+            <h3 style={{ fontSize: 18, color: '#0f3a4b', fontWeight: 900, margin: 0, letterSpacing: '0.02em' }}>REMALJ</h3>
+            <p style={{ fontSize: 12, color: '#0284c7', margin: '2px 0 6px 0', fontWeight: 700 }}>Carewell Inspirational School · Bogoso</p>
             <p style={{ fontSize: 11, color: '#0284c7', margin: '2px 0' }}>{link.toUpperCase()} · MASTER DOCUMENT</p>
           </div>
           <p style={{ fontSize: 12, color: '#475569', lineHeight: 1.6 }}>

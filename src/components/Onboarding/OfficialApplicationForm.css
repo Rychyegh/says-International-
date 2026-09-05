@@ -154,19 +154,19 @@
 }
 
 .school-header-title {
-  font-size: 16px;
+  font-size: 22px;
   font-weight: 900;
-  color: #1a3668;
+  color: #0b1b7f;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-style: italic;
+  letter-spacing: 1px;
+  line-height: 1.1;
 }
 
 .school-header-sub {
-  font-size: 12px;
-  font-weight: bold;
-  color: #1a3668;
-  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #d91b1b;
+  margin-top: 3px;
 }
 
 .school-header-email {

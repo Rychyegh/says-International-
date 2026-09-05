@@ -416,3 +416,8 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.attendance-nav-tab:hover:not(.active) {
+  background: var(--gray-200) !important;
+  color: var(--gray-900) !important;
+}

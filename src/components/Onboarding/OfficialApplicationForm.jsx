@@ -10,11 +10,11 @@ export function SchoolLogoSVG({ size = 110 }) {
   return (
     <svg width={size} height={size * 1.05} viewBox="0 0 200 210" fill="none" xmlns="http://www.w3.org/2000/svg">
       {/* Top Header Text */}
-      <text x="100" y="16" fill="#0088cc" fontSize="13.5" fontWeight="900" textAnchor="middle" fontFamily="system-ui, Arial, sans-serif">
+      <text x="100" y="15" fill="#0088cc" fontSize="15" fontWeight="900" textAnchor="middle" fontFamily="system-ui, Arial, sans-serif">
         REMALJ
       </text>
-      <text x="100" y="28" fill="#0088cc" fontSize="10" fontWeight="900" textAnchor="middle" fontFamily="system-ui, Arial, sans-serif" letterSpacing="0.2">
-        CAREWELL INSPIRATIONAL SCHOOL
+      <text x="100" y="28" fill="#0088cc" fontSize="9" fontWeight="800" textAnchor="middle" fontFamily="system-ui, Arial, sans-serif" letterSpacing="0.1">
+        CAREWELL INSPIRATIONAL SCHOOL · BOGOSO
       </text>
 
       {/* Main Shield Outer Red Border Line */}
@@ -316,7 +316,10 @@ export default function OfficialApplicationForm({
         <div>
           <div className="official-form-title">
             <SchoolLogoSVG size={36} />
-            REMALJ CAREWELL INSPIRATIONAL SCHOOL — APPLICATION FORM
+            <div>
+              <div style={{ fontWeight: 900, fontSize: 17, color: '#ffffff', lineHeight: 1.1 }}>REMALJ</div>
+              <div style={{ fontSize: 12, color: 'var(--gray-300)', fontWeight: 600 }}>Carewell Inspirational School · Bogoso — APPLICATION FORM</div>
+            </div>
           </div>
           <div className="official-form-subtitle">
             P.O. BOX 139, BOGOSO • info@remaljschools.com • Online Submission & PDF Export
@@ -394,9 +397,9 @@ export default function OfficialApplicationForm({
                 <SchoolLogoSVG size={100} />
               </div>
               <div className="school-header-text">
-                <div className="school-header-title">REMALJ CAREWELL INSPIRATIONAL SCHOOL</div>
-                <div className="school-header-sub">P. O. BOX 139, BOGOSO</div>
-                <div className="school-header-email">Email: info@remaljschools.com</div>
+                <div className="school-header-title">REMALJ</div>
+                <div className="school-header-sub">Carewell Inspirational School · Bogoso</div>
+                <div className="school-header-email">P. O. BOX 139, BOGOSO • Email: info@remaljschools.com</div>
               </div>
               <div className="photo-box">
                 {formData.passportPhoto ? (
