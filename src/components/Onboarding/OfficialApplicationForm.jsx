@@ -522,6 +522,33 @@ export default function OfficialApplicationForm({
               <input className="form-line-input" value={formData.presentClass} onChange={(e) => handleChange('presentClass', e.target.value)} disabled={readOnly && !isAdmin} />
             </div>
 
+            <div className="form-line-row" style={{ background: '#f0f9ff', padding: '8px 12px', borderRadius: 6, border: '1px dashed #0284c7', marginTop: 10, marginBottom: 16 }}>
+              <span className="form-line-label" style={{ color: '#0369a1', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
+                💳 RFID / SMART CARD READER CODE:
+              </span>
+              <input
+                className="form-line-input"
+                style={{ fontWeight: 800, color: '#166534', letterSpacing: '0.05em' }}
+                value={formData.rfidCardCode || ''}
+                onChange={(e) => handleChange('rfidCardCode', e.target.value)}
+                placeholder="e.g. CARD-001 or tap RFID Card Reader to assign..."
+                disabled={readOnly && !isAdmin}
+              />
+              {!readOnly && (
+                <button
+                  type="button"
+                  style={{ padding: '4px 12px', fontSize: 11, fontWeight: 800, borderRadius: 4, background: '#166534', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8 }}
+                  onClick={(e) => {
+                    const input = e.currentTarget.previousElementSibling;
+                    if (input) input.focus();
+                  }}
+                  title="Click to focus & tap card on USB Card Reader"
+                >
+                  💳 Tap Card Reader
+                </button>
+              )}
+            </div>
+
             {/* Parents' / Guardian's Information */}
             <div className="form-section-header">PARENTS' / GUARDIAN'S INFORMATION</div>
 

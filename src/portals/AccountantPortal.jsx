@@ -28,7 +28,6 @@ const SIMS_DATA = {
     {
       category: 'Admissions',
       links: [
-        'Add new Admissions',
         'Edit Existing Admissions',
         'Change Student\'s Photo'
       ]
@@ -57,25 +56,6 @@ const SIMS_DATA = {
       links: [
         'Print Student\'s Academic Bill',
         'Print student ledger'
-      ]
-    },
-    {
-      category: 'Card Services',
-      links: [
-        'Issue a New Student Services Spending Card',
-        'Issue a New Parent\'s Pickup Card',
-        'Re-Encrypt Pickup Card',
-        'Register Student for Bus Service',
-        'Onboard Student on the School Feeding Programme',
-        'Student Special Dietary Needs',
-        'Fund Student\'s Bus Tag',
-        'Morning Drop-Off Verification',
-        'Afternoon Pickup Verification',
-        'Issue a New Temporary Parent\'s Pickup Card',
-        'Modify Temporary Parent\'s Pickup Card',
-        'Morning Drop-Off Verification (Temp. Cards Only)',
-        'Afternoon Pickup Verification (Temp. Cards Only)',
-        'Morning Walker Verification (Temp. Cards Only)'
       ]
     },
     {
@@ -1284,37 +1264,13 @@ function renderSpecificContent(link, m, setM, students) {
   // 2. ADMISSIONS & SEMESTER REGISTRATION FORMS
   if (link === 'Add new Admissions') {
     return (
-      <div>
-        <div className="sims-form-group">
-          <label>Applicant Student Full Name</label>
-          <input type="text" placeholder="e.g. Kwesi Mensah" value={m.applicantName || ''} onChange={(e) => update('applicantName', e.target.value)} required />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div className="sims-form-group">
-            <label>Gender</label>
-            <select value={m.gender || 'Male'} onChange={(e) => update('gender', e.target.value)}>
-              <option>Male</option><option>Female</option>
-            </select>
-          </div>
-          <div className="sims-form-group">
-            <label>Applying Level / Class</label>
-            <select value={m.level || 'JHS 1'} onChange={(e) => update('level', e.target.value)}>
-              <option>Primary 1</option><option>Primary 5</option><option>JHS 1</option><option>JHS 2</option><option>SHS 1</option>
-            </select>
-          </div>
-        </div>
-        <div className="sims-form-group">
-          <label>Guardian Full Name & Contact</label>
-          <input type="text" placeholder="Mr. Kofi Mensah (024 444 5555)" value={m.guardianInfo || ''} onChange={(e) => update('guardianInfo', e.target.value)} required />
-        </div>
-        <div className="sims-form-group">
-          <label>Previous School Attended</label>
-          <input type="text" placeholder="e.g. Tarkwa Prep Academy" value={m.prevSchool || ''} onChange={(e) => update('prevSchool', e.target.value)} />
-        </div>
-        <div className="sims-modal-actions">
-          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
-          <button type="submit" className="sims-btn sims-btn-primary">Submit New Admission Record</button>
-        </div>
+      <div style={{ textAlign: 'center', padding: 20 }}>
+        <div style={{ fontSize: 32, marginBottom: 8 }}>🔒</div>
+        <h4 style={{ fontSize: 16, fontWeight: 900, color: 'var(--gray-800)' }}>Admissions Creation Managed by Admin</h4>
+        <p style={{ fontSize: 13, color: 'var(--gray-600)', marginTop: 6, marginBottom: 16 }}>
+          New student admissions are processed exclusively through the Admin Portal. All newly created student accounts automatically sync into the Accountant portal.
+        </p>
+        <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Close</button>
       </div>
     );
   }

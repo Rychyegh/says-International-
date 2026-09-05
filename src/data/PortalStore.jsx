@@ -70,11 +70,11 @@ const INITIAL_DATA = {
     accountant: { name: 'Mrs. Grace Accountant', photo: '' },
   },
   onboardedStudents: [
-    { id: 'stu-001', studentId: 'REMALJ-2026-001', fullName: 'Benjamin Edwards', dob: '2015-03-12', gender: 'Male', level: 'Grade 4', classSection: 'Section B', guardianName: 'Mrs. Angela Edwards', guardianEmail: 'parent@remaljcarewell.edu.gh', guardianPhone: '024 111 2222', homeAddress: 'Bogoso, Anikoko', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'benjamin.edwards@remaljcarewell.edu.gh' },
-    { id: 'stu-002', studentId: 'REMALJ-2026-002', fullName: 'Adwoa Edwards', dob: '2014-07-22', gender: 'Female', level: 'Primary 5', classSection: 'Primary 5A', guardianName: 'Mrs. Angela Edwards', guardianEmail: 'parent@remaljcarewell.edu.gh', guardianPhone: '024 111 2222', homeAddress: 'Bogoso, Anikoko', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'adwoa.edwards@remaljcarewell.edu.gh' },
-    { id: 'stu-003', studentId: 'REMALJ-2026-041', fullName: 'Abena Mensah', dob: '2013-02-05', gender: 'Female', level: 'JHS 3', classSection: '3A', guardianName: 'Mr. Kofi Mensah', guardianEmail: 'kofi.mensah@example.com', guardianPhone: '024 333 4444', homeAddress: 'Tarkwa', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'abena.mensah@remaljcarewell.edu.gh' },
-    { id: 'stu-004', studentId: 'REMALJ-2026-112', fullName: 'Kwame Asante', dob: '2013-05-18', gender: 'Male', level: 'JHS 3', classSection: '3A', guardianName: 'Mrs. Ama Asante', guardianEmail: 'ama.asante@example.com', guardianPhone: '024 555 6666', homeAddress: 'Prestea', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'kwame.asante@remaljcarewell.edu.gh' },
-    { id: 'stu-005', studentId: 'REMALJ-2026-088', fullName: 'Efua Darko', dob: '2014-11-30', gender: 'Female', level: 'JHS 2', classSection: '2B', guardianName: 'Mr. Yaw Darko', guardianEmail: 'yaw.darko@example.com', guardianPhone: '024 777 8888', homeAddress: 'Bogoso', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'efua.darko@remaljcarewell.edu.gh' },
+    { id: 'stu-001', studentId: 'REMALJ-2026-001', rfidCardCode: '0009841234', fullName: 'Benjamin Edwards', dob: '2015-03-12', gender: 'Male', level: 'Grade 4', classSection: 'Section B', guardianName: 'Mrs. Angela Edwards', guardianEmail: 'parent@remaljcarewell.edu.gh', guardianPhone: '024 111 2222', homeAddress: 'Bogoso, Anikoko', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'benjamin.edwards@remaljcarewell.edu.gh' },
+    { id: 'stu-002', studentId: 'REMALJ-2026-002', rfidCardCode: '0014298132', fullName: 'Adwoa Edwards', dob: '2014-07-22', gender: 'Female', level: 'Primary 5', classSection: 'Primary 5A', guardianName: 'Mrs. Angela Edwards', guardianEmail: 'parent@remaljcarewell.edu.gh', guardianPhone: '024 111 2222', homeAddress: 'Bogoso, Anikoko', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'adwoa.edwards@remaljcarewell.edu.gh' },
+    { id: 'stu-003', studentId: 'REMALJ-2026-041', rfidCardCode: '0008431920', fullName: 'Abena Mensah', dob: '2013-02-05', gender: 'Female', level: 'JHS 3', classSection: '3A', guardianName: 'Mr. Kofi Mensah', guardianEmail: 'kofi.mensah@example.com', guardianPhone: '024 333 4444', homeAddress: 'Tarkwa', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'abena.mensah@remaljcarewell.edu.gh' },
+    { id: 'stu-004', studentId: 'REMALJ-2026-112', rfidCardCode: '10485721', fullName: 'Kwame Asante', dob: '2013-05-18', gender: 'Male', level: 'JHS 3', classSection: '3A', guardianName: 'Mrs. Ama Asante', guardianEmail: 'ama.asante@example.com', guardianPhone: '024 555 6666', homeAddress: 'Prestea', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'kwame.asante@remaljcarewell.edu.gh' },
+    { id: 'stu-005', studentId: 'REMALJ-2026-088', rfidCardCode: '82930419', fullName: 'Efua Darko', dob: '2014-11-30', gender: 'Female', level: 'JHS 2', classSection: '2B', guardianName: 'Mr. Yaw Darko', guardianEmail: 'yaw.darko@example.com', guardianPhone: '024 777 8888', homeAddress: 'Bogoso', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'efua.darko@remaljcarewell.edu.gh' },
   ],
   teacherDirectory: [
     { id: 'tch-001', name: 'Mr. Samuel Amponsah', subject: 'Pure Mathematics', classAssigned: 'SH2', email: 's.amponsah@remaljcarewell.edu.gh', phone: '024 900 1100', photo: '👨‍🏫', bio: '12 years teaching experience. BSc Mathematics, University of Ghana.' },
@@ -103,6 +103,10 @@ const INITIAL_DATA = {
   ],
   theme: 'light',
   backendConnected: false,
+  attendanceRecords: {
+    'REMALJ-2026-001': { status: 'CardScanned', cardScanned: true, smsSent: true, lastSentAt: '08:15 AM', timeStr: '08:15 AM' },
+    'REMALJ-2026-002': { status: 'Present', cardScanned: false, smsSent: true, lastSentAt: '08:30 AM', timeStr: '08:30 AM' },
+  },
 };
 
 const PortalDataContext = createContext(null);
@@ -512,6 +516,7 @@ export function PortalDataProvider({ children }) {
         const newStudent = {
           id: crypto.randomUUID?.() || String(Date.now()),
           studentId,
+          rfidCardCode: student.rfidCardCode || `CARD-${String((current.onboardedStudents || []).length + 1).padStart(3, '0')}`,
           fullName: student.fullName,
           dob: student.dob,
           gender: student.gender,
@@ -770,6 +775,19 @@ export function PortalDataProvider({ children }) {
       } catch (e) {
         console.warn('Notify absent API warning:', e);
       }
+    },
+    attendanceRecords: data.attendanceRecords || {},
+    updateAttendanceRecord: (studentId, recordData) => {
+      setData((current) => ({
+        ...current,
+        attendanceRecords: {
+          ...(current.attendanceRecords || {}),
+          [studentId]: {
+            ...(current.attendanceRecords?.[studentId] || {}),
+            ...recordData,
+          },
+        },
+      }));
     },
   }), [data, refreshBackendData]);
 

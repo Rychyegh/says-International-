@@ -21,18 +21,19 @@ const TEACHER_LIGHT = '#edf8f0';
 const TEACHER_ACCENT = '#2e7a44';
 
 const NAV = [
-  { icon: <LayoutDashboard size={15}/>, label: 'Dashboard',    badge: null },
-  { icon: <Users size={15}/>,           label: 'Students',     badge: null },
-  { icon: <ClipboardCheck size={15}/>,  label: 'Admissions',   badge: null },
-  { icon: <ClipboardList size={15}/>,   label: 'Assignments',  badge: '3'  },
-  { icon: <BookOpen size={15}/>,        label: 'Grades',       badge: null },
-  { icon: <Calendar size={15}/>,        label: 'Schedule',     badge: null },
-  { icon: <Calendar size={15}/>,        label: 'Academic Calendar', badge: null },
-  { icon: <MessageSquare size={15}/>,   label: 'Messages',     badge: '12' },
-  { icon: <Bus size={15}/>,             label: 'Transport',    badge: null },
-  { icon: <TrendingUp size={15}/>,      label: 'Reports',      badge: null },
-  { icon: <Award size={15}/>,           label: 'Performance',  badge: null },
-  { icon: <Settings size={15}/>,        label: 'Settings',     badge: null },
+  { icon: <LayoutDashboard size={15}/>, label: 'Dashboard',            badge: null },
+  { icon: <Radio size={15}/>,           label: 'Attendance & Records', badge: 'Live' },
+  { icon: <Users size={15}/>,           label: 'Students',             badge: null },
+  { icon: <ClipboardCheck size={15}/>,  label: 'Admissions',           badge: null },
+  { icon: <ClipboardList size={15}/>,   label: 'Assignments',          badge: '3'  },
+  { icon: <BookOpen size={15}/>,        label: 'Grades',               badge: null },
+  { icon: <Calendar size={15}/>,        label: 'Schedule',             badge: null },
+  { icon: <Calendar size={15}/>,        label: 'Academic Calendar',    badge: null },
+  { icon: <MessageSquare size={15}/>,   label: 'Messages',             badge: '12' },
+  { icon: <Bus size={15}/>,             label: 'Transport',            badge: null },
+  { icon: <TrendingUp size={15}/>,      label: 'Reports',              badge: null },
+  { icon: <Award size={15}/>,           label: 'Performance',          badge: null },
+  { icon: <Settings size={15}/>,        label: 'Settings',             badge: null },
 ];
 
 const STATS = [
@@ -282,7 +283,7 @@ export default function TeacherPortal() {
           {activeNav === 'Schedule' && <LecturerSchedule />}
           {activeNav === 'Grades' && <LecturerGrades />}
           {activeNav === 'Messages' && <TeacherMessages />}
-          {activeNav === 'Students' && (
+          {(activeNav === 'Students' || activeNav === 'Attendance & Records') && (
             <div className="animate-fade-up">
               <AttendanceControlTable />
             </div>
@@ -296,7 +297,7 @@ export default function TeacherPortal() {
           {activeNav === 'Settings' && <PortalSettings portal="teacher" />}
 
           {/* ── OTHER VIEWS placeholder ── */}
-          {!['Dashboard', 'Transport', 'Students', 'Admissions', 'Assignments', 'Schedule', 'Academic Calendar', 'Grades', 'Messages', 'Contacts', 'Reports', 'Operations', 'Settings'].includes(activeNav) && (
+          {!['Dashboard', 'Transport', 'Attendance & Records', 'Students', 'Admissions', 'Assignments', 'Schedule', 'Academic Calendar', 'Grades', 'Messages', 'Contacts', 'Reports', 'Operations', 'Settings'].includes(activeNav) && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 12 }}>
               <div style={{ fontSize: 48 }}>🚧</div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--gray-700)' }}>{activeNav} — Coming Soon</h2>

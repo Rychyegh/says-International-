@@ -22,6 +22,164 @@
   box-shadow: 0 4px 12px rgba(22, 101, 52, 0.1);
 }
 
+/* Card Reader Live Scanner Bar */
+.card-reader-banner {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border: 1px solid #334155;
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.3);
+}
+
+.card-reader-banner__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 480px;
+}
+
+.card-reader-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #4ade80;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  padding: 3px 10px;
+  border-radius: 99px;
+  width: fit-content;
+}
+
+.live-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  animation: pulse-ring 1.5s infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+.card-reader-text strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.card-reader-text span {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.card-reader-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-grow: 1;
+  max-width: 520px;
+}
+
+.card-reader-input-wrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  gap: 8px;
+}
+
+.card-input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  pointer-events: none;
+}
+
+.card-reader-input {
+  width: 100%;
+  padding: 10px 14px 10px 38px;
+  background: #090d16;
+  border: 2px solid #3b82f6;
+  border-radius: 8px;
+  color: #38bdf8;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: monospace;
+  outline: none;
+  transition: all 0.2s ease;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.card-reader-input:focus {
+  border-color: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.25), inset 0 2px 4px rgba(0, 0, 0, 0.5);
+  color: #4ade80;
+}
+
+.btn-scan-card {
+  padding: 10px 18px;
+  background: linear-gradient(135deg, #166534 0%, #15803d 100%);
+  color: white;
+  border: 1px solid #22c55e;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(22, 197, 94, 0.25);
+}
+
+.btn-scan-card:hover:not(:disabled) {
+  background: linear-gradient(135deg, #15803d 0%, #16a34a 100%);
+  transform: translateY(-1px);
+}
+
+.btn-scan-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.card-reader-autofocus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.card-reader-autofocus input {
+  accent-color: #22c55e;
+  cursor: pointer;
+}
+
 .attendance-header {
   display: flex;
   justify-content: space-between;
