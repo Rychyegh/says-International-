@@ -121,6 +121,10 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   const [error,   setError]   = useState('');
   const [success, setSuccess] = useState(false);
 
+  // Admin 2-Factor Security PIN State
+  const [pinStep, setPinStep] = useState(false);
+  const [adminPin, setAdminPin] = useState('');
+
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const scanTimerRef = useRef(null);
@@ -218,11 +222,50 @@ export default function LoginPage({ portal, onLoginSuccess }) {
         });
       }
       setLoading(false);
+
+      if (portal === 'admin') {
+        setPinStep(true);
+        setError('');
+        return;
+      }
+
       setSuccess(true);
       setTimeout(() => onLoginSuccess(), 900);
     } catch (err) {
       setLoading(false);
       setError(err.message || 'Authentication failed. Please check your credentials and try again.');
+    }
+  };
+
+  // Step 2: Handle Admin Security PIN Verification
+  const handlePinSubmit = (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!adminPin.trim()) {
+      setError('Please enter your 4-digit Administrator Security PIN.');
+      return;
+    }
+
+    if (adminPin.trim().length !== 4) {
+      setError('Security PIN must be exactly 4 digits.');
+      return;
+    }
+
+    if (adminPin.trim() === '8888') {
+      setLoading(true);
+      setSuccess(true);
+      setTimeout(() => {
+        onLoginSuccess('head_admin');
+      }, 900);
+    } else if (adminPin.trim() === '1234') {
+      setLoading(true);
+      setSuccess(true);
+      setTimeout(() => {
+        onLoginSuccess('sub_admin');
+      }, 900);
+    } else {
+      setError('❌ Invalid Security PIN. Enter 8888 for Super Admin or 1234 for Sub-Admin.');
     }
   };
 
@@ -391,6 +434,95 @@ export default function LoginPage({ portal, onLoginSuccess }) {
               <p style={{ color: 'var(--gray-500)', fontSize: 14 }}>
                 Welcome back. Loading your portal…
               </p>
+            </div>
+          ) : pinStep ? (
+            /* 2-Factor Admin Security PIN Verification View */
+            <div className="animate-fade-up">
+              <button
+                type="button"
+                onClick={() => { setPinStep(false); setAdminPin(''); setError(''); }}
+                className="form-forgot"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 20 }}
+              >
+                <ArrowLeft size={15} /> Back to Credentials
+              </button>
+
+              <div className="login-form__portal-badge" style={{ background: '#f3e8ff', color: '#4a1d6e' }}>
+                <span>🛡️</span> 2-Factor Security Authorization
+              </div>
+
+              <h2 className="login-form__title">Admin Security PIN</h2>
+              <p className="login-form__subtitle">
+                Enter your 4-digit Administrator Security PIN to verify your authorization level (Super Admin vs Sub-Admin).
+              </p>
+
+              {/* Authorized Security PIN Info Card */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: 14, marginBottom: 20 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                  💡 Authorized Security PIN Options:
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setAdminPin('8888'); setError(''); }}
+                    style={{
+                      padding: '10px 12px', background: '#f3e8ff', border: '1px solid #c084fc', borderRadius: 8,
+                      textAlign: 'left', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 2
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 900, color: '#581c87' }}>👑 Super Admin</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#7e22ce' }}>PIN: 8888 (Unrestricted)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setAdminPin('1234'); setError(''); }}
+                    style={{
+                      padding: '10px 12px', background: '#e0f2fe', border: '1px solid #38bdf8', borderRadius: 8,
+                      textAlign: 'left', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 2
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 900, color: '#0369a1' }}>🛡️ Sub-Admin</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#0284c7' }}>PIN: 1234 (Restricted)</span>
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={handlePinSubmit} noValidate>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="admin-pin-input">4-Digit Security PIN</label>
+                  <div className="form-input-wrap">
+                    <Lock size={16} className="form-input-icon" />
+                    <input
+                      id="admin-pin-input"
+                      type={showPass ? 'text' : 'password'}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={4}
+                      className="form-input"
+                      placeholder="••••"
+                      value={adminPin}
+                      onChange={(e) => setAdminPin(e.target.value.replace(/\D/g, ''))}
+                      autoFocus
+                      style={{ letterSpacing: '0.35em', fontSize: 20, fontWeight: 900, textAlign: 'center' }}
+                    />
+                    <button type="button" className="form-input-action" onClick={() => setShowPass(!showPass)} aria-label={showPass ? 'Hide PIN' : 'Show PIN'}>
+                      {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {error && <div className="form-error" style={{ marginBottom: 16 }}>⚠ {error}</div>}
+
+                <button
+                  type="submit"
+                  className={`login-submit${loading ? ' login-submit--loading' : ''}`}
+                  disabled={loading}
+                  style={{ background: cfg.accentBg }}
+                >
+                  {loading ? 'Verifying Authorization PIN…' : 'Verify PIN & Complete Sign In'}
+                </button>
+              </form>
             </div>
           ) : viewMode === 'forgot' ? (
             /* Forgot Password View (Phone + SMS OTP) */
@@ -828,12 +960,18 @@ export default function LoginPage({ portal, onLoginSuccess }) {
               </form>
 
               {/* Sign Up prompt */}
-              <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--gray-600)', marginTop: 24 }}>
-                Don't have an account?{' '}
-                <button type="button" onClick={() => switchView('signup')} className="form-forgot" style={{ fontWeight: 800 }}>
-                  Sign Up
-                </button>
-              </div>
+              {portal !== 'parent' ? (
+                <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--gray-600)', marginTop: 24 }}>
+                  Don't have an account?{' '}
+                  <button type="button" onClick={() => switchView('signup')} className="form-forgot" style={{ fontWeight: 800 }}>
+                    Sign Up
+                  </button>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--gray-500)', marginTop: 24, padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  💡 <strong>Parent Notice:</strong> Parent account credentials are automatically issued and dispatched via SMS by the school administration once your child's application is accepted.
+                </div>
+              )}
 
               <div className="login-footer" style={{ marginTop: 24 }}>
                 <strong style={{ fontSize: 14, color: 'var(--gray-900)' }}>REMALJ</strong><br />

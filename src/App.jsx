@@ -49,11 +49,11 @@ function DirectAccessNotice() {
 function AppRoutes() {
   const location = useLocation();
 
-  // All portals start logged out and require sign in
+  // Parent portal allows direct access without sign in once child is accepted
   const [authed, setAuthed] = useState({
     admin: false,
     accountant: false,
-    parent: false,
+    parent: true,
     teacher: false,
     student: false,
   });
@@ -76,16 +76,63 @@ function AppRoutes() {
     setAuthed((prev) => ({ ...prev, [activePortal]: false }));
   };
 
+  // Automatic Inactivity Logout (5 minutes timeout)
+  const [inactivityWarning, setInactivityWarning] = useState(false);
+  const [logoutNotice, setLogoutNotice] = useState('');
+
+  useEffect(() => {
+    if (!isAuthed || activePortal === 'parent') return;
+
+    let warningTimer = null;
+    let logoutTimer = null;
+
+    const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+    const WARNING_TIMEOUT = 4.5 * 60 * 1000; // 4 minutes 30 seconds
+
+    const resetInactivityTimer = () => {
+      if (warningTimer) clearTimeout(warningTimer);
+      if (logoutTimer) clearTimeout(logoutTimer);
+      setInactivityWarning(false);
+
+      warningTimer = setTimeout(() => {
+        setInactivityWarning(true);
+      }, WARNING_TIMEOUT);
+
+      logoutTimer = setTimeout(() => {
+        handleSignOut();
+        setInactivityWarning(false);
+        setLogoutNotice('⏱️ You have been automatically signed out due to 5 minutes of inactivity for system security.');
+        setTimeout(() => setLogoutNotice(''), 9000);
+      }, INACTIVITY_TIMEOUT);
+    };
+
+    const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+    events.forEach(evt => window.addEventListener(evt, resetInactivityTimer));
+
+    resetInactivityTimer();
+
+    return () => {
+      if (warningTimer) clearTimeout(warningTimer);
+      if (logoutTimer) clearTimeout(logoutTimer);
+      events.forEach(evt => window.removeEventListener(evt, resetInactivityTimer));
+    };
+  }, [isAuthed, activePortal]);
+
+  const [adminRole, setAdminRole] = useState('head_admin');
+
   const renderPortalView = (portalKey, Component) => {
     if (!authed[portalKey]) {
       return (
         <LoginPage
           portal={portalKey}
-          onLoginSuccess={() => setAuthed((prev) => ({ ...prev, [portalKey]: true }))}
+          onLoginSuccess={(role) => {
+            if (role) setAdminRole(role);
+            setAuthed((prev) => ({ ...prev, [portalKey]: true }));
+          }}
         />
       );
     }
-    return <Component onSignOut={handleSignOut} />;
+    return <Component onSignOut={handleSignOut} initialAdminRole={adminRole} />;
   };
 
   return (
@@ -95,6 +142,33 @@ function AppRoutes() {
         isAuthed={isAuthed}
         onSignOut={handleSignOut}
       />
+
+      {logoutNotice && (
+        <div style={{
+          background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b',
+          padding: '12px 20px', borderRadius: 8, margin: '16px 24px 0',
+          fontWeight: 800, fontSize: 13, textAlign: 'center', boxShadow: '0 4px 12px rgba(153,27,27,0.15)'
+        }}>
+          {logoutNotice}
+        </div>
+      )}
+
+      {inactivityWarning && (
+        <div style={{
+          position: 'fixed', top: 76, right: 24, zIndex: 999999,
+          background: '#991b1b', color: '#fff', padding: '12px 20px',
+          borderRadius: 10, boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+          fontWeight: 800, fontSize: 13, display: 'flex', alignItems: 'center', gap: 12
+        }}>
+          <span>⏱️ <strong>Inactivity Notice:</strong> Automatic logout in 30 seconds due to 5 minutes of idle time.</span>
+          <button
+            onClick={() => setInactivityWarning(false)}
+            style={{ padding: '5px 12px', background: '#fff', color: '#991b1b', border: 'none', borderRadius: 6, fontWeight: 900, cursor: 'pointer' }}
+          >
+            Stay Logged In
+          </button>
+        </div>
+      )}
 
       <div
         key={`${activePortal}-${isAuthed}-${location.pathname}`}

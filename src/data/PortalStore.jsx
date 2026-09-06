@@ -13,9 +13,9 @@ const INITIAL_DATA = {
     { id: 'math-wed', day: 'Wednesday', time: '01:00 PM', subject: 'Mathematics', room: 'Room 402', lecturer: 'Prof. Mensah' },
   ],
   results: [
-    { id: 'math', subject: 'Pure Mathematics', score: 91, grade: 'A', lecturer: 'Prof. Mensah', updatedAt: 'Not yet updated' },
-    { id: 'physics', subject: 'Physics', score: 86, grade: 'A-', lecturer: 'Mr. Boateng', updatedAt: 'Not yet updated' },
-    { id: 'english', subject: 'Literature in English', score: 88, grade: 'A-', lecturer: 'Dr. Anane', updatedAt: 'Not yet updated' },
+    { id: 'math', subject: 'Pure Mathematics', score: 91, grade: 'A', lecturer: 'Prof. Mensah', status: 'Approved', declineNote: null, updatedAt: '20 Aug 2026' },
+    { id: 'physics', subject: 'Physics', score: 86, grade: 'A-', lecturer: 'Mr. Boateng', status: 'Pending Approval', declineNote: null, updatedAt: '21 Aug 2026' },
+    { id: 'english', subject: 'Literature in English', score: 48, grade: 'F', lecturer: 'Dr. Anane', status: 'Declined', declineNote: 'Calculation Error: Exam mark mismatch on section B total. Please re-check and resubmit.', updatedAt: '22 Aug 2026' },
   ],
   courses: ['Pure Mathematics', 'Physics', 'Literature in English'],
   reportRequests: [],
@@ -351,8 +351,16 @@ export function PortalDataProvider({ children }) {
     publishResult: (result) => setData((current) => ({
       ...current,
       results: current.results.some((item) => item.subject === result.subject)
-        ? current.results.map((item) => item.subject === result.subject ? { ...result, id: item.id } : item)
-        : [...current.results, { ...result, id: crypto.randomUUID?.() || String(Date.now()) }],
+        ? current.results.map((item) => item.subject === result.subject ? { ...result, id: item.id, status: 'Pending Approval', declineNote: null, updatedAt: new Date().toLocaleString() } : item)
+        : [...current.results, { ...result, id: crypto.randomUUID?.() || String(Date.now()), status: 'Pending Approval', declineNote: null, updatedAt: new Date().toLocaleString() }],
+    })),
+    approveResult: (id) => setData((current) => ({
+      ...current,
+      results: (current.results || []).map((item) => item.id === id ? { ...item, status: 'Approved', declineNote: null, approvedAt: new Date().toLocaleString() } : item),
+    })),
+    declineResult: (id, note) => setData((current) => ({
+      ...current,
+      results: (current.results || []).map((item) => item.id === id ? { ...item, status: 'Declined', declineNote: note || 'Error detected in score breakdown by Academic Head.', declinedAt: new Date().toLocaleString() } : item),
     })),
     registerCourse: (course) => setData((current) => ({
       ...current,
@@ -469,10 +477,65 @@ export function PortalDataProvider({ children }) {
       } catch (e) {
         console.warn('Backend application status fallback:', e);
       }
-      setData((current) => ({
-        ...current,
-        applications: (current.applications || []).map((item) => item.id === id ? { ...item, status } : item),
-      }));
+      setData((current) => {
+        const targetApp = (current.applications || []).find((item) => item.id === id);
+        let updatedMessages = current.messages || [];
+
+        const updatedApplications = (current.applications || []).map((item) => {
+          if (item.id !== id) return item;
+
+          let defaultEmail = item.email || item.fatherEmail || item.motherEmail;
+          if (!defaultEmail) {
+            const cleanSurname = (item.surname || item.learner || 'parent').toLowerCase().replace(/[^a-z0-9]/g, '');
+            defaultEmail = `parent.${cleanSurname}@remaljcarewell.edu.gh`;
+          }
+          const defaultPassword = item.defaultPassword || 'Carewell2026!';
+
+          return {
+            ...item,
+            status,
+            email: defaultEmail,
+            defaultPassword,
+            acceptedAt: (status === 'Accepted' || status === 'Enrolled') ? (item.acceptedAt || new Date().toLocaleString()) : item.acceptedAt,
+          };
+        });
+
+        if ((status === 'Accepted' || status === 'Enrolled') && targetApp) {
+          const learnerName = targetApp.learner || `${targetApp.firstName || ''} ${targetApp.surname || ''}`.trim() || 'Applicant';
+          const guardianName = targetApp.guardian || targetApp.fatherName || targetApp.motherName || 'Parent/Guardian';
+          const parentFirstName = (targetApp.fatherFirstName || targetApp.motherFirstName || targetApp.firstName || guardianName.split(' ')[0] || 'parent').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const parentSurname = (targetApp.surname || targetApp.fatherSurname || targetApp.motherSurname || targetApp.learner || 'carewell').toLowerCase().replace(/[^a-z0-9]/g, '');
+          
+          let contactEmail = targetApp.email || targetApp.fatherEmail || targetApp.motherEmail;
+          if (!contactEmail || contactEmail.includes('@example.com')) {
+            contactEmail = `${parentFirstName}.${parentSurname}@remaljcarewell.edu.gh`;
+          }
+          const defaultPassword = 'Carewell2026!';
+          const parentPhone = targetApp.phone || targetApp.guardianPhone || targetApp.fatherPhone || targetApp.motherPhone || '024 111 2222';
+
+          const welcomeMsg = {
+            id: `msg-accept-${id}`,
+            from: 'REMALJ Admissions Office',
+            senderRole: 'Admin',
+            to: guardianName,
+            recipient: guardianName,
+            recipientEmail: contactEmail,
+            subject: `📱 SMS & Email Credentials: Child Application Accepted for ${learnerName}`,
+            body: `📱 AUTOMATIC SMS & EMAIL DISPATCHED TO ${guardianName.toUpperCase()} (${parentPhone}):\n\nDear ${parentFirstName.toUpperCase()},\n\nWe are delighted to inform you that the admission application for ${learnerName} has been ACCEPTED by REMALJ Carewell Inspirational School!\n\nYour Default Account Credentials & School Access:\n• Institution: REMALJ Carewell Inspirational School (Bogoso-Anikoko)\n• Default Email: ${contactEmail}\n• Default Password: ${defaultPassword}\n• Portal Access: Direct Instant Access (No sign-in required at http://localhost:5173/#/parent)\n\nYou can access your portal at any time to monitor child progress, fees, and live bus tracking.`,
+            sentAt: new Date().toLocaleString(),
+          };
+
+          if (!updatedMessages.some(m => m.id === `msg-accept-${id}`)) {
+            updatedMessages = [welcomeMsg, ...updatedMessages];
+          }
+        }
+
+        return {
+          ...current,
+          applications: updatedApplications,
+          messages: updatedMessages,
+        };
+      });
     },
     updateApplicationOfficeUse: (id, officeData) => setData((current) => ({
       ...current,

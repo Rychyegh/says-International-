@@ -68,6 +68,8 @@ const SUBJECTS = [
 
 export default function TeacherPortal() {
   const [activeNav, setActiveNav] = useState('Dashboard');
+  const [teacherRole, setTeacherRole] = useState('class_teacher'); // 'class_teacher' | 'subject_teacher'
+  const staffId = teacherRole === 'class_teacher' ? 'STF-2026-001' : 'STF-2026-003';
 
   return (
     <div className="portal">
@@ -75,8 +77,30 @@ export default function TeacherPortal() {
         {/* Sidebar */}
         <aside className="portal__sidebar">
           <div style={{ margin: '0 0 16px', padding: '14px', background: TEACHER_LIGHT, borderRadius: 'var(--radius-md)', borderLeft: `4px solid ${TEACHER_GREEN}` }}>
-            <div style={{ fontWeight: 800, fontSize: 13, color: TEACHER_GREEN }}>Staff Portal</div>
-            <div style={{ fontSize: 11, color: '#4a7a5a', marginTop: 2 }}>{getAuthUser()?.fullName || getAuthUser()?.name || 'Mr. Samuel Amponsah'}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontWeight: 800, fontSize: 13, color: TEACHER_GREEN }}>Staff Portal</div>
+              <span style={{ fontSize: 10, fontWeight: 900, padding: '2px 6px', borderRadius: 4, background: teacherRole === 'class_teacher' ? '#204d2d' : '#2563eb', color: '#fff' }}>
+                {teacherRole === 'class_teacher' ? 'CLASS TEACHER' : 'SUBJECT TEACHER'}
+              </span>
+            </div>
+            <div style={{ fontSize: 11, color: '#4a7a5a', marginTop: 2 }}>
+              {getAuthUser()?.fullName || getAuthUser()?.name || 'Mr. Samuel Amponsah'} (ID: <code>{staffId}</code>)
+            </div>
+
+            {/* Teacher Role Switcher */}
+            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #c4dfc9' }}>
+              <label style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#166534', display: 'block', marginBottom: 4 }}>
+                Staff Designation Role:
+              </label>
+              <select
+                value={teacherRole}
+                onChange={(e) => setTeacherRole(e.target.value)}
+                style={{ width: '100%', padding: '4px 8px', borderRadius: 6, border: '1px solid #86efac', fontSize: 11, fontWeight: 800, background: '#fff', color: '#14532d', cursor: 'pointer' }}
+              >
+                <option value="class_teacher">👨‍🏫 Class Teacher (Form Tutor - Grade 4B)</option>
+                <option value="subject_teacher">👨‍🔬 Subject Teacher (Non-Class Teacher)</option>
+              </select>
+            </div>
           </div>
           <span className="sidebar-section-label">Navigation</span>
           {NAV.slice(0, 8).map((item) => (
@@ -284,7 +308,30 @@ export default function TeacherPortal() {
           {activeNav === 'Messages' && <TeacherMessages />}
           {activeNav === 'Students' && (
             <div className="animate-fade-up">
-              <AttendanceControlTable />
+              {teacherRole === 'class_teacher' ? (
+                <AttendanceControlTable />
+              ) : (
+                <div style={{
+                  padding: '40px 24px', background: '#fff', borderRadius: 'var(--radius-lg)',
+                  boxShadow: 'var(--shadow-sm)', border: '2px solid #fecaca', textAlign: 'center',
+                  maxWidth: 680, margin: '20px auto'
+                }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
+                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: '#991b1b', marginBottom: 8 }}>
+                    Attendance Marking Access Restricted
+                  </h2>
+                  <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.6, marginBottom: 16 }}>
+                    According to REMALJ Carewell institutional policy, <strong>only assigned Class Teachers (Form Tutors)</strong> are authorized to record and modify official daily attendance for their designated class section.
+                  </p>
+                  <div style={{ background: '#fef2f2', padding: '14px 18px', borderRadius: 8, border: '1px solid #fca5a5', display: 'inline-block', textAlign: 'left', fontSize: 12, color: '#7f1d1d' }}>
+                    <div><strong>Staff ID:</strong> <code>{staffId}</code></div>
+                    <div><strong>Your Designation Role:</strong> Subject Teacher (Non-Class Teacher)</div>
+                    <div style={{ marginTop: 6, fontWeight: 700, color: '#b91c1c' }}>
+                      To record daily attendance, switch staff role in the sidebar or request authorization from the Class Teacher (Grade 4B Form Master) or Head Administrator.
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {activeNav === 'Admissions' && <AdmissionsRegister />}

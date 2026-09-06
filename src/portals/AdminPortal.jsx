@@ -19,6 +19,7 @@ const ADMIN_ACCENT = '#7c3ac8';
 
 const NAV = [
   { icon: <LayoutDashboard size={15} />, label: 'Dashboard', badge: null },
+  { icon: <FileCheck size={15} />, label: 'Transcripts & Results', badge: 'All Classes' },
   { icon: <Radio size={15} />, label: 'Attendance & SMS Control', badge: 'Live' },
   { icon: <CreditCard size={15} />, label: 'Card Issuance & Smart Identity', badge: 'NFC' },
   { icon: <CreditCard size={15} />, label: 'Official Fee Schedule', badge: 'Bill' },
@@ -32,7 +33,7 @@ const LEVEL_OPTIONS = [
   'JHS 1', 'JHS 2', 'JHS 3', 'SHS 1', 'SHS 2', 'SHS 3'
 ];
 
-export default function AdminPortal({ onSignOut }) {
+export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [activeNav, setActiveNav] = useState('Dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState(null);
@@ -43,6 +44,77 @@ export default function AdminPortal({ onSignOut }) {
   const [selectedApp, setSelectedApp] = useState(null);
   const [isCreatingApp, setIsCreatingApp] = useState(false);
 
+  // Transcripts & Class Results state
+  const [transcriptSearch, setTranscriptSearch] = useState('');
+  const [transcriptClassFilter, setTranscriptClassFilter] = useState('All');
+  const [transcriptTermFilter, setTranscriptTermFilter] = useState('Term 1 · 2026');
+  const [viewingTranscriptStudent, setViewingTranscriptStudent] = useState(null);
+  // Admin Role State
+  const [adminRole, setAdminRole] = useState(initialAdminRole || 'head_admin'); // 'head_admin' | 'sub_admin'
+  const [declineResultModal, setDeclineResultModal] = useState(null);
+  const [declineInputNote, setDeclineInputNote] = useState('');
+
+  const getStudentTranscriptData = (student) => {
+    if (!student) {
+      return {
+        courses: [],
+        totalCredits: 0,
+        totalGradePoints: 0,
+        cgpa: '0.00',
+        averageScore: '0.0',
+        academicStanding: 'N/A',
+        classRank: 'N/A',
+        attendancePercentage: '100%',
+        term: 'Term 1 · 2026 Academic Year'
+      };
+    }
+
+    const isSHS = (student.level || '').includes('SHS');
+    const isJHS = (student.level || '').includes('JHS');
+
+    const defaultCourses = isSHS ? [
+      { code: 'ENG-101', title: 'English Language & Literature', credits: 3, score: 88, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
+      { code: 'MTH-101', title: 'Core Mathematics & Analytics', credits: 4, score: 92, grade: 'A+', gradePoint: 4.0, remark: 'Outstanding' },
+      { code: 'SCI-102', title: 'Integrated Science & Biology', credits: 4, score: 84, grade: 'B+', gradePoint: 3.5, remark: 'Very Good' },
+      { code: 'SOC-101', title: 'Social Studies & Citizenship', credits: 3, score: 86, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
+      { code: 'ICT-105', title: 'Information Technology & Data Science', credits: 3, score: 95, grade: 'A+', gradePoint: 4.0, remark: 'Exceptional' },
+      { code: 'ECO-201', title: 'Economics & Financial Literacy', credits: 3, score: 79, grade: 'B', gradePoint: 3.0, remark: 'Good' },
+    ] : isJHS ? [
+      { code: 'ENG-08', title: 'English Language Arts', credits: 3, score: 85, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
+      { code: 'MTH-08', title: 'General Mathematics', credits: 4, score: 89, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
+      { code: 'SCI-08', title: 'Integrated Science', credits: 4, score: 82, grade: 'B+', gradePoint: 3.5, remark: 'Very Good' },
+      { code: 'SOC-08', title: 'Social Studies & Culture', credits: 3, score: 87, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
+      { code: 'ICT-08', title: 'Computer Literacy & Coding', credits: 3, score: 91, grade: 'A+', gradePoint: 4.0, remark: 'Outstanding' },
+      { code: 'RME-08', title: 'Religious & Moral Education', credits: 2, score: 90, grade: 'A+', gradePoint: 4.0, remark: 'Outstanding' },
+    ] : [
+      { code: 'ENG-PRI', title: 'English Language & Reading', credits: 3, score: 88, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
+      { code: 'MTH-PRI', title: 'Primary Mathematics & Numeracy', credits: 4, score: 94, grade: 'A+', gradePoint: 4.0, remark: 'Outstanding' },
+      { code: 'SCI-PRI', title: 'Basic Science & Nature', credits: 3, score: 86, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
+      { code: 'OWOP-PRI', title: 'Our World Our People', credits: 3, score: 90, grade: 'A+', gradePoint: 4.0, remark: 'Outstanding' },
+      { code: 'ICT-PRI', title: 'Basic Computing & Digital Skills', credits: 2, score: 92, grade: 'A+', gradePoint: 4.0, remark: 'Outstanding' },
+      { code: 'CAD-PRI', title: 'Creative Arts & Design', credits: 2, score: 87, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
+    ];
+
+    const totalCredits = defaultCourses.reduce((acc, c) => acc + c.credits, 0);
+    const totalScoreSum = defaultCourses.reduce((acc, c) => acc + c.score, 0);
+    const averageScore = (totalScoreSum / defaultCourses.length).toFixed(1);
+    
+    const weightedGradePoints = defaultCourses.reduce((acc, c) => acc + (c.gradePoint * c.credits), 0);
+    const cgpa = (weightedGradePoints / totalCredits).toFixed(2);
+
+    return {
+      courses: defaultCourses,
+      totalCredits,
+      totalGradePoints: weightedGradePoints.toFixed(1),
+      cgpa,
+      averageScore,
+      academicStanding: Number(cgpa) >= 3.5 ? 'First Class Honor Roll' : Number(cgpa) >= 3.0 ? 'Second Class Upper' : 'Good Standing',
+      classRank: 'Top 5%',
+      attendancePercentage: '98.5%',
+      term: 'Term 1 · 2026 Academic Year'
+    };
+  };
+
   const {
     onboardedStudents,
     applications,
@@ -50,6 +122,9 @@ export default function AdminPortal({ onSignOut }) {
     teacherDirectory,
     classLevels,
     subjects,
+    results,
+    approveResult,
+    declineResult,
     onboardStudent,
     updateOnboardedStudent,
     deleteOnboardedStudent,
@@ -304,6 +379,68 @@ export default function AdminPortal({ onSignOut }) {
     setTimeout(() => setSuccessMsg(''), 5000);
   };
 
+  const filteredTranscriptStudents = (onboardedStudents || []).filter((s) => {
+    const matchesSearch =
+      s.fullName.toLowerCase().includes(transcriptSearch.toLowerCase()) ||
+      s.studentId.toLowerCase().includes(transcriptSearch.toLowerCase()) ||
+      s.guardianName.toLowerCase().includes(transcriptSearch.toLowerCase());
+    const matchesClass = transcriptClassFilter === 'All' || s.level.toLowerCase() === transcriptClassFilter.toLowerCase();
+    return matchesSearch && matchesClass;
+  });
+
+  const handleExportClassResultsCSV = (studentsList) => {
+    const headers = ['Student ID', 'Full Name', 'Class Level', 'Section', 'Guardian', 'Average Score (%)', 'GPA (4.0 Scale)', 'Academic Standing'];
+    const rows = studentsList.map((student) => {
+      const data = getStudentTranscriptData(student);
+      return [
+        student.studentId,
+        student.fullName,
+        student.level,
+        student.classSection || 'A',
+        student.guardianName || 'Guardian',
+        `${data.averageScore}%`,
+        data.cgpa,
+        data.standing
+      ];
+    });
+    const csvContent = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Master_Class_Transcripts_All_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportSingleTranscriptCSV = (student) => {
+    const data = getStudentTranscriptData(student);
+    const header = [
+      [`REMALJ CAREWELL INSPIRATIONAL SCHOOL - OFFICIAL ACADEMIC TRANSCRIPT`],
+      [`Student Name: ${student.fullName}`, `Student ID: ${student.studentId}`, `Class Level: ${student.level}`],
+      [`Guardian: ${student.guardianName}`, `Date: ${new Date().toLocaleDateString()}`],
+      [],
+      ['Course Code', 'Subject Name', 'Class Assessment (30%)', 'End of Term Exam (70%)', 'Total Score (100%)', 'Letter Grade', 'GPA Point', 'Remark']
+    ];
+    const rows = data.subjects.map(s => [
+      s.code, s.name, `${s.classScore}/30`, `${s.examScore}/70`, `${s.total}%`, s.grade, s.gpaPoint, s.remark
+    ]);
+    const footer = [
+      [],
+      [`Cumulative GPA: ${data.cgpa} / 4.0`, `Average Mark: ${data.averageScore}%`, `Academic Standing: ${data.standing}`]
+    ];
+    const csvContent = [...header, ...rows, ...footer].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Academic_Transcript_${student.fullName.replace(/\s+/g, '_')}_${student.studentId}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleSaveOfficeEvaluation = (id, officeData) => {
     if (updateApplicationOfficeUse) {
       updateApplicationOfficeUse(id, officeData);
@@ -368,11 +505,35 @@ export default function AdminPortal({ onSignOut }) {
         {/* Sidebar */}
         <aside className="portal__sidebar">
           <div style={{ margin: '0 0 16px', padding: '14px', background: ADMIN_LIGHT, borderRadius: 'var(--radius-md)', borderLeft: `4px solid ${ADMIN_BG}` }}>
-            <div style={{ fontWeight: 800, fontSize: 13, color: ADMIN_BG }}>Admin Portal</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontWeight: 800, fontSize: 13, color: ADMIN_BG }}>Admin Portal</div>
+              <span style={{ fontSize: 10, fontWeight: 900, padding: '2px 6px', borderRadius: 4, background: adminRole === 'head_admin' ? '#4a1d6e' : '#0284c7', color: '#fff' }}>
+                {adminRole === 'head_admin' ? 'HEAD ADMIN' : 'SUB ADMIN'}
+              </span>
+            </div>
             <div style={{ fontSize: 11, color: '#6b21a8', marginTop: 2 }}>{getAuthUser()?.fullName || getAuthUser()?.name || 'School Administration Office'}</div>
+
+            {/* Admin Role Selector */}
+            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #e9d5ff' }}>
+              <label style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#7e22ce', display: 'block', marginBottom: 4 }}>
+                Switch Admin Role Access:
+              </label>
+              <select
+                value={adminRole}
+                onChange={(e) => {
+                  setAdminRole(e.target.value);
+                  setSuccessMsg(e.target.value === 'head_admin' ? 'Switched to Head of Admin role (Full Features & Unrestricted Access).' : 'Switched to Sub-Admin role (Restricted Privileges).');
+                  setTimeout(() => setSuccessMsg(''), 5000);
+                }}
+                style={{ width: '100%', padding: '4px 8px', borderRadius: 6, border: '1px solid #c084fc', fontSize: 11, fontWeight: 800, background: '#fff', color: '#4c1d95', cursor: 'pointer' }}
+              >
+                <option value="head_admin">⚡ Head of Admin (All Features)</option>
+                <option value="sub_admin">🛡️ Sub-Admin (Restricted Info)</option>
+              </select>
+            </div>
           </div>
           <span className="sidebar-section-label">Management</span>
-          {NAV.map((item) => (
+          {NAV.filter(item => !(adminRole === 'sub_admin' && item.label === 'Transcripts & Results')).map((item) => (
             <button
               key={item.label}
               className={`sidebar-item${activeNav === item.label || (activeNav === 'Applications' && item.label.includes('Applications')) ? ' active' : ''}`}
@@ -391,6 +552,20 @@ export default function AdminPortal({ onSignOut }) {
 
         {/* Main Content */}
         <main className="portal__content">
+          {adminRole === 'sub_admin' && (
+            <div style={{
+              padding: '10px 16px', background: '#e0f2fe', border: '1px solid #7dd3fc', color: '#0369a1',
+              borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: 12, marginBottom: 16,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ShieldCheck size={16} />
+                <span><strong>Sub-Admin Restricted Access Mode:</strong> Sensitive system governance, fee structural overrides, and staff deletion are restricted to Head of Admin.</span>
+              </div>
+              <span style={{ fontSize: 10, background: '#0284c7', color: '#fff', padding: '2px 8px', borderRadius: 99, fontWeight: 800 }}>SUB-ADMIN</span>
+            </div>
+          )}
+
           {successMsg && (
             <div style={{
               padding: '12px 18px', background: '#dcfce7', border: '1px solid #86efac', color: '#166534',
@@ -775,6 +950,18 @@ export default function AdminPortal({ onSignOut }) {
                         <td><span className="status-pill status-pill--success">{s.status}</span></td>
                         <td>
                           <div style={{ display: 'flex', gap: 6 }}>
+                            {adminRole === 'head_admin' && (
+                              <button
+                                onClick={() => {
+                                  setViewingTranscriptStudent(s);
+                                  setActiveNav('Transcripts & Results');
+                                }}
+                                style={{ padding: '4px 8px', background: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                                title="View & Print Official Academic Transcript"
+                              >
+                                <FileCheck size={12} /> Transcript
+                              </button>
+                            )}
                             <button
                               onClick={() => {
                                 setIssuingCardStudent(s);
@@ -913,7 +1100,16 @@ export default function AdminPortal({ onSignOut }) {
                                 <td>
                                   <select
                                     value={app.status}
-                                    onChange={(e) => updateApplicationStatus(app.id, e.target.value)}
+                                    onChange={(e) => {
+                                      const newStatus = e.target.value;
+                                      updateApplicationStatus(app.id, newStatus);
+                                      if (newStatus === 'Accepted' || newStatus === 'Enrolled') {
+                                        const contactEmail = app.email || app.fatherEmail || app.motherEmail || `parent.${(app.surname || app.learner || 'guardian').toLowerCase().replace(/[^a-z0-9]/g, '')}@remaljcarewell.edu.gh`;
+                                        const defaultPass = app.defaultPassword || 'Carewell2026!';
+                                        setSuccessMsg(`🎉 Application ACCEPTED! Default credentials sent to parent: Email: ${contactEmail} | Password: ${defaultPass} (Parent Portal direct access enabled - no sign in required).`);
+                                        setTimeout(() => setSuccessMsg(''), 8000);
+                                      }
+                                    }}
                                     style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--gray-300)', fontSize: 12, fontWeight: 700 }}
                                   >
                                     <option>Submitted</option>
@@ -1141,6 +1337,333 @@ export default function AdminPortal({ onSignOut }) {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── TRANSCRIPTS & RESULTS MASTER REGISTER ── */}
+          {activeNav === 'Transcripts & Results' && adminRole === 'head_admin' && (
+            <div className="animate-fade-up">
+              {/* Page Header */}
+              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <p className="page-header__eyebrow" style={{ color: ADMIN_ACCENT }}>
+                    <span style={{ background: ADMIN_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #d8b4fe' }}>
+                      Academic Records & Evaluation Centre
+                    </span>
+                  </p>
+                  <h1 className="page-header__title">Academic Transcripts & Master Results 📜</h1>
+                  <p className="page-header__subtitle">
+                    View and filter student results by name or class across all grade levels (Primary 1 to SHS 3), calculate CGPAs, and print or export official academic transcripts.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleExportClassResultsCSV(filteredTranscriptStudents)}
+                    style={{
+                      padding: '10px 16px', borderRadius: 8, background: '#166534', color: '#fff',
+                      border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(22, 101, 52, 0.2)'
+                    }}
+                  >
+                    <Download size={15} /> Export Filtered Results (CSV)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    style={{
+                      padding: '10px 16px', borderRadius: 8, background: ADMIN_BG, color: '#fff',
+                      border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(74, 29, 110, 0.2)'
+                    }}
+                  >
+                    <Printer size={15} /> Print Class Results Sheet
+                  </button>
+                </div>
+              </div>
+
+              {/* Academic Head Results Moderation & Approval Board */}
+              <div className="panel" style={{ marginBottom: 24, border: '2px solid #e9d5ff' }}>
+                <div className="panel__header" style={{ background: '#f3e8ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h2 className="panel__title" style={{ color: '#4c1d95', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <FileCheck size={18} /> Academic Head Results Moderation Board
+                  </h2>
+                  <span className="status-pill status-pill--info">
+                    {(results || []).filter(r => r.status === 'Pending Approval').length} Pending Review
+                  </span>
+                </div>
+
+                <div className="panel__body" style={{ padding: 0, overflowX: 'auto' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Course Title</th>
+                        <th>Lecturer / Author</th>
+                        <th>Submitted Mark</th>
+                        <th>Grade</th>
+                        <th>Approval Status</th>
+                        <th style={{ textAlign: 'right' }}>Academic Head Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(results || []).map((r) => (
+                        <tr key={r.id || r.subject} style={{ background: r.status === 'Declined' ? '#fff1f2' : r.status === 'Pending Approval' ? '#fffbeb' : 'transparent' }}>
+                          <td><strong>{r.subject}</strong></td>
+                          <td>{r.lecturer}</td>
+                          <td><span style={{ fontWeight: 800 }}>{r.score}%</span></td>
+                          <td><span className="status-pill status-pill--success">{r.grade}</span></td>
+                          <td>
+                            {r.status === 'Approved' ? (
+                              <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800, background: '#dcfce7', color: '#166534' }}>
+                                🟢 Approved by Academic Head
+                              </span>
+                            ) : r.status === 'Declined' ? (
+                              <div>
+                                <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800, background: '#fee2e2', color: '#dc2626' }}>
+                                  🔴 Declined with Red Error Note
+                                </span>
+                                {r.declineNote && (
+                                  <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4, fontWeight: 700 }}>
+                                    Note: "{r.declineNote}"
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800, background: '#fef3c7', color: '#92400e' }}>
+                                🟡 Pending Academic Review
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {adminRole === 'sub_admin' ? (
+                              <span style={{ fontSize: 11, color: '#64748b', fontStyle: 'italic' }}>
+                                🔒 Restricted to Head of Admin
+                              </span>
+                            ) : (
+                              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                                <button
+                                  onClick={() => {
+                                    approveResult(r.id);
+                                    setSuccessMsg(`Result for ${r.subject} APPROVED by Academic Head! Published to official transcripts.`);
+                                    setTimeout(() => setSuccessMsg(''), 5000);
+                                  }}
+                                  style={{ padding: '5px 12px', background: '#166534', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 11, cursor: 'pointer' }}
+                                >
+                                  ✅ Approve Result
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    setDeclineResultModal(r);
+                                    setDeclineInputNote(r.declineNote || '');
+                                  }}
+                                  style={{ padding: '5px 12px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 11, cursor: 'pointer' }}
+                                >
+                                  ❌ Decline (Red Error Note)
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Search & Filter Control Bar */}
+              <div style={{ background: '#fff', padding: '16px 20px', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', marginBottom: 20, border: '1px solid var(--gray-200)' }}>
+                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {/* Name / ID Search */}
+                  <div style={{ flex: 2, minWidth: 260, position: 'relative' }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--gray-500)', marginBottom: 4 }}>
+                      🔍 Filter Student Name or ID
+                    </label>
+                    <div className="search-bar" style={{ width: '100%' }}>
+                      <Search size={15} className="search-bar__icon" />
+                      <input
+                        type="text"
+                        className="search-bar__input"
+                        placeholder="Type student name, ID, or guardian to filter..."
+                        value={transcriptSearch}
+                        onChange={(e) => setTranscriptSearch(e.target.value)}
+                      />
+                      {transcriptSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setTranscriptSearch('')}
+                          style={{ position: 'absolute', right: 12, top: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-400)' }}
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Class Level Filter */}
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--gray-500)', marginBottom: 4 }}>
+                      🏫 Class / Grade Level
+                    </label>
+                    <select
+                      value={transcriptClassFilter}
+                      onChange={(e) => setTranscriptClassFilter(e.target.value)}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, fontWeight: 700 }}
+                    >
+                      <option value="All">All Classes (P1 - SHS 3)</option>
+                      {LEVEL_OPTIONS.map((lvl) => <option key={lvl} value={lvl}>{lvl}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Term Filter */}
+                  <div style={{ flex: 1, minWidth: 150 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--gray-500)', marginBottom: 4 }}>
+                      📅 Academic Term
+                    </label>
+                    <select
+                      value={transcriptTermFilter}
+                      onChange={(e) => setTranscriptTermFilter(e.target.value)}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, fontWeight: 700 }}
+                    >
+                      <option value="Term 1 · 2026">Term 1 · 2026</option>
+                      <option value="Term 2 · 2026">Term 2 · 2026</option>
+                      <option value="Term 3 · 2026">Term 3 · 2026</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary Stat Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
+                <div style={{ padding: '16px 20px', background: '#f3e8ff', border: '1px solid #e9d5ff', borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#6b21a8' }}>Matching Students</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: '#4c1d95', marginTop: 4 }}>{filteredTranscriptStudents.length}</div>
+                  <div style={{ fontSize: 11, color: '#7e22ce', marginTop: 2 }}>{transcriptClassFilter === 'All' ? 'Across all classes' : transcriptClassFilter}</div>
+                </div>
+                <div style={{ padding: '16px 20px', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#166534' }}>Overall Class Average</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: '#14532d', marginTop: 4 }}>
+                    {filteredTranscriptStudents.length > 0
+                      ? `${(filteredTranscriptStudents.reduce((acc, s) => acc + Number(getStudentTranscriptData(s).averageScore), 0) / filteredTranscriptStudents.length).toFixed(1)}%`
+                      : '0%'}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#15803d', marginTop: 2 }}>Term Average Score</div>
+                </div>
+                <div style={{ padding: '16px 20px', background: '#e0f2fe', border: '1px solid #bae6fd', borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#0369a1' }}>Mean CGPA</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: '#0c4a6e', marginTop: 4 }}>
+                    {filteredTranscriptStudents.length > 0
+                      ? (filteredTranscriptStudents.reduce((acc, s) => acc + Number(getStudentTranscriptData(s).cgpa), 0) / filteredTranscriptStudents.length).toFixed(2)
+                      : '0.00'}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#0284c7', marginTop: 2 }}>Out of 4.0 Scale</div>
+                </div>
+                <div style={{ padding: '16px 20px', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#92400e' }}>Distinction Students</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: '#78350f', marginTop: 4 }}>
+                    {filteredTranscriptStudents.filter(s => Number(getStudentTranscriptData(s).cgpa) >= 3.5).length}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#b45309', marginTop: 2 }}>GPA 3.5 or higher</div>
+                </div>
+              </div>
+
+              {/* Master Results Table */}
+              <div className="panel">
+                <div className="panel__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h2 className="panel__title">Master Class Transcripts Register</h2>
+                  <span className="status-pill status-pill--info">{filteredTranscriptStudents.length} records</span>
+                </div>
+
+                <div className="panel__body" style={{ padding: 0, overflowX: 'auto' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Student ID</th>
+                        <th>Student Name</th>
+                        <th>Class Level</th>
+                        <th>Guardian</th>
+                        <th>Avg Score (%)</th>
+                        <th>CGPA</th>
+                        <th>Standing / Status</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTranscriptStudents.map((student) => {
+                        const tData = getStudentTranscriptData(student);
+                        return (
+                          <tr key={student.id}>
+                            <td><code>{student.studentId}</code></td>
+                            <td>
+                              <strong>{student.fullName}</strong>
+                              <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{student.gender || 'Student'}</div>
+                            </td>
+                            <td><span style={{ fontWeight: 700 }}>{student.level} ({student.classSection || 'A'})</span></td>
+                            <td>
+                              <div>{student.guardianName}</div>
+                              <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{student.guardianPhone}</div>
+                            </td>
+                            <td>
+                              <span style={{ fontWeight: 800, fontSize: 14, color: Number(tData.averageScore) >= 75 ? '#166534' : '#92400e' }}>
+                                {tData.averageScore}%
+                              </span>
+                            </td>
+                            <td>
+                              <span style={{ fontWeight: 900, fontSize: 15, color: ADMIN_ACCENT }}>
+                                {tData.cgpa}
+                              </span>
+                            </td>
+                            <td>
+                              <span style={{
+                                padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800,
+                                background: Number(tData.cgpa) >= 3.6 ? '#dcfce7' : Number(tData.cgpa) >= 3.0 ? '#e0f2fe' : '#fef3c7',
+                                color: Number(tData.cgpa) >= 3.6 ? '#166534' : Number(tData.cgpa) >= 3.0 ? '#0369a1' : '#92400e'
+                              }}>
+                                {tData.standing}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                                <button
+                                  onClick={() => setViewingTranscriptStudent(student)}
+                                  style={{
+                                    padding: '6px 12px', background: ADMIN_BG, color: '#fff',
+                                    border: 'none', borderRadius: 6, cursor: 'pointer',
+                                    fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 4,
+                                    boxShadow: '0 2px 6px rgba(74,29,110,0.2)'
+                                  }}
+                                >
+                                  <Eye size={13} /> View Transcript PDF
+                                </button>
+                                <button
+                                  onClick={() => handleExportSingleTranscriptCSV(student)}
+                                  style={{
+                                    padding: '6px 10px', background: '#f1f5f9', color: '#334155',
+                                    border: '1px solid #cbd5e1', borderRadius: 6, cursor: 'pointer',
+                                    fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4
+                                  }}
+                                >
+                                  <Download size={13} /> CSV
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {filteredTranscriptStudents.length === 0 && (
+                        <tr>
+                          <td colSpan={8} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--gray-500)' }}>
+                            No student transcript records found matching "{transcriptSearch}" in {transcriptClassFilter}.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -2001,6 +2524,277 @@ export default function AdminPortal({ onSignOut }) {
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          )}
+          {/* Decline Result Error Note Modal */}
+          {declineResultModal && (
+            <div style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(15,23,42,0.75)', backdropFilter: 'blur(4px)',
+              zIndex: 99999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20
+            }}>
+              <div style={{ width: '100%', maxWidth: 500, background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <h3 style={{ margin: 0, color: '#dc2626', fontSize: 18, fontFamily: 'var(--font-display)', fontWeight: 900 }}>
+                    🔴 Decline Result & Flag Error Note
+                  </h3>
+                  <button onClick={() => setDeclineResultModal(null)} style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer' }}>✖</button>
+                </div>
+
+                <div style={{ fontSize: 13, color: 'var(--gray-700)', marginBottom: 14 }}>
+                  Flag error in <strong>{declineResultModal.subject}</strong> submitted by {declineResultModal.lecturer}. The red error note typed below will be sent to the teacher to correct and resubmit.
+                </div>
+
+                <label style={{ display: 'block', marginBottom: 16 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: '#dc2626' }}>Red Error / Rejection Reason Note *</span>
+                  <textarea
+                    rows={4}
+                    required
+                    placeholder="e.g. Calculation error on Exam Section B total (48% score mismatch). Please re-check student exam total and resubmit."
+                    value={declineInputNote}
+                    onChange={(e) => setDeclineInputNote(e.target.value)}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '2px solid #fca5a5', fontSize: 13, marginTop: 4, fontFamily: 'sans-serif' }}
+                  />
+                </label>
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setDeclineResultModal(null)}
+                    style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid var(--gray-300)', background: '#fff', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!declineInputNote.trim()) return;
+                      declineResult(declineResultModal.id, declineInputNote);
+                      setDeclineResultModal(null);
+                      setSuccessMsg(`Result for ${declineResultModal.subject} DECLINED with red error note sent to teacher.`);
+                      setTimeout(() => setSuccessMsg(''), 5000);
+                    }}
+                    style={{ flex: 1, padding: 10, borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+                  >
+                    🔴 Decline with Red Error Note
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Printable Official Transcript Document Modal */}
+          {viewingTranscriptStudent && (
+            <div style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(15,23,42,0.75)', backdropFilter: 'blur(4px)',
+              zIndex: 9999, overflowY: 'auto', padding: '30px 16px',
+              display: 'flex', justifyContent: 'center', alignItems: 'flex-start'
+            }}>
+              <div style={{
+                width: '100%', maxWidth: 860, background: '#fff', borderRadius: 16,
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden',
+                animation: 'fadeUp 0.2s ease-out'
+              }}>
+                {/* Top Bar for Modal Actions (hidden on print) */}
+                <div className="no-print" style={{
+                  padding: '14px 24px', background: '#1e1b4b', color: '#fff',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                }}>
+                  <div style={{ fontWeight: 800, fontSize: 14 }}>
+                    📜 Official Student Transcript — {viewingTranscriptStudent.fullName}
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <button
+                      onClick={() => handleExportSingleTranscriptCSV(viewingTranscriptStudent)}
+                      style={{
+                        padding: '6px 14px', borderRadius: 6, background: 'rgba(255,255,255,0.15)',
+                        color: '#fff', border: '1px solid rgba(255,255,255,0.3)', fontWeight: 800,
+                        fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
+                      }}
+                    >
+                      <Download size={14} /> Download CSV
+                    </button>
+
+                    <button
+                      onClick={() => window.print()}
+                      style={{
+                        padding: '6px 16px', borderRadius: 6, background: '#166534',
+                        color: '#fff', border: 'none', fontWeight: 900,
+                        fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
+                      }}
+                    >
+                      <Printer size={14} /> Print / Save PDF
+                    </button>
+
+                    <button
+                      onClick={() => setViewingTranscriptStudent(null)}
+                      style={{
+                        padding: '6px 12px', borderRadius: 6, background: '#dc2626',
+                        color: '#fff', border: 'none', fontWeight: 800,
+                        fontSize: 12, cursor: 'pointer'
+                      }}
+                    >
+                      Close ✖
+                    </button>
+                  </div>
+                </div>
+
+                {/* Printable Official Transcript Document Body */}
+                <div className="official-transcript-printable" style={{ padding: 40, color: '#0f172a', fontFamily: 'var(--font-main, sans-serif)' }}>
+                  {/* School Header Box */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '3px double #1e1b4b', paddingBottom: 20, marginBottom: 24 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 70, width: 'auto', borderRadius: 6 }} />
+                      <div>
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 900, color: '#1e1b4b', margin: 0, letterSpacing: '0.03em' }}>
+                          REMALJ CAREWELL INSPIRATIONAL SCHOOL
+                        </h2>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginTop: 2 }}>
+                          P.O. Box 144, Anikoko Junction, Bogoso · Western Region, Ghana
+                        </div>
+                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                          Tel: +233 24 111 2222 | Email: info@remaljcarewell.edu.gh | Web: www.remaljcarewell.edu.gh
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right', borderLeft: '2px solid #e2e8f0', paddingLeft: 16 }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#64748b', letterSpacing: '.08em' }}>DOCUMENT ID</div>
+                      <div style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 13, color: '#1e1b4b' }}>TR-2026-{viewingTranscriptStudent.studentId.replace(/\D/g, '')}</div>
+                      <div style={{ fontSize: 10, color: '#166534', fontWeight: 800, marginTop: 4, background: '#dcfce7', padding: '2px 8px', borderRadius: 99, display: 'inline-block' }}>
+                        OFFICIAL VERIFIED
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Title */}
+                  <div style={{ textAlign: 'center', marginBottom: 24 }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 900, letterSpacing: '0.08em', color: '#1e1b4b', textTransform: 'uppercase', margin: 0 }}>
+                      OFFICIAL ACADEMIC TRANSCRIPT & EVALUATION REPORT
+                    </h3>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginTop: 4 }}>
+                      ACADEMIC YEAR 2025/2026 · TERM 1 & CUMULATIVE STANDING
+                    </div>
+                  </div>
+
+                  {/* Student Metadata Box */}
+                  {(() => {
+                    const tData = getStudentTranscriptData(viewingTranscriptStudent);
+                    return (
+                      <>
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 18, marginBottom: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 24px' }}>
+                          <div>
+                            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Student Full Name:</span>
+                            <div style={{ fontSize: 15, fontWeight: 900, color: '#0f172a' }}>{viewingTranscriptStudent.fullName}</div>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Official Student ID:</span>
+                            <div style={{ fontSize: 15, fontWeight: 900, color: '#1e1b4b', fontFamily: 'monospace' }}>{viewingTranscriptStudent.studentId}</div>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Class Level & Section:</span>
+                            <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{viewingTranscriptStudent.level} (Section {viewingTranscriptStudent.classSection || 'A'})</div>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Parent / Guardian:</span>
+                            <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{viewingTranscriptStudent.guardianName} ({viewingTranscriptStudent.guardianPhone || 'N/A'})</div>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Date of Birth / Gender:</span>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>{viewingTranscriptStudent.dob || '2014-05-12'} · {viewingTranscriptStudent.gender || 'Male'}</div>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Enrollment Date:</span>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>{viewingTranscriptStudent.enrollmentDate || '2026-09-01'}</div>
+                          </div>
+                        </div>
+
+                        {/* Course Breakdown Table */}
+                        <div style={{ marginBottom: 24 }}>
+                          <h4 style={{ fontSize: 14, fontWeight: 900, textTransform: 'uppercase', color: '#1e1b4b', marginBottom: 10, letterSpacing: '.04em' }}>
+                            📚 Course Assessment & Final Mark Breakdown
+                          </h4>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, textAlign: 'left' }}>
+                            <thead>
+                              <tr style={{ background: '#1e1b4b', color: '#fff' }}>
+                                <th style={{ padding: '10px 12px', border: '1px solid #1e1b4b' }}>Code</th>
+                                <th style={{ padding: '10px 12px', border: '1px solid #1e1b4b' }}>Course Title</th>
+                                <th style={{ padding: '10px 12px', border: '1px solid #1e1b4b', textAlign: 'center' }}>Class (30%)</th>
+                                <th style={{ padding: '10px 12px', border: '1px solid #1e1b4b', textAlign: 'center' }}>Exam (70%)</th>
+                                <th style={{ padding: '10px 12px', border: '1px solid #1e1b4b', textAlign: 'center' }}>Total (100%)</th>
+                                <th style={{ padding: '10px 12px', border: '1px solid #1e1b4b', textAlign: 'center' }}>Grade</th>
+                                <th style={{ padding: '10px 12px', border: '1px solid #1e1b4b', textAlign: 'center' }}>GPA Pt</th>
+                                <th style={{ padding: '10px 12px', border: '1px solid #1e1b4b' }}>Remarks</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {tData.subjects.map((sub, idx) => (
+                                <tr key={sub.code} style={{ background: idx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                                  <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontWeight: 800 }}>{sub.code}</td>
+                                  <td style={{ padding: '9px 12px', fontWeight: 700 }}>{sub.name}</td>
+                                  <td style={{ padding: '9px 12px', textAlign: 'center', color: '#475569' }}>{sub.classScore}/30</td>
+                                  <td style={{ padding: '9px 12px', textAlign: 'center', color: '#475569' }}>{sub.examScore}/70</td>
+                                  <td style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 900, color: sub.total >= 75 ? '#166534' : '#0f172a' }}>{sub.total}%</td>
+                                  <td style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 900, color: '#4a1d6e' }}>{sub.grade}</td>
+                                  <td style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 800 }}>{sub.gpaPoint.toFixed(1)}</td>
+                                  <td style={{ padding: '9px 12px', fontWeight: 700, color: sub.total >= 70 ? '#166534' : '#92400e' }}>{sub.remark}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Cumulative GPA Summary Card */}
+                        <div style={{ background: '#1e1b4b', color: '#fff', borderRadius: 10, padding: 20, marginBottom: 30, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', opacity: 0.75, letterSpacing: '.07em' }}>CUMULATIVE PERFORMANCE SUMMARY</div>
+                            <div style={{ fontSize: 18, fontWeight: 900, marginTop: 4 }}>Academic Standing: {tData.standing}</div>
+                            <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>{tData.subjects.length} Total Subjects Assessed · Term 1 2026</div>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: 16 }}>
+                            <div style={{ background: 'rgba(255,255,255,0.12)', padding: '10px 18px', borderRadius: 8, textAlign: 'center' }}>
+                              <div style={{ fontSize: 24, fontWeight: 900 }}>{tData.averageScore}%</div>
+                              <div style={{ fontSize: 10, opacity: 0.8, textTransform: 'uppercase' }}>Average Mark</div>
+                            </div>
+                            <div style={{ background: '#166534', padding: '10px 22px', borderRadius: 8, textAlign: 'center' }}>
+                              <div style={{ fontSize: 24, fontWeight: 900 }}>{tData.cgpa}</div>
+                              <div style={{ fontSize: 10, opacity: 0.9, textTransform: 'uppercase' }}>CGPA (4.0 Max)</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Signatures & Verification Stamp */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 40, paddingTop: 20, borderTop: '2px dashed #cbd5e1' }}>
+                          <div style={{ textAlign: 'center', width: 220 }}>
+                            <div style={{ height: 40, borderBottom: '1px solid #0f172a', marginBottom: 6 }}>
+                              <span style={{ fontFamily: 'serif', fontStyle: 'italic', fontSize: 18, color: '#1e1b4b', display: 'block', paddingTop: 8 }}>S. Amponsah</span>
+                            </div>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>Mr. Samuel Amponsah</div>
+                            <div style={{ fontSize: 11, color: '#64748b' }}>Head of Academic Board</div>
+                          </div>
+
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ width: 90, height: 90, border: '3px double #1e1b4b', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', color: '#1e1b4b', fontWeight: 900, fontSize: 10, textTransform: 'uppercase', textAlign: 'center', padding: 8 }}>
+                              REMALJ CAREWELL OFFICIAL SEAL
+                            </div>
+                            <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>Issued: {new Date().toLocaleDateString()}</div>
+                          </div>
+
+                          <div style={{ textAlign: 'center', width: 220 }}>
+                            <div style={{ height: 40, borderBottom: '1px solid #0f172a', marginBottom: 6 }}>
+                              <span style={{ fontFamily: 'serif', fontStyle: 'italic', fontSize: 18, color: '#1e1b4b', display: 'block', paddingTop: 8 }}>J. Admin</span>
+                            </div>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>Mr. John Admin</div>
+                            <div style={{ fontSize: 11, color: '#64748b' }}>Registrar / Headmaster</div>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
               </div>
             </div>
           )}

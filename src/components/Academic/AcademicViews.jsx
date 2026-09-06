@@ -47,19 +47,86 @@ export function LecturerGrades() {
     event.preventDefault();
     const score = Number(result.score);
     if (!Number.isFinite(score) || score < 0 || score > 100) return;
-    publishResult({ ...result, score, updatedAt: new Date().toLocaleString() });
-    setNotice(`Result for ${result.subject} has been published for students to download.`);
+    publishResult({ ...result, score, status: 'Pending Approval', declineNote: null, updatedAt: new Date().toLocaleString() });
+    setNotice(`Result for ${result.subject} submitted successfully! Pending Academic Head approval.`);
+    setTimeout(() => setNotice(''), 5000);
   };
   return <div className="academic-view animate-fade-up">
-    <div className="page-header"><h1 className="page-header__title">Publish results</h1><p className="page-header__subtitle">Results published here appear in the student result centre immediately.</p></div>
-    <div className="academic-layout"><section className="panel"><div className="panel__header"><h2 className="panel__title">Current result sheet</h2></div><table className="data-table"><thead><tr><th>Course</th><th>Score</th><th>Grade</th><th>Published</th></tr></thead><tbody>{results.map((item) => <tr key={item.id || item.subject}><td>{item.subject}</td><td>{item.score}%</td><td><span className="status-pill status-pill--success">{item.grade}</span></td><td>{item.updatedAt}</td></tr>)}</tbody></table></section>
-    <form className="panel academic-form" onSubmit={submit}><div className="panel__header"><h2 className="panel__title"><Save size={16}/> Publish result</h2></div><div className="panel__body">
-      <label>Course<select value={result.subject} onChange={update('subject')}>{COURSE_CATALOGUE.map((course) => <option key={course}>{course}</option>)}</select></label>
-      <label>Score<input type="number" min="0" max="100" value={result.score} onChange={update('score')} required /></label>
-      <label>Grade<select value={result.grade} onChange={update('grade')}>{['A', 'A-', 'B+', 'B', 'C+', 'C', 'D'].map((grade) => <option key={grade}>{grade}</option>)}</select></label>
-      <button className="academic-button" type="submit"><Save size={15}/> Publish for students</button>
-      {notice && <p className="academic-success"><CheckCircle2 size={15}/>{notice}</p>}
-    </div></form></div>
+    <div className="page-header">
+      <h1 className="page-header__title">Publish & Submit Academic Results 📝</h1>
+      <p className="page-header__subtitle">Results submitted by teachers require Academic Head approval before appearing on student transcripts.</p>
+    </div>
+    <div className="academic-layout">
+      <section className="panel">
+        <div className="panel__header">
+          <h2 className="panel__title">Submitted Result Sheet & Approval Status</h2>
+        </div>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Course</th>
+              <th>Score</th>
+              <th>Grade</th>
+              <th>Approval Status</th>
+              <th>Action / Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {results.map((item) => (
+              <tr key={item.id || item.subject} style={{ background: item.status === 'Declined' ? '#fff1f2' : 'transparent' }}>
+                <td><strong>{item.subject}</strong></td>
+                <td><span style={{ fontWeight: 800 }}>{item.score}%</span></td>
+                <td><span className="status-pill status-pill--success">{item.grade}</span></td>
+                <td>
+                  {item.status === 'Approved' ? (
+                    <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800, background: '#dcfce7', color: '#166534' }}>
+                      🟢 Approved by Academic Head
+                    </span>
+                  ) : item.status === 'Declined' ? (
+                    <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800, background: '#fee2e2', color: '#dc2626' }}>
+                      🔴 DECLINED (Needs Correction)
+                    </span>
+                  ) : (
+                    <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800, background: '#fef3c7', color: '#92400e' }}>
+                      🟡 Pending Academic Head Review
+                    </span>
+                  )}
+                </td>
+                <td>
+                  {item.status === 'Declined' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 700, background: '#fecaca', padding: '6px 10px', borderRadius: 6, borderLeft: '4px solid #dc2626' }}>
+                        <strong>Error Note from Academic Head:</strong> {item.declineNote || 'Correction required.'}
+                      </div>
+                      <button
+                        onClick={() => setResult({ subject: item.subject, score: item.score, grade: item.grade, lecturer: item.lecturer || 'Mr. Samuel Amponsah' })}
+                        style={{ padding: '4px 10px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 800 }}
+                      >
+                        ✏️ Edit & Resubmit Corrected Result
+                      </button>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>Submitted: {item.updatedAt}</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+      <form className="panel academic-form" onSubmit={submit}>
+        <div className="panel__header">
+          <h2 className="panel__title"><Save size={16}/> Submit Course Result</h2>
+        </div>
+        <div className="panel__body">
+          <label>Course<select value={result.subject} onChange={update('subject')}>{COURSE_CATALOGUE.map((course) => <option key={course}>{course}</option>)}</select></label>
+          <label>Score (%)<input type="number" min="0" max="100" value={result.score} onChange={update('score')} required /></label>
+          <label>Grade<select value={result.grade} onChange={update('grade')}>{['A+', 'A', 'A-', 'B+', 'B', 'C+', 'C', 'D', 'F'].map((grade) => <option key={grade}>{grade}</option>)}</select></label>
+          <button className="academic-button" type="submit"><Save size={15}/> Submit to Academic Head</button>
+          {notice && <p className="academic-success"><CheckCircle2 size={15}/>{notice}</p>}
+        </div>
+      </form>
+    </div>
   </div>;
 }
 

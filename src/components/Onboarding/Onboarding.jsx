@@ -101,6 +101,7 @@ export function LearnerOnboarding() {
 export function AdmissionsRegister() {
   const { applications = [], updateApplicationStatus } = usePortalData();
   const [selectedApp, setSelectedApp] = useState(null);
+  const [notice, setNotice] = useState('');
 
   return (
     <div className="onboarding animate-fade-up">
@@ -108,6 +109,13 @@ export function AdmissionsRegister() {
         <h1 className="page-header__title">Admissions & Applications Register</h1>
         <p className="page-header__subtitle">Review submitted applications, inspect filled application forms, or export printable PDF copies locally.</p>
       </div>
+
+      {notice && (
+        <div style={{ padding: '12px 18px', background: '#dcfce7', color: '#166534', borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: 13, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #86efac' }}>
+          <CheckCircle2 size={16} />
+          {notice}
+        </div>
+      )}
 
       {selectedApp ? (
         <OfficialApplicationForm
@@ -154,7 +162,25 @@ export function AdmissionsRegister() {
 
                   <label>
                     Status
-                    <select value={item.status} onChange={(event) => updateApplicationStatus(item.id, event.target.value)}>
+                    <select
+                      value={item.status}
+                      onChange={(event) => {
+                        const newStatus = event.target.value;
+                        updateApplicationStatus(item.id, newStatus);
+                        if (newStatus === 'Accepted' || newStatus === 'Enrolled') {
+                          const parentFirstName = (item.fatherFirstName || item.motherFirstName || item.firstName || (item.guardian || 'Parent').split(' ')[0] || 'parent').toLowerCase().replace(/[^a-z0-9]/g, '');
+                          const parentSurname = (item.surname || item.fatherSurname || item.motherSurname || item.learner || 'carewell').toLowerCase().replace(/[^a-z0-9]/g, '');
+                          const contactEmail = `${parentFirstName}.${parentSurname}@remaljcarewell.edu.gh`;
+                          const defaultPass = 'Carewell2026!';
+                          const learnerName = item.learner || `${item.firstName || ''} ${item.surname || ''}`.trim() || 'Applicant';
+                          const guardianName = item.guardian || item.fatherName || item.motherName || 'Parent/Guardian';
+                          const phone = item.phone || item.guardianPhone || item.fatherPhone || item.motherPhone || '024 111 2222';
+                          
+                          setNotice(`📱 AUTOMATIC SMS & EMAIL CREDENTIALS DISPATCHED TO ${parentFirstName.toUpperCase()} (${phone}):\n• School: REMALJ Carewell Inspirational School\n• Email: ${contactEmail}\n• Default Password: ${defaultPass}\n• Direct Access: http://localhost:5173/#/parent (No sign-in required)`);
+                          setTimeout(() => setNotice(''), 10000);
+                        }
+                      }}
+                    >
                       {statuses.map((status) => <option key={status}>{status}</option>)}
                     </select>
                   </label>

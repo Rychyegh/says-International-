@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard, User, Calendar, CreditCard,
-  MessageSquare, FileText, Settings, TrendingUp, Bus, Bell
+  MessageSquare, FileText, TrendingUp, Bus, Bell
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import '../components/BusTracker/BusTracker.css';
@@ -9,7 +9,7 @@ import BusTracker from '../components/BusTracker/BusTracker';
 import ParentCommunication from '../components/ParentCommunication/ParentCommunication';
 import ContactDirectory from '../components/ContactDirectory/ContactDirectory';
 import { ParentReports } from '../components/ReportWorkflow/ReportWorkflow';
-import { ParentFees, ParentProgress, PortalSettings } from '../components/SchoolWorkflows/SchoolWorkflows';
+import { ParentFees, ParentProgress } from '../components/SchoolWorkflows/SchoolWorkflows';
 import { usePortalData } from '../data/PortalStore';
 import { getAuthUser } from '../services/api';
 
@@ -28,7 +28,6 @@ const NAV = [
   { icon: <MessageSquare size={15}/>,   label: 'Messages',    badge: '4'  },
   { icon: <User size={15}/>,            label: 'Contacts',    badge: null },
   { icon: <FileText size={15}/>,        label: 'Reports',     badge: null },
-  { icon: <Settings size={15}/>,        label: 'Settings',    badge: null },
 ];
 
 const STATS = [
@@ -118,8 +117,6 @@ export default function ParentPortal() {
               {item.badge && <span className="sidebar-item__badge" style={{ background: PARENT_BG, color: '#fff' }}>{item.badge}</span>}
             </button>
           ))}
-          <span className="sidebar-section-label">System</span>
-          <button className={`sidebar-item${activeNav === 'Settings' ? ' active' : ''}`} style={activeNav === 'Settings' ? { background: PARENT_BG } : {}} onClick={() => setActiveNav('Settings')}><span className="sidebar-item__icon"><Settings size={15}/></span>Settings</button>
         </aside>
 
         {/* Main */}
@@ -357,10 +354,9 @@ export default function ParentPortal() {
           {activeNav === 'Fees' && <ParentFees childName={child.name} />}
           {activeNav === 'Contacts' && <ContactDirectory parentMode />}
           {activeNav === 'Reports' && <ParentReports child={child} />}
-          {activeNav === 'Settings' && <PortalSettings portal="parent" />}
 
           {/* Other nav placeholders */}
-          {!['Dashboard', 'Transport', 'Teachers', 'Messages', 'Progress', 'Calendar', 'Fees', 'Contacts', 'Reports', 'Settings'].includes(activeNav) && (
+          {!['Dashboard', 'Transport', 'Teachers', 'Messages', 'Progress', 'Calendar', 'Fees', 'Contacts', 'Reports'].includes(activeNav) && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 12 }}>
               <div style={{ fontSize: 48 }}>🚧</div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--gray-700)' }}>{activeNav} — Coming Soon</h2>
