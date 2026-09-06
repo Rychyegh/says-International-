@@ -68,8 +68,10 @@ const SUBJECTS = [
 
 export default function TeacherPortal() {
   const [activeNav, setActiveNav] = useState('Dashboard');
-  const [teacherRole, setTeacherRole] = useState('class_teacher'); // 'class_teacher' | 'subject_teacher'
-  const staffId = teacherRole === 'class_teacher' ? 'STF-2026-001' : 'STF-2026-003';
+  const authUser = getAuthUser();
+  const isClassTeacher = authUser?.teacherDesignation === 'class_teacher' || authUser?.name?.includes('Class Teacher');
+  const teacherRole = isClassTeacher ? 'class_teacher' : 'subject_teacher';
+  const staffId = isClassTeacher ? (authUser?.staffId || 'CT-2026-001') : (authUser?.staffId || 'STF-2026-003');
 
   return (
     <div className="portal">
@@ -79,27 +81,15 @@ export default function TeacherPortal() {
           <div style={{ margin: '0 0 16px', padding: '14px', background: TEACHER_LIGHT, borderRadius: 'var(--radius-md)', borderLeft: `4px solid ${TEACHER_GREEN}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontWeight: 800, fontSize: 13, color: TEACHER_GREEN }}>Staff Portal</div>
-              <span style={{ fontSize: 10, fontWeight: 900, padding: '2px 6px', borderRadius: 4, background: teacherRole === 'class_teacher' ? '#204d2d' : '#2563eb', color: '#fff' }}>
-                {teacherRole === 'class_teacher' ? 'CLASS TEACHER' : 'SUBJECT TEACHER'}
+              <span style={{ fontSize: 10, fontWeight: 900, padding: '3px 8px', borderRadius: 4, background: isClassTeacher ? '#204d2d' : '#2563eb', color: '#fff' }}>
+                {isClassTeacher ? '👑 CLASS TEACHER' : '👨‍🔬 SUBJECT TEACHER'}
               </span>
             </div>
-            <div style={{ fontSize: 11, color: '#4a7a5a', marginTop: 2 }}>
-              {getAuthUser()?.fullName || getAuthUser()?.name || 'Mr. Samuel Amponsah'} (ID: <code>{staffId}</code>)
+            <div style={{ fontSize: 11, color: '#4a7a5a', marginTop: 4, fontWeight: 600 }}>
+              {authUser?.fullName || authUser?.name || 'Mr. Samuel Amponsah'} (ID: <code>{staffId}</code>)
             </div>
-
-            {/* Teacher Role Switcher */}
-            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #c4dfc9' }}>
-              <label style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#166534', display: 'block', marginBottom: 4 }}>
-                Staff Designation Role:
-              </label>
-              <select
-                value={teacherRole}
-                onChange={(e) => setTeacherRole(e.target.value)}
-                style={{ width: '100%', padding: '4px 8px', borderRadius: 6, border: '1px solid #86efac', fontSize: 11, fontWeight: 800, background: '#fff', color: '#14532d', cursor: 'pointer' }}
-              >
-                <option value="class_teacher">👨‍🏫 Class Teacher (Form Tutor - Grade 4B)</option>
-                <option value="subject_teacher">👨‍🔬 Subject Teacher (Non-Class Teacher)</option>
-              </select>
+            <div style={{ fontSize: 11, color: '#166534', marginTop: 4, fontWeight: 700 }}>
+              {isClassTeacher ? 'Form Tutor • Grade 4 Section B' : 'Subject Instructor • Pure Mathematics'}
             </div>
           </div>
           <span className="sidebar-section-label">Navigation</span>

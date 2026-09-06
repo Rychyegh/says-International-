@@ -81,7 +81,7 @@ function AppRoutes() {
   const [logoutNotice, setLogoutNotice] = useState('');
 
   useEffect(() => {
-    if (!isAuthed || activePortal === 'parent') return;
+    if (!isAuthed) return;
 
     let warningTimer = null;
     let logoutTimer = null;
@@ -101,8 +101,8 @@ function AppRoutes() {
       logoutTimer = setTimeout(() => {
         handleSignOut();
         setInactivityWarning(false);
-        setLogoutNotice('⏱️ You have been automatically signed out due to 5 minutes of inactivity for system security.');
-        setTimeout(() => setLogoutNotice(''), 9000);
+        setLogoutNotice(`⏱️ Automatic Security Logout: You were automatically signed out from the ${activePortal.toUpperCase()} portal after 5 minutes of inactivity for institutional data security.`);
+        setTimeout(() => setLogoutNotice(''), 10000);
       }, INACTIVITY_TIMEOUT);
     };
 

@@ -54,6 +54,20 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [declineResultModal, setDeclineResultModal] = useState(null);
   const [declineInputNote, setDeclineInputNote] = useState('');
 
+  // Class Teacher Dedicated Passcode Credentials State
+  const [issuedCTCredentials, setIssuedCTCredentials] = useState([
+    { id: 'ct-1', teacherName: 'Mr. Samuel Amponsah', classAssigned: 'Grade 4 Section B', staffId: 'CT-2026-001', passcode: '9988', phone: '024 900 1100', issuedAt: '2026-09-01' },
+    { id: 'ct-2', teacherName: 'Prof. Mensah', classAssigned: 'Primary 5A', staffId: 'CT-2026-002', passcode: '7744', phone: '024 900 1101', issuedAt: '2026-09-01' },
+  ]);
+  const [isIssuingCTModal, setIsIssuingCTModal] = useState(false);
+  const [ctForm, setCtForm] = useState({
+    teacherName: 'Mr. Samuel Amponsah',
+    classAssigned: 'Grade 4 Section B',
+    staffId: 'CT-2026-003',
+    passcode: '9988',
+    phone: '024 900 1100'
+  });
+
   const getStudentTranscriptData = (student) => {
     if (!student) {
       return {
@@ -507,29 +521,15 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           <div style={{ margin: '0 0 16px', padding: '14px', background: ADMIN_LIGHT, borderRadius: 'var(--radius-md)', borderLeft: `4px solid ${ADMIN_BG}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontWeight: 800, fontSize: 13, color: ADMIN_BG }}>Admin Portal</div>
-              <span style={{ fontSize: 10, fontWeight: 900, padding: '2px 6px', borderRadius: 4, background: adminRole === 'head_admin' ? '#4a1d6e' : '#0284c7', color: '#fff' }}>
-                {adminRole === 'head_admin' ? 'HEAD ADMIN' : 'SUB ADMIN'}
+              <span style={{ fontSize: 10, fontWeight: 900, padding: '3px 8px', borderRadius: 4, background: adminRole === 'head_admin' ? '#4a1d6e' : '#0284c7', color: '#fff' }}>
+                {adminRole === 'head_admin' ? '👑 HEAD ADMIN' : '🛡️ SUB ADMIN'}
               </span>
             </div>
-            <div style={{ fontSize: 11, color: '#6b21a8', marginTop: 2 }}>{getAuthUser()?.fullName || getAuthUser()?.name || 'School Administration Office'}</div>
-
-            {/* Admin Role Selector */}
-            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #e9d5ff' }}>
-              <label style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#7e22ce', display: 'block', marginBottom: 4 }}>
-                Switch Admin Role Access:
-              </label>
-              <select
-                value={adminRole}
-                onChange={(e) => {
-                  setAdminRole(e.target.value);
-                  setSuccessMsg(e.target.value === 'head_admin' ? 'Switched to Head of Admin role (Full Features & Unrestricted Access).' : 'Switched to Sub-Admin role (Restricted Privileges).');
-                  setTimeout(() => setSuccessMsg(''), 5000);
-                }}
-                style={{ width: '100%', padding: '4px 8px', borderRadius: 6, border: '1px solid #c084fc', fontSize: 11, fontWeight: 800, background: '#fff', color: '#4c1d95', cursor: 'pointer' }}
-              >
-                <option value="head_admin">⚡ Head of Admin (All Features)</option>
-                <option value="sub_admin">🛡️ Sub-Admin (Restricted Info)</option>
-              </select>
+            <div style={{ fontSize: 11, color: '#6b21a8', marginTop: 4, fontWeight: 600 }}>
+              {getAuthUser()?.fullName || getAuthUser()?.name || 'School Administration Office'}
+            </div>
+            <div style={{ fontSize: 11, color: '#7e22ce', marginTop: 4, fontWeight: 700 }}>
+              {adminRole === 'head_admin' ? 'Full Institutional Control' : 'Restricted Administrative Access'}
             </div>
           </div>
           <span className="sidebar-section-label">Management</span>
@@ -1735,6 +1735,169 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 600, marginTop: 2 }}>Access deactivated</div>
                 </div>
               </div>
+
+              {/* Super Admin Class Teacher Credentials & Passcode Manager */}
+              {adminRole === 'head_admin' && (
+                <div style={{ background: '#f3e8ff', border: '1px solid #c084fc', borderRadius: 12, padding: 18, marginBottom: 20 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <div>
+                      <h3 style={{ fontSize: 16, fontWeight: 900, color: '#581c87', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        👑 Class Teacher Dedicated Credentials & Passcode Manager (Super Admin Only)
+                      </h3>
+                      <p style={{ fontSize: 12, color: '#7e22ce', margin: '4px 0 0', fontWeight: 600 }}>
+                        Generate and issue dedicated logins, Staff IDs, and 4-digit Security Passcodes specifically for Class Teachers (Form Tutors).
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsIssuingCTModal(true)}
+                      style={{
+                        padding: '9px 16px', background: '#581c87', color: '#fff', border: 'none',
+                        borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                        boxShadow: '0 4px 12px rgba(88,28,135,0.25)'
+                      }}
+                    >
+                      🔑 Issue Class Teacher Passcode
+                    </button>
+                  </div>
+
+                  {/* Issued Class Teacher Credentials Register */}
+                  <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e9d5ff', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ background: '#faf5ff', borderBottom: '1px solid #e9d5ff', textAlign: 'left', color: '#6b21a8', fontWeight: 800 }}>
+                          <th style={{ padding: '10px 14px' }}>Class Teacher Name</th>
+                          <th style={{ padding: '10px 14px' }}>Assigned Class</th>
+                          <th style={{ padding: '10px 14px' }}>Staff ID</th>
+                          <th style={{ padding: '10px 14px' }}>Dedicated Passcode</th>
+                          <th style={{ padding: '10px 14px' }}>Status & Dispatch</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {issuedCTCredentials.map((ct) => (
+                          <tr key={ct.id} style={{ borderBottom: '1px solid #f3e8ff' }}>
+                            <td style={{ padding: '10px 14px', fontWeight: 800, color: '#1e1b4b' }}>{ct.teacherName}</td>
+                            <td style={{ padding: '10px 14px', fontWeight: 700, color: '#2563eb' }}>{ct.classAssigned}</td>
+                            <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 800, color: '#581c87' }}>{ct.staffId}</td>
+                            <td style={{ padding: '10px 14px' }}>
+                              <span style={{ padding: '3px 8px', borderRadius: 6, background: '#f3e8ff', color: '#6b21a8', fontFamily: 'monospace', fontWeight: 900, border: '1px solid #d8b4fe' }}>
+                                🔑 {ct.passcode}
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px 14px' }}>
+                              <span className="status-pill status-pill--success" style={{ fontSize: 11 }}>📱 SMS Credentials Sent</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Class Teacher Credentials Issuance Modal */}
+              {isIssuingCTModal && (
+                <div style={{
+                  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                  background: 'rgba(15,23,42,0.65)', backdropFilter: 'blur(4px)',
+                  zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+                }}>
+                  <div style={{
+                    maxWidth: 520, width: '100%', background: '#fff', borderRadius: 16,
+                    padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', border: '1px solid #e2e8f0'
+                  }}>
+                    <h3 style={{ fontSize: 18, fontWeight: 900, color: '#581c87', marginBottom: 6 }}>
+                      🔑 Issue Dedicated Class Teacher Credentials & Passcode
+                    </h3>
+                    <p style={{ fontSize: 12, color: 'var(--gray-600)', marginBottom: 20 }}>
+                      Set up dedicated credentials allowing a Class Teacher to sign in with their assigned Staff ID and 4-digit Security Passcode.
+                    </p>
+
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!ctForm.teacherName || !ctForm.passcode) return;
+                      setIssuedCTCredentials(prev => [
+                        { id: `ct-${Date.now()}`, ...ctForm, issuedAt: new Date().toLocaleDateString() },
+                        ...prev
+                      ]);
+                      setSuccessMsg(`🔑 Dedicated Class Teacher Passcode (${ctForm.passcode}) & Credentials issued to ${ctForm.teacherName} for ${ctForm.classAssigned}! SMS dispatched.`);
+                      setIsIssuingCTModal(false);
+                      setTimeout(() => setSuccessMsg(''), 7000);
+                    }}>
+                      <div className="form-group" style={{ marginBottom: 14 }}>
+                        <label className="form-label">Teacher Name</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={ctForm.teacherName}
+                          onChange={(e) => setCtForm(prev => ({ ...prev, teacherName: e.target.value }))}
+                          placeholder="e.g. Mr. Samuel Amponsah"
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group" style={{ marginBottom: 14 }}>
+                        <label className="form-label">Class Assigned (Form Class)</label>
+                        <select
+                          className="form-input"
+                          value={ctForm.classAssigned}
+                          onChange={(e) => setCtForm(prev => ({ ...prev, classAssigned: e.target.value }))}
+                          style={{ appearance: 'auto' }}
+                        >
+                          <option value="Grade 4 Section B">Grade 4 Section B</option>
+                          <option value="Primary 5A">Primary 5A</option>
+                          <option value="JHS 1A">JHS 1A</option>
+                          <option value="JHS 2B">JHS 2B</option>
+                          <option value="JHS 3A">JHS 3A</option>
+                          <option value="SHS 1 Science">SHS 1 Science</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group" style={{ marginBottom: 14 }}>
+                        <label className="form-label">Class Teacher Staff ID</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={ctForm.staffId}
+                          onChange={(e) => setCtForm(prev => ({ ...prev, staffId: e.target.value }))}
+                          placeholder="e.g. CT-2026-003"
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group" style={{ marginBottom: 20 }}>
+                        <label className="form-label">4-Digit Security Passcode</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          maxLength={6}
+                          value={ctForm.passcode}
+                          onChange={(e) => setCtForm(prev => ({ ...prev, passcode: e.target.value.replace(/\D/g, '') }))}
+                          placeholder="e.g. 9988"
+                          style={{ letterSpacing: '0.2em', fontWeight: 900, fontSize: 16 }}
+                          required
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 12 }}>
+                        <button
+                          type="button"
+                          onClick={() => setIsIssuingCTModal(false)}
+                          style={{ flex: 1, padding: 11, borderRadius: 8, border: '1px solid var(--gray-300)', background: '#fff', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          style={{ flex: 1, padding: 11, borderRadius: 8, border: 'none', background: '#581c87', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+                        >
+                          🔑 Issue & Dispatch SMS
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
 
               {/* Staff Filters Toolbar */}
               <div style={{ background: '#f8fafc', border: '1px solid var(--gray-200)', borderRadius: 12, padding: '14px 18px', marginBottom: 20 }}>

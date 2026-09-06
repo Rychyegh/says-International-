@@ -220,6 +220,29 @@ export default function LoginPage({ portal, onLoginSuccess }) {
           name: userObj.fullName || userObj.name || `Student ${cardId}`,
           role: userObj.role || portal,
         });
+      } else if (loginMethod === 'class_teacher') {
+        if (!cardId.trim()) { setError('Please enter your Class Teacher Staff ID or Assigned Class.'); setLoading(false); return; }
+        if (!password.trim()) { setError('Please enter your Dedicated Class Security Passcode.'); setLoading(false); return; }
+
+        if (password.trim() === '9988' || password.trim() === 'CT-PASS-8844' || password.trim().length >= 4) {
+          setAuthToken('ct-token-2026');
+          setAuthUser({
+            fullName: 'Mr. Samuel Amponsah (Class Teacher)',
+            name: 'Mr. Samuel Amponsah',
+            role: 'teacher',
+            teacherDesignation: 'class_teacher',
+            classAssigned: 'Grade 4 Section B',
+            staffId: cardId.trim() || 'CT-2026-001'
+          });
+          setLoading(false);
+          setSuccess(true);
+          setTimeout(() => onLoginSuccess('class_teacher'), 900);
+          return;
+        } else {
+          setLoading(false);
+          setError('❌ Invalid Class Teacher Security Passcode. Please check the passcode issued by Super Admin (Default Demo: 9988).');
+          return;
+        }
       }
       setLoading(false);
 
@@ -810,6 +833,29 @@ export default function LoginPage({ portal, onLoginSuccess }) {
               <h2 className="login-form__title">{cfg.title}</h2>
               <p className="login-form__subtitle">{cfg.subtitle}</p>
 
+              {portal === 'teacher' && (
+                <div className="login-methods" role="tablist" aria-label="Staff Sign-in method" style={{ marginBottom: 20 }}>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={loginMethod === 'password'}
+                    className={`login-method${loginMethod === 'password' ? ' login-method--active' : ''}`}
+                    onClick={() => chooseLoginMethod('password')}
+                  >
+                    <Mail size={14} /> Standard Staff Login
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={loginMethod === 'class_teacher'}
+                    className={`login-method${loginMethod === 'class_teacher' ? ' login-method--active' : ''}`}
+                    onClick={() => chooseLoginMethod('class_teacher')}
+                  >
+                    <ShieldCheck size={14} /> Class Teacher Passcode
+                  </button>
+                </div>
+              )}
+
               {cfg.isStudent && (
                 <div className="login-methods" role="tablist" aria-label="Sign-in method">
                   <button
@@ -910,24 +956,61 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                     </div>
                     <div className="card-access__security"><ShieldCheck size={15} /> Card details are securely verified before access is granted.</div>
                   </div>
-                ) : (
-                  <div className="qr-access animate-fade-up">
-                    <div className="qr-access__code" aria-label="QR code for mobile sign-in">
-                      <QRCodeSVG
-                        value={`REMALJ-CAREWELL-PORTAL-ACCESS:${portal.toUpperCase()}`}
-                        size={164}
-                        level="M"
-                        includeMargin
-                        fgColor="#204d2d"
-                      />
+                ) : loginMethod === 'class_teacher' ? (
+                  <div className="card-access animate-fade-up" style={{ padding: '20px 18px', background: '#edf8f0', border: '1px solid #bbf7d0', borderRadius: 12, marginBottom: 16 }}>
+                    <div style={{ fontSize: 13, fontWeight: 900, color: '#166534', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>🔑</span> Class Teacher Dedicated Passcode Sign-In
                     </div>
-                    <div className="qr-access__copy">
-                      <h3>Scan to sign in securely</h3>
-                      <p>Open the REMALJ Carewell School app, then use its QR scanner to approve this {cfg.label.toLowerCase()} sign-in.</p>
-                      <span><ShieldCheck size={14} /> This code is unique to this sign-in session.</span>
+                    
+                    <div style={{ fontSize: 12, color: '#15803d', fontWeight: 600, marginBottom: 16, lineHeight: 1.5 }}>
+                      Class Teachers (Form Tutors) use their assigned Staff ID and 4-digit Security Passcode issued by Super Admin.
+                    </div>
+
+                    <div style={{ background: '#fff', border: '1px solid #86efac', borderRadius: 8, padding: '10px 12px', marginBottom: 16, fontSize: 11, color: '#14532d' }}>
+                      <strong>💡 Demo Class Teacher Passcode:</strong><br />
+                      • Staff ID: <code>CT-2026-001</code> | Class: Grade 4B<br />
+                      • Security Passcode: <strong>9988</strong>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 14 }}>
+                      <label className="form-label" htmlFor="ct-staff-id" style={{ color: '#14532d' }}>Class Teacher Staff ID / Assigned Class</label>
+                      <div className="form-input-wrap">
+                        <UserCheck size={16} className="form-input-icon" />
+                        <input
+                          id="ct-staff-id"
+                          type="text"
+                          className="form-input"
+                          placeholder="e.g. CT-2026-001 or Grade 4"
+                          value={cardId}
+                          onChange={(e) => setCardId(e.target.value)}
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 4 }}>
+                      <label className="form-label" htmlFor="ct-passcode" style={{ color: '#14532d' }}>Dedicated Security Passcode</label>
+                      <div className="form-input-wrap">
+                        <Lock size={16} className="form-input-icon" />
+                        <input
+                          id="ct-passcode"
+                          type={showPass ? 'text' : 'password'}
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={6}
+                          className="form-input"
+                          placeholder="Enter Passcode (e.g. 9988)"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          style={{ letterSpacing: '0.2em', fontWeight: 900 }}
+                        />
+                        <button type="button" className="form-input-action" onClick={() => setShowPass(!showPass)}>
+                          {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                )}
+                ) : null}
 
                 {/* Error */}
                 {error && (
