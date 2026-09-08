@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import {
   LayoutDashboard, Users, UserPlus, FileText, Settings,
   TrendingUp, School, CreditCard, Search, Trash2, Edit,
-  CheckCircle2, X, Save, ShieldCheck, Mail, Phone, MapPin,
-  Printer, Download, Eye, Plus, FileCheck, UserCheck, Radio
+  CheckCircle2, X, Save, ShieldCheck, ShieldAlert, AlertTriangle, Mail, Phone, MapPin,
+  Printer, Download, Eye, EyeOff, Copy, Plus, FileCheck, UserCheck, Radio
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import { usePortalData } from '../data/PortalStore';
@@ -19,6 +19,8 @@ const ADMIN_ACCENT = '#7c3ac8';
 
 const NAV = [
   { icon: <LayoutDashboard size={15} />, label: 'Dashboard', badge: null },
+  { icon: <ShieldAlert size={15} />, label: 'Security & Intrusion Alerts', badge: 'Alerts' },
+  { icon: <ShieldCheck size={15} />, label: 'Student Credentials Vault', badge: 'Head Admin' },
   { icon: <FileCheck size={15} />, label: 'Transcripts & Results', badge: 'All Classes' },
   { icon: <Radio size={15} />, label: 'Attendance & SMS Control', badge: 'Live' },
   { icon: <CreditCard size={15} />, label: 'Card Issuance & Smart Identity', badge: 'NFC' },
@@ -53,6 +55,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [adminRole, setAdminRole] = useState(initialAdminRole || 'head_admin'); // 'head_admin' | 'sub_admin'
   const [declineResultModal, setDeclineResultModal] = useState(null);
   const [declineInputNote, setDeclineInputNote] = useState('');
+
+  // Student Credentials Vault State
+  const [viewingCredentialStudent, setViewingCredentialStudent] = useState(null);
+  const [showPassMap, setShowPassMap] = useState({});
+  const [editingPasswordStudent, setEditingPasswordStudent] = useState(null);
+  const [newDefaultPassInput, setNewDefaultPassInput] = useState('');
+  const [printingCredentialSlip, setPrintingCredentialSlip] = useState(null);
+  const [credentialSearchQuery, setCredentialSearchQuery] = useState('');
 
   // Class Teacher Dedicated Passcode Credentials State
   const [issuedCTCredentials, setIssuedCTCredentials] = useState([
@@ -148,6 +158,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     deleteStaffMember,
     addClassLevel,
     addSubject,
+    securityAlerts,
+    resolveSecurityAlert,
+    deleteSecurityAlert,
     updateApplicationStatus,
     updateApplicationOfficeUse,
     submitApplication,
@@ -533,7 +546,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             </div>
           </div>
           <span className="sidebar-section-label">Management</span>
-          {NAV.filter(item => !(adminRole === 'sub_admin' && item.label === 'Transcripts & Results')).map((item) => (
+          {NAV.filter(item => !(adminRole === 'sub_admin' && (item.label === 'Transcripts & Results' || item.label === 'Student Credentials Vault' || item.label === 'Security & Intrusion Alerts'))).map((item) => (
             <button
               key={item.label}
               className={`sidebar-item${activeNav === item.label || (activeNav === 'Applications' && item.label.includes('Applications')) ? ' active' : ''}`}
@@ -903,6 +916,294 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             </div>
           )}
 
+          {/* ── SECURITY & INTRUSION ALERTS (HEAD ADMIN ONLY) ── */}
+          {activeNav === 'Security & Intrusion Alerts' && adminRole === 'head_admin' && (
+            <div className="animate-fade-up">
+              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fee2e2', color: '#991b1b', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                    <ShieldAlert size={14} /> Head Admin Security Audit Register
+                  </div>
+                  <h1 className="page-header__title">Security & Intrusion Alerts 🚨</h1>
+                  <p className="page-header__subtitle">
+                    Real-time monitoring of failed login attempts, unauthorized 2FA security PIN entries, and suspicious access attempts across all school portals.
+                  </p>
+                </div>
+              </div>
+
+              {/* Summary Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
+                <div style={{ background: '#fff', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius-md)', padding: 18 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Intrusion Alerts</div>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--gray-900)', marginTop: 4 }}>{(securityAlerts || []).length}</div>
+                  <div style={{ fontSize: 12, color: 'var(--gray-600)', marginTop: 2 }}>Logged authentication events</div>
+                </div>
+
+                <div style={{ background: '#fff5f5', border: '1px solid #fca5a5', borderRadius: 'var(--radius-md)', padding: 18 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>High Severity Breaches</div>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: '#991b1b', marginTop: 4 }}>
+                    {(securityAlerts || []).filter(a => a.severity === 'High').length}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#b91c1c', marginTop: 2 }}>Admin / Financial PIN failures</div>
+                </div>
+
+                <div style={{ background: '#fffbe8', border: '1px solid #fde047', borderRadius: 'var(--radius-md)', padding: 18 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#854d0e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active Unresolved Alerts</div>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: '#854d0e', marginTop: 4 }}>
+                    {(securityAlerts || []).filter(a => a.status === 'Unresolved').length}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#a16207', marginTop: 2 }}>Pending Head Admin review</div>
+                </div>
+              </div>
+
+              {/* Security Alerts Data Table */}
+              <div className="panel">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Target Portal & Account</th>
+                      <th>Intrusion Reason / Failure</th>
+                      <th>Timestamp & Network IP</th>
+                      <th>Severity</th>
+                      <th>Status</th>
+                      <th>Head Admin Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(securityAlerts || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: 'center', padding: 30, color: 'var(--gray-500)' }}>
+                          ✅ No security intrusion alerts recorded. All system portals operating securely.
+                        </td>
+                      </tr>
+                    ) : (
+                      (securityAlerts || []).map((alert) => (
+                        <tr key={alert.id} style={{ background: alert.status === 'Unresolved' ? '#fff5f5' : '#fff' }}>
+                          <td>
+                            <div style={{ fontSize: 13, fontWeight: 900, color: '#0f172a' }}>
+                              <span style={{ textTransform: 'uppercase', padding: '2px 6px', background: '#e2e8f0', borderRadius: 4, fontSize: 10, marginRight: 6 }}>
+                                {alert.portal}
+                              </span>
+                              {alert.targetAccount}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 2 }}>Device: {alert.device || 'Web Client'}</div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: alert.severity === 'High' ? '#991b1b' : '#1e293b' }}>
+                              ⚠️ {alert.reason}
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 12, fontWeight: 600 }}>{alert.attemptedAt}</div>
+                            <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--gray-500)' }}>🌐 {alert.ipAddress}</div>
+                          </td>
+                          <td>
+                            <span style={{
+                              padding: '3px 8px', borderRadius: 4, fontSize: 10, fontWeight: 900, textTransform: 'uppercase',
+                              background: alert.severity === 'High' ? '#fee2e2' : alert.severity === 'Medium' ? '#fef3c7' : '#e0f2fe',
+                              color: alert.severity === 'High' ? '#991b1b' : alert.severity === 'Medium' ? '#92400e' : '#0369a1'
+                            }}>
+                              {alert.severity}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`status-pill ${alert.status === 'Acknowledged' ? 'status-pill--success' : 'status-pill--warning'}`}>
+                              {alert.status}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              {alert.status === 'Unresolved' && resolveSecurityAlert && (
+                                <button
+                                  onClick={() => {
+                                    resolveSecurityAlert(alert.id);
+                                    setSuccessMsg(`🛡️ Security alert for ${alert.targetAccount} marked as Acknowledged.`);
+                                    setTimeout(() => setSuccessMsg(''), 4000);
+                                  }}
+                                  style={{ padding: '5px 8px', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}
+                                  title="Acknowledge & Mark Reviewed"
+                                >
+                                  Acknowledge
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setSuccessMsg(`🔒 Account Lockout Triggered: Temporary security lock placed on ${alert.targetAccount}. Alert dispatched to Head Admin.`);
+                                  setTimeout(() => setSuccessMsg(''), 6000);
+                                }}
+                                style={{ padding: '5px 8px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}
+                                title="Lock Account / Block IP Address"
+                              >
+                                Lock Account
+                              </button>
+                              {deleteSecurityAlert && (
+                                <button
+                                  onClick={() => deleteSecurityAlert(alert.id)}
+                                  style={{ padding: '5px 8px', background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer' }}
+                                  title="Dismiss Security Log"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── STUDENT CREDENTIALS VAULT (HEAD ADMIN ONLY) ── */}
+          {activeNav === 'Student Credentials Vault' && adminRole === 'head_admin' && (
+            <div className="animate-fade-up">
+              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f3e8ff', color: '#6b21a8', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                    <span>🛡️</span> Head Admin Credentials Vault
+                  </div>
+                  <h1 className="page-header__title">Student Emails & Default Security Passwords</h1>
+                  <p className="page-header__subtitle">
+                    Inspect official institutional emails, view/reset initial default passwords, print login slips, or dispatch SMS notifications to guardians.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <>
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
+                      <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--gray-400)' }} />
+                      <input
+                        type="text"
+                        placeholder="Search by student name, ID, class, or email..."
+                        value={credentialSearchQuery}
+                        onChange={(e) => setCredentialSearchQuery(e.target.value)}
+                        style={{ width: '100%', padding: '10px 10px 10px 36px', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-300)', fontSize: 13 }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="panel">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Student ID & Name</th>
+                          <th>Level / Class</th>
+                          <th>Official Student Email</th>
+                          <th>Default Security Password</th>
+                          <th>Guardian Contact</th>
+                          <th>Quick Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {onboardedStudents
+                          .filter((s) => {
+                            const q = credentialSearchQuery.toLowerCase();
+                            return (
+                              !q ||
+                              (s.fullName || '').toLowerCase().includes(q) ||
+                              (s.studentId || '').toLowerCase().includes(q) ||
+                              (s.level || '').toLowerCase().includes(q) ||
+                              (s.studentEmail || '').toLowerCase().includes(q) ||
+                              (s.guardianName || '').toLowerCase().includes(q)
+                            );
+                          })
+                          .map((s) => {
+                            const pass = s.defaultPassword || `StuPass#${s.studentId.replace('REMALJ-', '')}`;
+                            const isRevealed = showPassMap[s.id];
+
+                            const copyCredentials = () => {
+                              const text = `REMALJ Student Login Credentials:\nStudent: ${s.fullName} (${s.studentId})\nPortal: /student\nEmail: ${s.studentEmail}\nDefault Password: ${pass}`;
+                              navigator.clipboard.writeText(text);
+                              setSuccessMsg(`📋 Copied login credentials for ${s.fullName} to clipboard!`);
+                              setTimeout(() => setSuccessMsg(''), 4000);
+                            };
+
+                            const sendSmsCredentials = () => {
+                              setSuccessMsg(`📱 SMS dispatched to guardian (${s.guardianPhone}): "Dear Parent, ${s.fullName}'s Student Portal login email is ${s.studentEmail} and default pass is ${pass}. Access via /student."`);
+                              setTimeout(() => setSuccessMsg(''), 6000);
+                            };
+
+                            return (
+                              <tr key={s.id}>
+                                <td>
+                                  <div><strong>{s.fullName}</strong></div>
+                                  <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--gray-500)' }}>{s.studentId}</div>
+                                </td>
+                                <td>{s.level} ({s.classSection || 'A'})</td>
+                                <td>
+                                  <div style={{ fontSize: 12, fontWeight: 700, color: ADMIN_ACCENT }}>
+                                    {s.studentEmail}
+                                  </div>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <code style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: 4, fontWeight: 800, letterSpacing: isRevealed ? '0.05em' : '0.25em', color: '#0f172a' }}>
+                                      {isRevealed ? pass : '••••••••'}
+                                    </code>
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowPassMap(prev => ({ ...prev, [s.id]: !prev[s.id] }))}
+                                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--gray-600)' }}
+                                      title={isRevealed ? 'Hide Password' : 'Show Password'}
+                                    >
+                                      {isRevealed ? <EyeOff size={14} /> : <Eye size={14} />}
+                                    </button>
+                                  </div>
+                                </td>
+                                <td>
+                                  <div style={{ fontSize: 12, fontWeight: 600 }}>{s.guardianName}</div>
+                                  <div style={{ fontSize: 11, color: 'var(--gray-500)' }}>📞 {s.guardianPhone}</div>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', gap: 6 }}>
+                                    <button
+                                      onClick={copyCredentials}
+                                      style={{ padding: '5px 8px', background: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                                      title="Copy Email & Default Password"
+                                    >
+                                      <Copy size={12} /> Copy
+                                    </button>
+                                    <button
+                                      onClick={sendSmsCredentials}
+                                      style={{ padding: '5px 8px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                                      title="Dispatch SMS Credentials to Guardian Phone"
+                                    >
+                                      <Phone size={12} /> SMS
+                                    </button>
+                                    <button
+                                      onClick={() => setPrintingCredentialSlip(s)}
+                                      style={{ padding: '5px 8px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                                      title="Print Official Student Login Slip"
+                                    >
+                                      <Printer size={12} /> Slip
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setEditingPasswordStudent(s);
+                                        setNewDefaultPassInput(pass);
+                                      }}
+                                      style={{ padding: '5px 8px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}
+                                      title="Reset Default Password"
+                                    >
+                                      <Edit size={12} /> Reset
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              </div>
+            </div>
+          )}
+
           {/* ── STUDENT ROSTER ── */}
           {activeNav === 'Student Roster' && (
             <div className="animate-fade-up">
@@ -951,16 +1252,25 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         <td>
                           <div style={{ display: 'flex', gap: 6 }}>
                             {adminRole === 'head_admin' && (
-                              <button
-                                onClick={() => {
-                                  setViewingTranscriptStudent(s);
-                                  setActiveNav('Transcripts & Results');
-                                }}
-                                style={{ padding: '4px 8px', background: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
-                                title="View & Print Official Academic Transcript"
-                              >
-                                <FileCheck size={12} /> Transcript
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => setViewingCredentialStudent(s)}
+                                  style={{ padding: '4px 8px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                                  title="View Student Email & Default Security Password"
+                                >
+                                  <ShieldCheck size={12} /> Credentials
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setViewingTranscriptStudent(s);
+                                    setActiveNav('Transcripts & Results');
+                                  }}
+                                  style={{ padding: '4px 8px', background: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                                  title="View & Print Official Academic Transcript"
+                                >
+                                  <FileCheck size={12} /> Transcript
+                                </button>
+                              </>
                             )}
                             <button
                               onClick={() => {
@@ -2957,6 +3267,259 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       </>
                     );
                   })()}
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Modal 1: Viewing Student Credential Modal */}
+          {viewingCredentialStudent && (
+            <div className="modal-overlay animate-fade-in" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div style={{ background: '#fff', borderRadius: 16, maxWidth: 520, width: '100%', padding: 24, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', position: 'relative' }}>
+                <button
+                  onClick={() => setViewingCredentialStudent(null)}
+                  style={{ position: 'absolute', right: 16, top: 16, background: '#f1f5f9', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <X size={16} />
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: '#f3e8ff', color: '#6b21a8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 900 }}>
+                    🛡️
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--gray-900)' }}>Student Account Credentials</h3>
+                    <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>Official Login Information · REMALJ Carewell</div>
+                  </div>
+                </div>
+
+                {(() => {
+                  const s = viewingCredentialStudent;
+                  const pass = s.defaultPassword || `StuPass#${s.studentId.replace('REMALJ-', '')}`;
+                  const isRevealed = showPassMap[s.id];
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 16 }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em' }}>Learner Profile</div>
+                        <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a', marginTop: 4 }}>{s.fullName}</div>
+                        <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>ID: <code>{s.studentId}</code> · Level: {s.level} ({s.classSection || 'A'})</div>
+                      </div>
+
+                      <div style={{ background: '#f3e8ff', border: '1px solid #d8b4fe', borderRadius: 10, padding: 16 }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#6b21a8', letterSpacing: '0.05em', marginBottom: 8 }}>Portal Login Credentials</div>
+                        
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: 11, color: '#7e22ce', fontWeight: 700 }}>Official Student Email</div>
+                          <div style={{ fontSize: 14, fontWeight: 900, color: '#4a1d6e', fontFamily: 'monospace' }}>{s.studentEmail}</div>
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 11, color: '#7e22ce', fontWeight: 700 }}>Default Security Password</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                            <code style={{ background: '#fff', padding: '6px 12px', borderRadius: 6, fontWeight: 900, fontSize: 15, letterSpacing: isRevealed ? '0.05em' : '0.25em', color: '#4a1d6e', border: '1px solid #c084fc' }}>
+                              {isRevealed ? pass : '••••••••'}
+                            </code>
+                            <button
+                              type="button"
+                              onClick={() => setShowPassMap(prev => ({ ...prev, [s.id]: !prev[s.id] }))}
+                              style={{ padding: '6px 10px', background: '#fff', border: '1px solid #c084fc', borderRadius: 6, cursor: 'pointer', color: '#6b21a8', fontWeight: 700, fontSize: 12 }}
+                            >
+                              {isRevealed ? 'Hide Pass' : 'Reveal Pass'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10, padding: 14 }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#0369a1', letterSpacing: '0.05em' }}>Guardian Details</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: '#0c4a6e', marginTop: 4 }}>{s.guardianName}</div>
+                        <div style={{ fontSize: 12, color: '#0284c7' }}>Phone: <strong>{s.guardianPhone}</strong></div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                        <button
+                          onClick={() => {
+                            const text = `REMALJ Student Login Credentials:\nStudent: ${s.fullName} (${s.studentId})\nPortal: /student\nEmail: ${s.studentEmail}\nDefault Password: ${pass}`;
+                            navigator.clipboard.writeText(text);
+                            setSuccessMsg(`📋 Copied login credentials for ${s.fullName} to clipboard!`);
+                            setTimeout(() => setSuccessMsg(''), 4000);
+                          }}
+                          style={{ flex: 1, padding: '10px', background: '#7c3ac8', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                        >
+                          <Copy size={14} /> Copy Details
+                        </button>
+                        <button
+                          onClick={() => setPrintingCredentialSlip(s)}
+                          style={{ padding: '10px 16px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 8, fontWeight: 800, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                        >
+                          <Printer size={14} /> Slip
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+
+          {/* Modal 2: Reset Default Password Modal */}
+          {editingPasswordStudent && (
+            <div className="modal-overlay animate-fade-in" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div style={{ background: '#fff', borderRadius: 16, maxWidth: 440, width: '100%', padding: 24, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', position: 'relative' }}>
+                <button
+                  onClick={() => setEditingPasswordStudent(null)}
+                  style={{ position: 'absolute', right: 16, top: 16, background: '#f1f5f9', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <X size={16} />
+                </button>
+
+                <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--gray-900)', marginBottom: 4 }}>Reset Student Default Password</h3>
+                <p style={{ fontSize: 13, color: 'var(--gray-600)', marginBottom: 16 }}>
+                  Update the initial default login password for <strong>{editingPasswordStudent.fullName}</strong>.
+                </p>
+
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newDefaultPassInput.trim()) return;
+                  if (updateOnboardedStudent) {
+                    updateOnboardedStudent(editingPasswordStudent.id, { defaultPassword: newDefaultPassInput.trim() });
+                  }
+                  setSuccessMsg(`🔑 Default password updated for ${editingPasswordStudent.fullName}!`);
+                  setEditingPasswordStudent(null);
+                  setTimeout(() => setSuccessMsg(''), 5000);
+                }}>
+                  <div className="form-group" style={{ marginBottom: 16 }}>
+                    <label className="form-label">New Default Password</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={newDefaultPassInput}
+                      onChange={(e) => setNewDefaultPassInput(e.target.value)}
+                      placeholder="e.g. StuPass#2026-99"
+                      style={{ fontWeight: 800, fontFamily: 'monospace' }}
+                      autoFocus
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPasswordStudent(null)}
+                      style={{ padding: '9px 16px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      style={{ padding: '9px 16px', background: '#7c3ac8', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, cursor: 'pointer' }}
+                    >
+                      Save New Password
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Modal 3: Printable Credential Slip Modal */}
+          {printingCredentialSlip && (
+            <div className="modal-overlay animate-fade-in" style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(15,23,42,0.75)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflowY: 'auto' }}>
+              <div style={{ background: '#fff', borderRadius: 16, maxWidth: 600, width: '100%', padding: 0, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+                <div style={{ background: '#1e1b4b', color: '#fff', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Printer size={18} /> Official Printable Student Credential Slip
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => window.print()}
+                      style={{ padding: '6px 14px', background: '#7c3ac8', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <Printer size={14} /> Print Slip
+                    </button>
+                    <button
+                      onClick={() => setPrintingCredentialSlip(null)}
+                      style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
+                    >
+                      Close ✖
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ padding: 32, background: '#fff' }}>
+                  <div style={{ border: '2px solid #1e1b4b', borderRadius: 12, padding: 24 }}>
+                    <div style={{ textAlign: 'center', borderBottom: '2px solid #1e1b4b', paddingBottom: 16, marginBottom: 20 }}>
+                      <img src="/remalj-carewell-logo.jpg" alt="REMALJ Logo" style={{ height: 55, borderRadius: 6, marginBottom: 8 }} />
+                      <h2 style={{ fontSize: 18, fontWeight: 900, color: '#1e1b4b', margin: 0 }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h2>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>BOGOSO · PRESTEA HUNI-VALLEY MUNICIPALITY</div>
+                      <div style={{ fontSize: 12, fontWeight: 900, color: '#7c3ac8', textTransform: 'uppercase', marginTop: 8, letterSpacing: '0.05em' }}>
+                        OFFICIAL STUDENT PORTAL LOGIN CREDENTIAL SLIP
+                      </div>
+                    </div>
+
+                    {(() => {
+                      const s = printingCredentialSlip;
+                      const pass = s.defaultPassword || `StuPass#${s.studentId.replace('REMALJ-', '')}`;
+                      return (
+                        <div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20, background: '#f8fafc', padding: 14, borderRadius: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#64748b', fontWeight: 800 }}>Student Full Name</div>
+                              <div style={{ fontSize: 15, fontWeight: 900, color: '#0f172a' }}>{s.fullName}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#64748b', fontWeight: 800 }}>Student ID Number</div>
+                              <div style={{ fontSize: 15, fontWeight: 900, fontFamily: 'monospace', color: '#0f172a' }}>{s.studentId}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#64748b', fontWeight: 800 }}>Assigned Class / Level</div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>{s.level} ({s.classSection || 'A'})</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#64748b', fontWeight: 800 }}>Guardian Phone</div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>{s.guardianPhone}</div>
+                            </div>
+                          </div>
+
+                          <div style={{ background: '#f3e8ff', border: '2px dashed #a855f7', borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                            <div style={{ fontSize: 11, fontWeight: 900, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                              🔐 STUDENT PORTAL SIGN-IN CREDENTIALS
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                              <div>
+                                <div style={{ fontSize: 11, color: '#581c87', fontWeight: 700 }}>Portal Web Address:</div>
+                                <div style={{ fontSize: 13, fontWeight: 900, color: '#1e1b4b', fontFamily: 'monospace' }}>/student</div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 11, color: '#581c87', fontWeight: 700 }}>Official School Email:</div>
+                                <div style={{ fontSize: 13, fontWeight: 900, color: '#4a1d6e', fontFamily: 'monospace' }}>{s.studentEmail}</div>
+                              </div>
+                              <div style={{ gridColumn: 'span 2' }}>
+                                <div style={{ fontSize: 11, color: '#581c87', fontWeight: 700 }}>Default Security Password:</div>
+                                <div style={{ fontSize: 18, fontWeight: 900, color: '#4a1d6e', fontFamily: 'monospace', letterSpacing: '0.05em', background: '#fff', padding: '6px 12px', borderRadius: 6, display: 'inline-block', border: '1px solid #c084fc', marginTop: 2 }}>
+                                  {pass}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.5, marginBottom: 20 }}>
+                            📌 <strong>Instructions for Student & Parent:</strong><br />
+                            1. Visit the school portal URL above on your phone or computer.<br />
+                            2. Enter your assigned official school email and default security password.<br />
+                            3. You can access your class timetable, terminal report cards, and homework assignments.
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
+                            <div>
+                              <div style={{ fontSize: 10, color: '#64748b' }}>Issued by Head Administration</div>
+                              <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>REMALJ Carewell ICT Department</div>
+                            </div>
+                            <div style={{ fontSize: 10, color: '#64748b' }}>Date Issued: {new Date().toLocaleDateString()}</div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
             </div>

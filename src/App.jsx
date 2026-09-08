@@ -49,11 +49,11 @@ function DirectAccessNotice() {
 function AppRoutes() {
   const location = useLocation();
 
-  // Parent portal allows direct access without sign in once child is accepted
+  // Portals require authentication sign-in
   const [authed, setAuthed] = useState({
     admin: false,
     accountant: false,
-    parent: true,
+    parent: false,
     teacher: false,
     student: false,
   });

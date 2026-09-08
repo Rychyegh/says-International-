@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard, CreditCard, Send, Search, CheckCircle2,
-  AlertTriangle, DollarSign, Users, School, MessageSquare, PlusCircle, FileText, Printer, Shield, UserPlus, Sliders, Calendar, FileCheck, UserCheck, Lock, RefreshCw, Layers
+  AlertTriangle, DollarSign, Users, School, MessageSquare, PlusCircle, FileText, Printer, Shield, ShieldCheck, ChevronRight, UserPlus, Sliders, Calendar, FileCheck, UserCheck, Lock, RefreshCw, Layers
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import { usePortalData } from '../data/PortalStore';
@@ -207,6 +207,7 @@ const SIMS_DATA = {
 export default function AccountantPortal({ onSignOut }) {
   const [activeNav, setActiveNav] = useState('SIMS v2025 Module');
   const [simsTab, setSimsTab] = useState('Student Services Centre');
+  const [simsSearchQuery, setSimsSearchQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [feeFilter, setFeeFilter] = useState('All');
 
@@ -405,66 +406,192 @@ export default function AccountantPortal({ onSignOut }) {
             </div>
           )}
 
-          {/* SIMS v2025 TOP NAVIGATION BAR */}
-          <div className="sims-header" style={{ marginBottom: 24 }}>
-            <div className="sims-header__top">
-              <span className="sims-header__brand">SIMs v2025 /</span>
-              <span style={{ fontSize: 11, color: '#9d174d', fontWeight: 600 }}>Accounts & Administration Management</span>
-            </div>
-            <div className="sims-header__tabs">
-              {['Student Services Centre', 'Academics', 'Finance & Administration', 'System Administrator'].map((tab) => (
-                <button
-                  key={tab}
-                  className={`sims-tab-btn ${simsTab === tab && activeNav === 'SIMS v2025 Module' ? 'active' : ''}`}
-                  onClick={() => {
-                    setSimsTab(tab);
-                    setActiveNav('SIMS v2025 Module');
-                  }}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* ── SIMS v2025 MODULE VIEW ── */}
           {activeNav === 'SIMS v2025 Module' && (
             <div className="animate-fade-up">
-              <div className="sims-content-panel">
-                <div className="sims-grid">
-                  {SIMS_DATA[simsTab]?.map((catItem, idx) => (
-                    <div className="sims-category" key={idx}>
-                      <h3 className="sims-category-title">{catItem.category}</h3>
+              {/* SIMS v2025 HERO COMMAND BANNER */}
+              <div className="sims-header" style={{ marginBottom: 20 }}>
+                <div className="sims-header__top">
+                  <div className="sims-header__brand">
+                    <School size={22} color="#38bdf8" />
+                    <span>SIMS v2025 Enterprise Command Module</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, background: 'rgba(255,255,255,0.12)', padding: '4px 12px', borderRadius: 20, color: '#e0f2fe', border: '1px solid rgba(255,255,255,0.2)', fontWeight: 700 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#34c57a', display: 'inline-block', boxShadow: '0 0 8px #34c57a' }} />
+                      🟢 System Operational · Build v2025.4
+                    </span>
+                    <span style={{ fontSize: 11, background: '#0284c7', color: '#fff', padding: '4px 10px', borderRadius: 20, fontWeight: 800 }}>
+                      Institutional Edition
+                    </span>
+                  </div>
+                </div>
 
-                      {/* Render direct links */}
-                      {catItem.links && catItem.links.map((lnk, lIdx) => (
-                        <button
-                          key={lIdx}
-                          className="sims-link-item"
-                          onClick={() => handleLinkClick(catItem.category, lnk)}
-                        >
-                          {lnk}
-                        </button>
-                      ))}
+                <div style={{ marginTop: 8, color: '#e0f2fe', fontSize: 13, opacity: 0.9 }}>
+                  Unified Administrative & Financial Command Center for REMALJ Carewell Inspirational School.
+                </div>
 
-                      {/* Render subcategories if present */}
-                      {catItem.subCategories && catItem.subCategories.map((sub, sIdx) => (
-                        <div key={sIdx} style={{ marginTop: 8 }}>
-                          <h4 className="sims-subcategory-title">{sub.title}</h4>
-                          {sub.links.map((subLnk, subIdx) => (
-                            <button
-                              key={subIdx}
-                              className="sims-link-item"
-                              style={{ paddingLeft: 12 }}
-                              onClick={() => handleLinkClick(sub.title, subLnk)}
-                            >
-                              {subLnk}
-                            </button>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
+                {/* Hub Navigation Tabs */}
+                <div className="sims-header__tabs" style={{ marginTop: 16 }}>
+                  {[
+                    { label: 'Student Services Centre', icon: <Users size={14} />, count: 5 },
+                    { label: 'Academics', icon: <School size={14} />, count: 3 },
+                    { label: 'Finance & Administration', icon: <DollarSign size={14} />, count: 4 },
+                    { label: 'System Administrator', icon: <Sliders size={14} />, count: 5 }
+                  ].map((tabObj) => (
+                    <button
+                      key={tabObj.label}
+                      className={`sims-tab-btn ${simsTab === tabObj.label ? 'active' : ''}`}
+                      onClick={() => setSimsTab(tabObj.label)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                    >
+                      {tabObj.icon}
+                      <span>{tabObj.label}</span>
+                      <span style={{
+                        fontSize: 10, padding: '2px 6px', borderRadius: 10,
+                        background: simsTab === tabObj.label ? '#0f3a4b' : 'rgba(255,255,255,0.2)',
+                        color: simsTab === tabObj.label ? '#fff' : '#e0f2fe', fontWeight: 800
+                      }}>
+                        {tabObj.count}
+                      </span>
+                    </button>
                   ))}
+                </div>
+              </div>
+
+              {/* SIMS Command Search & Quick Actions Bar */}
+              <div className="panel" style={{ padding: 18, marginBottom: 20, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12 }}>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
+                    <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--gray-400)' }} />
+                    <input
+                      type="text"
+                      placeholder="Search across 50+ SIMS v2025 action commands (e.g. Bill, Report, Admissions, Payroll)..."
+                      value={simsSearchQuery}
+                      onChange={(e) => setSimsSearchQuery(e.target.value)}
+                      style={{ width: '100%', padding: '10px 10px 10px 36px', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-300)', fontSize: 13, background: '#f8fafc' }}
+                    />
+                    {simsSearchQuery && (
+                      <button
+                        onClick={() => setSimsSearchQuery('')}
+                        style={{ position: 'absolute', right: 10, top: 10, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--gray-500)', fontSize: 12, fontWeight: 800 }}
+                      >
+                        ✕ Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Frequently Launched SIMS Commands Bar */}
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--gray-200)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#0f3a4b', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span>⚡</span> Quick Launch:
+                  </span>
+
+                  {[
+                    { cat: 'Admissions', link: 'Add new Admissions', icon: <UserPlus size={12} /> },
+                    { cat: 'Student\'s Billings & Accounts', link: 'Prepare Student academic Bill', icon: <DollarSign size={12} /> },
+                    { cat: 'Student\'s Progressive Reports', link: 'Print Student\'s Progressive Report', icon: <Printer size={12} /> },
+                    { cat: 'Student\'s Billings & Accounts', link: 'Receive Payments from Students', icon: <CreditCard size={12} /> },
+                    { cat: 'User Account Management', link: 'Create new User Account', icon: <UserCheck size={12} /> },
+                  ].map((chip) => (
+                    <button
+                      key={chip.link}
+                      onClick={() => handleLinkClick(chip.cat, chip.link)}
+                      style={{
+                        padding: '5px 12px', background: '#f0f9ff', border: '1px solid #bae6fd',
+                        borderRadius: 20, color: '#0369a1', fontSize: 12, fontWeight: 700,
+                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {chip.icon}
+                      {chip.link}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* SIMS Main Content Grid */}
+              <div className="sims-content-panel">
+                <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                  <div>
+                    <h2 style={{ fontSize: 18, fontWeight: 900, color: '#0f3a4b', margin: 0, fontFamily: 'var(--font-display)' }}>
+                      {simsSearchQuery ? `SIMS Search Results for "${simsSearchQuery}"` : simsTab}
+                    </h2>
+                    <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '2px 0 0' }}>
+                      {simsSearchQuery
+                        ? 'Showing matching SIMS v2025 administrative commands across all hubs.'
+                        : 'Select an administrative workflow link below to execute live actions.'}
+                    </p>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 800, background: '#e0f2fe', color: '#0369a1', padding: '4px 10px', borderRadius: 6, border: '1px solid #bae6fd' }}>
+                    {SIMS_DATA[simsTab]?.length || 0} Functional Categories
+                  </span>
+                </div>
+
+                <div className="sims-grid">
+                  {(simsSearchQuery ? Object.values(SIMS_DATA).flat() : SIMS_DATA[simsTab])?.map((catItem, idx) => {
+                    const filteredLinks = (catItem.links || []).filter(lnk =>
+                      !simsSearchQuery || lnk.toLowerCase().includes(simsSearchQuery.toLowerCase()) || catItem.category.toLowerCase().includes(simsSearchQuery.toLowerCase())
+                    );
+
+                    const filteredSubCats = (catItem.subCategories || []).map(sub => ({
+                      ...sub,
+                      links: sub.links.filter(lnk => !simsSearchQuery || lnk.toLowerCase().includes(simsSearchQuery.toLowerCase()) || sub.title.toLowerCase().includes(simsSearchQuery.toLowerCase()))
+                    })).filter(sub => sub.links.length > 0);
+
+                    if (simsSearchQuery && filteredLinks.length === 0 && filteredSubCats.length === 0) return null;
+
+                    const getIcon = (catName) => {
+                      if (catName.includes('Admissions') || catName.includes('Registration')) return <UserCheck size={16} color="#0284c7" />;
+                      if (catName.includes('Reports') || catName.includes('Evaluation') || catName.includes('Assessments')) return <FileCheck size={16} color="#0284c7" />;
+                      if (catName.includes('Billings') || catName.includes('Accounts') || catName.includes('Payroll') || catName.includes('Finance')) return <DollarSign size={16} color="#0284c7" />;
+                      if (catName.includes('Registers')) return <Users size={16} color="#0284c7" />;
+                      if (catName.includes('Remarks')) return <MessageSquare size={16} color="#0284c7" />;
+                      if (catName.includes('Academic') || catName.includes('User') || catName.includes('Settings')) return <ShieldCheck size={16} color="#0284c7" />;
+                      return <Layers size={16} color="#0284c7" />;
+                    };
+
+                    return (
+                      <div className="sims-category" key={`${catItem.category}-${idx}`}>
+                        <h3 className="sims-category-title">
+                          {getIcon(catItem.category)}
+                          {catItem.category}
+                        </h3>
+
+                        {/* Render direct links */}
+                        {filteredLinks.map((lnk, lIdx) => (
+                          <button
+                            key={lIdx}
+                            className="sims-link-item"
+                            onClick={() => handleLinkClick(catItem.category, lnk)}
+                          >
+                            <span>{lnk}</span>
+                            <ChevronRight size={13} style={{ opacity: 0.5, flexShrink: 0 }} />
+                          </button>
+                        ))}
+
+                        {/* Render subcategories if present */}
+                        {filteredSubCats.map((sub, sIdx) => (
+                          <div key={sIdx} style={{ marginTop: 8 }}>
+                            <h4 className="sims-subcategory-title">{sub.title}</h4>
+                            {sub.links.map((subLnk, subIdx) => (
+                              <button
+                                key={subIdx}
+                                className="sims-link-item"
+                                style={{ marginTop: 4 }}
+                                onClick={() => handleLinkClick(sub.title, subLnk)}
+                              >
+                                <span>{subLnk}</span>
+                                <ChevronRight size={13} style={{ opacity: 0.5, flexShrink: 0 }} />
+                              </button>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -973,9 +1100,11 @@ function SimsModalRenderer({ modalData, setModalData, onClose, onSubmit, student
     link.toLowerCase().includes('ledger') ||
     link.toLowerCase().includes('statement');
 
+  const isPrepareBill = link === 'Prepare Student academic Bill';
+
   return (
     <div className="sims-modal-overlay">
-      <div className="sims-modal-card" style={{ maxWidth: isPrintOrReport ? 760 : 640 }}>
+      <div className="sims-modal-card" style={{ maxWidth: isPrepareBill ? 1120 : (isPrintOrReport ? 760 : 640) }}>
         <div className="sims-modal-header">
           <div>
             <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.85 }}>
@@ -994,17 +1123,622 @@ function SimsModalRenderer({ modalData, setModalData, onClose, onSubmit, student
   );
 }
 
+function DropdownWithAddRemove({ label, options, value, onChange, onAddOption, onRemoveOption }) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [newText, setNewText] = useState('');
+
+  const handleSelectChange = (e) => {
+    const selected = e.target.value;
+    if (selected === '__ADD_NEW__') {
+      setIsAdding(true);
+    } else if (selected === '__REMOVE_CURRENT__') {
+      if (options.length > 1) {
+        onRemoveOption(value);
+      }
+    } else {
+      onChange(selected);
+    }
+  };
+
+  const handleSaveAdd = () => {
+    if (newText.trim()) {
+      onAddOption(newText.trim());
+      setNewText('');
+      setIsAdding(false);
+    }
+  };
+
+  return (
+    <div className="sims-form-group" style={{ marginBottom: 12 }}>
+      <label style={{ display: 'block', margin: '0 0 4px 0', fontWeight: 700, fontSize: 12, color: '#0f3a4b' }}>
+        {label}
+      </label>
+
+      {isAdding ? (
+        <div style={{ display: 'flex', gap: 4 }}>
+          <input
+            type="text"
+            placeholder={`Enter new ${label.toLowerCase()}...`}
+            value={newText}
+            onChange={(e) => setNewText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSaveAdd(); } }}
+            style={{
+              flex: 1,
+              padding: '6px 10px',
+              borderRadius: 6,
+              border: '1px solid #0284c7',
+              fontSize: 12
+            }}
+            autoFocus
+          />
+          <button
+            type="button"
+            onClick={handleSaveAdd}
+            style={{
+              background: '#0284c7',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 6,
+              padding: '6px 10px',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAdding(false)}
+            style={{
+              background: '#f1f5f9',
+              color: '#475569',
+              border: '1px solid #cbd5e1',
+              borderRadius: 6,
+              padding: '6px 8px',
+              fontSize: 12,
+              cursor: 'pointer'
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <select
+          value={value}
+          onChange={handleSelectChange}
+          style={{
+            width: '100%',
+            padding: '8px 10px',
+            borderRadius: 6,
+            border: '1px solid #cbd5e1',
+            fontSize: 12.5,
+            background: '#fff',
+            fontWeight: 500
+          }}
+        >
+          {options.map((opt) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+          <option disabled>──────────</option>
+          <option value="__ADD_NEW__">➕ Add option to dropdown...</option>
+          {options.length > 1 && (
+            <option value="__REMOVE_CURRENT__">✖ Remove current option ("{value}")</option>
+          )}
+        </select>
+      )}
+    </div>
+  );
+}
+
+function PrepareStudentAcademicBillForm({ setM, students }) {
+  const [years, setYears] = useState(['2025/2026', '2026/2027', '2027/2028']);
+  const [terms, setTerms] = useState(['Term 1', 'Term 2', 'Term 3']);
+  const [classes, setClasses] = useState([
+    'Creche', 'Nursery 1', 'KG 1', 'Primary 1', 'Primary 2', 'Primary 3', 
+    'Primary 4', 'Primary 5', 'Primary 6', 'JHS 1', 'JHS 2', 'JHS 3'
+  ]);
+  const [depts, setDepts] = useState([
+    'Primary Department',
+    'Junior High Department (JHS)',
+    'Senior High Department (SHS)',
+    'Creche & Early Childhood'
+  ]);
+  const [subClasses, setSubClasses] = useState(['Stream A', 'Stream B', 'Stream C', 'Gold Class', 'Diamond Class']);
+
+  const [currYear, setCurrYear] = useState('2026/2027');
+  const [currTerm, setCurrTerm] = useState('Term 1');
+  const [currClass, setCurrClass] = useState('JHS 1');
+
+  const [postYear, setPostYear] = useState('2026/2027');
+  const [postTerm, setPostTerm] = useState('Term 2');
+  const [postDept, setPostDept] = useState('Junior High Department (JHS)');
+  const [postSubClass, setPostSubClass] = useState('Stream A');
+
+  const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reopeningDate, setReopeningDate] = useState('');
+  const [appliedNotice, setAppliedNotice] = useState(false);
+
+  // Right-side billing & form state
+  const [nextTermBill, setNextTermBill] = useState('3,500.00');
+  const [checkExistingBill, setCheckExistingBill] = useState(true);
+  const [filterEnrollment, setFilterEnrollment] = useState('');
+  const [filterName, setFilterName] = useState('');
+
+  // Right-side form fields (boxes after labels)
+  const [formStudentName, setFormStudentName] = useState('Benjamin Edwards');
+  const [formStatus, setFormStatus] = useState('Active');
+  const [formCurrentClass, setFormCurrentClass] = useState('JHS 1');
+  const [formSubClass, setFormSubClass] = useState('Stream A');
+  const [formEntryStatus, setFormEntryStatus] = useState('Enrolled');
+  const [formDateReported, setFormDateReported] = useState(new Date().toISOString().split('T')[0]);
+
+  const addYear = (val) => {
+    setYears((prev) => [...prev, val]);
+    setCurrYear(val);
+    setPostYear(val);
+  };
+  const removeYear = (val) => {
+    const filtered = years.filter((y) => y !== val);
+    setYears(filtered);
+    if (currYear === val) setCurrYear(filtered[0] || '');
+    if (postYear === val) setPostYear(filtered[0] || '');
+  };
+
+  const addTerm = (val) => {
+    setTerms((prev) => [...prev, val]);
+    setCurrTerm(val);
+  };
+  const removeTerm = (val) => {
+    const filtered = terms.filter((t) => t !== val);
+    setTerms(filtered);
+    if (currTerm === val) setCurrTerm(filtered[0] || '');
+    if (postTerm === val) setPostTerm(filtered[0] || '');
+  };
+
+  const addClass = (val) => {
+    setClasses((prev) => [...prev, val]);
+    setCurrClass(val);
+  };
+  const removeClass = (val) => {
+    const filtered = classes.filter((c) => c !== val);
+    setClasses(filtered);
+    if (currClass === val) setCurrClass(filtered[0] || '');
+  };
+
+  const addDept = (val) => {
+    setDepts((prev) => [...prev, val]);
+    setPostDept(val);
+  };
+  const removeDept = (val) => {
+    const filtered = depts.filter((d) => d !== val);
+    setDepts(filtered);
+    if (postDept === val) setPostDept(filtered[0] || '');
+  };
+
+  const addSubClass = (val) => {
+    setSubClasses((prev) => [...prev, val]);
+    setPostSubClass(val);
+  };
+  const removeSubClass = (val) => {
+    const filtered = subClasses.filter((sc) => sc !== val);
+    setSubClasses(filtered);
+    if (postSubClass === val) setPostSubClass(filtered[0] || '');
+  };
+
+  const handlePostBill = (e) => {
+    e.preventDefault();
+    setAppliedNotice(true);
+    setTimeout(() => {
+      setM(null);
+    }, 1800);
+  };
+
+  return (
+    <div>
+      {appliedNotice ? (
+        <div style={{ padding: 24, textAlign: 'center', background: '#dcfce7', borderRadius: 8, color: '#15803d' }}>
+          <CheckCircle2 size={36} style={{ margin: '0 auto 10px auto', display: 'block' }} />
+          <h4 style={{ margin: '0 0 6px 0', fontSize: 16, fontWeight: 800 }}>Academic Bill Prepared & Posted!</h4>
+          <p style={{ margin: 0, fontSize: 13 }}>
+            Bills generated for <strong>{formStudentName || currClass} ({currTerm} · {currYear})</strong> at GHS {nextTermBill}. Post Period scheduled for <strong>{postDept} ({postSubClass})</strong> reopening on {reopeningDate || 'Not specified'}.
+          </p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: 20, alignItems: 'start' }}>
+          {/* LEFT COLUMN: Academic Period Setup */}
+          <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #cbd5e1' }}>
+            {/* Current Academic Period Heading */}
+            <div style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: 12, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <div style={{ width: 4, height: 18, background: '#0f3a4b', borderRadius: 2 }} />
+                <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#0f3a4b', letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                  Current Academic Period
+                </h4>
+              </div>
+
+              <DropdownWithAddRemove
+                label="Select Current Academic year"
+                options={years}
+                value={currYear}
+                onChange={setCurrYear}
+                onAddOption={addYear}
+                onRemoveOption={removeYear}
+              />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <DropdownWithAddRemove
+                  label="Select Current Academic term"
+                  options={terms}
+                  value={currTerm}
+                  onChange={setCurrTerm}
+                  onAddOption={addTerm}
+                  onRemoveOption={removeTerm}
+                />
+
+                <DropdownWithAddRemove
+                  label="Select Current Class"
+                  options={classes}
+                  value={currClass}
+                  onChange={setCurrClass}
+                  onAddOption={addClass}
+                  onRemoveOption={removeClass}
+                />
+              </div>
+            </div>
+
+            {/* Post Academic Period Heading */}
+            <div style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: 12, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <div style={{ width: 4, height: 18, background: '#0284c7', borderRadius: 2 }} />
+                <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#0284c7', letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                  Post Academic Period
+                </h4>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <DropdownWithAddRemove
+                  label="Select Post Academic year"
+                  options={years}
+                  value={postYear}
+                  onChange={setPostYear}
+                  onAddOption={addYear}
+                  onRemoveOption={removeYear}
+                />
+
+                <DropdownWithAddRemove
+                  label="Select Post Academic term"
+                  options={terms}
+                  value={postTerm}
+                  onChange={setPostTerm}
+                  onAddOption={addTerm}
+                  onRemoveOption={removeTerm}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <DropdownWithAddRemove
+                  label="Select Post Department"
+                  options={depts}
+                  value={postDept}
+                  onChange={setPostDept}
+                  onAddOption={addDept}
+                  onRemoveOption={removeDept}
+                />
+
+                <DropdownWithAddRemove
+                  label="Select Post Sub class"
+                  options={subClasses}
+                  value={postSubClass}
+                  onChange={setPostSubClass}
+                  onAddOption={addSubClass}
+                  onRemoveOption={removeSubClass}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 4 }}>
+                <div className="sims-form-group">
+                  <label style={{ fontWeight: 700, fontSize: 11.5, color: '#0f3a4b', display: 'block', marginBottom: 4 }}>Set Bill date</label>
+                  <input
+                    type="date"
+                    value={billDate}
+                    onChange={(e) => setBillDate(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 12,
+                      background: '#fff'
+                    }}
+                    required
+                  />
+                </div>
+
+                <div className="sims-form-group">
+                  <label style={{ fontWeight: 700, fontSize: 11.5, color: '#0f3a4b', display: 'block', marginBottom: 4 }}>Set Next term re-opening date</label>
+                  <input
+                    type="date"
+                    value={reopeningDate}
+                    onChange={(e) => setReopeningDate(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 12,
+                      background: '#fff'
+                    }}
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="sims-modal-actions" style={{ marginTop: 12 }}>
+              <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>
+                Cancel
+              </button>
+              <button type="button" onClick={handlePostBill} className="sims-btn sims-btn-primary">
+                Post Academic Period Bill
+              </button>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: Student Billing & Filter Form Panel */}
+          <div style={{ background: '#fff', padding: 16, borderRadius: 8, border: '1px solid #cbd5e1' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, borderBottom: '2px solid #0f3a4b', paddingBottom: 8 }}>
+              <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#0f3a4b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                Student Billing Parameters & Entry Form
+              </h4>
+              <span style={{ fontSize: 11, background: '#e0f2fe', color: '#0284c7', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                Form Layout Mode
+              </span>
+            </div>
+
+            {/* 1. Next Term Bill */}
+            <div className="sims-form-group" style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontWeight: 800, fontSize: 12, color: '#0f3a4b', marginBottom: 4 }}>
+                Next term bill
+              </label>
+              <div style={{ display: 'flex', gap: 0, alignItems: 'center' }}>
+                <span style={{ padding: '7px 10px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRight: 'none', borderRadius: '6px 0 0 6px', fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                  GHS
+                </span>
+                <input
+                  type="text"
+                  placeholder="e.g. 3,500.00"
+                  value={nextTermBill}
+                  onChange={(e) => setNextTermBill(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '7px 10px',
+                    borderRadius: '0 6px 6px 0',
+                    border: '1px solid #cbd5e1',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    color: '#0f3a4b'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* 2. Box before Check Existing Bill */}
+            <div className="sims-form-group" style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f8fafc', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1' }}>
+                <input
+                  type="checkbox"
+                  id="checkExistingBill"
+                  checked={checkExistingBill}
+                  onChange={(e) => setCheckExistingBill(e.target.checked)}
+                  style={{ width: 16, height: 16, cursor: 'pointer' }}
+                />
+                <label htmlFor="checkExistingBill" style={{ fontSize: 12, fontWeight: 700, color: '#0f3a4b', cursor: 'pointer', margin: 0 }}>
+                  Check Existing Bill
+                </label>
+              </div>
+            </div>
+
+            {/* 3. Box before Enrollment/SID */}
+            <div className="sims-form-group" style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="text"
+                  placeholder="Enter SID / ID..."
+                  value={filterEnrollment}
+                  onChange={(e) => setFilterEnrollment(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '7px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 12
+                  }}
+                />
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#0f3a4b', minWidth: 100 }}>
+                  Enrollment/SID
+                </span>
+              </div>
+            </div>
+
+            {/* 4. Box before Filter by name */}
+            <div className="sims-form-group" style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="text"
+                  placeholder="Search name..."
+                  value={filterName}
+                  onChange={(e) => setFilterName(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '7px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 12
+                  }}
+                />
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#0f3a4b', minWidth: 100 }}>
+                  Filter by name
+                </span>
+              </div>
+            </div>
+
+            <div style={{ borderTop: '2px dashed #cbd5e1', paddingTop: 12, marginTop: 12 }}>
+              <h5 style={{ margin: '0 0 10px 0', fontSize: 12, fontWeight: 800, color: '#0284c7', textTransform: 'uppercase' }}>
+                Individual Student Bill Parameters
+              </h5>
+
+              {/* 5. Box AFTER Student name */}
+              <div className="sims-form-group" style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontWeight: 700, fontSize: 12, color: '#0f3a4b', marginBottom: 4 }}>
+                  Student name
+                </label>
+                <input
+                  type="text"
+                  placeholder="Full student name..."
+                  value={formStudentName}
+                  onChange={(e) => setFormStudentName(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '7px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 12
+                  }}
+                />
+              </div>
+
+              {/* 6. Box AFTER Status */}
+              <div className="sims-form-group" style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontWeight: 700, fontSize: 12, color: '#0f3a4b', marginBottom: 4 }}>
+                  Status
+                </label>
+                <select
+                  value={formStatus}
+                  onChange={(e) => setFormStatus(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '7px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 12,
+                    background: '#fff'
+                  }}
+                >
+                  <option value="Active">Active Student</option>
+                  <option value="Owing Fee">Owing Fee</option>
+                  <option value="Scholarship">Scholarship / Waived</option>
+                </select>
+              </div>
+
+              {/* 7 & 8. Box AFTER Current class & Current sub class */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                <div className="sims-form-group">
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: 12, color: '#0f3a4b', marginBottom: 4 }}>
+                    Current class
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. JHS 1"
+                    value={formCurrentClass}
+                    onChange={(e) => setFormCurrentClass(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 12
+                    }}
+                  />
+                </div>
+
+                <div className="sims-form-group">
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: 12, color: '#0f3a4b', marginBottom: 4 }}>
+                    Current sub class
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Stream A"
+                    value={formSubClass}
+                    onChange={(e) => setFormSubClass(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 12
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* 9 & 10. Box AFTER Entry status & Date reported */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="sims-form-group">
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: 12, color: '#0f3a4b', marginBottom: 4 }}>
+                    Entry status
+                  </label>
+                  <select
+                    value={formEntryStatus}
+                    onChange={(e) => setFormEntryStatus(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 12,
+                      background: '#fff'
+                    }}
+                  >
+                    <option value="Enrolled">Enrolled</option>
+                    <option value="Pending Clearance">Pending Clearance</option>
+                    <option value="Transferred">Transferred</option>
+                  </select>
+                </div>
+
+                <div className="sims-form-group">
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: 12, color: '#0f3a4b', marginBottom: 4 }}>
+                    Date reported
+                  </label>
+                  <input
+                    type="date"
+                    value={formDateReported}
+                    onChange={(e) => setFormDateReported(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 12,
+                      background: '#fff'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function renderSpecificContent(link, m, setM, students) {
   // Helper to update state field
   const update = (field, val) => setM((prev) => ({ ...prev, [field]: val }));
+
+  // Prepare Student Academic Bill Form
+  if (link === 'Prepare Student academic Bill') {
+    return <PrepareStudentAcademicBillForm setM={setM} students={students} />;
+  }
 
   // 1. PRINT & REPORT PREVIEWS
   if (link === 'Print Student\'s Progressive Report' || link === 'Print Individual terminal report') {
     return (
       <div>
         <div style={{ padding: 16, background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
-          <div style={{ textAlign: 'center', borderBottom: '2px solid #881337', paddingBottom: 10, marginBottom: 12 }}>
-            <h3 style={{ fontSize: 18, color: '#881337', fontWeight: 900, margin: 0, letterSpacing: '0.02em' }}>REMALJ</h3>
+          <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 12 }}>
+            <h3 style={{ fontSize: 18, color: '#0f3a4b', fontWeight: 900, margin: 0, letterSpacing: '0.02em' }}>REMALJ</h3>
             <p style={{ fontSize: 12, color: '#4b5563', margin: '2px 0 6px 0', fontWeight: 700 }}>Carewell Inspirational School · Bogoso</p>
             <p style={{ fontSize: 11, color: '#6b7280', margin: '2px 0' }}>OFFICIAL STUDENT PROGRESSIVE TERMINAL REPORT</p>
             <small style={{ color: '#9ca3af' }}>Term 1 · Academic Year 2026/2027</small>

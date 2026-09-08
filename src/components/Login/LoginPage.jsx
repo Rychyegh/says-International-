@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, Phone, UserCheck, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { api, setAuthToken, setAuthUser } from '../../services/api';
+import { usePortalData } from '../../data/PortalStore';
 import './Login.css';
 
 const PORTAL_CONFIG = {
@@ -86,6 +87,7 @@ const PORTAL_CONFIG = {
 
 export default function LoginPage({ portal, onLoginSuccess }) {
   const cfg = PORTAL_CONFIG[portal] || PORTAL_CONFIG.admin;
+  const { addSecurityAlert } = usePortalData() || {};
 
   // View state: 'login' | 'forgot' | 'signup'
   const [viewMode, setViewMode] = useState('login');
@@ -240,6 +242,14 @@ export default function LoginPage({ portal, onLoginSuccess }) {
           return;
         } else {
           setLoading(false);
+          if (addSecurityAlert) {
+            addSecurityAlert({
+              portal: 'teacher',
+              targetAccount: cardId || 'Class Teacher',
+              reason: 'Invalid Class Teacher Security Passcode entered',
+              severity: 'High'
+            });
+          }
           setError('❌ Invalid Class Teacher Security Passcode. Please check the passcode issued by Super Admin (Default Demo: 9988).');
           return;
         }
@@ -256,6 +266,14 @@ export default function LoginPage({ portal, onLoginSuccess }) {
       setTimeout(() => onLoginSuccess(), 900);
     } catch (err) {
       setLoading(false);
+      if (addSecurityAlert) {
+        addSecurityAlert({
+          portal: portal || 'admin',
+          targetAccount: email || cardId || `${portal} account`,
+          reason: err.message || `Failed login attempt on ${portal.toUpperCase()} portal`,
+          severity: portal === 'admin' || portal === 'accountant' ? 'High' : 'Medium'
+        });
+      }
       setError(err.message || 'Authentication failed. Please check your credentials and try again.');
     }
   };
@@ -288,6 +306,14 @@ export default function LoginPage({ portal, onLoginSuccess }) {
         onLoginSuccess('sub_admin');
       }, 900);
     } else {
+      if (addSecurityAlert) {
+        addSecurityAlert({
+          portal: 'admin',
+          targetAccount: email || 'Admin 2FA Authorization',
+          reason: `Unauthorized Admin Access Attempt: Incorrect Security PIN entered (${adminPin.trim()})`,
+          severity: 'High'
+        });
+      }
       setError('❌ Invalid Security PIN. Enter 8888 for Super Admin or 1234 for Sub-Admin.');
     }
   };
@@ -1043,16 +1069,20 @@ export default function LoginPage({ portal, onLoginSuccess }) {
               </form>
 
               {/* Sign Up prompt */}
-              {portal !== 'parent' ? (
+              {portal === 'parent' ? (
+                <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--gray-500)', marginTop: 24, padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  💡 <strong>Parent Notice:</strong> Parent account credentials are automatically issued and dispatched via SMS by the school administration once your child's application is accepted.
+                </div>
+              ) : portal === 'student' ? (
+                <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--gray-500)', marginTop: 24, padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  💡 <strong>Student Notice:</strong> Student account credentials and ID cards are issued by school administration upon enrollment.
+                </div>
+              ) : (
                 <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--gray-600)', marginTop: 24 }}>
                   Don't have an account?{' '}
                   <button type="button" onClick={() => switchView('signup')} className="form-forgot" style={{ fontWeight: 800 }}>
                     Sign Up
                   </button>
-                </div>
-              ) : (
-                <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--gray-500)', marginTop: 24, padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                  💡 <strong>Parent Notice:</strong> Parent account credentials are automatically issued and dispatched via SMS by the school administration once your child's application is accepted.
                 </div>
               )}
 
