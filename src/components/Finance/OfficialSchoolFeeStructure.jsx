@@ -129,7 +129,7 @@ const STATIONERY_SCHEDULE = [
   { classLevel: 'JHS', amount: 2090.00 },
 ];
 
-export default function OfficialSchoolFeeStructure() {
+export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
   const portalData = usePortalData();
   const onboardedStudents = portalData?.onboardedStudents || [];
   const studentFees = portalData?.studentFees || [];
@@ -251,8 +251,14 @@ export default function OfficialSchoolFeeStructure() {
             <Plus size={15} /> Add Fee Item
           </button>
 
-          <button className="fee-btn" style={{ background: '#1e1b4b', color: '#fff' }} onClick={() => setPreparingStudentBill(onboardedStudents[0] || null)}>
-            <FileText size={15} /> 🧾 Prepare Student Bill
+          <button className="fee-btn" style={{ background: '#1e1b4b', color: '#fff' }} onClick={() => {
+            if (onOpenSimsModal) {
+              onOpenSimsModal({ category: "Student's Billings & Accounts", link: 'Prepare Student academic Bill' });
+            } else {
+              setPreparingStudentBill(onboardedStudents[0] || null);
+            }
+          }}>
+            <FileText size={15} /> 🧾 Post Student Academic Bill
           </button>
 
           <button className="fee-btn fee-btn-primary" onClick={() => window.print()}>
@@ -561,6 +567,7 @@ export default function OfficialSchoolFeeStructure() {
             <div style={{ padding: 32, background: '#fff' }}>
               {/* Document Header */}
               <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: 20, marginBottom: 24 }}>
+                <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 60, width: 'auto', borderRadius: 6, marginBottom: 8 }} />
                 <div style={{ fontSize: 24, fontWeight: 900, color: '#0f172a', letterSpacing: '0.04em' }}>
                   REMALJ CAREWELL INSPIRATIONAL SCHOOL
                 </div>

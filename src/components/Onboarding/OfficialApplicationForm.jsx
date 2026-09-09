@@ -5,105 +5,21 @@ import {
 } from 'lucide-react';
 import './OfficialApplicationForm.css';
 
-// SVG Crest Emblem Logo for REMALJ Carewell Inspirational School matching official crest
+// Official Crest Emblem Logo for REMALJ Carewell Inspirational School
 export function SchoolLogoSVG({ size = 110 }) {
   return (
-    <svg width={size} height={size * 1.05} viewBox="0 0 200 210" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Top Header Text */}
-      <text x="100" y="15" fill="#0088cc" fontSize="15" fontWeight="900" textAnchor="middle" fontFamily="system-ui, Arial, sans-serif">
-        REMALJ
-      </text>
-      <text x="100" y="28" fill="#0088cc" fontSize="9" fontWeight="800" textAnchor="middle" fontFamily="system-ui, Arial, sans-serif" letterSpacing="0.1">
-        CAREWELL INSPIRATIONAL SCHOOL · BOGOSO
-      </text>
-
-      {/* Main Shield Outer Red Border Line */}
-      <path d="M 40 44 C 40 44, 100 38, 160 44 C 160 115, 150 155, 100 178 C 50 155, 40 115, 40 44 Z" fill="none" stroke="#d91b1b" strokeWidth="2.5" />
-      {/* Inner Dark Blue Shield Body */}
-      <path d="M 43 47 C 43 47, 100 41, 157 47 C 157 113, 147 151, 100 173 C 53 151, 43 113, 43 47 Z" fill="#0b1b7f" stroke="#0b1b7f" strokeWidth="2" />
-      {/* White Shield Interior */}
-      <path d="M 47 51 C 47 51, 100 45, 153 51 C 153 110, 143 147, 100 167 C 57 147, 47 110, 47 51 Z" fill="#ffffff" />
-
-      {/* Internal Red Partition Lines */}
-      <path d="M 47 108 L 153 108" stroke="#d91b1b" strokeWidth="3" />
-      <path d="M 100 46 L 100 108" stroke="#d91b1b" strokeWidth="3" />
-      <path d="M 47 51 C 47 51, 100 45, 153 51" fill="none" stroke="#d91b1b" strokeWidth="3" />
-
-      {/* Top-Right Quadrant: Pink Diagonal Stripes + Open Book */}
-      <g>
-        <rect x="100" y="47" width="53" height="60" fill="#ffb6c1" clipPath="url(#topRightClip)" />
-        {/* Hatching Lines */}
-        <line x1="95" y1="50" x2="160" y2="115" stroke="#e05282" strokeWidth="1.5" />
-        <line x1="105" y1="50" x2="165" y2="110" stroke="#e05282" strokeWidth="1.5" />
-        <line x1="115" y1="50" x2="165" y2="100" stroke="#e05282" strokeWidth="1.5" />
-        <line x1="125" y1="50" x2="165" y2="90" stroke="#e05282" strokeWidth="1.5" />
-        <line x1="95" y1="60" x2="150" y2="115" stroke="#e05282" strokeWidth="1.5" />
-        <line x1="95" y1="70" x2="140" y2="115" stroke="#e05282" strokeWidth="1.5" />
-      </g>
-      {/* Open Book Graphic */}
-      <g transform="translate(105, 54)">
-        <path d="M 4 25 C 15 15, 20 22, 20 22 C 20 22, 25 15, 36 25 L 36 40 C 25 30, 20 37, 20 37 C 20 37, 15 30, 4 40 Z" fill="#ffffff" stroke="#000000" strokeWidth="2" strokeLinejoin="round" />
-        <path d="M 20 22 L 20 37" stroke="#000000" strokeWidth="2" />
-        <line x1="8" y1="26" x2="17" y2="28" stroke="#000" strokeWidth="1" />
-        <line x1="8" y1="30" x2="17" y2="32" stroke="#000" strokeWidth="1" />
-        <line x1="23" y1="28" x2="32" y2="26" stroke="#000" strokeWidth="1" />
-        <line x1="23" y1="32" x2="32" y2="30" stroke="#000" strokeWidth="1" />
-      </g>
-
-      {/* Top-Left Quadrant: Children holding hands */}
-      <g transform="translate(53, 56)">
-        {/* Boy */}
-        <circle cx="12" cy="11" r="5" fill="#fdb87d" />
-        <path d="M 7 8 Q 12 4 17 8" fill="#e65100" />
-        <rect x="8" y="16" width="8" height="12" fill="#0288d1" rx="2" />
-        <line x1="10" y1="28" x2="10" y2="36" stroke="#000" strokeWidth="2" />
-        <line x1="14" y1="28" x2="14" y2="36" stroke="#000" strokeWidth="2" />
-        <line x1="15" y1="18" x2="22" y2="22" stroke="#fdb87d" strokeWidth="2" />
-
-        {/* Girl */}
-        <circle cx="30" cy="12" r="5" fill="#fdb87d" />
-        <path d="M 25 9 Q 30 5 35 9" fill="#b71c1c" />
-        <path d="M 24 17 L 36 17 L 38 29 L 22 29 Z" fill="#8d6e63" />
-        <line x1="27" y1="29" x2="27" y2="36" stroke="#000" strokeWidth="2" />
-        <line x1="33" y1="29" x2="33" y2="36" stroke="#000" strokeWidth="2" />
-        <line x1="25" y1="19" x2="21" y2="22" stroke="#fdb87d" strokeWidth="2" />
-      </g>
-
-      {/* Bottom Compartment: Graduation Cap & Diploma Scroll */}
-      <g transform="translate(48, 110)">
-        {/* Mortarboard Cap */}
-        <path d="M 52 7 L 100 24 L 52 41 L 4 24 Z" fill="#0f172a" stroke="#000000" strokeWidth="1.5" />
-        <path d="M 28 27 L 28 42 C 28 42, 52 50, 76 42 L 76 27 Z" fill="#0f172a" stroke="#000000" strokeWidth="1.5" />
-        {/* Tassel */}
-        <line x1="52" y1="24" x2="18" y2="32" stroke="#f59e0b" strokeWidth="2.5" />
-        <circle cx="18" cy="38" r="3.5" fill="#f59e0b" />
-
-        {/* Diploma Certificate Scroll */}
-        <g transform="translate(24, 34) rotate(-8)">
-          <rect x="0" y="0" width="55" height="15" rx="3" fill="#ffffff" stroke="#000000" strokeWidth="1.5" />
-          <ellipse cx="55" cy="7.5" rx="3" ry="7.5" fill="#e2e8f0" stroke="#000000" strokeWidth="1.5" />
-          <rect x="22" y="-1" width="7" height="17" fill="#dc2626" />
-          <path d="M 25 15 L 20 25 L 25 22 L 30 25 Z" fill="#dc2626" />
-        </g>
-      </g>
-
-      {/* Stars on Left & Right */}
-      <path d="M 26 150 L 29 157 L 36 157 L 31 161 L 33 168 L 26 164 L 19 168 L 21 161 L 16 157 L 23 157 Z" fill="#00a8ff" stroke="#000000" strokeWidth="1.5" />
-      <path d="M 174 150 L 177 157 L 184 157 L 179 161 L 181 168 L 174 164 L 167 168 L 169 161 L 164 157 L 171 157 Z" fill="#00a8ff" stroke="#000000" strokeWidth="1.5" />
-
-      {/* Bottom Ribbon Banner: "Inspiring Excellence" */}
-      <g>
-        <path d="M 22 178 L 42 165 L 42 188 Z" fill="#0284c7" />
-        <path d="M 178 178 L 158 165 L 158 188 Z" fill="#0284c7" />
-        <path d="M 32 168 Q 100 196 168 168 L 162 198 Q 100 224 38 198 Z" fill="#00a8ff" stroke="#0b1b7f" strokeWidth="2" />
-        <path d="M 36 172 Q 100 199 164 172" fill="none" id="ribbonArcText" />
-        <text fill="#ffffff" fontSize="13" fontWeight="900" letterSpacing="0.4" fontFamily="system-ui, Arial, sans-serif">
-          <textPath href="#ribbonArcText" startOffset="50%" textAnchor="middle">
-            Inspiring Excellence
-          </textPath>
-        </text>
-      </g>
-    </svg>
+    <img
+      src="/remalj-carewell-logo.jpg"
+      alt="REMALJ Carewell Inspirational School Logo"
+      style={{
+        height: size,
+        width: 'auto',
+        maxHeight: size * 1.1,
+        borderRadius: 6,
+        objectFit: 'contain',
+        display: 'inline-block'
+      }}
+    />
   );
 }
 
