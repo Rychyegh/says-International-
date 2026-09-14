@@ -9,13 +9,13 @@ import { api } from '../../services/api';
 import './AttendanceControlTable.css';
 
 const INITIAL_ATTENDANCE_LOGS = [
-  { id: 'log-101', date: '2026-09-05', time: '08:15 AM', studentId: 'REMALJ-2026-001', studentName: 'Benjamin Edwards', level: 'Grade 4 (B)', method: 'RFID Card Reader', status: 'CardScanned', guardianName: 'Mrs. Angela Edwards', phone: '054 176 9621', smsStatus: 'Sent' },
+  { id: 'log-101', date: '2026-09-05', time: '08:15 AM', studentId: 'REMALJ-2026-001', studentName: 'Benjamin Edwards', level: 'Grade 4 (B)', method: 'RFID Card Reader', status: 'Check In', guardianName: 'Mrs. Angela Edwards', phone: '054 176 9621', smsStatus: 'Sent' },
   { id: 'log-102', date: '2026-09-05', time: '08:30 AM', studentId: 'REMALJ-2026-002', studentName: 'Adwoa Edwards', level: 'Primary 5 (5A)', method: 'Manual Roll Call', status: 'Present', guardianName: 'Mrs. Angela Edwards', phone: '054 176 9621', smsStatus: 'Sent' },
-  { id: 'log-103', date: '2026-09-05', time: '08:45 AM', studentId: 'REMALJ-2026-041', studentName: 'Abena Mensah', level: 'JHS 3 (3A)', method: 'RFID Card Reader', status: 'CardScanned', guardianName: 'Mr. Kofi Mensah', phone: '054 176 9621', smsStatus: 'Sent' },
+  { id: 'log-103', date: '2026-09-05', time: '01:45 PM', studentId: 'REMALJ-2026-041', studentName: 'Abena Mensah', level: 'JHS 3 (3A)', method: 'RFID Card Reader', status: 'Check Out', guardianName: 'Mr. Kofi Mensah', phone: '054 176 9621', smsStatus: 'Sent' },
   { id: 'log-104', date: '2026-09-05', time: '09:00 AM', studentId: 'REMALJ-2026-112', studentName: 'Kwame Asante', level: 'JHS 3 (3A)', method: 'Manual Roll Call', status: 'Absent', guardianName: 'Mrs. Ama Asante', phone: '054 176 9621', smsStatus: 'Sent' },
-  { id: 'log-105', date: '2026-09-05', time: '09:12 AM', studentId: 'REMALJ-2026-088', studentName: 'Efua Darko', level: 'JHS 2 (2B)', method: 'RFID Card Reader', status: 'CardScanned', guardianName: 'Mr. Yaw Darko', phone: '054 176 9621', smsStatus: 'Sent' },
-  { id: 'log-106', date: '2026-09-04', time: '08:10 AM', studentId: 'REMALJ-2026-001', studentName: 'Benjamin Edwards', level: 'Grade 4 (B)', method: 'RFID Card Reader', status: 'CardScanned', guardianName: 'Mrs. Angela Edwards', phone: '054 176 9621', smsStatus: 'Sent' },
-  { id: 'log-107', date: '2026-09-04', time: '08:22 AM', studentId: 'REMALJ-2026-002', studentName: 'Adwoa Edwards', level: 'Primary 5 (5A)', method: 'RFID Card Reader', status: 'CardScanned', guardianName: 'Mrs. Angela Edwards', phone: '054 176 9621', smsStatus: 'Sent' },
+  { id: 'log-105', date: '2026-09-05', time: '03:12 PM', studentId: 'REMALJ-2026-088', studentName: 'Efua Darko', level: 'JHS 2 (2B)', method: 'RFID Card Reader', status: 'Check Out', guardianName: 'Mr. Yaw Darko', phone: '054 176 9621', smsStatus: 'Sent' },
+  { id: 'log-106', date: '2026-09-04', time: '08:10 AM', studentId: 'REMALJ-2026-001', studentName: 'Benjamin Edwards', level: 'Grade 4 (B)', method: 'RFID Card Reader', status: 'Check In', guardianName: 'Mrs. Angela Edwards', phone: '054 176 9621', smsStatus: 'Sent' },
+  { id: 'log-107', date: '2026-09-04', time: '03:22 PM', studentId: 'REMALJ-2026-002', studentName: 'Adwoa Edwards', level: 'Primary 5 (5A)', method: 'RFID Card Reader', status: 'Check Out', guardianName: 'Mrs. Angela Edwards', phone: '054 176 9621', smsStatus: 'Sent' },
   { id: 'log-108', date: '2026-09-04', time: '08:35 AM', studentId: 'REMALJ-2026-041', studentName: 'Abena Mensah', level: 'JHS 3 (3A)', method: 'Manual Roll Call', status: 'Present', guardianName: 'Mr. Kofi Mensah', phone: '054 176 9621', smsStatus: 'Sent' },
 ];
 
@@ -40,7 +40,32 @@ export default function AttendanceControlTable() {
   const [lastScannedStudent, setLastScannedStudent] = useState(null);
   const [unassignedCardCode, setUnassignedCardCode] = useState('');
   const [assignStudentId, setAssignStudentId] = useState('');
+  const [simulatedTimeSlot, setSimulatedTimeSlot] = useState('auto'); // 'auto' | 'morning' | 'afternoon'
   const cardInputRef = useRef(null);
+
+  // Helper to determine Check In vs Check Out based on time requirement:
+  // 6am - 9am => Check In
+  // 12pm - 5pm => Check Out
+  // Default: < 12pm => Check In, >= 12pm => Check Out
+  const determineScanType = (dateObj = new Date(), mode = simulatedTimeSlot) => {
+    if (mode === 'morning') return 'Check In';
+    if (mode === 'afternoon') return 'Check Out';
+
+    const hours = dateObj.getHours();
+    const minutes = dateObj.getMinutes();
+    const totalMinutes = hours * 60 + minutes;
+
+    // 6:00 AM (360) to 9:00 AM (540)
+    if (totalMinutes >= 360 && totalMinutes <= 540) {
+      return 'Check In';
+    }
+    // 12:00 PM (720) to 5:00 PM (1020)
+    if (totalMinutes >= 720 && totalMinutes <= 1020) {
+      return 'Check Out';
+    }
+    // Fallback: Before 12 PM => Check In, 12 PM onwards => Check Out
+    return totalMinutes < 720 ? 'Check In' : 'Check Out';
+  };
 
   // Modal for Viewing Individual Student Attendance Profile
   const [selectedStudentHistory, setSelectedStudentHistory] = useState(null);
@@ -50,7 +75,7 @@ export default function AttendanceControlTable() {
 
   // Live Roll Call Attendance & SMS state per student ID
   const [attendanceState, setAttendanceState] = useState({
-    'REMALJ-2026-001': { status: 'CardScanned', cardScanned: true, smsSent: true, lastSentAt: '08:15 AM' },
+    'REMALJ-2026-001': { status: 'Check In', scanType: 'Check In', cardScanned: true, smsSent: true, lastSentAt: '08:15 AM' },
     'REMALJ-2026-002': { status: 'Present', cardScanned: false, smsSent: true, lastSentAt: '08:30 AM' },
   });
 
@@ -128,15 +153,23 @@ export default function AttendanceControlTable() {
   // Helper to execute card verification & SMS dispatch for a matched student
   const executeStudentCardVerification = async (matchedStudent, scannedCardCode) => {
     const sId = matchedStudent.studentId || matchedStudent.id;
-    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const now = new Date();
+    const scanLabel = determineScanType(now, simulatedTimeSlot); // 'Check In' | 'Check Out'
+    const actionVerb = scanLabel === 'Check Out' ? 'checked out' : 'checked in';
+    
+    let timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (simulatedTimeSlot === 'morning') timeStr = '08:15 AM';
+    if (simulatedTimeSlot === 'afternoon') timeStr = '02:30 PM';
+
     const phone = customPhones[sId] || matchedStudent.guardianPhone || '0541769621';
     const guardianName = matchedStudent.guardianName || 'Guardian';
 
-    // Lock attendance as CardScanned (Present)
+    // Lock attendance with Check In or Check Out status
     setAttendanceState(prev => ({
       ...prev,
       [sId]: {
-        status: 'CardScanned',
+        status: scanLabel,
+        scanType: scanLabel,
         cardScanned: true,
         smsSent: true,
         lastSentAt: timeStr,
@@ -145,12 +178,12 @@ export default function AttendanceControlTable() {
     }));
 
     // Record into central history register logs
-    logNewAttendanceRecord(matchedStudent, 'CardScanned', 'RFID Card Reader', timeStr, phone, guardianName);
+    logNewAttendanceRecord(matchedStudent, scanLabel, 'RFID Card Reader', timeStr, phone, guardianName);
 
-    setLastScannedStudent({ ...matchedStudent, scannedCardCode, timeStr, phone });
+    setLastScannedStudent({ ...matchedStudent, scannedCardCode, timeStr, phone, scanType: scanLabel });
 
     // Dispatch SMS and log scan to backend concurrently
-    const messageText = `[RCIS] REMALJ CARE: Dear ${guardianName}, your child ${matchedStudent.fullName} (${matchedStudent.level}) checked in via RFID Card Reader (Card #${scannedCardCode}) at school today at ${timeStr}.`;
+    const messageText = `[RCIS] REMALJ CARE: Dear ${guardianName}, your child ${matchedStudent.fullName} (${matchedStudent.level}) ${actionVerb} via RFID Card Reader (Card #${scannedCardCode}) at school today at ${timeStr}.`;
 
     try {
       const smsPromise = api.sendSms({
@@ -161,15 +194,15 @@ export default function AttendanceControlTable() {
 
       const backendPromise = api.recordAttendanceScan({
         identifier: sId,
-        scanType: 'Check-in',
+        scanType: scanLabel === 'Check Out' ? 'Check-out' : 'Check-in',
         sendSms: false
       }).catch(() => {});
 
       await Promise.all([smsPromise, backendPromise]);
 
-      setNotification(`💳 PHYSICAL CARD READ SUCCESS! Verified Card #${scannedCardCode} -> ${matchedStudent.fullName} (${sId}). Instant SMS dispatched to ${guardianName} (${phone})!`);
+      setNotification(`💳 PHYSICAL CARD READ SUCCESS (${scanLabel.toUpperCase()})! Verified Card #${scannedCardCode} -> ${matchedStudent.fullName} (${sId}). Instant SMS dispatched to ${guardianName} (${phone})!`);
     } catch (err) {
-      setNotification(`💳 PHYSICAL CARD VERIFIED! ${matchedStudent.fullName} (${sId}) marked Present via Card Reader.`);
+      setNotification(`💳 PHYSICAL CARD VERIFIED (${scanLabel.toUpperCase()})! ${matchedStudent.fullName} (${sId}) marked ${scanLabel} via Card Reader.`);
     }
   };
 
@@ -237,7 +270,31 @@ export default function AttendanceControlTable() {
       return;
     }
 
-    // Match Found!
+    // Match Found! Check if student has ALREADY marked attendance for this scan window
+    const sId = matchedStudent.studentId || matchedStudent.id;
+    const existingState = attendanceState[sId];
+    const now = new Date();
+    const currentScanLabel = determineScanType(now, simulatedTimeSlot);
+
+    if (existingState && (existingState.status === currentScanLabel || existingState.scanType === currentScanLabel || (existingState.cardScanned && existingState.status === currentScanLabel))) {
+      playBeep(false); // Warning chime
+      const timeSent = existingState.lastSentAt ? `at ${existingState.lastSentAt}` : 'earlier today';
+      setNotification(`⚠️ ATTENDANCE ALREADY MARKED! ${matchedStudent.fullName} (${sId}) has already marked ${currentScanLabel} ${timeSent}.`);
+      setLastScannedStudent({
+        ...matchedStudent,
+        scannedCardCode: rawCode,
+        timeStr: existingState.lastSentAt || 'Today',
+        phone: customPhones[sId] || matchedStudent.guardianPhone || '054 176 9621',
+        scanType: currentScanLabel,
+        alreadyMarked: true
+      });
+      setCardInput('');
+      setIsScanning(false);
+      if (cardInputRef.current) cardInputRef.current.focus();
+      setTimeout(() => setNotification(''), 9000);
+      return;
+    }
+
     playBeep(true);
     await executeStudentCardVerification(matchedStudent, rawCode);
 
@@ -353,7 +410,9 @@ export default function AttendanceControlTable() {
                           (log.phone || '').toLowerCase().includes(logSearchQuery.toLowerCase());
 
     const matchesLevel = logLevelFilter === 'All' || (log.level || '').toLowerCase().includes(logLevelFilter.toLowerCase());
-    const matchesStatus = logStatusFilter === 'All' || log.status.toLowerCase() === logStatusFilter.toLowerCase();
+    const matchesStatus = logStatusFilter === 'All' ||
+                          (logStatusFilter === 'CardScanned' && (log.method === 'RFID Card Reader' || log.status.includes('Check') || log.status === 'CardScanned')) ||
+                          log.status.toLowerCase() === logStatusFilter.toLowerCase();
     
     const todayStr = new Date().toISOString().split('T')[0];
     const matchesDate = logDateFilter === 'All' ||
@@ -365,9 +424,9 @@ export default function AttendanceControlTable() {
 
   // Statistics calculation
   const totalLogsCount = filteredAttendanceLogs.length;
-  const presentLogsCount = filteredAttendanceLogs.filter(l => l.status === 'Present' || l.status === 'CardScanned').length;
+  const presentLogsCount = filteredAttendanceLogs.filter(l => l.status === 'Present' || l.status === 'CardScanned' || l.status === 'Check In' || l.status === 'Check-in' || l.status === 'Check Out' || l.status === 'Check-out').length;
   const absentLogsCount = filteredAttendanceLogs.filter(l => l.status === 'Absent').length;
-  const rfidScansCount = filteredAttendanceLogs.filter(l => l.method === 'RFID Card Reader' || l.status === 'CardScanned').length;
+  const rfidScansCount = filteredAttendanceLogs.filter(l => l.method === 'RFID Card Reader' || l.status === 'CardScanned' || l.status.includes('Check')).length;
   const attendancePercentage = totalLogsCount > 0 ? Math.round((presentLogsCount / totalLogsCount) * 100) : 100;
 
   return (
@@ -434,13 +493,19 @@ export default function AttendanceControlTable() {
           {/* Card Reader Live Scanner Bar */}
           <div className="card-reader-banner">
             <div className="card-reader-banner__info">
-              <div className="card-reader-badge">
-                <span className="live-pulse"></span>
-                <Cpu size={14} /> CARD READER ACTIVE
+              <div className="card-reader-badge" style={{
+                background: determineScanType(new Date(), simulatedTimeSlot) === 'Check Out' ? 'rgba(249, 115, 22, 0.15)' : 'rgba(34, 197, 94, 0.15)',
+                borderColor: determineScanType(new Date(), simulatedTimeSlot) === 'Check Out' ? 'rgba(249, 115, 22, 0.4)' : 'rgba(34, 197, 94, 0.4)',
+                color: determineScanType(new Date(), simulatedTimeSlot) === 'Check Out' ? '#fb923c' : '#4ade80'
+              }}>
+                <span className="live-pulse" style={{
+                  background: determineScanType(new Date(), simulatedTimeSlot) === 'Check Out' ? '#f97316' : '#22c55e'
+                }}></span>
+                <Cpu size={14} /> CARD READER ACTIVE &bull; MODE: {determineScanType(new Date(), simulatedTimeSlot).toUpperCase()}
               </div>
               <div className="card-reader-text">
                 <strong>Tap RFID Student Card or Scan Barcode Reader</strong>
-                <span>Plug any USB/Bluetooth Card Reader or type Card Code/Student ID. Instant SMS dispatched to guardian upon tap!</span>
+                <span>6:00 AM – 9:00 AM auto-registers <strong>Check In</strong>. 12:00 PM – 5:00 PM auto-registers <strong>Check Out</strong>.</span>
               </div>
             </div>
 
@@ -462,27 +527,57 @@ export default function AttendanceControlTable() {
                 </button>
               </div>
 
-              <label className="card-reader-autofocus" title="Keep focus on Card Reader so tapping RFID cards always scans immediately">
-                <input
-                  type="checkbox"
-                  checked={autoFocusEnabled}
-                  onChange={(e) => setAutoFocusEnabled(e.target.checked)}
-                />
-                <span>🔒 Always Listen to Card Reader</span>
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 12, marginTop: 4 }}>
+                <label className="card-reader-autofocus" title="Keep focus on Card Reader so tapping RFID cards always scans immediately">
+                  <input
+                    type="checkbox"
+                    checked={autoFocusEnabled}
+                    onChange={(e) => setAutoFocusEnabled(e.target.checked)}
+                  />
+                  <span>🔒 Always Listen to Card Reader</span>
+                </label>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#94a3b8' }}>
+                  <span>Window:</span>
+                  <select
+                    value={simulatedTimeSlot}
+                    onChange={(e) => setSimulatedTimeSlot(e.target.value)}
+                    style={{
+                      background: '#0f172a', color: '#38bdf8', border: '1px solid #334155',
+                      borderRadius: 6, padding: '2px 6px', fontSize: 11, fontWeight: 700, cursor: 'pointer'
+                    }}
+                  >
+                    <option value="auto">Auto Time Detect</option>
+                    <option value="morning">Morning (6 AM - 9 AM → Check In)</option>
+                    <option value="afternoon">Afternoon (12 PM - 5 PM → Check Out)</option>
+                  </select>
+                </div>
+              </div>
             </form>
           </div>
 
           {/* Live Scanned NFC / RFID Card Output Display Card */}
           {lastScannedStudent && (
             <div style={{
-              background: 'linear-gradient(135deg, #022c22 0%, #064e3b 100%)',
-              border: '2px solid #10b981',
+              background: lastScannedStudent.alreadyMarked
+                ? 'linear-gradient(135deg, #451a03 0%, #78350f 100%)'
+                : lastScannedStudent.scanType === 'Check Out'
+                ? 'linear-gradient(135deg, #451a03 0%, #7c2d12 100%)'
+                : 'linear-gradient(135deg, #022c22 0%, #064e3b 100%)',
+              border: lastScannedStudent.alreadyMarked
+                ? '2px solid #f59e0b'
+                : lastScannedStudent.scanType === 'Check Out'
+                ? '2px solid #f97316'
+                : '2px solid #10b981',
               borderRadius: 14,
               padding: '16px 22px',
               marginBottom: 24,
               color: '#fff',
-              boxShadow: '0 12px 30px rgba(16, 185, 129, 0.25)',
+              boxShadow: lastScannedStudent.alreadyMarked
+                ? '0 12px 30px rgba(245, 158, 11, 0.25)'
+                : lastScannedStudent.scanType === 'Check Out'
+                ? '0 12px 30px rgba(249, 115, 22, 0.25)'
+                : '0 12px 30px rgba(16, 185, 129, 0.25)',
               position: 'relative'
             }} className="animate-fade-up">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14 }}>
@@ -491,39 +586,55 @@ export default function AttendanceControlTable() {
                     width: 52,
                     height: 52,
                     borderRadius: 12,
-                    background: '#047857',
+                    background: lastScannedStudent.alreadyMarked ? '#b45309' : lastScannedStudent.scanType === 'Check Out' ? '#9a3412' : '#047857',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: 24,
                     boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                   }}>
-                    💳
+                    {lastScannedStudent.alreadyMarked ? '⚠️' : '💳'}
                   </div>
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 900, color: '#6ee7b7', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span className="live-pulse"></span> NFC / RFID CARD READOUT VERIFIED
+                    <div style={{ fontSize: 11, fontWeight: 900, color: lastScannedStudent.alreadyMarked ? '#fef08a' : lastScannedStudent.scanType === 'Check Out' ? '#ffedd5' : '#6ee7b7', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="live-pulse" style={{ background: lastScannedStudent.alreadyMarked ? '#f59e0b' : lastScannedStudent.scanType === 'Check Out' ? '#f97316' : '#22c55e' }}></span>
+                      {lastScannedStudent.alreadyMarked ? 'ATTENDANCE ALREADY MARKED PREVIOUSLY' : 'NFC / RFID CARD READOUT VERIFIED'}
                     </div>
                     <div style={{ fontSize: 20, fontWeight: 900, color: '#ffffff', fontFamily: 'monospace', letterSpacing: '0.06em', marginTop: 2 }}>
                       CARD UID: {lastScannedStudent.scannedCardCode || lastScannedStudent.rfidCardCode || lastScannedStudent.studentId}
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#a7f3d0', marginTop: 3 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: lastScannedStudent.alreadyMarked ? '#fde047' : lastScannedStudent.scanType === 'Check Out' ? '#fed7aa' : '#a7f3d0', marginTop: 3 }}>
                       Linked Student: <strong>{lastScannedStudent.fullName}</strong> ({lastScannedStudent.studentId}) · {lastScannedStudent.level}
                     </div>
                   </div>
                 </div>
 
                 <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                  <div style={{ padding: '4px 12px', background: '#059669', color: '#ecfdf5', borderRadius: 99, fontSize: 11, fontWeight: 900, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <ShieldCheck size={14} /> ATTENDANCE RECORDED IN LOGS
+                  <div style={{
+                    padding: '4px 12px',
+                    background: lastScannedStudent.alreadyMarked ? '#d97706' : lastScannedStudent.scanType === 'Check Out' ? '#ea580c' : '#059669',
+                    color: '#fff',
+                    borderRadius: 99,
+                    fontSize: 11,
+                    fontWeight: 900,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}>
+                    {lastScannedStudent.alreadyMarked ? <AlertTriangle size={14} /> : <ShieldCheck size={14} />}
+                    {lastScannedStudent.alreadyMarked
+                      ? `ALREADY MARKED (${(lastScannedStudent.scanType || 'CHECK IN').toUpperCase()})`
+                      : `RECORDED AS ${lastScannedStudent.scanType ? lastScannedStudent.scanType.toUpperCase() : 'CHECK IN'}`}
                   </div>
-                  <div style={{ fontSize: 11, color: '#a7f3d0', fontWeight: 700, marginTop: 4 }}>
-                    📲 SMS Sent to {lastScannedStudent.guardianName || 'Parent'} ({lastScannedStudent.phone}) at {lastScannedStudent.timeStr}
+                  <div style={{ fontSize: 11, color: lastScannedStudent.alreadyMarked ? '#fde047' : lastScannedStudent.scanType === 'Check Out' ? '#fed7aa' : '#a7f3d0', fontWeight: 700, marginTop: 4 }}>
+                    {lastScannedStudent.alreadyMarked
+                      ? `⚠️ Student already marked ${lastScannedStudent.scanType || 'Check In'} at ${lastScannedStudent.timeStr}. Duplicate scan ignored.`
+                      : `📲 SMS Sent to ${lastScannedStudent.guardianName || 'Parent'} (${lastScannedStudent.phone}) at ${lastScannedStudent.timeStr}`}
                   </div>
                   <button
                     type="button"
                     onClick={() => setLastScannedStudent(null)}
-                    style={{ background: 'transparent', border: 'none', color: '#6ee7b7', fontSize: 11, cursor: 'pointer', textDecoration: 'underline', marginTop: 4 }}
+                    style={{ background: 'transparent', border: 'none', color: lastScannedStudent.alreadyMarked ? '#fde047' : lastScannedStudent.scanType === 'Check Out' ? '#fed7aa' : '#6ee7b7', fontSize: 11, cursor: 'pointer', textDecoration: 'underline', marginTop: 4 }}
                   >
                     Dismiss Output
                   </button>
@@ -684,7 +795,15 @@ export default function AttendanceControlTable() {
                         </div>
                       </td>
                       <td>
-                        {state.status === 'CardScanned' || state.cardScanned ? (
+                        {state.status === 'Check In' || state.scanType === 'Check In' ? (
+                          <span className="status-badge status-badge--checkin">
+                            <ShieldCheck size={13} /> Checked In (Present)
+                          </span>
+                        ) : state.status === 'Check Out' || state.scanType === 'Check Out' ? (
+                          <span className="status-badge status-badge--checkout">
+                            <ShieldCheck size={13} /> Checked Out
+                          </span>
+                        ) : state.status === 'CardScanned' || state.cardScanned ? (
                           <span className="status-badge status-badge--card">
                             <ShieldCheck size={13} /> Card Scanned (Present)
                           </span>
@@ -710,7 +829,7 @@ export default function AttendanceControlTable() {
                       <td>
                         {state.cardScanned ? (
                           <div className="card-locked-box">
-                            <Check size={14} /> Attendance Verified via Card Scan (SMS Sent)
+                            <Check size={14} /> {state.scanType || 'Check In'} Verified via Card Scan (SMS Sent)
                           </div>
                         ) : (
                           <div className="attendance-btn-group">
@@ -826,7 +945,9 @@ export default function AttendanceControlTable() {
                 style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 12.5, fontWeight: 700, background: '#fff' }}
               >
                 <option value="All">All Attendance Statuses</option>
-                <option value="CardScanned">RFID Card Scanned</option>
+                <option value="Check In">RFID Check In (6am-9am)</option>
+                <option value="Check Out">RFID Check Out (12pm-5pm)</option>
+                <option value="CardScanned">All RFID Card Scans</option>
                 <option value="Present">Manual Present</option>
                 <option value="Absent">Marked Absent</option>
               </select>
@@ -915,7 +1036,15 @@ export default function AttendanceControlTable() {
                           )}
                         </td>
                         <td>
-                          {log.status === 'CardScanned' ? (
+                          {log.status === 'Check In' || log.status === 'Check-in' ? (
+                            <span className="status-badge status-badge--checkin">
+                              <ShieldCheck size={13} /> Check In (Present)
+                            </span>
+                          ) : log.status === 'Check Out' || log.status === 'Check-out' ? (
+                            <span className="status-badge status-badge--checkout">
+                              <ShieldCheck size={13} /> Check Out
+                            </span>
+                          ) : log.status === 'CardScanned' ? (
                             <span className="status-badge status-badge--card">
                               <ShieldCheck size={13} /> Card Scanned (Present)
                             </span>
