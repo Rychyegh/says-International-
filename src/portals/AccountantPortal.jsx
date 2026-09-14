@@ -2308,22 +2308,22 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
             <div style={{ padding: 12 }}>
               {activeTab === 'Print Bill' ? (
                 /* Printable Document View */
-                <div style={{
-                  padding: 20,
+                <div className="printable-area accountant-printable" style={{
+                  padding: 24,
                   background: '#fff',
                   border: '1px solid #e2e8f0',
                   borderRadius: 6
                 }}>
                   <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 12, marginBottom: 16 }}>
-                    <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 50, width: 'auto', borderRadius: 6, marginBottom: 6 }} />
+                    <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 50, width: 'auto', borderRadius: 6, marginBottom: 6, display: 'inline-block' }} />
                     <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f3a4b' }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h3>
                     <p style={{ margin: '4px 0', fontSize: 11.5, color: '#475569', fontWeight: 700 }}>P. O. BOX 139, BOGOSO · PRESTEA HUNI-VALLEY MUNICIPALITY</p>
-                    <span style={{ display: 'inline-block', background: '#0f3a4b', color: '#fff', padding: '3px 12px', borderRadius: 12, fontSize: 11, fontWeight: 800, marginTop: 6 }}>
+                    <span style={{ display: 'inline-block', background: '#0f3a4b', color: '#fff', padding: '4px 14px', borderRadius: 12, fontSize: 11, fontWeight: 800, marginTop: 6 }}>
                       STUDENT ACADEMIC BILL STATEMENT · {currTerm} ({currYear})
                     </span>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12, marginBottom: 16, background: '#f8fafc', padding: 12, borderRadius: 6 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12, marginBottom: 16, background: '#f8fafc', padding: 12, borderRadius: 6, border: '1px solid #e2e8f0' }}>
                     <div><strong>Student Name:</strong> {formStudentName}</div>
                     <div><strong>Bill Reference No:</strong> {nextTermBillNo}</div>
                     <div><strong>Class / Subclass:</strong> {formCurrentClass} ({formSubClass})</div>
@@ -2357,10 +2357,25 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
                     </tbody>
                   </table>
 
+                  {/* Endorsement & Signatures */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 24, paddingTop: 16, borderTop: '1px dashed #cbd5e1', fontSize: 11 }}>
+                    <div>
+                      <div style={{ fontWeight: 800, color: '#0f3a4b', marginBottom: 20 }}>Prepared By (Finance Office):</div>
+                      <div style={{ borderBottom: '1px solid #94a3b8', width: '80%', marginBottom: 4 }} />
+                      <div style={{ color: '#64748b' }}>Accountant / Bursar Signature</div>
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 800, color: '#0f3a4b', marginBottom: 20 }}>Approved By (Headmaster):</div>
+                      <div style={{ borderBottom: '1px solid #94a3b8', width: '80%', marginBottom: 4 }} />
+                      <div style={{ color: '#64748b' }}>School Stamp & Signature</div>
+                    </div>
+                  </div>
+
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
-                    <div style={{ fontSize: 11, color: '#64748b' }}>Reopening Date: <strong>{reopeningDate}</strong></div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>Reopening Date: <strong>{reopeningDate}</strong> · <span style={{ fontStyle: 'italic' }}>Official document generated via REMALJ SIMS Accounts Portal</span></div>
                     <button
                       type="button"
+                      className="no-print"
                       onClick={() => window.print()}
                       style={{ padding: '8px 16px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
                     >
@@ -7822,7 +7837,7 @@ function PrintPVForm({ setM }) {
         minHeight: 650
       }}>
         {/* ── LEFT CONTROL PANEL ── */}
-        <div style={{
+        <div className="no-print" style={{
           background: '#d9e2ec',
           borderRight: '1px solid #cbd5e1',
           padding: 14,
@@ -7906,7 +7921,7 @@ function PrintPVForm({ setM }) {
         <div style={{ background: '#cbd5e1', padding: 12, overflowX: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
           {/* ── REPORT VIEWER TOOLBAR ROW ── */}
-          <div style={{
+          <div className="no-print" style={{
             background: '#ffffff',
             padding: '6px 12px',
             borderRadius: 6,
@@ -7973,7 +7988,7 @@ function PrintPVForm({ setM }) {
           </div>
 
           {bannerNotice && (
-            <div style={{ background: '#f0fdf4', color: '#166534', padding: '6px 12px', borderRadius: 4, fontSize: 11, fontWeight: 800 }}>
+            <div className="no-print" style={{ background: '#f0fdf4', color: '#166534', padding: '6px 12px', borderRadius: 4, fontSize: 11, fontWeight: 800 }}>
               {bannerNotice}
             </div>
           )}
@@ -9406,7 +9421,7 @@ function TrialBalanceAccountsForm({ setM, initialMode = 'accounts' }) {
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', background: '#cbd5e1', borderRadius: 8, overflow: 'hidden', border: '1px solid #94a3b8' }}>
       {/* ── HEADER BANNER ── */}
-      <div style={{
+      <div className="no-print" style={{
         background: 'linear-gradient(90deg, #93c5fd 0%, #3b82f6 100%)',
         color: '#0f172a',
         padding: '6px 14px',
@@ -9468,7 +9483,7 @@ function TrialBalanceAccountsForm({ setM, initialMode = 'accounts' }) {
       {/* ── MAIN WORKSPACE split left controls / right report document ── */}
       <div style={{ display: 'flex', minHeight: 580 }}>
         {/* LEFT CONTROL PANEL (Parameter Boxes) */}
-        <div style={{ width: 310, background: '#d9e2ec', borderRight: '1px solid #94a3b8', padding: 10, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
+        <div className="no-print" style={{ width: 310, background: '#d9e2ec', borderRight: '1px solid #94a3b8', padding: 10, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
           
           {reportMode === 'accounts' && (
             <>
@@ -9586,7 +9601,7 @@ function TrialBalanceAccountsForm({ setM, initialMode = 'accounts' }) {
         {/* RIGHT REPORT CANVAS & TOOLBAR */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#cbd5e1' }}>
           {/* REPORT VIEWER TOOLBAR */}
-          <div style={{
+          <div className="no-print" style={{
             background: '#e2e8f0',
             borderBottom: '1px solid #94a3b8',
             padding: '4px 10px',
@@ -9629,7 +9644,7 @@ function TrialBalanceAccountsForm({ setM, initialMode = 'accounts' }) {
           </div>
 
           {/* MAIN REPORT TAB BAR (exact crystal report layout) */}
-          <div style={{ background: '#cbd5e1', borderBottom: '1px solid #94a3b8', padding: '2px 10px 0 10px', display: 'flex', gap: 4 }}>
+          <div className="no-print" style={{ background: '#cbd5e1', borderBottom: '1px solid #94a3b8', padding: '2px 10px 0 10px', display: 'flex', gap: 4 }}>
             <div style={{ background: '#ffffff', border: '1px solid #94a3b8', borderBottom: 'none', padding: '3px 12px', fontSize: 10.5, fontWeight: 700, borderRadius: '3px 3px 0 0', color: '#0f172a' }}>
               Main Report
             </div>
@@ -9637,7 +9652,7 @@ function TrialBalanceAccountsForm({ setM, initialMode = 'accounts' }) {
 
           {/* REPORT DOCUMENT SHEET */}
           <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
-            <div style={{
+            <div className="printable-area accountant-printable" style={{
               background: '#ffffff',
               width: 740,
               minHeight: 560,
@@ -9884,7 +9899,7 @@ function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', background: '#cbd5e1', borderRadius: 8, overflow: 'hidden', border: '1px solid #94a3b8' }}>
       {/* ── HEADER BANNER ── */}
-      <div style={{
+      <div className="no-print" style={{
         background: 'linear-gradient(90deg, #93c5fd 0%, #3b82f6 100%)',
         color: '#0f172a',
         padding: '6px 14px',
@@ -9946,7 +9961,7 @@ function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
       {/* ── MAIN WORKSPACE split left controls / right report document ── */}
       <div style={{ display: 'flex', minHeight: 560 }}>
         {/* LEFT CONTROL PANEL (Customer Details Parameter Box) */}
-        <div style={{ width: 320, background: '#d9e2ec', borderRight: '1px solid #94a3b8', padding: 12, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
+        <div className="no-print" style={{ width: 320, background: '#d9e2ec', borderRight: '1px solid #94a3b8', padding: 12, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
           <fieldset style={{ border: '1px solid #94a3b8', borderRadius: 4, padding: 10, background: '#e2e8f0', margin: 0 }}>
             <legend style={{ fontSize: 10.5, fontWeight: 800, color: '#1e293b', padding: '0 4px' }}>Customer Details</legend>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -10321,7 +10336,7 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', background: '#cbd5e1', borderRadius: 8, overflow: 'hidden', border: '1px solid #94a3b8' }}>
       {/* ── HEADER BANNER ── */}
-      <div style={{
+      <div className="no-print" style={{
         background: 'linear-gradient(90deg, #93c5fd 0%, #3b82f6 100%)',
         color: '#0f172a',
         padding: '6px 14px',
@@ -10345,7 +10360,7 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
       {/* ── MAIN WORKSPACE ── */}
       <div style={{ display: 'flex', minHeight: 560 }}>
         {/* LEFT CONTROL PANEL */}
-        <div style={{ width: 310, background: '#d9e2ec', borderRight: '1px solid #94a3b8', padding: 10, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
+        <div className="no-print" style={{ width: 310, background: '#d9e2ec', borderRight: '1px solid #94a3b8', padding: 10, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
           
           {/* Current Academic Period */}
           <fieldset style={{ border: '1px solid #94a3b8', borderRadius: 4, padding: 8, background: '#e2e8f0', margin: 0 }}>
@@ -10403,10 +10418,11 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
                   <option value="Basic 7">Basic 7</option>
                   <option value="Basic 9">Basic 9</option>
                   <option value="Basic 6">Basic 6</option>
+                  <option value="Basic 5">Basic 5</option>
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: 2 }}>Select Post Sub class</label>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 2 }}>Select Post Sub-class</label>
                 <select value={postSubClass} onChange={(e) => setPostSubClass(e.target.value)} style={{ width: '100%', padding: '3px 6px', fontSize: 11, border: '1px solid #94a3b8', borderRadius: 3, background: '#fff' }}>
                   <option value="B">B</option>
                   <option value="A">A</option>
@@ -10429,7 +10445,7 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
         {/* RIGHT REPORT CANVAS */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#cbd5e1' }}>
           {/* TOOLBAR */}
-          <div style={{ background: '#e2e8f0', borderBottom: '1px solid #94a3b8', padding: '4px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
+          <div className="no-print" style={{ background: '#e2e8f0', borderBottom: '1px solid #94a3b8', padding: '4px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button type="button" onClick={() => window.print()} title="Print" style={{ padding: '2px 6px', background: '#fff', border: '1px solid #94a3b8', borderRadius: 3, cursor: 'pointer' }}>🖨️</button>
               <button type="button" onClick={() => alert('Exporting PDF...')} title="Save PDF" style={{ padding: '2px 6px', background: '#fff', border: '1px solid #94a3b8', borderRadius: 3, cursor: 'pointer' }}>💾</button>
@@ -10448,9 +10464,9 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
           </div>
 
           <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
-            <div style={{ background: '#ffffff', width: 740, minHeight: 520, padding: 24, borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid #cbd5e1' }}>
+            <div className="printable-area accountant-printable" style={{ background: '#ffffff', width: 740, minHeight: 520, padding: 24, borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid #cbd5e1' }}>
               <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 14 }}>
-                <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 45, width: 'auto', borderRadius: 4, marginBottom: 4 }} />
+                <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 45, width: 'auto', borderRadius: 4, marginBottom: 4, display: 'inline-block' }} />
                 <h2 style={{ fontSize: 17, color: '#0f3a4b', fontWeight: 900, margin: 0 }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h2>
                 <p style={{ fontSize: 11, color: '#0284c7', margin: '2px 0 6px 0', fontWeight: 700 }}>Bogoso, Western Region, Ghana</p>
                 <h3 style={{ fontSize: 14, color: '#b91c1c', fontWeight: 900, margin: '4px 0 0 0' }}>POST CLASS CONSOLIDATED STUDENT BILLS REGISTER</h3>
@@ -10473,9 +10489,9 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
                     <tr key={s.id} style={{ background: idx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '5px 8px', fontFamily: 'monospace', fontWeight: 700, color: '#0369a1' }}>{s.id}</td>
                       <td style={{ padding: '5px 8px', fontWeight: 600 }}>{s.name}</td>
-                      <td style={{ padding: '5px 8px' }}>{s.tuition.toLocaleString('.2f')}</td>
-                      <td style={{ padding: '5px 8px' }}>{s.lab.toLocaleString('.2f')}</td>
-                      <td style={{ padding: '5px 8px' }}>{s.pta.toLocaleString('.2f')}</td>
+                      <td style={{ padding: '5px 8px' }}>{s.tuition.toFixed(2)}</td>
+                      <td style={{ padding: '5px 8px' }}>{s.lab.toFixed(2)}</td>
+                      <td style={{ padding: '5px 8px' }}>{s.pta.toFixed(2)}</td>
                       <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 800, color: '#0f3a4b' }}>{s.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                     </tr>
                   ))}
@@ -10487,6 +10503,20 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
                   </tr>
                 </tfoot>
               </table>
+
+              {/* Signature Footer */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 20, paddingTop: 14, borderTop: '1px dashed #cbd5e1', fontSize: 10.5 }}>
+                <div>
+                  <div style={{ fontWeight: 800, color: '#0f3a4b', marginBottom: 18 }}>Processed By (Bursar):</div>
+                  <div style={{ borderBottom: '1px solid #94a3b8', width: '75%', marginBottom: 3 }} />
+                  <div style={{ color: '#64748b' }}>Accounts Officer Signature</div>
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, color: '#0f3a4b', marginBottom: 18 }}>Approved By (Headmaster):</div>
+                  <div style={{ borderBottom: '1px solid #94a3b8', width: '75%', marginBottom: 3 }} />
+                  <div style={{ color: '#64748b' }}>Institutional Stamp & Seal</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -10503,7 +10533,7 @@ function BalanceSheetForm({ setM }) {
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', background: '#cbd5e1', borderRadius: 8, overflow: 'hidden', border: '1px solid #94a3b8' }}>
       {/* ── HEADER BANNER ── */}
-      <div style={{
+      <div className="no-print" style={{
         background: 'linear-gradient(90deg, #93c5fd 0%, #3b82f6 100%)',
         color: '#0f172a',
         padding: '6px 14px',
@@ -10527,7 +10557,7 @@ function BalanceSheetForm({ setM }) {
       {/* ── MAIN WORKSPACE ── */}
       <div style={{ display: 'flex', minHeight: 560 }}>
         {/* LEFT CONTROL PANEL (Matching photo media_1788935249609.jpg) */}
-        <div style={{ width: 260, background: '#d9e2ec', borderRight: '1px solid #94a3b8', padding: 12, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
+        <div className="no-print" style={{ width: 260, background: '#d9e2ec', borderRight: '1px solid #94a3b8', padding: 12, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
           <div>
             <label style={{ display: 'block', fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>Select Date as at ?</label>
             <input
@@ -10550,7 +10580,7 @@ function BalanceSheetForm({ setM }) {
         {/* RIGHT REPORT CANVAS */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#cbd5e1' }}>
           {/* TOOLBAR */}
-          <div style={{ background: '#e2e8f0', borderBottom: '1px solid #94a3b8', padding: '4px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
+          <div className="no-print" style={{ background: '#e2e8f0', borderBottom: '1px solid #94a3b8', padding: '4px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button type="button" onClick={() => window.print()} title="Print" style={{ padding: '2px 6px', background: '#fff', border: '1px solid #94a3b8', borderRadius: 3, cursor: 'pointer' }}>🖨️</button>
               <button type="button" onClick={() => alert('Exporting PDF...')} title="Save PDF" style={{ padding: '2px 6px', background: '#fff', border: '1px solid #94a3b8', borderRadius: 3, cursor: 'pointer' }}>💾</button>
@@ -10660,15 +10690,15 @@ function MonthlyPayrollReportForm({ setM }) {
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', background: '#cbd5e1', borderRadius: 8, overflow: 'hidden', border: '1px solid #94a3b8' }}>
       {/* ── HEADER BANNER ── */}
-      <div style={{ background: '#0f3a4b', color: '#fff', padding: '6px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="no-print" style={{ background: '#0f3a4b', color: '#fff', padding: '6px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: 14, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.02em' }}>MONTHLY PAYROLL REPORT</span>
         {setM && (
           <button type="button" onClick={() => setM(null)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 10px', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>✕ Close</button>
         )}
       </div>
 
-      {/* TOP CONTROL BAR (Matching media_1788935276151.jpg) */}
-      <div style={{ background: '#d9e2ec', borderBottom: '1px solid #94a3b8', padding: '10px 16px', display: 'flex', gap: 20, alignItems: 'center', fontSize: 11 }}>
+      {/* TOP CONTROL BAR (Matching photo media_1788935276151.jpg) */}
+      <div className="no-print" style={{ background: '#d9e2ec', borderBottom: '1px solid #94a3b8', padding: '10px 16px', display: 'flex', gap: 20, alignItems: 'center', fontSize: 11 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <label style={{ fontWeight: 700 }}>Report Month:</label>
           <select value={reportMonth} onChange={(e) => setReportMonth(e.target.value)} style={{ padding: '3px 8px', fontSize: 11, border: '1px solid #94a3b8', borderRadius: 3, background: '#fff' }}>
@@ -10701,7 +10731,7 @@ function MonthlyPayrollReportForm({ setM }) {
       </div>
 
       {/* REPORT VIEWER TOOLBAR */}
-      <div style={{ background: '#e2e8f0', borderBottom: '1px solid #94a3b8', padding: '4px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
+      <div className="no-print" style={{ background: '#e2e8f0', borderBottom: '1px solid #94a3b8', padding: '4px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button type="button" onClick={() => window.print()} title="Print" style={{ padding: '2px 6px', background: '#fff', border: '1px solid #94a3b8', borderRadius: 3, cursor: 'pointer' }}>🖨️</button>
           <button type="button" onClick={() => alert('Exporting PDF...')} title="Save PDF" style={{ padding: '2px 6px', background: '#fff', border: '1px solid #94a3b8', borderRadius: 3, cursor: 'pointer' }}>💾</button>
@@ -10810,7 +10840,7 @@ function EmployeePayslipForm({ setM }) {
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', background: '#cbd5e1', borderRadius: 8, overflow: 'hidden', border: '1px solid #94a3b8' }}>
       {/* ── HEADER BANNER ── */}
-      <div style={{ background: '#3b82f6', color: '#fff', padding: '6px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="no-print" style={{ background: '#3b82f6', color: '#fff', padding: '6px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: 14, fontWeight: 900 }}>Employee Payslip</span>
         {setM && (
           <button type="button" onClick={() => setM(null)} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 10px', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>✕ Close</button>
@@ -10820,7 +10850,7 @@ function EmployeePayslipForm({ setM }) {
       {/* WORKSPACE WITH SIDEBAR SELECTOR & DOCUMENT CANVAS */}
       <div style={{ display: 'flex', minHeight: 560 }}>
         {/* SIDEBAR STAFF LIST (Matching media_1788935336602.jpg) */}
-        <div style={{ width: 220, background: '#d9e2ec', borderRight: '1px solid #94a3b8', padding: 8, fontSize: 11 }}>
+        <div className="no-print" style={{ width: 220, background: '#d9e2ec', borderRight: '1px solid #94a3b8', padding: 8, fontSize: 11 }}>
           <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>Select Staff Payslip</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {Object.keys(staffPayslipData).map((name) => (
@@ -10830,14 +10860,15 @@ function EmployeePayslipForm({ setM }) {
                 style={{
                   padding: '6px 8px',
                   borderRadius: 4,
-                  background: selectedStaff === name ? '#0284c7' : '#e2e8f0',
-                  color: selectedStaff === name ? '#fff' : '#0f172a',
-                  fontWeight: selectedStaff === name ? 900 : 600,
                   cursor: 'pointer',
-                  fontSize: 10.5
+                  background: selectedStaff === name ? '#0f3a4b' : '#fff',
+                  color: selectedStaff === name ? '#fff' : '#0f172a',
+                  fontWeight: selectedStaff === name ? 800 : 500,
+                  fontSize: 11,
+                  border: '1px solid #cbd5e1'
                 }}
               >
-                📄 {name}
+                {name}
               </div>
             ))}
           </div>
@@ -10846,7 +10877,7 @@ function EmployeePayslipForm({ setM }) {
         {/* RIGHT PAYSLIP DOCUMENT CANVAS */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#cbd5e1' }}>
           {/* TOOLBAR */}
-          <div style={{ background: '#e2e8f0', borderBottom: '1px solid #94a3b8', padding: '4px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
+          <div className="no-print" style={{ background: '#e2e8f0', borderBottom: '1px solid #94a3b8', padding: '4px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button type="button" onClick={() => window.print()} title="Print" style={{ padding: '2px 6px', background: '#fff', border: '1px solid #94a3b8', borderRadius: 3, cursor: 'pointer' }}>🖨️</button>
               <button type="button" onClick={() => alert('Exporting PDF...')} title="Save PDF" style={{ padding: '2px 6px', background: '#fff', border: '1px solid #94a3b8', borderRadius: 3, cursor: 'pointer' }}>💾</button>
@@ -11429,14 +11460,15 @@ function renderSpecificContent(link, m, setM, students) {
   if (link === 'Print Student\'s Progressive Report' || link === 'Print Individual terminal report') {
     return (
       <div>
-        <div style={{ padding: 16, background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
+        <div className="printable-area accountant-printable" style={{ padding: 20, background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
           <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 12 }}>
-            <h3 style={{ fontSize: 18, color: '#0f3a4b', fontWeight: 900, margin: 0, letterSpacing: '0.02em' }}>REMALJ</h3>
+            <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 44, width: 'auto', borderRadius: 4, marginBottom: 4, display: 'inline-block' }} />
+            <h3 style={{ fontSize: 18, color: '#0f3a4b', fontWeight: 900, margin: 0, letterSpacing: '0.02em' }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h3>
             <p style={{ fontSize: 12, color: '#4b5563', margin: '2px 0 6px 0', fontWeight: 700 }}>Carewell Inspirational School · Bogoso</p>
             <p style={{ fontSize: 11, color: '#6b7280', margin: '2px 0' }}>OFFICIAL STUDENT PROGRESSIVE TERMINAL REPORT</p>
             <small style={{ color: '#9ca3af' }}>Term 1 · Academic Year 2026/2027</small>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12, background: '#f8fafc', padding: 10, borderRadius: 6, border: '1px solid #e2e8f0' }}>
             <div><strong>Student Name:</strong> {m.studentName}</div>
             <div><strong>Student ID:</strong> {m.studentId}</div>
             <div><strong>Class / Level:</strong> {m.level}</div>
@@ -11458,12 +11490,12 @@ function renderSpecificContent(link, m, setM, students) {
               <tr><td>Social Studies</td><td>84%</td><td>B+</td><td>Good understanding of civic duties</td></tr>
             </tbody>
           </table>
-          <div style={{ marginTop: 12, borderTop: '1px dashed #ccc', paddingTop: 8, fontSize: 11 }}>
+          <div style={{ marginTop: 16, borderTop: '1px dashed #ccc', paddingTop: 12, fontSize: 11 }}>
             <strong>Class Master Comment:</strong> Exemplary conduct and strong academic commitment throughout the term.<br />
             <strong>Headmaster Endorsement:</strong> Promoted with distinction to the next level. [SIGNED & SEALED]
           </div>
         </div>
-        <div className="sims-modal-actions">
+        <div className="sims-modal-actions no-print">
           <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Close</button>
           <button type="button" className="sims-btn sims-btn-primary" onClick={() => window.print()}>
             <Printer size={14} style={{ display: 'inline', marginRight: 6 }} /> Print Terminal Report
@@ -11476,9 +11508,10 @@ function renderSpecificContent(link, m, setM, students) {
   if (link === 'Print Class Based Progressive Report' || link === 'Print Class terminal report' || link === 'Print Subject Based Assessments' || link === 'Print Consolidated Subject Based Assessments') {
     return (
       <div>
-        <div style={{ padding: 16, background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
+        <div className="printable-area accountant-printable" style={{ padding: 20, background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
           <div style={{ textAlign: 'center', borderBottom: '2px solid #881337', paddingBottom: 10, marginBottom: 12 }}>
-            <h3 style={{ fontSize: 18, color: '#881337', fontWeight: 900, margin: 0, letterSpacing: '0.02em' }}>REMALJ</h3>
+            <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 44, width: 'auto', borderRadius: 4, marginBottom: 4, display: 'inline-block' }} />
+            <h3 style={{ fontSize: 18, color: '#881337', fontWeight: 900, margin: 0, letterSpacing: '0.02em' }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h3>
             <p style={{ fontSize: 12, color: '#4b5563', margin: '2px 0 6px 0', fontWeight: 700 }}>Carewell Inspirational School · Bogoso</p>
             <p style={{ fontSize: 11, color: '#6b7280', margin: '2px 0' }}>CLASS BROADSHEET ASSESSMENT SUMMARY · JHS 2</p>
           </div>
@@ -11501,7 +11534,7 @@ function renderSpecificContent(link, m, setM, students) {
             </tbody>
           </table>
         </div>
-        <div className="sims-modal-actions">
+        <div className="sims-modal-actions no-print">
           <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Close</button>
           <button type="button" className="sims-btn sims-btn-primary" onClick={() => window.print()}>
             <Printer size={14} style={{ display: 'inline', marginRight: 6 }} /> Print Class Broadsheet
@@ -11514,12 +11547,13 @@ function renderSpecificContent(link, m, setM, students) {
   if (link === 'Print Creche\' Based Progressive Report') {
     return (
       <div>
-        <div style={{ padding: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12 }}>
+        <div className="printable-area accountant-printable" style={{ padding: 20, background: '#ffffff', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12 }}>
           <div style={{ textAlign: 'center', borderBottom: '2px solid #dc2626', paddingBottom: 10, marginBottom: 12 }}>
+            <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 44, width: 'auto', borderRadius: 4, marginBottom: 4, display: 'inline-block' }} />
             <h3 style={{ fontSize: 16, color: '#dc2626', fontWeight: 800, margin: 0 }}>CRECHE & EARLY YEARS DEVELOPMENTAL REPORT</h3>
             <small style={{ color: '#991b1b' }}>REMALJ Carewell Early Childhood Center</small>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12, background: '#fff5f5', padding: 10, borderRadius: 6 }}>
             <div><strong>Toddler Name:</strong> Baby Kojo Edwards</div>
             <div><strong>Age:</strong> 2 Years 4 Months</div>
             <div><strong>Nursery Stream:</strong> Creche Gold</div>
@@ -11532,7 +11566,7 @@ function renderSpecificContent(link, m, setM, students) {
             <div><strong>Feeding & Nap Routine:</strong> ⭐⭐⭐⭐ (Independent feeder)</div>
           </div>
         </div>
-        <div className="sims-modal-actions">
+        <div className="sims-modal-actions no-print">
           <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Close</button>
           <button type="button" className="sims-btn sims-btn-primary" onClick={() => window.print()}>
             <Printer size={14} style={{ display: 'inline', marginRight: 6 }} /> Print Creche Report
@@ -11549,8 +11583,9 @@ function renderSpecificContent(link, m, setM, students) {
   if (link === 'Print student ledger') {
     return (
       <div>
-        <div style={{ padding: 16, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
+        <div className="printable-area accountant-printable" style={{ padding: 20, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
           <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 12 }}>
+            <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 44, width: 'auto', borderRadius: 4, marginBottom: 4, display: 'inline-block' }} />
             <h3 style={{ fontSize: 16, color: '#0f3a4b', fontWeight: 800, margin: 0 }}>OFFICIAL STUDENT FINANCIAL LEDGER</h3>
             <p style={{ fontSize: 11, color: '#475569' }}>Student Account Ledger History · {m.studentName} ({m.studentId})</p>
           </div>
@@ -11571,8 +11606,18 @@ function renderSpecificContent(link, m, setM, students) {
               <tr><td>10 Sep 2026</td><td>REC-993410</td><td>Cash Payment at Cashier</td><td>-</td><td>1,600.00</td><td>0.00</td></tr>
             </tbody>
           </table>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 20, paddingTop: 12, borderTop: '1px dashed #cbd5e1', fontSize: 10.5 }}>
+            <div>
+              <div style={{ fontWeight: 800, color: '#0f3a4b', marginBottom: 16 }}>Accounts Officer Signature:</div>
+              <div style={{ borderBottom: '1px solid #94a3b8', width: '70%', marginBottom: 2 }} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, color: '#0f3a4b', marginBottom: 16 }}>Official Audit Seal:</div>
+              <div style={{ borderBottom: '1px solid #94a3b8', width: '70%', marginBottom: 2 }} />
+            </div>
+          </div>
         </div>
-        <div className="sims-modal-actions">
+        <div className="sims-modal-actions no-print">
           <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Close</button>
           <button type="button" className="sims-btn sims-btn-primary" onClick={() => window.print()}>
             <Printer size={14} style={{ display: 'inline', marginRight: 6 }} /> Print Official Ledger

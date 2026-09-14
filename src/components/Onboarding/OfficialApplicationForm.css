@@ -387,19 +387,10 @@
 
 /* PRINT STYLING - Generates exact local 4-page printable PDF */
 @media print {
-  body * {
-    visibility: hidden;
-  }
-  
-  .official-document-printable, .official-document-printable * {
-    visibility: visible;
-  }
-
   .official-document-printable {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
     background: #fff !important;
     color: #000 !important;
   }

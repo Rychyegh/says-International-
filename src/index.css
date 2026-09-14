@@ -180,3 +180,106 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .animate-fade-up { animation: fadeInUp 0.45s ease both; }
 .animate-fade-in { animation: fadeIn   0.35s ease both; }
+
+/* ========================================
+   GLOBAL UNIVERSAL PRINT ENGINE
+   ======================================== */
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide non-printable elements */
+  .no-print,
+  .topbar,
+  .portal__sidebar,
+  .page-header,
+  .sims-header,
+  .sims-modal-header,
+  .sims-modal-close,
+  .sims-modal-actions,
+  .fee-header-actions,
+  .fee-selector-bar,
+  .official-form-toolbar,
+  .official-form-nav,
+  .fee-selector-bar,
+  button:not(.print-keep),
+  input[type="button"],
+  input[type="submit"] {
+    display: none !important;
+  }
+
+  /* Reset fixed positioning & dark background overlay on modals */
+  .sims-modal-overlay,
+  div[style*="position: fixed"],
+  div[style*="position:fixed"] {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .sims-modal-card,
+  .printable-card,
+  div[style*="maxWidth"],
+  div[style*="max-height"] {
+    position: static !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  /* Target printable document areas */
+  .printable-area,
+  .printable-document,
+  .accountant-printable,
+  .official-document-printable,
+  .fee-structure-container,
+  .fee-structure-printable,
+  .sims-printable {
+    visibility: visible !important;
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    padding: 15px !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Clean up tables for print */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  th, td {
+    border-color: #cbd5e1 !important;
+  }
+
+  .page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+}
+
