@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Printer, CheckCircle2, DollarSign, BookOpen, Shirt, ShoppingBag, HeartHandshake, Layers, Plus, Trash2, FileText, Send, X, UserCheck } from 'lucide-react';
+import { Printer, CheckCircle2, DollarSign, BookOpen, Shirt, ShoppingBag, HeartHandshake, Layers, Plus, Trash2, FileText, Send, X, UserCheck, Upload, Camera, User } from 'lucide-react';
 import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
 import { usePortalData } from '../../data/PortalStore';
 import './OfficialSchoolFeeStructure.css';
@@ -218,6 +218,23 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleStudentPhotoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !preparingStudentBill) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const photoDataUrl = reader.result;
+      setPreparingStudentBill((prev) => prev ? { ...prev, photo: photoDataUrl, passportPhoto: photoDataUrl } : null);
+      if (portalData?.updateOnboardedStudent) {
+        portalData.updateOnboardedStudent(preparingStudentBill.id, { photo: photoDataUrl, passportPhoto: photoDataUrl });
+      }
+      setSuccessMsg(`📷 Passport photo uploaded and saved for ${preparingStudentBill.fullName}!`);
+      setTimeout(() => setSuccessMsg(''), 5000);
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -564,23 +581,103 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
             </div>
 
             {/* Printable Official Student Bill Document */}
-            <div style={{ padding: 32, background: '#fff' }}>
+            <div style={{ padding: 32, background: '#fff' }} className="printable-document official-bill-document">
               {/* Document Header */}
-              <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: 20, marginBottom: 24 }}>
-                <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 60, width: 'auto', borderRadius: 6, marginBottom: 8 }} />
-                <div style={{ fontSize: 24, fontWeight: 900, color: '#0f172a', letterSpacing: '0.04em' }}>
-                  REMALJ CAREWELL INSPIRATIONAL SCHOOL
+              <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: 18, marginBottom: 24 }} className="receipt-header-box">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }} className="receipt-header-inline">
+                  <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 60, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
+                  <div style={{ textAlign: 'left' }} className="receipt-school-text">
+                    <div style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', letterSpacing: '0.03em', lineHeight: 1.2 }}>
+                      REMALJ CAREWELL INSPIRATIONAL SCHOOL
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginTop: 3 }}>
+                      P.O. BOX 139, BOGOSO · PRESTEA HUNI-VALLEY MUNICIPALITY · GHANA
+                    </div>
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginTop: 4 }}>
-                  P.O. BOX 139, BOGOSO · PRESTEA HUNI-VALLEY MUNICIPALITY · GHANA
-                </div>
-                <div style={{ display: 'inline-block', background: '#0f172a', color: '#fff', padding: '4px 16px', borderRadius: 20, fontSize: 12, fontWeight: 900, marginTop: 10, letterSpacing: '0.05em' }}>
-                  OFFICIAL STUDENT FEE BILL STATEMENT · TERM 1 (2026)
+                <div style={{ textAlign: 'center', marginTop: 12 }}>
+                  <div style={{ display: 'inline-block', background: '#0f172a', color: '#fff', padding: '4px 18px', borderRadius: 20, fontSize: 12, fontWeight: 900, letterSpacing: '0.05em' }}>
+                    OFFICIAL STUDENT FEE BILL STATEMENT · TERM 1 (2026)
+                  </div>
                 </div>
               </div>
 
-              {/* Student Metadata Card */}
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: 18, marginBottom: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              {/* Student Metadata Card with Passport Photo */}
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 24,
+                display: 'grid',
+                gridTemplateColumns: '95px 1fr 1fr',
+                gap: 16,
+                alignItems: 'center'
+              }}>
+                {/* Photo Upload & Preview Frame */}
+                <div style={{ textAlign: 'center', position: 'relative' }}>
+                  <div style={{
+                    width: 82,
+                    height: 92,
+                    borderRadius: 8,
+                    border: '2px dashed #cbd5e1',
+                    background: '#ffffff',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    position: 'relative',
+                    margin: '0 auto',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+                  }}>
+                    {preparingStudentBill.photo || preparingStudentBill.passportPhoto ? (
+                      <img
+                        src={preparingStudentBill.photo || preparingStudentBill.passportPhoto}
+                        alt={preparingStudentBill.fullName}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <div style={{ color: '#94a3b8', textAlign: 'center', padding: 4 }}>
+                        <Upload size={20} style={{ margin: '0 auto 2px auto', display: 'block', color: '#64748b' }} />
+                        <span style={{ fontSize: 9, fontWeight: 800, color: '#64748b', display: 'block', lineHeight: 1.1 }}>
+                          PASSPORT<br />PHOTO
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Interactive Photo Upload Control */}
+                  <label
+                    htmlFor="student-bill-photo-input"
+                    className="no-print"
+                    style={{
+                      display: 'inline-block',
+                      marginTop: 6,
+                      fontSize: 10,
+                      fontWeight: 800,
+                      color: '#0284c7',
+                      background: '#e0f2fe',
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      border: '1px solid #bae6fd',
+                      transition: 'all 0.2s'
+                    }}
+                    title="Click to upload student photo"
+                  >
+                    📷 {preparingStudentBill.photo || preparingStudentBill.passportPhoto ? 'Change' : 'Upload'}
+                  </label>
+                  <input
+                    type="file"
+                    id="student-bill-photo-input"
+                    accept="image/*"
+                    onChange={handleStudentPhotoUpload}
+                    style={{ display: 'none' }}
+                    className="no-print"
+                  />
+                </div>
+
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Student Name</div>
                   <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a', marginTop: 2 }}>{preparingStudentBill.fullName}</div>

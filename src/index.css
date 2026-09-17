@@ -250,6 +250,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   /* Target printable document areas */
   .printable-area,
   .printable-document,
+  .official-bill-document,
   .accountant-printable,
   .official-document-printable,
   .fee-structure-container,
@@ -265,12 +266,48 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     color: #000000 !important;
     box-shadow: none !important;
     border: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Universal Receipt Header Inline Styling on Print */
+  .receipt-header-box,
+  .receipt-header-inline {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 16px !important;
+    text-align: left !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  .receipt-logo {
+    height: 52px !important;
+    width: auto !important;
+    display: block !important;
+    flex-shrink: 0 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .receipt-school-text {
+    text-align: left !important;
   }
 
   /* Clean up tables for print */
   table {
     width: 100% !important;
     border-collapse: collapse !important;
+    page-break-inside: auto !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   th, td {

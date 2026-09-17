@@ -3447,12 +3447,18 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
                 <div style={{ padding: 32, background: '#fff' }}>
                   <div style={{ border: '2px solid #1e1b4b', borderRadius: 12, padding: 24 }}>
-                    <div style={{ textAlign: 'center', borderBottom: '2px solid #1e1b4b', paddingBottom: 16, marginBottom: 20 }}>
-                      <img src="/remalj-carewell-logo.jpg" alt="REMALJ Logo" style={{ height: 55, borderRadius: 6, marginBottom: 8 }} />
-                      <h2 style={{ fontSize: 18, fontWeight: 900, color: '#1e1b4b', margin: 0 }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h2>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>BOGOSO · PRESTEA HUNI-VALLEY MUNICIPALITY</div>
-                      <div style={{ fontSize: 12, fontWeight: 900, color: '#7c3ac8', textTransform: 'uppercase', marginTop: 8, letterSpacing: '0.05em' }}>
-                        OFFICIAL STUDENT PORTAL LOGIN CREDENTIAL SLIP
+                    <div style={{ borderBottom: '2px solid #1e1b4b', paddingBottom: 16, marginBottom: 20 }} className="receipt-header-box">
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }} className="receipt-header-inline">
+                        <img src="/remalj-carewell-logo.jpg" alt="REMALJ Logo" style={{ height: 52, borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
+                        <div style={{ textAlign: 'left' }} className="receipt-school-text">
+                          <h2 style={{ fontSize: 18, fontWeight: 900, color: '#1e1b4b', margin: 0, lineHeight: 1.2 }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h2>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginTop: 2 }}>BOGOSO · PRESTEA HUNI-VALLEY MUNICIPALITY</div>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'center', marginTop: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 900, color: '#7c3ac8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          OFFICIAL STUDENT PORTAL LOGIN CREDENTIAL SLIP
+                        </div>
                       </div>
                     </div>
 

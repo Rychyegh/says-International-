@@ -94,15 +94,6 @@ const SIMS_DATA = {
       ]
     },
     {
-      category: 'Remarks & Comments',
-      links: [
-        'Class master\'s comments',
-        'Class master\'s comments (CRECHE ONLY)',
-        'Head master\'s comments',
-        'Head master\'s comments (CRECHE ONLY)'
-      ]
-    },
-    {
       category: 'Print Assessments Reports',
       links: [
         'Print Individual terminal report',
@@ -1275,7 +1266,7 @@ function SimsModalRenderer({ modalData, setModalData, onClose, onSubmit, student
 
   return (
     <div className="sims-modal-overlay">
-      <div className="sims-modal-card" style={{ maxWidth: (isPrepareBill || isReceivePayment) ? 1280 : (isPrintOrReport ? 760 : 640), width: (isPrepareBill || isReceivePayment) ? '96vw' : '100%' }}>
+      <div className="sims-modal-card" style={{ maxWidth: (isPrepareBill || isReceivePayment) ? 1280 : 960, width: (isPrepareBill || isReceivePayment) ? '96vw' : '94vw', boxSizing: 'border-box', overflowX: 'hidden' }}>
         <div className="sims-modal-header" style={{ display: 'flex', alignItems: 'center' }}>
           <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 38, width: 'auto', borderRadius: 4, marginRight: 12, border: '1px solid rgba(255,255,255,0.3)' }} />
           <div style={{ flex: 1 }}>
@@ -2314,13 +2305,19 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
                   border: '1px solid #e2e8f0',
                   borderRadius: 6
                 }}>
-                  <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 12, marginBottom: 16 }}>
-                    <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 50, width: 'auto', borderRadius: 6, marginBottom: 6, display: 'inline-block' }} />
-                    <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f3a4b' }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h3>
-                    <p style={{ margin: '4px 0', fontSize: 11.5, color: '#475569', fontWeight: 700 }}>P. O. BOX 139, BOGOSO · PRESTEA HUNI-VALLEY MUNICIPALITY</p>
-                    <span style={{ display: 'inline-block', background: '#0f3a4b', color: '#fff', padding: '4px 14px', borderRadius: 12, fontSize: 11, fontWeight: 800, marginTop: 6 }}>
-                      STUDENT ACADEMIC BILL STATEMENT · {currTerm} ({currYear})
-                    </span>
+                  <div style={{ borderBottom: '2px solid #0f3a4b', paddingBottom: 12, marginBottom: 16 }} className="receipt-header-box">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }} className="receipt-header-inline">
+                      <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 48, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
+                      <div style={{ textAlign: 'left' }} className="receipt-school-text">
+                        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f3a4b', lineHeight: 1.2 }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h3>
+                        <p style={{ margin: '3px 0 0 0', fontSize: 11.5, color: '#475569', fontWeight: 700 }}>P. O. BOX 139, BOGOSO · PRESTEA HUNI-VALLEY MUNICIPALITY</p>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'center', marginTop: 8 }}>
+                      <span style={{ display: 'inline-block', background: '#0f3a4b', color: '#fff', padding: '4px 14px', borderRadius: 12, fontSize: 11, fontWeight: 800 }}>
+                        STUDENT ACADEMIC BILL STATEMENT · {currTerm} ({currYear})
+                      </span>
+                    </div>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12, marginBottom: 16, background: '#f8fafc', padding: 12, borderRadius: 6, border: '1px solid #e2e8f0' }}>
@@ -2542,6 +2539,59 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
   const [payerName, setPayerName] = useState('Mr. Serebour (Guardian)');
   const [payerPhone, setPayerPhone] = useState('024 111 2222');
   const [payNotes, setPayNotes] = useState('Term 1 School Fee Settlement');
+
+  // Institutional Fees, Dues & Levy Breakdown State (with Plus + & Minus - controls)
+  const [institutionDuesItems, setInstitutionDuesItems] = useState([
+    { id: 'due-1', name: 'Tuition Fee / Academic Bill', amount: 1000.00, category: 'Tuition & Academic' },
+    { id: 'due-2', name: 'PTA Dues & Association Levy', amount: 15.00, category: 'Association Levy' },
+    { id: 'due-3', name: 'GNAPS Institutional Dues', amount: 20.00, category: 'National Dues' },
+    { id: 'due-4', name: 'Maintenance & Facility Levy', amount: 30.00, category: 'Facility' },
+    { id: 'due-5', name: 'First Aid & Health Levy', amount: 50.00, category: 'Health & Medical' },
+    { id: 'due-6', name: 'Toiletries & Sanitation Pack', amount: 60.02, category: 'Sanitation' },
+    { id: 'due-7', name: 'Student Identity Card Service', amount: 25.00, category: 'Identity Card' }
+  ]);
+  const [showAddDuesForm, setShowAddDuesForm] = useState(false);
+  const [newDuesName, setNewDuesName] = useState('');
+  const [newDuesAmount, setNewDuesAmount] = useState('');
+  const [newDuesCategory, setNewDuesCategory] = useState('Dues & Levy');
+
+  const handleAddInstitutionDues = (e) => {
+    e?.preventDefault();
+    if (!newDuesName.trim()) {
+      alert('Please enter a name for the institution fee or dues item.');
+      return;
+    }
+    const amt = Number(newDuesAmount) || 0;
+    const newItem = {
+      id: `due-${Date.now()}`,
+      name: newDuesName.trim(),
+      amount: amt,
+      category: newDuesCategory || 'Dues & Levy'
+    };
+    const updated = [...institutionDuesItems, newItem];
+    setInstitutionDuesItems(updated);
+    setNewDuesName('');
+    setNewDuesAmount('');
+    setShowAddDuesForm(false);
+
+    const newTotal = updated.reduce((s, i) => s + Number(i.amount), 0);
+    setPayAmount(newTotal.toFixed(2));
+    setNoticeBanner(`➕ Added "${newItem.name}" (GHS ${amt.toFixed(2)}) to institution fees/dues.`);
+    setTimeout(() => setNoticeBanner(''), 3500);
+  };
+
+  const handleRemoveInstitutionDues = (id) => {
+    const itemToRemove = institutionDuesItems.find(i => i.id === id);
+    const updated = institutionDuesItems.filter(i => i.id !== id);
+    setInstitutionDuesItems(updated);
+
+    const newTotal = updated.reduce((s, i) => s + Number(i.amount), 0);
+    setPayAmount(newTotal.toFixed(2));
+    if (itemToRemove) {
+      setNoticeBanner(`➖ Removed "${itemToRemove.name}" from institution fees/dues.`);
+      setTimeout(() => setNoticeBanner(''), 3500);
+    }
+  };
 
   // Historical Receipts List
   const [receiptsList, setReceiptsList] = useState([
@@ -3093,6 +3143,156 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
             <h4 style={{ margin: '0 0 14px 0', fontSize: 14, fontWeight: 900, color: '#0f3a4b', borderBottom: '2px solid #0f3a4b', paddingBottom: 8, textTransform: 'uppercase' }}>
               Accept Fee Payment & Issue Receipt
             </h4>
+
+            {/* INSTITUTION DUES, FEES & LEVY ALLOCATION BOX */}
+            <div style={{
+              background: '#f8fafc',
+              border: '2px solid #0f3a4b',
+              borderRadius: 8,
+              padding: 14,
+              marginBottom: 16,
+              boxShadow: '0 2px 6px rgba(15, 58, 75, 0.08)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, borderBottom: '2px solid #cbd5e1', paddingBottom: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 15 }}>🏛️</span>
+                  <h5 style={{ margin: 0, fontSize: 13, fontWeight: 900, color: '#0f3a4b', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                    Institutional Dues, Fees & Levy Breakdown
+                  </h5>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#0f3a4b', background: '#e0f2fe', padding: '3px 8px', borderRadius: 10 }}>
+                    {institutionDuesItems.length} Fee Items
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddDuesForm(!showAddDuesForm)}
+                    style={{
+                      background: showAddDuesForm ? '#dc2626' : '#0f3a4b',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '4px 10px',
+                      borderRadius: 5,
+                      fontSize: 11.5,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    {showAddDuesForm ? '✕ Cancel' : '➕ Add Dues / Fee Item'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Add New Fee/Dues Form (Plus Control) */}
+              {showAddDuesForm && (
+                <div style={{ background: '#ffffff', border: '1px dashed #0284c7', borderRadius: 6, padding: 10, marginBottom: 12 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 900, color: '#0369a1', marginBottom: 6 }}>
+                    ➕ Add Custom Institution Fee, Dues or Levy Component
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.1fr 1fr auto', gap: 8, alignItems: 'flex-end' }}>
+                    <div>
+                      <label style={{ fontSize: 10, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 2 }}>Dues / Fee Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. PTA Dues, Bus Levy, Exam Fee"
+                        value={newDuesName}
+                        onChange={(e) => setNewDuesName(e.target.value)}
+                        style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 11.5, fontWeight: 700 }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 10, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 2 }}>Category</label>
+                      <select
+                        value={newDuesCategory}
+                        onChange={(e) => setNewDuesCategory(e.target.value)}
+                        style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 11.5 }}
+                      >
+                        <option value="Tuition & Academic">Tuition & Academic</option>
+                        <option value="Association Levy">Association Levy</option>
+                        <option value="National Dues">National Dues</option>
+                        <option value="Facility">Facility & Maintenance</option>
+                        <option value="Health & Medical">Health & Medical</option>
+                        <option value="Sanitation">Sanitation</option>
+                        <option value="Identity Card">Identity Card</option>
+                        <option value="Dues & Levy">Other Dues & Levy</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 10, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 2 }}>Amount (GHS)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={newDuesAmount}
+                        onChange={(e) => setNewDuesAmount(e.target.value)}
+                        style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 11.5, fontWeight: 800 }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddInstitutionDues}
+                      style={{ padding: '6px 12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 800, fontSize: 11.5, cursor: 'pointer' }}
+                    >
+                      ➕ Confirm
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Table of Institutional Dues with Minus (-) Remove Buttons */}
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, background: '#ffffff', borderRadius: 4, overflow: 'hidden', border: '1px solid #cbd5e1' }}>
+                <thead>
+                  <tr style={{ background: '#0f3a4b', color: '#ffffff', textAlign: 'left' }}>
+                    <th style={{ padding: '6px 10px' }}>Fee / Dues Item Component</th>
+                    <th style={{ padding: '6px 10px' }}>Category</th>
+                    <th style={{ padding: '6px 10px', textAlign: 'right' }}>Amount (GHS)</th>
+                    <th style={{ padding: '6px 10px', textAlign: 'center', width: 85 }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {institutionDuesItems.map((item, idx) => (
+                    <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0', background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                      <td style={{ padding: '6px 10px', fontWeight: 800, color: '#0f172a' }}>{item.name}</td>
+                      <td style={{ padding: '6px 10px', color: '#475569', fontWeight: 600 }}>{item.category}</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 900, color: '#0369a1' }}>
+                        GHS {Number(item.amount).toFixed(2)}
+                      </td>
+                      <td style={{ padding: '6px 10px', textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveInstitutionDues(item.id)}
+                          style={{
+                            padding: '2px 6px',
+                            background: '#fee2e2',
+                            color: '#dc2626',
+                            border: '1px solid #fca5a5',
+                            borderRadius: 4,
+                            fontSize: 10.5,
+                            fontWeight: 800,
+                            cursor: 'pointer'
+                          }}
+                          title={`Remove ${item.name}`}
+                        >
+                          ➖ Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr style={{ background: '#f0fdf4', borderTop: '2px solid #0f3a4b', fontWeight: 900 }}>
+                    <td colSpan={2} style={{ padding: '8px 10px', color: '#166534', fontSize: 12 }}>
+                      TOTAL INSTITUTION DUES & FEES ALLOCATION
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: 14, color: '#15803d' }}>
+                      GHS {institutionDuesItems.reduce((s, i) => s + Number(i.amount), 0).toFixed(2)}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
               <div>
@@ -4867,26 +5067,31 @@ function ReprintCommercialReceiptForm({ setM }) {
             OFFICIAL REPRINT
           </div>
 
-          <div style={{ textAlign: 'center', borderBottom: '3px double #0f3a4b', paddingBottom: 16, marginBottom: 20 }}>
-            <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 55, width: 'auto', borderRadius: 6, marginBottom: 8 }} />
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: '#0f3a4b', letterSpacing: '0.04em' }}>
-              REMALJ CAREWELL INSPIRATIONAL SCHOOL
-            </h2>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginTop: 4 }}>
-              P.O. BOX CR 404, CANTONMENTS, ACCRA · TEL: +233 (0) 302 770 000
+          <div style={{ borderBottom: '3px double #0f3a4b', paddingBottom: 16, marginBottom: 20 }} className="receipt-header-box">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }} className="receipt-header-inline">
+              <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 55, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
+              <div style={{ textAlign: 'left' }} className="receipt-school-text">
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: '#0f3a4b', letterSpacing: '0.03em', lineHeight: 1.2 }}>
+                  REMALJ CAREWELL INSPIRATIONAL SCHOOL
+                </h2>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginTop: 4 }}>
+                  P.O. BOX CR 404, CANTONMENTS, ACCRA · TEL: +233 (0) 302 770 000
+                </div>
+              </div>
             </div>
-            <div style={{
-              display: 'inline-block',
-              background: '#0f3a4b',
-              color: '#ffffff',
-              padding: '4px 16px',
-              borderRadius: 12,
-              fontSize: 12,
-              fontWeight: 900,
-              marginTop: 10,
-              letterSpacing: '0.05em'
-            }}>
-              OFFICIAL COMMERCIAL & OTHER RECEIPT
+            <div style={{ textAlign: 'center', marginTop: 10 }}>
+              <div style={{
+                display: 'inline-block',
+                background: '#0f3a4b',
+                color: '#ffffff',
+                padding: '4px 16px',
+                borderRadius: 12,
+                fontSize: 12,
+                fontWeight: 900,
+                letterSpacing: '0.05em'
+              }}>
+                OFFICIAL COMMERCIAL & OTHER RECEIPT
+              </div>
             </div>
           </div>
 
@@ -5454,25 +5659,30 @@ function PrintIndividualStudentBillForm({ setM, students = [] }) {
                   margin: '0 auto'
                 }}>
                   {/* Header */}
-                  <div style={{ textAlign: 'center', borderBottom: '3px double #0f3a4b', paddingBottom: 14, marginBottom: 16 }}>
-                    <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 55, width: 'auto', borderRadius: 6, marginBottom: 8 }} />
-                    <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: '#0f3a4b', letterSpacing: '0.03em' }}>
-                      REMALJ CAREWELL INSPIRATIONAL SCHOOL
-                    </h2>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginTop: 3 }}>
-                      P.O. BOX CR 404, CANTONMENTS, ACCRA · TEL: +233 (0) 302 770 000
+                  <div style={{ borderBottom: '3px double #0f3a4b', paddingBottom: 14, marginBottom: 16 }} className="receipt-header-box">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }} className="receipt-header-inline">
+                      <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 52, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
+                      <div style={{ textAlign: 'left' }} className="receipt-school-text">
+                        <h2 style={{ margin: 0, fontSize: 19, fontWeight: 900, color: '#0f3a4b', letterSpacing: '0.03em', lineHeight: 1.2 }}>
+                          REMALJ CAREWELL INSPIRATIONAL SCHOOL
+                        </h2>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginTop: 3 }}>
+                          P.O. BOX CR 404, CANTONMENTS, ACCRA · TEL: +233 (0) 302 770 000
+                        </div>
+                      </div>
                     </div>
-                    <div style={{
-                      display: 'inline-block',
-                      background: '#0f3a4b',
-                      color: '#ffffff',
-                      padding: '4px 16px',
-                      borderRadius: 12,
-                      fontSize: 12,
-                      fontWeight: 900,
-                      marginTop: 8
-                    }}>
-                      OFFICIAL STUDENT ACADEMIC BILL INVOICE ({academicYear} - {academicTerm})
+                    <div style={{ textAlign: 'center', marginTop: 8 }}>
+                      <div style={{
+                        display: 'inline-block',
+                        background: '#0f3a4b',
+                        color: '#ffffff',
+                        padding: '4px 16px',
+                        borderRadius: 12,
+                        fontSize: 12,
+                        fontWeight: 900
+                      }}>
+                        OFFICIAL STUDENT ACADEMIC BILL INVOICE ({academicYear} - {academicTerm})
+                      </div>
                     </div>
                   </div>
 
@@ -8007,16 +8217,20 @@ function PrintPVForm({ setM }) {
           }}>
 
             {/* ── SCHOOL LETTERHEAD ── */}
-            <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 12, marginBottom: 16 }}>
-              <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 50, width: 'auto', borderRadius: 6, marginBottom: 6 }} />
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: '#0f3a4b', letterSpacing: '0.04em' }}>
-                REMALJ CAREWELL INSPIRATIONAL SCHOOL
-              </h2>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#0284c7', marginTop: 2 }}>
-                P.O. Box 112, Bogoso - Western Region · Tel: 0241-112222 / 0242-334455
-              </div>
-              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                Official Financial & Payment Disbursement Voucher
+            <div style={{ borderBottom: '2px solid #0f3a4b', paddingBottom: 12, marginBottom: 16 }} className="receipt-header-box">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }} className="receipt-header-inline">
+                <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 50, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
+                <div style={{ textAlign: 'left' }} className="receipt-school-text">
+                  <h2 style={{ margin: 0, fontSize: 19, fontWeight: 900, color: '#0f3a4b', letterSpacing: '0.03em', lineHeight: 1.2 }}>
+                    REMALJ CAREWELL INSPIRATIONAL SCHOOL
+                  </h2>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#0284c7', marginTop: 2 }}>
+                    P.O. Box 112, Bogoso - Western Region · Tel: 0241-112222 / 0242-334455
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                    Official Financial & Payment Disbursement Voucher
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -11371,6 +11585,11 @@ function renderSpecificContent(link, m, setM, students) {
   // Helper to update state field
   const update = (field, val) => setM((prev) => ({ ...prev, [field]: val }));
 
+  // Grade points / Define Grade Point Form (Official SIMS Grade Point Table)
+  if (link === 'Grade points' || link === 'Define Grade Point' || link === 'Define Grade Points') {
+    return <DefineGradePointsForm setM={setM} />;
+  }
+
   // Score Sheet [Entry] Form
   if (link === 'Score Sheet [Entry]' || link === 'Score Sheet') {
     return <ScoreSheetEntryForm setM={setM} students={students} />;
@@ -12108,6 +12327,7 @@ function ScoreSheetEntryForm({ setM, students }) {
   const [subject, setSubject] = useState('Mathematics');
   const [category, setCategory] = useState('Core');
   const [instructor, setInstructor] = useState('Mr. Ebenezer Arthur');
+  const [examDate, setExamDate] = useState('2025-07-16');
 
   const [arrivalTest, setArrivalTest] = useState(0);
   const [test1, setTest1] = useState(15);
@@ -12122,22 +12342,26 @@ function ScoreSheetEntryForm({ setM, students }) {
   const totalScore = test50 + exams50;
 
   const getGrade = (score) => {
-    if (score >= 80) return { grade: 'A1', remarks: 'Excellent' };
-    if (score >= 70) return { grade: 'B2', remarks: 'Very Good' };
-    if (score >= 60) return { grade: 'B3', remarks: 'Good' };
-    if (score >= 50) return { grade: 'C4', remarks: 'Credit' };
-    return { grade: 'D7', remarks: 'Pass' };
+    if (score >= 80) return { grade: '1', remarks: 'Highly Proficient' };
+    if (score >= 75) return { grade: '2', remarks: 'Proficient' };
+    if (score >= 65) return { grade: '3', remarks: 'Approaching Proficiency' };
+    if (score >= 60) return { grade: '4', remarks: 'Developing' };
+    if (score >= 55) return { grade: '5', remarks: 'Emerging' };
+    if (score >= 50) return { grade: '6', remarks: 'Average' };
+    if (score >= 40) return { grade: '7', remarks: 'Pass' };
+    if (score >= 36) return { grade: '8', remarks: 'Weak' };
+    return { grade: '9', remarks: 'Fail' };
   };
   const { grade, remarks } = getGrade(totalScore);
 
   return (
-    <div style={{ background: '#f0f4f8', padding: 16, borderRadius: 6, fontSize: 12 }}>
-      <div style={{ background: '#38bdf8', color: '#0f172a', padding: '6px 12px', borderRadius: '4px 4px 0 0', fontWeight: 900, fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
+    <div style={{ background: '#f0f4f8', padding: 16, borderRadius: 6, fontSize: 12, boxSizing: 'border-box', overflowX: 'hidden', width: '100%' }}>
+      <div style={{ background: '#38bdf8', color: '#0f172a', padding: '8px 14px', borderRadius: '4px 4px 0 0', fontWeight: 900, fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Score Sheet [Entry]</span>
         <span>REMALJ Carewell Inspirational School</span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 16, background: '#fff', border: '1px solid #cbd5e1', padding: 16, borderRadius: '0 0 4px 4px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '210px 1fr', gap: 16, background: '#fff', border: '1px solid #cbd5e1', padding: 16, borderRadius: '0 0 4px 4px', boxSizing: 'border-box' }}>
         <div style={{ borderRight: '1px solid #e2e8f0', paddingRight: 14 }}>
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Class</label>
@@ -12170,33 +12394,46 @@ function ScoreSheetEntryForm({ setM, students }) {
             <input type="text" value={instructor} onChange={(e) => setInstructor(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }} />
           </div>
 
-          <div style={{ width: 120, height: 130, margin: '10px auto', border: '1px solid #94a3b8', background: '#e2e8f0', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#64748b' }} />
+          {/* Student Photo Preview Box */}
+          <div style={{ width: 110, height: 120, margin: '10px auto', border: '1px dashed #94a3b8', background: '#f8fafc', borderRadius: 6, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+            {selectedStudent.photo || selectedStudent.passportPhoto ? (
+              <img src={selectedStudent.photo || selectedStudent.passportPhoto} alt={selectedStudent.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <div style={{ textAlign: 'center', color: '#64748b', fontSize: 10, padding: 4 }}>
+                <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#cbd5e1', margin: '0 auto 4px auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>👤</div>
+                <span>Student Photo</span>
+              </div>
+            )}
           </div>
         </div>
 
         <div>
-          <div style={{ display: 'grid', gridTemplateColumns: '100px 100px 1fr 180px', gap: 8, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '110px 90px 2.2fr 1.3fr', gap: 10, marginBottom: 16, alignItems: 'flex-start' }}>
             <div>
-              <label style={{ fontSize: 10, fontWeight: 700, color: '#475569' }}>Enrollment ID</label>
-              <input type="text" value={selectedStudent.studentId || 'ENR-4212'} readOnly style={{ width: '100%', padding: 4, background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 4, fontWeight: 700 }} />
+              <label style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 2 }}>Enrollment ID</label>
+              <input type="text" value={selectedStudent.studentId || 'ENR-4212'} readOnly style={{ width: '100%', padding: '5px 8px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 4, fontWeight: 700, fontSize: 11.5 }} />
             </div>
             <div>
-              <label style={{ fontSize: 10, fontWeight: 700, color: '#475569' }}>Index N/o.</label>
-              <input type="text" value="IX-104" readOnly style={{ width: '100%', padding: 4, background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 4 }} />
+              <label style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 2 }}>Index N/o.</label>
+              <input type="text" value="IX-104" readOnly style={{ width: '100%', padding: '5px 8px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 11.5 }} />
             </div>
             <div>
-              <label style={{ fontSize: 10, fontWeight: 700, color: '#475569' }}>Student's Name</label>
+              <label style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 2, whiteSpace: 'nowrap' }}>Student's Name</label>
               <select value={selectedStudent.fullName} onChange={(e) => {
                 const s = students.find(x => x.fullName === e.target.value);
                 if (s) setSelectedStudent(s);
-              }} style={{ width: '100%', padding: 4, border: '1px solid #cbd5e1', borderRadius: 4, fontWeight: 700 }}>
-                {students.map(s => <option key={s.id} value={s.fullName}>{s.fullName}</option>)}
+              }} style={{ width: '100%', minWidth: 220, padding: '5px 8px', border: '1px solid #0f3a4b', borderRadius: 4, fontWeight: 800, fontSize: 12, background: '#ffffff', color: '#0f3a4b' }}>
+                {students.map(s => <option key={s.id} value={s.fullName}>{s.fullName} ({s.studentId})</option>)}
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 10, fontWeight: 700, color: '#475569' }}>Date Exams taken</label>
-              <input type="text" defaultValue="Wednesday, July 16, 2025" style={{ width: '100%', padding: 4, border: '1px solid #cbd5e1', borderRadius: 4 }} />
+              <label style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 2, whiteSpace: 'nowrap' }}>Date Exams taken</label>
+              <input
+                type="date"
+                value={examDate}
+                onChange={(e) => setExamDate(e.target.value)}
+                style={{ width: '100%', padding: '4px 6px', border: '1px solid #0f3a4b', borderRadius: 4, fontWeight: 700, fontSize: 12, background: '#ffffff', cursor: 'pointer' }}
+              />
             </div>
           </div>
 
@@ -12942,10 +13179,14 @@ function PrintIndividualTerminalReportForm({ setM, students }) {
         </div>
 
         <div style={{ background: '#fff', padding: 24, border: '1px solid #cbd5e1', borderRadius: 4 }}>
-          <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 12, marginBottom: 16 }}>
-            <img src="/remalj-carewell-logo.jpg" alt="Logo" style={{ height: 55, width: 'auto', borderRadius: 6, marginBottom: 6 }} />
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f3a4b' }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h2>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#0284c7', marginTop: 2 }}>OFFICIAL STUDENT INDIVIDUAL TERMINAL REPORT · {term} ({year})</div>
+          <div style={{ borderBottom: '2px solid #0f3a4b', paddingBottom: 12, marginBottom: 16 }} className="receipt-header-box">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }} className="receipt-header-inline">
+              <img src="/remalj-carewell-logo.jpg" alt="Logo" style={{ height: 52, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
+              <div style={{ textAlign: 'left' }} className="receipt-school-text">
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f3a4b', lineHeight: 1.2 }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h2>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#0284c7', marginTop: 2 }}>OFFICIAL STUDENT INDIVIDUAL TERMINAL REPORT · {term} ({year})</div>
+              </div>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: '#f8fafc', padding: 10, borderRadius: 4, border: '1px solid #e2e8f0', fontSize: 11, marginBottom: 14 }}>
@@ -13488,6 +13729,233 @@ function SimsAuthTerminalView({ onOpenSimsModal }) {
     </div>
   );
 }
+
+function DefineGradePointsForm({ setM }) {
+  const [gradePoints, setGradePoints] = useState([
+    { mark1: '80.00', mark2: '100.00', grade: '1', remarks: 'Highly Proficient' },
+    { mark1: '75.00', mark2: '79.99', grade: '2', remarks: 'Proficient' },
+    { mark1: '65.00', mark2: '74.99', grade: '3', remarks: 'Approaching Proficiency' },
+    { mark1: '60.00', mark2: '64.99', grade: '4', remarks: 'Developing' },
+    { mark1: '55.00', mark2: '59.99', grade: '5', remarks: 'Emerging' },
+    { mark1: '50.00', mark2: '54.99', grade: '6', remarks: 'Average' },
+    { mark1: '40.00', mark2: '49.99', grade: '7', remarks: 'Pass' },
+    { mark1: '36.00', mark2: '39.99', grade: '8', remarks: 'Weak' },
+    { mark1: '0.00',  mark2: '35.99', grade: '9', remarks: 'Fail' }
+  ]);
+
+  const [mark1, setMark1] = useState('');
+  const [mark2, setMark2] = useState('');
+  const [gradePoint, setGradePoint] = useState('');
+  const [remarks, setRemarks] = useState('');
+  const [selectedIdx, setSelectedIdx] = useState(0);
+
+  const handleSelectRow = (index) => {
+    setSelectedIdx(index);
+    const item = gradePoints[index];
+    if (item) {
+      setMark1(item.mark1);
+      setMark2(item.mark2);
+      setGradePoint(item.grade);
+      setRemarks(item.remarks);
+    }
+  };
+
+  const handleDefineNew = (e) => {
+    if (e) e.preventDefault();
+    if (!mark1 || !mark2 || !gradePoint) return;
+    const newItem = {
+      mark1: Number(mark1).toFixed(2),
+      mark2: Number(mark2).toFixed(2),
+      grade: gradePoint.trim(),
+      remarks: remarks.trim()
+    };
+    if (selectedIdx !== null && selectedIdx < gradePoints.length) {
+      const updated = [...gradePoints];
+      updated[selectedIdx] = newItem;
+      setGradePoints(updated);
+    } else {
+      setGradePoints([...gradePoints, newItem]);
+    }
+    setMark1('');
+    setMark2('');
+    setGradePoint('');
+    setRemarks('');
+    setSelectedIdx(null);
+  };
+
+  const handleModify = () => {
+    if (selectedIdx !== null && gradePoints[selectedIdx]) {
+      const item = gradePoints[selectedIdx];
+      setMark1(item.mark1);
+      setMark2(item.mark2);
+      setGradePoint(item.grade);
+      setRemarks(item.remarks);
+    }
+  };
+
+  const handleDelete = () => {
+    if (selectedIdx !== null && gradePoints[selectedIdx]) {
+      const updated = gradePoints.filter((_, idx) => idx !== selectedIdx);
+      setGradePoints(updated);
+      setSelectedIdx(null);
+      setMark1('');
+      setMark2('');
+      setGradePoint('');
+      setRemarks('');
+    }
+  };
+
+  const handleNewWindow = () => {
+    setMark1('');
+    setMark2('');
+    setGradePoint('');
+    setRemarks('');
+    setSelectedIdx(null);
+  };
+
+  return (
+    <div style={{ background: '#0284c7', padding: 4, borderRadius: 6, width: '100%', boxSizing: 'border-box', fontFamily: 'sans-serif' }}>
+      {/* Top Header */}
+      <div style={{ background: '#0284c7', color: '#ffffff', padding: '6px 12px', textAlign: 'center', fontWeight: 900, fontSize: 13, letterSpacing: '0.05em' }}>
+        DEFINE GRADE POINTS
+      </div>
+
+      {/* Top Controls Grid */}
+      <div style={{ background: '#e0f2fe', padding: 14, borderBottom: '1px solid #7dd3fc', display: 'grid', gridTemplateColumns: '120px 1fr 1fr', gap: 10, alignItems: 'center' }}>
+        <div style={{ fontWeight: 700, fontSize: 12, color: '#0369a1' }}>Mark 1</div>
+        <div style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <input
+            type="number"
+            step="0.01"
+            value={mark1}
+            onChange={(e) => setMark1(e.target.value)}
+            style={{ padding: '6px 8px', border: '1px solid #93c5fd', borderRadius: 4, background: '#fff', fontSize: 13 }}
+            placeholder="80.00"
+          />
+          <input
+            type="number"
+            step="0.01"
+            value={mark2}
+            onChange={(e) => setMark2(e.target.value)}
+            style={{ padding: '6px 8px', border: '1px solid #93c5fd', borderRadius: 4, background: '#fff', fontSize: 13 }}
+            placeholder="100.00"
+          />
+        </div>
+
+        <div style={{ fontWeight: 700, fontSize: 12, color: '#0369a1' }}>Mark 2</div>
+        <div style={{ gridColumn: 'span 2' }}>
+          <input
+            type="text"
+            readOnly
+            value={mark2}
+            style={{ width: '100%', padding: '6px 8px', border: '1px solid #93c5fd', borderRadius: 4, background: '#f0f9ff', fontSize: 13 }}
+          />
+        </div>
+
+        <div style={{ fontWeight: 700, fontSize: 12, color: '#0369a1' }}>Grade Point</div>
+        <div style={{ gridColumn: 'span 2' }}>
+          <input
+            type="text"
+            value={gradePoint}
+            onChange={(e) => setGradePoint(e.target.value)}
+            style={{ width: '100%', padding: '6px 8px', border: '1px solid #93c5fd', borderRadius: 4, background: '#fff', fontSize: 13 }}
+            placeholder="1"
+          />
+        </div>
+
+        <div style={{ fontWeight: 700, fontSize: 12, color: '#0369a1' }}>Remarks</div>
+        <div style={{ gridColumn: 'span 2' }}>
+          <input
+            type="text"
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            style={{ width: '100%', padding: '6px 8px', border: '1px solid #93c5fd', borderRadius: 4, background: '#fff', fontSize: 13 }}
+            placeholder="Highly Proficient"
+          />
+        </div>
+
+        <div style={{ gridColumn: 'span 3', textAlign: 'center', marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={handleDefineNew}
+            style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '6px 24px', borderRadius: 4, cursor: 'pointer', fontWeight: 700, fontSize: 12, color: '#0f172a', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}
+          >
+            Define new
+          </button>
+        </div>
+      </div>
+
+      {/* Table Section */}
+      <div style={{ background: '#ffffff', maxHeight: 260, overflowY: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
+              <th style={{ padding: '6px 12px', textAlign: 'left', fontWeight: 700, borderRight: '1px solid #e2e8f0', color: '#1e293b' }}>Mark 1</th>
+              <th style={{ padding: '6px 12px', textAlign: 'left', fontWeight: 700, borderRight: '1px solid #e2e8f0', color: '#1e293b' }}>Mark 2</th>
+              <th style={{ padding: '6px 12px', textAlign: 'left', fontWeight: 700, borderRight: '1px solid #e2e8f0', color: '#1e293b' }}>Grade</th>
+              <th style={{ padding: '6px 12px', textAlign: 'left', fontWeight: 700, color: '#1e293b' }}>Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {gradePoints.map((row, idx) => {
+              const isSelected = selectedIdx === idx;
+              return (
+                <tr
+                  key={idx}
+                  onClick={() => handleSelectRow(idx)}
+                  style={{
+                    background: isSelected ? '#1e293b' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc'),
+                    color: isSelected ? '#ffffff' : '#0f172a',
+                    cursor: 'pointer',
+                    borderBottom: '1px solid #e2e8f0'
+                  }}
+                >
+                  <td style={{ padding: '6px 12px', borderRight: '1px solid #e2e8f0', fontWeight: 600 }}>{row.mark1}</td>
+                  <td style={{ padding: '6px 12px', borderRight: '1px solid #e2e8f0', fontWeight: 600 }}>{row.mark2}</td>
+                  <td style={{ padding: '6px 12px', borderRight: '1px solid #e2e8f0', fontWeight: 700 }}>{row.grade}</td>
+                  <td style={{ padding: '6px 12px', fontWeight: 600 }}>{row.remarks}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Bottom Button Bar */}
+      <div style={{ background: '#e2e8f0', padding: 8, display: 'flex', gap: 10, justifyContent: 'space-between', borderTop: '1px solid #cbd5e1' }}>
+        <button
+          type="button"
+          onClick={handleNewWindow}
+          style={{ padding: '6px 16px', background: '#f8fafc', border: '1px solid #94a3b8', borderRadius: 4, cursor: 'pointer', fontWeight: 700, fontSize: 12, color: '#334155' }}
+        >
+          New Window
+        </button>
+        <button
+          type="button"
+          onClick={handleModify}
+          style={{ padding: '6px 16px', background: '#f8fafc', border: '1px solid #94a3b8', borderRadius: 4, cursor: 'pointer', fontWeight: 700, fontSize: 12, color: '#334155' }}
+        >
+          Modify
+        </button>
+        <button
+          type="button"
+          onClick={handleDelete}
+          style={{ padding: '6px 16px', background: '#f8fafc', border: '1px solid #94a3b8', borderRadius: 4, cursor: 'pointer', fontWeight: 700, fontSize: 12, color: '#991b1b' }}
+        >
+          Delete
+        </button>
+        <button
+          type="button"
+          onClick={() => setM && setM(null)}
+          style={{ padding: '6px 20px', background: '#f8fafc', border: '1px solid #94a3b8', borderRadius: 4, cursor: 'pointer', fontWeight: 700, fontSize: 12, color: '#0f172a' }}
+        >
+          Exit
+        </button>
+      </div>
+    </div>
+  );
+}
+
 
 
 

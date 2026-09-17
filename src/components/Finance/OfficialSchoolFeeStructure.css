@@ -263,7 +263,56 @@
     background: #ffffff !important;
     color: #000000 !important;
   }
+
   .no-print {
     display: none !important;
+  }
+
+  /* When printing the individual student bill modal, hide background main schedule elements */
+  .fee-structure-container:has(.official-bill-document) > .fee-header-card,
+  .fee-structure-container:has(.official-bill-document) > .fee-selector-bar,
+  .fee-structure-container:has(.official-bill-document) > .fee-grid {
+    display: none !important;
+  }
+
+  /* Force header layout to keep logo inline with school name on print */
+  .receipt-header-box {
+    border-bottom: 2px solid #0f172a !important;
+    padding-bottom: 16px !important;
+    margin-bottom: 20px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .receipt-header-inline {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 16px !important;
+    text-align: left !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .receipt-logo {
+    height: 55px !important;
+    width: auto !important;
+    display: block !important;
+    flex-shrink: 0 !important;
+  }
+
+  .receipt-school-text {
+    text-align: left !important;
+  }
+
+  .official-bill-document {
+    padding: 16px !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }
