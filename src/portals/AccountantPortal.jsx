@@ -359,7 +359,7 @@ export default function AccountantPortal({ onSignOut }) {
     const { link, studentName, amount, cardId } = activeSimsModal;
 
     if (link.includes('Payment') || link.includes('Pay') || link.includes('Receive')) {
-      const fee = studentFees[0];
+      const fee = (studentFees || []).find((f) => studentName && f.studentName?.toLowerCase() === studentName.toLowerCase()) || studentFees[0];
       if (fee) {
         recordFeePayment({
           id: fee.id,
@@ -12100,6 +12100,113 @@ function renderSpecificContent(link, m, setM, students) {
     );
   }
 
+  // PROGRESSIVE REPORTS & EXAMINATIONS REGISTRATION FORMS
+  if (link === 'Register New Examination Candidate') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Target Student / Candidate</label>
+          <select value={m.studentName} onChange={(e) => update('studentName', e.target.value)}>
+            {students.map((s) => <option key={s.id} value={s.fullName}>{s.fullName} ({s.studentId} - {s.level})</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Candidate Index Number</label>
+            <input type="text" value={m.candidateIndex || '0204891002'} onChange={(e) => update('candidateIndex', e.target.value)} required />
+          </div>
+          <div className="sims-form-group">
+            <label>Examination Series / Term</label>
+            <select value={m.examSeries || 'BECE Internal Mock / Terminal'} onChange={(e) => update('examSeries', e.target.value)}>
+              <option>BECE Internal Mock / Terminal</option>
+              <option>WAEC BECE Official Examination</option>
+              <option>End of Term Assessment</option>
+            </select>
+          </div>
+        </div>
+        <div className="sims-form-group">
+          <label>Registration Status & Remarks</label>
+          <textarea rows="3" placeholder="Enter registration details or instructions..." value={m.notes} onChange={(e) => update('notes', e.target.value)} />
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Register Candidate</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Register Student for a Specific Subject Examination') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Target Student / Candidate</label>
+          <select value={m.studentName} onChange={(e) => update('studentName', e.target.value)}>
+            {students.map((s) => <option key={s.id} value={s.fullName}>{s.fullName} ({s.studentId} - {s.level})</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Subject Examination Name</label>
+            <select value={m.subjectName || 'Pure Mathematics'} onChange={(e) => update('subjectName', e.target.value)}>
+              <option>Pure Mathematics</option>
+              <option>English Language</option>
+              <option>Integrated Science</option>
+              <option>Social Studies</option>
+              <option>ICT / Computing</option>
+              <option>RME</option>
+              <option>Ghanaian Language (Fante/Twi)</option>
+              <option>French</option>
+              <option>Basic Design & Technology (BDT)</option>
+            </select>
+          </div>
+          <div className="sims-form-group">
+            <label>Paper Code / Level</label>
+            <input type="text" value={m.paperCode || 'PAPER 1 & 2'} onChange={(e) => update('paperCode', e.target.value)} />
+          </div>
+        </div>
+        <div className="sims-form-group">
+          <label>Remarks / Instructions</label>
+          <textarea rows="3" placeholder="Specify subject exam instructions..." value={m.notes} onChange={(e) => update('notes', e.target.value)} />
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Register Subject Exam</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Cancel Exams Registration') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Select Registered Candidate to Cancel</label>
+          <select value={m.studentName} onChange={(e) => update('studentName', e.target.value)}>
+            {students.map((s) => <option key={s.id} value={s.fullName}>{s.fullName} ({s.studentId})</option>)}
+          </select>
+        </div>
+        <div className="sims-form-group">
+          <label>Reason for Exams Cancellation</label>
+          <select value={m.cancelReason || 'Absenteeism'} onChange={(e) => update('cancelReason', e.target.value)}>
+            <option>Absenteeism</option>
+            <option>Medical Exemption</option>
+            <option>Administrative Withdrawal</option>
+            <option>Duplicate Entry</option>
+          </select>
+        </div>
+        <div className="sims-form-group">
+          <label>Official Remarks / Cancellation Notes</label>
+          <textarea rows="3" placeholder="Reason details..." value={m.notes} onChange={(e) => update('notes', e.target.value)} />
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary" style={{ background: '#dc2626' }}>Cancel Registration</button>
+        </div>
+      </div>
+    );
+  }
+
   // 3. CARD SERVICES FORMS
   if (link.includes('Spending Card') || link.includes('Pickup Card') || link.includes('Re-Encrypt')) {
     return (
@@ -12251,49 +12358,710 @@ function renderSpecificContent(link, m, setM, students) {
     );
   }
 
-  if (link.includes('Charts of Accounts') || link.includes('Define Assets') || link.includes('Liabilities') || link.includes('Profits Loss')) {
+  // ── SYSTEM ADMINISTRATOR: CHARTS OF ACCOUNTS ──
+  if (link === 'Define Assets Charts of Accounts') {
     return (
       <div>
-        <div className="sims-form-group">
-          <label>Account Ledger Code</label>
-          <input type="text" value={m.accountCode} onChange={(e) => update('accountCode', e.target.value)} required />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Asset Account Code</label>
+            <input type="text" placeholder="1010-AST" value={m.accountCode || '1010-AST'} onChange={(e) => update('accountCode', e.target.value)} required />
+          </div>
+          <div className="sims-form-group">
+            <label>Asset Category / Class</label>
+            <select value={m.assetCategory || 'Current Assets'} onChange={(e) => update('assetCategory', e.target.value)}>
+              <option>Current Assets - Cash & Bank</option>
+              <option>Fixed Assets - Property & Equipment</option>
+              <option>Intangible Assets - Software & Patents</option>
+              <option>Investments & Term Deposits</option>
+            </select>
+          </div>
         </div>
         <div className="sims-form-group">
-          <label>Account Name / Title</label>
-          <input type="text" value={m.accountName} onChange={(e) => update('accountName', e.target.value)} required />
+          <label>Asset Account Name / Title</label>
+          <input type="text" placeholder="e.g. Barclays Bank Main Operational Fund" value={m.accountName || 'Barclays Main Operational Account'} onChange={(e) => update('accountName', e.target.value)} required />
         </div>
         <div className="sims-form-group">
-          <label>Account Description & Classification</label>
-          <textarea rows="2" placeholder="Primary operating bank account for fee deposits." value={m.notes} onChange={(e) => update('notes', e.target.value)} />
+          <label>Account Description & Classification Notes</label>
+          <textarea rows="2" placeholder="Describe asset account purpose..." value={m.notes} onChange={(e) => update('notes', e.target.value)} />
         </div>
         <div className="sims-modal-actions">
           <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
-          <button type="submit" className="sims-btn sims-btn-primary">Save Account Code</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save Asset Account</button>
         </div>
       </div>
     );
   }
 
-  if (link.includes('Tax') || link.includes('SSNIT') || link.includes('Header') || link.includes('Close Month') || link.includes('Close Year')) {
+  if (link === 'Setup Liabilities Share Holder\'s Charts of Accounts') {
     return (
       <div>
-        <div className="sims-form-group">
-          <label>Setting / Rate Value</label>
-          <input type="text" value={m.settingVal} onChange={(e) => update('settingVal', e.target.value)} required />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Liability / Equity Code</label>
+            <input type="text" placeholder="2010-LIA" value={m.accountCode || '2010-LIA'} onChange={(e) => update('accountCode', e.target.value)} required />
+          </div>
+          <div className="sims-form-group">
+            <label>Account Classification</label>
+            <select value={m.liabilityCategory || 'Current Liabilities'} onChange={(e) => update('liabilityCategory', e.target.value)}>
+              <option>Current Liabilities - Accounts Payable</option>
+              <option>Long-Term Debt / Bank Loans</option>
+              <option>Shareholder Capital / Equity</option>
+              <option>Retained Earnings Reserve</option>
+            </select>
+          </div>
         </div>
         <div className="sims-form-group">
-          <label>Authorized Admin Seal / Security Signature</label>
-          <input type="text" placeholder="AUTH-991827" value={m.authKey || ''} onChange={(e) => update('authKey', e.target.value)} />
+          <label>Account Title / Name</label>
+          <input type="text" placeholder="e.g. Accounts Payable Supplier Fund" value={m.accountName || 'Accounts Payable & Trade Creditors'} onChange={(e) => update('accountName', e.target.value)} required />
+        </div>
+        <div className="sims-form-group">
+          <label>Accounting Notes & Terms</label>
+          <textarea rows="2" placeholder="Specify liability parameters..." value={m.notes} onChange={(e) => update('notes', e.target.value)} />
         </div>
         <div className="sims-modal-actions">
           <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
-          <button type="submit" className="sims-btn sims-btn-primary">Apply & Save Setting</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save Liability Account</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Create Profits Loss Charts of Accounts') {
+    return (
+      <div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>P&L Ledger Code</label>
+            <input type="text" placeholder="4010-REV" value={m.accountCode || '4010-REV'} onChange={(e) => update('accountCode', e.target.value)} required />
+          </div>
+          <div className="sims-form-group">
+            <label>P&L Classification</label>
+            <select value={m.plType || 'Operating Revenue'} onChange={(e) => update('plType', e.target.value)}>
+              <option>Operating Revenue (Tuition & Fees)</option>
+              <option>Direct Operating Expenses</option>
+              <option>Administrative & Overhead Expense</option>
+              <option>Other Income / Investment Yield</option>
+            </select>
+          </div>
+        </div>
+        <div className="sims-form-group">
+          <label>Account Title</label>
+          <input type="text" placeholder="e.g. Academic Tuition Income Ledger" value={m.accountName || 'Academic Tuition Income Ledger'} onChange={(e) => update('accountName', e.target.value)} required />
+        </div>
+        <div className="sims-form-group">
+          <label>P&L Description & Notes</label>
+          <textarea rows="2" placeholder="Specify revenue/expense details..." value={m.notes} onChange={(e) => update('notes', e.target.value)} />
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save P&L Ledger</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── SYSTEM ADMINISTRATOR: BILLINGS & OTHERS ──
+  if (link === 'Define Bill Items') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Bill Item Title / Description</label>
+          <input type="text" placeholder="e.g. ICT Lab & Computer Fee" value={m.billItemName || ''} onChange={(e) => update('billItemName', e.target.value)} required />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Default Fee Amount (GHS)</label>
+            <input type="number" placeholder="500" value={m.amount || ''} onChange={(e) => update('amount', e.target.value)} required />
+          </div>
+          <div className="sims-form-group">
+            <label>Billing Frequency</label>
+            <select value={m.billFrequency || 'Per Term'} onChange={(e) => update('billFrequency', e.target.value)}>
+              <option>Per Term</option>
+              <option>Per Academic Year</option>
+              <option>One-Time Admission Fee</option>
+            </select>
+          </div>
+        </div>
+        <div className="sims-form-group">
+          <label>Applicable School Section</label>
+          <select value={m.applicableSection || 'All Classes'} onChange={(e) => update('applicableSection', e.target.value)}>
+            <option>All Classes</option>
+            <option>Creche & Early Childhood</option>
+            <option>Primary Department (1-6)</option>
+            <option>Junior High School (JHS 1-3)</option>
+          </select>
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save Bill Item</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Adjust Bills on Year Group Accounts') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Target Year Group / Class</label>
+          <select value={m.targetYearGroup || 'JHS 1 (2026 Batch)'} onChange={(e) => update('targetYearGroup', e.target.value)}>
+            <option>Creche & Nursery</option>
+            <option>Primary 1 - 6</option>
+            <option>JHS 1 (2026 Batch)</option>
+            <option>JHS 2 Batch</option>
+            <option>JHS 3 BECE Candidate Batch</option>
+          </select>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Adjustment Type</label>
+            <select value={m.adjType || 'Bulk Discount / Scholarship'} onChange={(e) => update('adjType', e.target.value)}>
+              <option>Bulk Discount / Scholarship</option>
+              <option>Add Special Infrastructure Levy</option>
+              <option>Waiver Fee Credit</option>
+            </select>
+          </div>
+          <div className="sims-form-group">
+            <label>Adjustment Value (GHS)</label>
+            <input type="number" placeholder="200" value={m.amount || ''} onChange={(e) => update('amount', e.target.value)} required />
+          </div>
+        </div>
+        <div className="sims-form-group">
+          <label>Authorization Reference & Reason</label>
+          <textarea rows="2" placeholder="e.g. Board Resolution #2026-04" value={m.notes} onChange={(e) => update('notes', e.target.value)} />
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Apply Year Group Adjustment</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Cancel Student Bill') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Target Student Account</label>
+          <select value={m.studentName} onChange={(e) => update('studentName', e.target.value)}>
+            {students.map((s) => <option key={s.id} value={s.fullName}>{s.fullName} ({s.studentId} - {s.level})</option>)}
+          </select>
+        </div>
+        <div className="sims-form-group">
+          <label>Bill Invoice Reference to Cancel</label>
+          <input type="text" placeholder="INV-2026-0881" value={m.invoiceNo || 'INV-2026-0881'} onChange={(e) => update('invoiceNo', e.target.value)} required />
+        </div>
+        <div className="sims-form-group">
+          <label>Reason for Bill Cancellation</label>
+          <select value={m.cancelReason || 'Duplicate Invoice'} onChange={(e) => update('cancelReason', e.target.value)}>
+            <option>Duplicate Invoice Issued</option>
+            <option>Student Transferred / Withdrawn</option>
+            <option>Incorrect Fee Applied</option>
+            <option>Full Executive Waiver Granted</option>
+          </select>
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary" style={{ background: '#dc2626' }}>Cancel Bill Record</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Configure Merchants') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Payment Merchant / Gateway Provider</label>
+          <select value={m.merchantProvider || 'MTN Mobile Money API'} onChange={(e) => update('merchantProvider', e.target.value)}>
+            <option>MTN Mobile Money API</option>
+            <option>Telecel Cash API</option>
+            <option>Hubtel Unified Payment Gateway</option>
+            <option>GCB Bank Direct Merchant API</option>
+          </select>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Merchant API Key / ID</label>
+            <input type="text" value={m.merchantId || 'MCH-REMALJ-8819'} onChange={(e) => update('merchantId', e.target.value)} required />
+          </div>
+          <div className="sims-form-group">
+            <label>Merchant Account Status</label>
+            <select value={m.merchantStatus || 'Active (Live)'} onChange={(e) => update('merchantStatus', e.target.value)}>
+              <option>Active (Live)</option>
+              <option>Sandbox / Testing</option>
+              <option>Disabled</option>
+            </select>
+          </div>
+        </div>
+        <div className="sims-form-group">
+          <label>Settlement Bank Account Details</label>
+          <input type="text" placeholder="GCB Bank Bogoso Branch · 1029384756" value={m.settlementBank || 'GCB Bank Bogoso · 1029384756'} onChange={(e) => update('settlementBank', e.target.value)} />
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save Merchant Config</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Manage Clients & Service Providers') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Vendor / Service Provider Name</label>
+          <input type="text" placeholder="e.g. Ghana Water Company Ltd" value={m.vendorName || 'Ghana Water Company Ltd'} onChange={(e) => update('vendorName', e.target.value)} required />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Service Category</label>
+            <select value={m.vendorCategory || 'Utilities'} onChange={(e) => update('vendorCategory', e.target.value)}>
+              <option>Utilities & Power</option>
+              <option>Food & Catering</option>
+              <option>Printing & Publishing</option>
+              <option>Security & Transport</option>
+              <option>IT & Telecoms</option>
+            </select>
+          </div>
+          <div className="sims-form-group">
+            <label>Contact Phone / Email</label>
+            <input type="text" placeholder="0244123456" value={m.vendorContact || '0244123456'} onChange={(e) => update('vendorContact', e.target.value)} />
+          </div>
+        </div>
+        <div className="sims-form-group">
+          <label>Payment Terms & Contract Notes</label>
+          <textarea rows="2" placeholder="Specify vendor payment terms..." value={m.notes} onChange={(e) => update('notes', e.target.value)} />
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save Provider Record</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── SYSTEM ADMINISTRATOR: HR PAYROLL SETTINGS ──
+  if (link === 'Income Tax rate') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>GRA Income Tax (PAYE) Band Title</label>
+          <input type="text" value={m.taxBand || 'GRA PAYE Tier 1 (First GHS 490 @ 0%)'} onChange={(e) => update('taxBand', e.target.value)} required />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Applicable Tax Rate (%)</label>
+            <input type="text" value={m.taxRate || '17.5%'} onChange={(e) => update('taxRate', e.target.value)} required />
+          </div>
+          <div className="sims-form-group">
+            <label>Effective Tax Year</label>
+            <input type="text" value={m.taxYear || '2026 Fiscal Year'} onChange={(e) => update('taxYear', e.target.value)} />
+          </div>
+        </div>
+        <div className="sims-form-group">
+          <label>Statutory Gazette Reference & Notes</label>
+          <textarea rows="2" placeholder="e.g. GRA-PAYE-2026-GAZETTE" value={m.notes} onChange={(e) => update('notes', e.target.value)} />
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save Income Tax Setting</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'SSNIT Settings') {
+    return (
+      <div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Employer SSNIT Contribution (%)</label>
+            <input type="text" value={m.ssnitEmployer || '13.0%'} onChange={(e) => update('ssnitEmployer', e.target.value)} required />
+          </div>
+          <div className="sims-form-group">
+            <label>Employee SSNIT Contribution (%)</label>
+            <input type="text" value={m.ssnitEmployee || '5.5%'} onChange={(e) => update('ssnitEmployee', e.target.value)} required />
+          </div>
+        </div>
+        <div className="sims-form-group">
+          <label>SSNIT Employer Registration Number</label>
+          <input type="text" value={m.ssnitRegNo || 'SSNIT-EMP-991827'} onChange={(e) => update('ssnitRegNo', e.target.value)} required />
+        </div>
+        <div className="sims-form-group">
+          <label>Tier-2 Pension Fund Trustee</label>
+          <input type="text" value={m.tier2Scheme || 'Enterprise Tier 2 Master Trust Scheme'} onChange={(e) => update('tier2Scheme', e.target.value)} />
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save SSNIT Configuration</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Organisation\'s header') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Official Institution Name</label>
+          <input type="text" value={m.orgName || 'REMALJ CAREWELL INSPIRATIONAL SCHOOL'} onChange={(e) => update('orgName', e.target.value)} required />
+        </div>
+        <div className="sims-form-group">
+          <label>School Tagline / Sub-Header</label>
+          <input type="text" value={m.orgTagline || 'Carewell Inspirational School · Bogoso'} onChange={(e) => update('orgTagline', e.target.value)} />
+        </div>
+        <div className="sims-form-group">
+          <label>Official Address & Contact Information</label>
+          <textarea rows="2" value={m.orgAddress || 'P.O. Box 142, Bogoso, Western Region · Tel: +233 24 123 4567'} onChange={(e) => update('orgAddress', e.target.value)} />
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Update Letterhead Header</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Close Month') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Select Financial & Payroll Month to Close</label>
+          <select value={m.closeMonthVal || 'September 2026'} onChange={(e) => update('closeMonthVal', e.target.value)}>
+            <option>September 2026</option>
+            <option>August 2026</option>
+            <option>July 2026</option>
+          </select>
+        </div>
+        <div className="sims-form-group">
+          <label>Audit & Ledger Verification Status</label>
+          <div style={{ padding: 10, background: '#e0f2fe', borderRadius: 6, color: '#0369a1', fontSize: 12, fontWeight: 700 }}>
+            ℹ All bank deposits, fee postings, and payroll disbursements reconciled.
+          </div>
+        </div>
+        <div className="sims-form-group">
+          <label>Authorized Security Signature Key</label>
+          <input type="text" placeholder="AUTH-CLOSE-MONTH-2026" value={m.authKey || 'AUTH-CLOSE-MONTH-2026'} onChange={(e) => update('authKey', e.target.value)} required />
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary" style={{ background: '#d97706' }}>Close Financial Month</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Close Year') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Select Academic & Fiscal Year to Finalize</label>
+          <select value={m.closeYearVal || '2025/2026 Academic Year'} onChange={(e) => update('closeYearVal', e.target.value)}>
+            <option>2025/2026 Academic Year</option>
+            <option>2024/2025 Academic Year</option>
+          </select>
+        </div>
+        <div className="sims-form-group">
+          <label>Carry-Forward Arrears & Balances</label>
+          <select value={m.carryForward || 'Transfer Student Arrears to New Year'} onChange={(e) => update('carryForward', e.target.value)}>
+            <option>Transfer Student Arrears to New Year</option>
+            <option>Freeze Past Year Ledgers</option>
+          </select>
+        </div>
+        <div className="sims-form-group">
+          <label>CFO Executive Security Authorization Seal</label>
+          <input type="text" placeholder="CFO-SEAL-YEAR-2026" value={m.authKey || 'CFO-SEAL-YEAR-2026'} onChange={(e) => update('authKey', e.target.value)} required />
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary" style={{ background: '#dc2626' }}>Close Academic Year</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── SYSTEM ADMINISTRATOR: ACADEMIC SETTINGS ──
+  if (link === 'Departments & Sub Units') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Department / Faculty Name</label>
+          <input type="text" value={m.deptName || 'Department of Science & Mathematics'} onChange={(e) => update('deptName', e.target.value)} required />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Department Code</label>
+            <input type="text" value={m.deptCode || 'DEPT-SCI-MATH'} onChange={(e) => update('deptCode', e.target.value)} required />
+          </div>
+          <div className="sims-form-group">
+            <label>Head of Department (HOD)</label>
+            <select value={m.hodName || 'Mr. Ebenezer Arthur'} onChange={(e) => update('hodName', e.target.value)}>
+              <option>Mr. Ebenezer Arthur</option>
+              <option>Mrs. Sarah Mensah</option>
+              <option>Dr. K. Appiah</option>
+            </select>
+          </div>
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save Department</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Academic year settings') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Academic Year Session Title</label>
+          <input type="text" value={m.yearTitle || '2026 / 2027 Academic Session'} onChange={(e) => update('yearTitle', e.target.value)} required />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Session Start Date</label>
+            <input type="date" value={m.startDate || '2026-09-01'} onChange={(e) => update('startDate', e.target.value)} required />
+          </div>
+          <div className="sims-form-group">
+            <label>Session End Date</label>
+            <input type="date" value={m.endDate || '2027-07-31'} onChange={(e) => update('endDate', e.target.value)} required />
+          </div>
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save Academic Year</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Semester/term settings') {
+    return (
+      <div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Select Term / Semester</label>
+            <select value={m.termName || 'Term 1'} onChange={(e) => update('termName', e.target.value)}>
+              <option>Term 1</option>
+              <option>Term 2</option>
+              <option>Term 3</option>
+            </select>
+          </div>
+          <div className="sims-form-group">
+            <label>Teaching Duration (Weeks)</label>
+            <input type="number" value={m.termWeeks || '14'} onChange={(e) => update('termWeeks', e.target.value)} />
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Resumption / Opening Date</label>
+            <input type="date" value={m.openDate || '2026-09-15'} onChange={(e) => update('openDate', e.target.value)} />
+          </div>
+          <div className="sims-form-group">
+            <label>Vacation / Closing Date</label>
+            <input type="date" value={m.closeDate || '2026-12-18'} onChange={(e) => update('closeDate', e.target.value)} />
+          </div>
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save Term Calendar</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Class settings' || link === 'Sub class settings') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Class Level / Stream Title</label>
+          <input type="text" value={m.className || 'Basic 7 / JHS 1 Gold'} onChange={(e) => update('className', e.target.value)} required />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Academic Stage</label>
+            <select value={m.acadStage || 'Junior High School'} onChange={(e) => update('acadStage', e.target.value)}>
+              <option>Creche & Early Childhood</option>
+              <option>Primary Education</option>
+              <option>Junior High School</option>
+            </select>
+          </div>
+          <div className="sims-form-group">
+            <label>Max Class Capacity</label>
+            <input type="number" value={m.capacity || '35'} onChange={(e) => update('capacity', e.target.value)} />
+          </div>
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save Class Setting</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Class master') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Select Class / Stream</label>
+          <select value={m.targetClass || 'JHS 1 Gold'} onChange={(e) => update('targetClass', e.target.value)}>
+            <option>JHS 1 Gold</option>
+            <option>JHS 2 Diamond</option>
+            <option>Primary 5 Gold</option>
+            <option>Creche Gold</option>
+          </select>
+        </div>
+        <div className="sims-form-group">
+          <label>Assigned Lead Class Master</label>
+          <select value={m.classMasterName || 'Mr. Ebenezer Arthur'} onChange={(e) => update('classMasterName', e.target.value)}>
+            <option>Mr. Ebenezer Arthur</option>
+            <option>Mrs. Angela Edwards</option>
+            <option>Mr. Emmanuel Osei</option>
+          </select>
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Assign Class Master</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Subject Lists' || link === 'Subject Instructors') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Subject Title</label>
+          <input type="text" value={m.subjectTitle || 'Pure Mathematics'} onChange={(e) => update('subjectTitle', e.target.value)} required />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Subject Classification</label>
+            <select value={m.subjectCategory || 'Core Subject'} onChange={(e) => update('subjectCategory', e.target.value)}>
+              <option>Core Subject</option>
+              <option>Elective Subject</option>
+              <option>Co-Curricular / Vocational</option>
+            </select>
+          </div>
+          <div className="sims-form-group">
+            <label>Assigned Lead Instructor</label>
+            <select value={m.instructorName || 'Mr. Ebenezer Arthur'} onChange={(e) => update('instructorName', e.target.value)}>
+              <option>Mr. Ebenezer Arthur</option>
+              <option>Mrs. Sarah Mensah</option>
+              <option>Mr. Kojo Sarpong</option>
+            </select>
+          </div>
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save Subject Record</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Creche Subjects category' || link === 'Creche activities') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Creche Activity / Category Title</label>
+          <input type="text" value={m.crecheTitle || 'Language & Phonetics Development'} onChange={(e) => update('crecheTitle', e.target.value)} required />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Target Age Group</label>
+            <select value={m.crecheAge || 'Toddlers (1-2 Yrs)'} onChange={(e) => update('crecheAge', e.target.value)}>
+              <option>Toddlers (1-2 Yrs)</option>
+              <option>Creche (2-3 Yrs)</option>
+              <option>Nursery (3-4 Yrs)</option>
+            </select>
+          </div>
+          <div className="sims-form-group">
+            <label>Milestone Rating Type</label>
+            <select value={m.ratingType || '5-Star Milestone Rating'} onChange={(e) => update('ratingType', e.target.value)}>
+              <option>5-Star Milestone Rating</option>
+              <option>Satisfactory / Developing</option>
+            </select>
+          </div>
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save Creche Activity</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── SYSTEM ADMINISTRATOR: TRANSPORT & FEEDING SETTINGS ──
+  if (link === 'Route settings') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Transport Route Title</label>
+          <input type="text" value={m.busRoute || 'Route 1: Tarkwa Main Highway - Bogoso'} onChange={(e) => update('busRoute', e.target.value)} required />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Bus Registration / ID</label>
+            <input type="text" value={m.busNo || 'BUS-01 (GR-8891-24)'} onChange={(e) => update('busNo', e.target.value)} />
+          </div>
+          <div className="sims-form-group">
+            <label>Assigned Driver</label>
+            <input type="text" value={m.driverName || 'Mr. Kwame Mensah (0244998877)'} onChange={(e) => update('driverName', e.target.value)} />
+          </div>
+        </div>
+        <div className="sims-form-group">
+          <label>Term Transport Fee (GHS)</label>
+          <input type="number" value={m.routeFee || '600'} onChange={(e) => update('routeFee', e.target.value)} />
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save Route Settings</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (link === 'Configure Feeding Fees') {
+    return (
+      <div>
+        <div className="sims-form-group">
+          <label>Meal Package Title</label>
+          <input type="text" value={m.mealTitle || 'Standard Daily Lunch & Snack Package'} onChange={(e) => update('mealTitle', e.target.value)} required />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Daily Meal Fee (GHS)</label>
+            <input type="number" value={m.dailyFee || '20'} onChange={(e) => update('dailyFee', e.target.value)} />
+          </div>
+          <div className="sims-form-group">
+            <label>Term Package Fee (GHS)</label>
+            <input type="number" value={m.feedingFee || '900'} onChange={(e) => update('feedingFee', e.target.value)} />
+          </div>
+        </div>
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save Feeding Settings</button>
         </div>
       </div>
     );
   }
 
   // DEFAULT TAILORED FORM FOR ANY OTHER ACTION
+  const shouldHideAmountField =
+    m?.category === "Student's Progressive Reports" ||
+    m?.category === "Student's Progressive Evaluation" ||
+    m?.category === "Academic settings" ||
+    m?.category === "HR Payroll settings" ||
+    m?.category?.toLowerCase().includes('progressive') ||
+    m?.category?.toLowerCase().includes('academic setting') ||
+    m?.category?.toLowerCase().includes('payroll setting') ||
+    link?.toLowerCase().includes('progressive') ||
+    link?.toLowerCase().includes('report') ||
+    link?.toLowerCase().includes('academic');
+
   return (
     <div>
       <div className="sims-form-group">
@@ -12302,10 +13070,12 @@ function renderSpecificContent(link, m, setM, students) {
           {students.map((s) => <option key={s.id} value={s.fullName}>{s.fullName} ({s.studentId} - {s.level})</option>)}
         </select>
       </div>
-      <div className="sims-form-group">
-        <label>Action Amount / Value (GHS)</label>
-        <input type="number" value={m.amount} onChange={(e) => update('amount', e.target.value)} />
-      </div>
+      {!shouldHideAmountField && (
+        <div className="sims-form-group">
+          <label>Action Amount / Value (GHS)</label>
+          <input type="number" value={m.amount} onChange={(e) => update('amount', e.target.value)} />
+        </div>
+      )}
       <div className="sims-form-group">
         <label>Official Remarks / Instructions</label>
         <textarea rows="3" placeholder={`Specify details for ${link}...`} value={m.notes} onChange={(e) => update('notes', e.target.value)} />
@@ -13747,7 +14517,7 @@ function DefineGradePointsForm({ setM }) {
   const [mark2, setMark2] = useState('');
   const [gradePoint, setGradePoint] = useState('');
   const [remarks, setRemarks] = useState('');
-  const [selectedIdx, setSelectedIdx] = useState(0);
+  const [selectedIdx, setSelectedIdx] = useState(null);
 
   const handleSelectRow = (index) => {
     setSelectedIdx(index);
