@@ -65,7 +65,7 @@ const TEACHER_UPDATES = [
 export default function ParentPortal() {
   const [activeNav, setActiveNav] = useState('Dashboard');
   const [activeChild, setActiveChild] = useState(0);
-  const { results: staffResults, studentFees = [] } = usePortalData();
+  const { results: staffResults, studentFees = [], messages = [] } = usePortalData();
 
   const child = CHILDREN[activeChild];
   const currentFee = (studentFees || []).find((f) => f.studentName?.toLowerCase() === child.name.toLowerCase()) || { balance: 0 };
@@ -301,13 +301,26 @@ export default function ParentPortal() {
 
                 {/* Right */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {/* Teacher updates */}
+                  {/* Teacher & Accounts updates */}
                   <div className="panel">
                     <div className="panel__header">
-                      <h2 className="panel__title">Teacher Updates</h2>
+                      <h2 className="panel__title">Teacher & Accounts Notices</h2>
                       <Bell size={15} color="var(--gray-400)"/>
                     </div>
                     <div className="panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      {(messages || []).filter(m => m.senderRole === 'Accountant' || m.from?.includes('Accounts')).slice(0, 2).map((msg) => (
+                        <div key={msg.id} style={{ display: 'flex', gap: 10, padding: 10, background: '#fffbeb', borderRadius: 8, border: '1px solid #fef3c7' }}>
+                          <div className="avatar" style={{ background: '#f59e0b', color: '#fff', flexShrink: 0, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>💳</div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <span style={{ fontWeight: 800, fontSize: 13, color: '#92400e' }}>{msg.from || 'Accounts Office'}</span>
+                              <span style={{ fontSize: 11, color: '#b45309' }}>{msg.sentAt || 'Just now'}</span>
+                            </div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#78350f', marginBottom: 2 }}>{msg.subject}</div>
+                            <p style={{ fontSize: 12, color: 'var(--gray-700)', lineHeight: 1.5, margin: 0, whiteSpace: 'pre-line' }}>{msg.body}</p>
+                          </div>
+                        </div>
+                      ))}
                       {TEACHER_UPDATES.map((u) => (
                         <div key={u.teacher} style={{ display: 'flex', gap: 10 }}>
                           <div className="avatar" style={{ background: PARENT_BG, flexShrink: 0, width: 36, height: 36 }}>{u.teacher.charAt(0)}</div>
@@ -321,7 +334,7 @@ export default function ParentPortal() {
                           </div>
                         </div>
                       ))}
-                      <button style={{ width: '100%', padding: '9px', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 700, color: PARENT_ACCENT, background: 'none', cursor: 'pointer' }}>VIEW ALL MESSAGES</button>
+                      <button onClick={() => setActiveNav('Messages')} style={{ width: '100%', padding: '9px', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 700, color: PARENT_ACCENT, background: 'none', cursor: 'pointer' }}>VIEW ALL MESSAGES</button>
                     </div>
                   </div>
 

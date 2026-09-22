@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard, CreditCard, Send, Search, CheckCircle2,
   AlertTriangle, DollarSign, Users, School, MessageSquare, PlusCircle, FileText, Printer, Shield, ShieldCheck, ChevronRight, UserPlus, Sliders, Calendar, FileCheck, UserCheck, Lock, RefreshCw, Layers, Receipt, Download
@@ -14,18 +14,7 @@ const ACCOUNT_LIGHT = '#e0f2fe';
 const ACCOUNT_ACCENT = '#0284c7';
 
 const NAV = [
-  { icon: <School size={15} />, label: 'SIMS v2025 Module', badge: 'v2025' },
   { icon: <Lock size={15} />, label: 'SIMS Auth & Login Terminal', badge: 'Login' },
-  { icon: <FileText size={15} />, label: 'Post Academic Bill Header', badge: 'New' },
-  { icon: <FileText size={15} />, label: 'Print Individual Student Bill', badge: 'Print' },
-  { icon: <CreditCard size={15} />, label: 'Receive Payments', badge: 'Pay' },
-  { icon: <Receipt size={15} />, label: 'Receive Other Payments', badge: 'Misc' },
-  { icon: <Layers size={15} />, label: 'Batch Processing', badge: 'Batch' },
-  { icon: <Printer size={15} />, label: 'Reprint Commercial Receipt', badge: 'Reprint' },
-  { icon: <DollarSign size={15} />, label: 'Other Accounts Receivables', badge: 'Recv' },
-  { icon: <CheckCircle2 size={15} />, label: 'Authorise Bills/Accounts Receivables', badge: 'Auth' },
-  { icon: <ShieldCheck size={15} />, label: 'Approve Payment Voucher (PV)', badge: 'Audit' },
-  { icon: <DollarSign size={15} />, label: 'Official Fee Schedule', badge: 'Bill' },
   { icon: <LayoutDashboard size={15} />, label: 'Financial Overview', badge: null },
   { icon: <CreditCard size={15} />, label: 'Fee Ledgers & Payments', badge: null },
   { icon: <Send size={15} />, label: 'Send Owing Reminders', badge: null },
@@ -421,7 +410,7 @@ export default function AccountantPortal({ onSignOut }) {
 
           {/* ── SIMS v2025 MODULE VIEW ── */}
           {activeNav === 'SIMS v2025 Module' && (
-            <div className="animate-fade-up">
+            <div>
               {/* SIMS [School Info Management System] AUTHENTICATION / LOGIN HEADER BAR */}
               <SimsAuthenticationHeaderBar />
 
@@ -615,7 +604,7 @@ export default function AccountantPortal({ onSignOut }) {
 
           {/* ── FINANCIAL OVERVIEW ── */}
           {activeNav === 'Financial Overview' && (
-            <div className="animate-fade-up">
+            <div>
               <div className="page-header">
                 <p className="page-header__eyebrow" style={{ color: ACCOUNT_ACCENT }}>
                   <span style={{ background: ACCOUNT_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #bae6fd' }}>
@@ -737,7 +726,7 @@ export default function AccountantPortal({ onSignOut }) {
 
           {/* ── FEE LEDGERS & PAYMENTS ── */}
           {activeNav === 'Fee Ledgers & Payments' && (
-            <div className="animate-fade-up">
+            <div>
               <div className="page-header">
                 <h1 className="page-header__title">Student Fee Ledgers</h1>
                 <p className="page-header__subtitle">Manage student fee payments, view transaction status, and record new payments.</p>
@@ -836,7 +825,7 @@ export default function AccountantPortal({ onSignOut }) {
 
           {/* ── SEND OWING REMINDERS ── */}
           {activeNav === 'Send Owing Reminders' && (
-            <div className="animate-fade-up">
+            <div>
               <div className="page-header">
                 <h1 className="page-header__title">Send Owing Reminders to Parents</h1>
                 <p className="page-header__subtitle">Dispatches instant fee payment notices directly to parent accounts and emails.</p>
@@ -919,7 +908,7 @@ export default function AccountantPortal({ onSignOut }) {
 
           {/* ── STUDENTS & TEACHERS DIRECTORY ── */}
           {activeNav === 'Students & Teachers' && (
-            <div className="animate-fade-up">
+            <div>
               <div className="page-header">
                 <h1 className="page-header__title">Students & Assigned Teachers Directory</h1>
                 <p className="page-header__subtitle">View all registered students, their level, guardian details, fee status, and assigned teaching staff.</p>
@@ -981,7 +970,7 @@ export default function AccountantPortal({ onSignOut }) {
 
           {/* ── SENT MESSAGES LOG ── */}
           {activeNav === 'Sent Messages Log' && (
-            <div className="animate-fade-up">
+            <div>
               <div className="page-header">
                 <h1 className="page-header__title">Sent Accountant Messages Log</h1>
                 <p className="page-header__subtitle">Complete record of payment notices dispatched to parents and guardians.</p>
@@ -1007,7 +996,7 @@ export default function AccountantPortal({ onSignOut }) {
           )}
 
           {/* ── POST ACADEMIC BILL HEADER VIEW ── */}
-          {activeNav === 'Post Academic Bill Header' && (
+          {(activeNav === 'Post Academic Bill Header' || activeNav === 'Post Academic Bill' || activeNav === 'Prepare Student academic Bill') && (
             <div style={{ background: '#ffffff', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', padding: 12 }}>
               <PrepareStudentAcademicBillForm setM={() => {}} students={onboardedStudents || []} />
             </div>
@@ -1147,13 +1136,23 @@ export default function AccountantPortal({ onSignOut }) {
           )}
 
           {/* ── SIMS AUTH & LOGIN TERMINAL VIEW ── */}
-          {activeNav === 'SIMS Auth & Login Terminal' && (
-            <SimsAuthTerminalView onOpenSimsModal={setActiveSimsModal} />
-          )}
-
-          {/* ── OFFICIAL FEE SCHEDULE VIEW ── */}
-          {activeNav === 'Official Fee Schedule' && (
-            <OfficialSchoolFeeStructure onOpenSimsModal={setActiveSimsModal} />
+          {(activeNav === 'SIMS Auth & Login Terminal' ||
+            activeNav === 'Post Academic Bill Header' ||
+            activeNav === 'Print Individual Student Bill' ||
+            activeNav === 'Receive Payments' ||
+            activeNav === 'Receive Other Payments' ||
+            activeNav === 'Batch Processing' ||
+            activeNav === 'Reprint Commercial Receipt' ||
+            activeNav === 'Other Accounts Receivables' ||
+            activeNav === 'Authorise Bills/Accounts Receivables' ||
+            activeNav === 'Approve Payment Voucher (PV)' ||
+            activeNav === 'Official Fee Schedule') && (
+            <SimsAuthTerminalView
+              onOpenSimsModal={setActiveSimsModal}
+              students={onboardedStudents || []}
+              recordFeePayment={recordFeePayment}
+              initialActionTab={activeNav === 'SIMS Auth & Login Terminal' ? 'Post Academic Bill Header' : activeNav}
+            />
           )}
 
           {/* ── DYNAMIC TAILORED SIMS MODAL RENDERER ── */}
@@ -1165,6 +1164,76 @@ export default function AccountantPortal({ onSignOut }) {
               onSubmit={handleSimsModalSubmit}
               students={onboardedStudents || []}
             />
+          )}
+
+          {/* ── MESSAGE PARENT MODAL ── */}
+          {selectedFeeForReminder && (
+            <div style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20,
+              backdropFilter: 'blur(3px)'
+            }}>
+              <div style={{ background: '#fff', width: '100%', maxWidth: 560, borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid #e2e8f0', paddingBottom: 12 }}>
+                  <div>
+                    <h2 style={{ fontSize: 17, fontWeight: 900, color: '#0f3a4b', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span>✉️</span> Message Parent / Guardian
+                    </h2>
+                    <span style={{ fontSize: 11, color: '#64748b' }}>Send direct fee notification to Parent Portal account</span>
+                  </div>
+                  <button onClick={() => setSelectedFeeForReminder(null)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#64748b' }}>✕</button>
+                </div>
+
+                <div style={{ padding: 12, background: '#f0f9ff', borderRadius: 8, border: '1px solid #bae6fd', marginBottom: 16, fontSize: 12.5 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div><strong>Recipient Parent:</strong> {selectedFeeForReminder.guardianName}</div>
+                    <div><strong>Email Contact:</strong> {selectedFeeForReminder.guardianEmail}</div>
+                    <div><strong>Student Ward:</strong> {selectedFeeForReminder.studentName}</div>
+                    <div><strong>Balance Due:</strong> <span style={{ color: '#b91c1c', fontWeight: 800 }}>GHS {Number(selectedFeeForReminder.balance || 0).toLocaleString()}</span></div>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSendReminder} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: '#0f3a4b' }}>Message Subject</span>
+                    <input
+                      type="text"
+                      required
+                      value={reminderSubject}
+                      onChange={(e) => setReminderSubject(e.target.value)}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 600 }}
+                    />
+                  </label>
+
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: '#0f3a4b' }}>Message Content / Notice</span>
+                    <textarea
+                      required
+                      rows="6"
+                      value={reminderBody}
+                      onChange={(e) => setReminderBody(e.target.value)}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, lineHeight: 1.5, fontFamily: 'inherit' }}
+                    />
+                  </label>
+
+                  <div style={{ display: 'flex', gap: 10, marginTop: 6, justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFeeForReminder(null)}
+                      style={{ padding: '9px 16px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 12 }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      style={{ padding: '9px 20px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 800, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <Send size={14} /> Send Message to Parent
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           )}
 
           {/* ── RECORD PAYMENT MODAL ── */}
@@ -1261,7 +1330,7 @@ function SimsModalRenderer({ modalData, setModalData, onClose, onSubmit, student
     link.toLowerCase().includes('ledger') ||
     link.toLowerCase().includes('statement');
 
-  const isPrepareBill = link === 'Prepare Student academic Bill' || link === 'Print Student\'s Academic Bill' || link === 'Print & Post Student\'s Academic Bill' || link === 'Print Individual Student Bill';
+  const isPrepareBill = link === 'Prepare Student academic Bill' || link === 'Post Academic Bill Header' || link === 'Post Academic Bill' || link === 'Print Student\'s Academic Bill' || link === 'Print & Post Student\'s Academic Bill' || link === 'Print Individual Student Bill';
   const isReceivePayment = link === 'Receive Payments from Students' || link === 'Issue Other receipts' || link === 'Re-print Commercial Receipt' || link === 'Receive Other Payments' || link === 'Batch Processing' || link.toLowerCase().includes('receivables') || link.toLowerCase().includes('pv') || link.toLowerCase().includes('authorise');
 
   return (
@@ -1394,6 +1463,56 @@ function DropdownWithAddRemove({ label, options, value, onChange, onAddOption, o
   );
 }
 
+function OfficialSchoolHeaderBar({ documentTitle, documentSubtitle }) {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justify: 'space-between',
+      borderBottom: '3px solid #0284c7',
+      paddingBottom: 14,
+      marginBottom: 18,
+      background: '#ffffff',
+      padding: '16px 20px',
+      borderRadius: '12px 12px 0 0',
+      border: '1px solid #cbd5e1',
+      borderBottomWidth: '3px',
+      flexWrap: 'wrap',
+      gap: 16
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <img
+          src="/remalj-carewell-logo.jpg"
+          alt="REMALJ Carewell Logo"
+          style={{ height: 58, width: 'auto', borderRadius: 8, border: '2px solid #0284c7', boxShadow: '0 4px 10px rgba(2,132,199,0.2)' }}
+        />
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 900, color: '#0284c7', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+            REMALJ CAREWELL INSPIRATIONAL SCHOOL
+          </div>
+          <h1 style={{ fontSize: 19, fontWeight: 900, color: '#0f172a', margin: '2px 0 0 0', letterSpacing: '0.01em' }}>
+            {documentTitle || 'ACADEMIC FINANCIAL & ACCOUNTING PORTAL'}
+          </h1>
+          {documentSubtitle && (
+            <div style={{ fontSize: 11.5, color: '#475569', marginTop: 2, fontWeight: 600 }}>
+              {documentSubtitle}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+        <div style={{ background: '#0284c7', color: '#fff', fontSize: 10.5, fontWeight: 800, padding: '4px 12px', borderRadius: 14, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Financial Services Division
+        </div>
+        <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>
+          Official Accounts Document · REMALJ CAREWELL
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PrepareStudentAcademicBillForm({ setM, students = [] }) {
   // Dropdown Options
   const [years, setYears] = useState(['2025/2026', '2026/2027', '2027/2028']);
@@ -1470,6 +1589,36 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
     { id: '5', description: 'School Bus Transport Route (Pre-school)', billAccount: 'Transport Account', fee: 600, category: 'Other Requisition', status: 'Draft', dateAdded: '2026-07-28' },
     { id: '6', description: 'Daily Feeding & Mid-day Snack', billAccount: 'Feeding Account', fee: 400, category: 'Other Requisition', status: 'Draft', dateAdded: '2026-07-28' },
   ]);
+
+  const portalData = usePortalData();
+  const definedBills = portalData?.definedBills || [];
+
+  useEffect(() => {
+    if (definedBills && definedBills.length > 0) {
+      const targetClassToMatch = postClass || currClass || formCurrentClass;
+      const matchingDefined = definedBills.filter(b =>
+        b.classLevel === 'All Classes' ||
+        (b.classLevel && targetClassToMatch && b.classLevel.toLowerCase().includes(targetClassToMatch.toLowerCase()))
+      );
+
+      if (matchingDefined.length > 0) {
+        const mappedItems = matchingDefined.map(b => ({
+          id: b.id,
+          description: b.description || b.billCategory,
+          billAccount: b.billCategory?.includes('Tuition') ? 'Tuition Account' : b.billCategory?.includes('Bus') ? 'Transport Account' : b.billCategory?.includes('ICT') ? 'Facility & ICT Account' : 'Sundry / Miscellaneous',
+          fee: Number(b.amount) || 0,
+          category: b.specification === 'Compulsory' ? 'Compulsory' : 'Other Requisition',
+          status: 'Posted',
+          dateAdded: b.dateDefined || new Date().toISOString().split('T')[0]
+        }));
+
+        setBillItems(prev => {
+          const nonDupPrev = prev.filter(p => !mappedItems.some(m => m.id === p.id));
+          return [...mappedItems, ...nonDupPrev];
+        });
+      }
+    }
+  }, [postClass, currClass, formCurrentClass, definedBills]);
 
   const [selectedRowIds, setSelectedRowIds] = useState([]);
   const [journalStatusNotice, setJournalStatusNotice] = useState('');
@@ -1646,6 +1795,10 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
 
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a' }}>
+      <OfficialSchoolHeaderBar
+        documentTitle="Post Academic Bill Header File"
+        documentSubtitle="Prepare, post, adjust, and review student academic bills and compulsory fee journals"
+      />
       {/* ── TOP TITLE & ACTION HEADER BAR ── */}
       <div style={{
         background: '#0f3a4b',
@@ -2535,6 +2688,7 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
   // Payment Entry Form State
   const [payAmount, setPayAmount] = useState('1200.00');
   const [payMode, setPayMode] = useState('Mobile Money');
+  const [receivingAccount, setReceivingAccount] = useState('GCB Main Operating Account (55919200085584)');
   const [transactionRef, setTransactionRef] = useState('MM-98471203');
   const [payerName, setPayerName] = useState('Mr. Serebour (Guardian)');
   const [payerPhone, setPayerPhone] = useState('024 111 2222');
@@ -2694,9 +2848,10 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
 
     if (typeof recordFeePayment === 'function') {
       recordFeePayment({
-        id: studentId,
+        id: studentId || studentName,
         paidAmount: amountVal,
         paymentMethod: payMode,
+        receivingAccount,
         notes: `${transactionRef} - ${payNotes}`,
       });
     }
@@ -2733,6 +2888,10 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
 
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a' }}>
+      <OfficialSchoolHeaderBar
+        documentTitle="Receive Fee Payments & Receipt Entry"
+        documentSubtitle="REMALJ Carewell Accounts Office · Cashier Station"
+      />
       {/* ── TOP ACTION & TITLE BANNER BAR ── */}
       <div style={{
         background: '#0f3a4b',
@@ -3323,6 +3482,21 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
               </div>
             </div>
 
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 11.5, fontWeight: 800, color: '#0369a1', marginBottom: 4 }}>🏦 Receiving Account (Account Selection)</label>
+              <select
+                value={receivingAccount}
+                onChange={(e) => setReceivingAccount(e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1.5px solid #0284c7', fontSize: 13, background: '#f0f9ff', fontWeight: 800, color: '#0f3a4b' }}
+              >
+                <option value="GCB Main Operating Account (55919200085584)">GCB Bank Main Operating Account (55919200085584)</option>
+                <option value="Ecobank Fee Collection Account (14410029402)">Ecobank Fee Collection Account (14410029402)</option>
+                <option value="MTN Mobile Money Merchant Vault (0244000111)">MTN Mobile Money Merchant Vault (0244000111)</option>
+                <option value="Amenfiman Rural Bank Account (7719200011)">Amenfiman Rural Bank Account (7719200011)</option>
+                <option value="Cash Office Main Safe Account">Cash Office Main Safe Account</option>
+              </select>
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 11.5, fontWeight: 800, color: '#0f3a4b', marginBottom: 4 }}>Transaction Ref / Cheque No.</label>
@@ -3699,6 +3873,10 @@ function ReceiveOtherPaymentsForm({ setM }) {
 
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a' }}>
+      <OfficialSchoolHeaderBar
+        documentTitle="Receive Other Miscellaneous Payments"
+        documentSubtitle="REMALJ Carewell Accounts Office · Auxiliary Payments Terminal"
+      />
       {/* ── TOP ACTION & TITLE BANNER BAR ── */}
       <div style={{
         background: '#0f3a4b',
@@ -4276,6 +4454,10 @@ function BatchProcessingForm({ setM, students = [], recordFeePayment }) {
 
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a' }}>
+      <OfficialSchoolHeaderBar
+        documentTitle="Batch Fee Processing Terminal"
+        documentSubtitle="REMALJ Carewell Accounts Office · Class-wide Batch Processing Workstation"
+      />
       {/* ── TOP ACTION & TITLE BANNER BAR ── */}
       <div style={{
         background: '#0f3a4b',
@@ -4800,6 +4982,10 @@ function ReprintCommercialReceiptForm({ setM }) {
 
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a' }}>
+      <OfficialSchoolHeaderBar
+        documentTitle="Reprint Commercial Receipt"
+        documentSubtitle="REMALJ Carewell Accounts Office · Receipt Archive & Verification Terminal"
+      />
       {/* ── TOP BLUE TITLE BAR ── */}
       <div style={{
         background: '#0f3a4b',
@@ -5259,6 +5445,10 @@ function PrintIndividualStudentBillForm({ setM, students = [] }) {
 
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a' }}>
+      <OfficialSchoolHeaderBar
+        documentTitle="Print Individual Student Bill"
+        documentSubtitle="REMALJ Carewell Accounts Office · Student Billing Workstation"
+      />
       {/* ── TOP BLUE TITLE BAR ── */}
       <div style={{
         background: '#0f3a4b',
@@ -5912,6 +6102,10 @@ function OtherAccountsReceivablesForm({ setM, students = [] }) {
 
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a' }}>
+      <OfficialSchoolHeaderBar
+        documentTitle="Other Accounts Receivables"
+        documentSubtitle="REMALJ Carewell Accounts Office · Receivables Ledger & Control Terminal"
+      />
       {/* ── TOP BLUE TITLE BAR ── */}
       <div style={{
         background: '#0f3a4b',
@@ -6457,6 +6651,10 @@ function AuthoriseBillsReceivablesForm({ setM, students = [] }) {
 
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a' }}>
+      <OfficialSchoolHeaderBar
+        documentTitle="Authorise Bills & Accounts Receivables"
+        documentSubtitle="REMALJ Carewell Accounts Office · Pre-Audit & Authorization Desk"
+      />
       {/* ── TOP BLUE TITLE BAR ── */}
       <div style={{
         background: '#0f3a4b',
@@ -6962,6 +7160,10 @@ function ApprovePVForm({ setM }) {
 
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a' }}>
+      <OfficialSchoolHeaderBar
+        documentTitle="Approve Payment Voucher (PV)"
+        documentSubtitle="REMALJ Carewell Accounts Office · Payment Voucher Pre-Audit Approval Station"
+      />
       {/* ── TOP BLUE TITLE BAR ── */}
       <div style={{
         background: '#0f3a4b',
@@ -11641,7 +11843,7 @@ function renderSpecificContent(link, m, setM, students) {
   }
 
   // Prepare Student Academic Bill Form
-  if (link === 'Prepare Student academic Bill') {
+  if (link === 'Prepare Student academic Bill' || link === 'Post Academic Bill Header' || link === 'Post Academic Bill' || link === 'Print & Post Student\'s Academic Bill' || link === 'Print Student\'s Academic Bill') {
     return <PrepareStudentAcademicBillForm setM={setM} students={students} />;
   }
 
@@ -11987,33 +12189,119 @@ function renderSpecificContent(link, m, setM, students) {
   }
 
   if (link === 'Edit Existing Admissions') {
+    const activeAppId = m.appId || (applications && applications[0]?.id) || (onboardedStudents && onboardedStudents[0]?.id) || 'app-001';
+    const currentApp = (applications || []).find(a => a.id === activeAppId) || (onboardedStudents || []).find(s => s.id === activeAppId || s.studentId === activeAppId) || {};
+    const learnerName = m.learnerName !== undefined ? m.learnerName : (currentApp.learner || currentApp.fullName || 'Akosua Agyeman');
+    const applyingLevel = m.applyingLevel !== undefined ? m.applyingLevel : (currentApp.level || currentApp.applyingClass || 'JHS 1');
+    const guardianName = m.guardianName !== undefined ? m.guardianName : (currentApp.guardian || currentApp.guardianName || 'Mr. Kwesi Agyeman');
+    const contactEmail = m.contactEmail !== undefined ? m.contactEmail : (currentApp.email || currentApp.guardianEmail || 'kwesi.agyeman@example.com');
+    const contactPhone = m.contactPhone !== undefined ? m.contactPhone : (currentApp.phone || currentApp.guardianPhone || '024 000 0000');
+    const status = m.status !== undefined ? m.status : (currentApp.status || 'Documents review');
+
+    const handleSaveAdmissionEdit = (e) => {
+      e?.preventDefault();
+      if (typeof updateStudentAdmission === 'function') {
+        updateStudentAdmission(activeAppId, {
+          learner: learnerName,
+          fullName: learnerName,
+          level: applyingLevel,
+          applyingClass: applyingLevel,
+          guardian: guardianName,
+          guardianName,
+          email: contactEmail,
+          guardianEmail: contactEmail,
+          phone: contactPhone,
+          guardianPhone: contactPhone,
+          status,
+          updatedAt: new Date().toLocaleString()
+        });
+      }
+      alert(`✅ Admission record for "${learnerName}" (${applyingLevel}) updated successfully!`);
+      setM(null);
+    };
+
     return (
-      <div>
+      <form onSubmit={handleSaveAdmissionEdit}>
         <div className="sims-form-group">
-          <label>Select Admission Application Record</label>
-          <select value={m.appId || 'ADM-001'} onChange={(e) => update('appId', e.target.value)}>
-            <option value="ADM-001">ADM-2026-001 · Akosua Agyeman (JHS 1)</option>
-            <option value="ADM-002">ADM-2026-042 · Yaw Osei (Primary 4)</option>
+          <label>Select Admission / Student Record to Edit</label>
+          <select
+            value={activeAppId}
+            onChange={(e) => {
+              const selectedId = e.target.value;
+              const selected = (applications || []).find(a => a.id === selectedId) || (onboardedStudents || []).find(s => s.id === selectedId || s.studentId === selectedId);
+              if (selected) {
+                update('appId', selectedId);
+                update('learnerName', selected.learner || selected.fullName);
+                update('applyingLevel', selected.level || selected.applyingClass);
+                update('guardianName', selected.guardian || selected.guardianName);
+                update('contactEmail', selected.email || selected.guardianEmail);
+                update('contactPhone', selected.phone || selected.guardianPhone);
+                update('status', selected.status);
+              }
+            }}
+          >
+            {(applications || []).map(a => (
+              <option key={a.id} value={a.id}>
+                {a.learner || `${a.firstName || ''} ${a.surname || ''}`.trim() || 'Applicant'} - ({a.level || 'JHS 1'}) [App ID: {a.id}]
+              </option>
+            ))}
+            {(onboardedStudents || []).map(s => (
+              <option key={s.id} value={s.id}>
+                {s.fullName} - ({s.level || 'Grade 4'}) [{s.studentId}]
+              </option>
+            ))}
           </select>
         </div>
-        <div className="sims-form-group">
-          <label>Admission Evaluation Stage</label>
-          <select value={m.stage || 'Interview Scheduled'} onChange={(e) => update('stage', e.target.value)}>
-            <option>Documents Verification</option>
-            <option>Interview Scheduled</option>
-            <option>Entrance Exam Passed</option>
-            <option>Official Offer Granted</option>
-          </select>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Learner Full Name</label>
+            <input type="text" value={learnerName} onChange={(e) => update('learnerName', e.target.value)} required />
+          </div>
+          <div className="sims-form-group">
+            <label>Applying / Assigned Level</label>
+            <select value={applyingLevel} onChange={(e) => update('applyingLevel', e.target.value)}>
+              <option>Creche</option><option>Nursery 1</option><option>Nursery 2</option><option>KG 1</option><option>KG 2</option>
+              <option>Primary 1</option><option>Primary 2</option><option>Primary 3</option><option>Primary 4</option><option>Primary 5</option><option>Primary 6</option>
+              <option>JHS 1</option><option>JHS 2</option><option>JHS 3</option>
+              <option>SHS 1</option><option>SHS 2</option><option>SHS 3</option>
+            </select>
+          </div>
         </div>
-        <div className="sims-form-group">
-          <label>Office Remarks & Evaluation Notes</label>
-          <textarea rows="3" placeholder="Candidate passed entrance assessment with 88% average." value={m.notes} onChange={(e) => update('notes', e.target.value)} />
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Guardian Name</label>
+            <input type="text" value={guardianName} onChange={(e) => update('guardianName', e.target.value)} required />
+          </div>
+          <div className="sims-form-group">
+            <label>Guardian Contact Phone</label>
+            <input type="text" value={contactPhone} onChange={(e) => update('contactPhone', e.target.value)} required />
+          </div>
         </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Guardian Email Address</label>
+            <input type="email" value={contactEmail} onChange={(e) => update('contactEmail', e.target.value)} required />
+          </div>
+          <div className="sims-form-group">
+            <label>Admission Evaluation Status</label>
+            <select value={status} onChange={(e) => update('status', e.target.value)}>
+              <option>Submitted</option>
+              <option>Documents review</option>
+              <option>Assessment scheduled</option>
+              <option>Accepted</option>
+              <option>Enrolled</option>
+            </select>
+          </div>
+        </div>
+
         <div className="sims-modal-actions">
           <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
-          <button type="submit" className="sims-btn sims-btn-primary">Update Admission Record</button>
+          <button type="submit" className="sims-btn sims-btn-primary">💾 Save Admission Changes</button>
         </div>
-      </div>
+      </form>
     );
   }
 
@@ -12041,62 +12329,199 @@ function renderSpecificContent(link, m, setM, students) {
     );
   }
 
-  if (link === '1st Timers Semester Enrollment' || link === 'Continuing Student Semester Registration') {
+  // 1ST TIMERS SEMESTER ENROLLMENT (First time registration - with Academic Year & Term)
+  if (link === '1st Timers Semester Enrollment') {
+    const selectedStudent = (students || []).find(s => s.fullName === m.studentName) || students[0] || {};
+    const acadYear = m.academicYear || '2026/2027';
+    const acadTerm = m.term || 'Term 1';
+
+    const handleConfirmFirstTimeRegistration = (e) => {
+      e?.preventDefault();
+      if (typeof registerClassSemester === 'function') {
+        registerClassSemester({
+          studentId: selectedStudent.studentId || selectedStudent.id,
+          studentName: selectedStudent.fullName || m.studentName,
+          classLevel: selectedStudent.level || 'Grade 4',
+          academicYear: acadYear,
+          term: acadTerm
+        });
+      }
+      alert(`✅ First-Time Semester Enrollment confirmed for ${selectedStudent.fullName || 'Student'} (${acadYear} · ${acadTerm})!`);
+      setM(null);
+    };
+
     return (
-      <div>
+      <form onSubmit={handleConfirmFirstTimeRegistration}>
         <div className="sims-form-group">
-          <label>Select Student for Semester Registration</label>
-          <select value={m.studentName} onChange={(e) => update('studentName', e.target.value)}>
+          <label>Select Student for First Time Registration</label>
+          <select value={m.studentName || selectedStudent.fullName} onChange={(e) => update('studentName', e.target.value)}>
             {students.map((s) => <option key={s.id} value={s.fullName}>{s.fullName} ({s.studentId} - {s.level})</option>)}
           </select>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Academic Year</label>
+            <select value={acadYear} onChange={(e) => update('academicYear', e.target.value)}>
+              <option>2025/2026</option>
+              <option>2026/2027</option>
+              <option>2027/2028</option>
+            </select>
+          </div>
+          <div className="sims-form-group">
+            <label>Term</label>
+            <select value={acadTerm} onChange={(e) => update('term', e.target.value)}>
+              <option>Term 1</option>
+              <option>Term 2</option>
+              <option>Term 3</option>
+            </select>
+          </div>
           <div className="sims-form-group">
             <label>Assigned Index Number</label>
-            <input type="text" value={m.candidateIndex} onChange={(e) => update('candidateIndex', e.target.value)} />
-          </div>
-          <div className="sims-form-group">
-            <label>Academic Year & Term</label>
-            <input type="text" value="2026/2027 · Term 1" disabled readOnly />
+            <input type="text" value={m.candidateIndex || 'IX-2026-001'} onChange={(e) => update('candidateIndex', e.target.value)} />
           </div>
         </div>
+
         <div className="sims-form-group">
           <label>Fee Clearance Verification</label>
           <div style={{ padding: 10, background: '#dcfce7', borderRadius: 6, color: '#166534', fontWeight: 700, fontSize: 12 }}>
-            ✔ Verified: Student has fulfilled 100% fee clearance requirement.
+            ✔ Verified: Student admission & fee clearance requirement fulfilled for {acadYear} {acadTerm}.
           </div>
         </div>
+
         <div className="sims-modal-actions">
           <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
-          <button type="submit" className="sims-btn sims-btn-primary">Confirm Semester Registration</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Confirm First Time Registration</button>
         </div>
-      </div>
+      </form>
     );
   }
 
-  if (link === 'Delete Semester Registration') {
+  // CONTINUING STUDENTS SEMESTER REGISTRATION (CLASS-BASED)
+  if (link === 'Continuing Student Semester Registration') {
+    const selectedClass = m.targetClass || 'Primary 1';
+    const acadYear = m.academicYear || '2026/2027';
+    const acadTerm = m.term || 'Term 1';
+
+    const classRoster = (students || []).filter(s =>
+      selectedClass === 'All Classes' || (s.level || '').toLowerCase().includes(selectedClass.toLowerCase())
+    );
+    const rosterToDisplay = classRoster.length > 0 ? classRoster : students;
+
+    const handleConfirmClassRegistration = (e) => {
+      e?.preventDefault();
+      if (typeof registerClassSemester === 'function') {
+        registerClassSemester({
+          classLevel: selectedClass,
+          academicYear: acadYear,
+          term: acadTerm
+        });
+      }
+      alert(`✅ Class-Based Semester Registration completed for ${selectedClass} (${rosterToDisplay.length} students registered for ${acadYear} · ${acadTerm})!`);
+      setM(null);
+    };
+
     return (
-      <div>
+      <form onSubmit={handleConfirmClassRegistration}>
+        <div style={{ padding: 10, background: '#e0f2fe', borderRadius: 6, color: '#0369a1', fontWeight: 800, fontSize: 12, marginBottom: 14 }}>
+          🏫 CLASS-BASED SEMESTER REGISTRATION: Continuing student registration applies to whole class groups for the selected term.
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Select Target Class / Grade</label>
+            <select value={selectedClass} onChange={(e) => update('targetClass', e.target.value)}>
+              <option>Creche</option><option>Nursery 1</option><option>Nursery 2</option><option>KG 1</option><option>KG 2</option>
+              <option>Primary 1</option><option>Primary 2</option><option>Primary 3</option><option>Primary 4</option><option>Primary 5</option><option>Primary 6</option>
+              <option>Grade 4</option><option>JHS 1</option><option>JHS 2</option><option>JHS 3</option>
+              <option>SHS 1</option><option>SHS 2</option><option>SHS 3</option>
+              <option>All Classes</option>
+            </select>
+          </div>
+          <div className="sims-form-group">
+            <label>Academic Year</label>
+            <select value={acadYear} onChange={(e) => update('academicYear', e.target.value)}>
+              <option>2025/2026</option>
+              <option>2026/2027</option>
+              <option>2027/2028</option>
+            </select>
+          </div>
+          <div className="sims-form-group">
+            <label>Academic Term</label>
+            <select value={acadTerm} onChange={(e) => update('term', e.target.value)}>
+              <option>Term 1</option>
+              <option>Term 2</option>
+              <option>Term 3</option>
+            </select>
+          </div>
+        </div>
+
         <div className="sims-form-group">
-          <label>Select Active Registration to Cancel / Delete</label>
-          <select value={m.studentName} onChange={(e) => update('studentName', e.target.value)}>
-            {students.map((s) => <option key={s.id} value={s.fullName}>{s.fullName} ({s.studentId})</option>)}
+          <label>Class Roster Preview ({rosterToDisplay.length} Students in {selectedClass})</label>
+          <div style={{ maxHeight: 140, overflowY: 'auto', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 6, padding: 8, fontSize: 11.5 }}>
+            {rosterToDisplay.map((s, idx) => (
+              <div key={s.id || idx} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', padding: '4px 0' }}>
+                <span><strong>{idx + 1}. {s.fullName}</strong> ({s.studentId})</span>
+                <span style={{ color: '#166534', fontWeight: 700 }}>✔ Ready for {acadTerm}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="sims-modal-actions">
+          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Confirm Class Semester Registration ({rosterToDisplay.length} Students)</button>
+        </div>
+      </form>
+    );
+  }
+
+  // DELETE SEMESTER REGISTRATION
+  if (link === 'Delete Semester Registration') {
+    const activeRegs = semesterRegistrations && semesterRegistrations.length > 0
+      ? semesterRegistrations
+      : (students || []).map(s => ({ id: `reg-${s.id}`, studentId: s.studentId, studentName: s.fullName, classLevel: s.level, academicYear: '2026/2027', term: 'Term 1' }));
+
+    const selectedRegId = m.regId || activeRegs[0]?.id;
+
+    const handleDeleteReg = (e) => {
+      e?.preventDefault();
+      if (typeof deleteSemesterRegistration === 'function') {
+        deleteSemesterRegistration(selectedRegId);
+      }
+      alert(`🗑️ Semester registration record [Ref: ${selectedRegId}] has been cancelled and deleted!`);
+      setM(null);
+    };
+
+    return (
+      <form onSubmit={handleDeleteReg}>
+        <div className="sims-form-group">
+          <label>Select Active Semester Registration to Delete / Cancel</label>
+          <select value={selectedRegId} onChange={(e) => update('regId', e.target.value)}>
+            {activeRegs.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.studentName} ({r.studentId} - {r.classLevel || 'Class'}) · {r.academicYear} {r.term} [Ref: {r.id}]
+              </option>
+            ))}
           </select>
         </div>
+
         <div className="sims-form-group">
-          <label>Reason for Cancellation</label>
+          <label>Reason for Registration Cancellation</label>
           <select value={m.cancelReason || 'Administrative Error'} onChange={(e) => update('cancelReason', e.target.value)}>
             <option>Administrative Error</option>
             <option>Student Withdrawal</option>
             <option>Academic Deferment</option>
             <option>School Transfer</option>
+            <option>Duplicate Entry Correction</option>
           </select>
         </div>
+
         <div className="sims-modal-actions">
           <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
-          <button type="submit" className="sims-btn sims-btn-primary" style={{ background: '#dc2626' }}>Delete Registration</button>
+          <button type="submit" className="sims-btn sims-btn-primary" style={{ background: '#dc2626' }}>Confirm Delete Registration</button>
         </div>
-      </div>
+      </form>
     );
   }
 
@@ -12463,40 +12888,135 @@ function renderSpecificContent(link, m, setM, students) {
 
   // ── SYSTEM ADMINISTRATOR: BILLINGS & OTHERS ──
   if (link === 'Define Bill Items') {
+    const selectedClass = m.classLevel || 'All Classes';
+    const acadYear = m.academicYear || '2026/2027';
+    const acadTerm = m.term || 'Term 1';
+    const category = m.billCategory || 'Tuition Fee';
+    const amountVal = m.amount !== undefined ? m.amount : '1200';
+    const specification = m.specification || 'Compulsory';
+    const desc = m.billItemName || category;
+
+    const handleSaveBill = (e) => {
+      e?.preventDefault();
+      const numAmount = parseFloat(amountVal);
+      if (isNaN(numAmount) || numAmount <= 0) {
+        alert('Please enter a valid amount.');
+        return;
+      }
+
+      if (typeof saveDefinedBill === 'function') {
+        saveDefinedBill({
+          classLevel: selectedClass,
+          academicYear: acadYear,
+          term: acadTerm,
+          billCategory: category,
+          amount: numAmount,
+          specification,
+          description: desc || category
+        });
+      }
+
+      alert(`✅ Defined Bill Item saved successfully:\nClass: ${selectedClass}\nPeriod: ${acadYear} · ${acadTerm}\nCategory: ${category}\nAmount: GHS ${numAmount.toFixed(2)}\nType: ${specification}`);
+      setM(null);
+    };
+
     return (
-      <div>
-        <div className="sims-form-group">
-          <label>Bill Item Title / Description</label>
-          <input type="text" placeholder="e.g. ICT Lab & Computer Fee" value={m.billItemName || ''} onChange={(e) => update('billItemName', e.target.value)} required />
+      <form onSubmit={handleSaveBill}>
+        <div style={{ padding: 10, background: '#f0f9ff', borderRadius: 6, color: '#0369a1', fontWeight: 800, fontSize: 12, marginBottom: 14 }}>
+          ⚙️ DEFINE BILLS (CLASS-BASED): Define fee items, categories, and amounts for specific classes, terms, and academic years.
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 12 }}>
           <div className="sims-form-group">
-            <label>Default Fee Amount (GHS)</label>
-            <input type="number" placeholder="500" value={m.amount || ''} onChange={(e) => update('amount', e.target.value)} required />
+            <label>Target Class / Grade</label>
+            <select value={selectedClass} onChange={(e) => update('classLevel', e.target.value)}>
+              <option>All Classes</option>
+              <option>Creche</option><option>Nursery 1</option><option>Nursery 2</option><option>KG 1</option><option>KG 2</option>
+              <option>Primary 1</option><option>Primary 2</option><option>Primary 3</option><option>Primary 4</option><option>Primary 5</option><option>Primary 6</option>
+              <option>Grade 4</option><option>JHS 1</option><option>JHS 2</option><option>JHS 3</option>
+              <option>SHS 1</option><option>SHS 2</option><option>SHS 3</option>
+            </select>
           </div>
           <div className="sims-form-group">
-            <label>Billing Frequency</label>
-            <select value={m.billFrequency || 'Per Term'} onChange={(e) => update('billFrequency', e.target.value)}>
-              <option>Per Term</option>
-              <option>Per Academic Year</option>
-              <option>One-Time Admission Fee</option>
+            <label>Academic Year</label>
+            <select value={acadYear} onChange={(e) => update('academicYear', e.target.value)}>
+              <option>2025/2026</option>
+              <option>2026/2027</option>
+              <option>2027/2028</option>
+            </select>
+          </div>
+          <div className="sims-form-group">
+            <label>Academic Term</label>
+            <select value={acadTerm} onChange={(e) => update('term', e.target.value)}>
+              <option>Term 1</option>
+              <option>Term 2</option>
+              <option>Term 3</option>
             </select>
           </div>
         </div>
-        <div className="sims-form-group">
-          <label>Applicable School Section</label>
-          <select value={m.applicableSection || 'All Classes'} onChange={(e) => update('applicableSection', e.target.value)}>
-            <option>All Classes</option>
-            <option>Creche & Early Childhood</option>
-            <option>Primary Department (1-6)</option>
-            <option>Junior High School (JHS 1-3)</option>
-          </select>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 12 }}>
+          <div className="sims-form-group">
+            <label>Fee Category (Selectable Dropdown)</label>
+            <select value={category} onChange={(e) => {
+              update('billCategory', e.target.value);
+              if (!m.billItemName) update('billItemName', e.target.value);
+            }}>
+              <option>Tuition Fee</option>
+              <option>Bus Fee</option>
+              <option>ICT Fee & Lab Maintenance</option>
+              <option>Library & Lab Fee</option>
+              <option>Feeding & Mid-day Snack</option>
+              <option>Examination & Assessment Fee</option>
+              <option>PTA Dues & Association Levy</option>
+              <option>Facility & Maintenance Levy</option>
+              <option>Toiletries & Hygiene Pack</option>
+              <option>Sundry / Miscellaneous</option>
+            </select>
+          </div>
+          <div className="sims-form-group">
+            <label>Fee Amount (GHS)</label>
+            <input type="number" step="0.01" min="0" placeholder="1200.00" value={amountVal} onChange={(e) => update('amount', e.target.value)} required />
+          </div>
+          <div className="sims-form-group">
+            <label>Bill Specification</label>
+            <select value={specification} onChange={(e) => update('specification', e.target.value)}>
+              <option value="Compulsory">🔴 Compulsory Bill</option>
+              <option value="Optional">🟡 Optional Bill</option>
+            </select>
+          </div>
         </div>
+
+        <div className="sims-form-group">
+          <label>Bill Item Title / Custom Description</label>
+          <input type="text" placeholder="e.g. Tuition Fee & Academic Instruction" value={desc} onChange={(e) => update('billItemName', e.target.value)} required />
+        </div>
+
+        {/* Existing Defined Bills Table Preview */}
+        {definedBills && definedBills.length > 0 && (
+          <div className="sims-form-group">
+            <label>Currently Defined Bills ({definedBills.length} Items)</label>
+            <div style={{ maxHeight: 130, overflowY: 'auto', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 6, padding: 8, fontSize: 11 }}>
+              {definedBills.map((b) => (
+                <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', padding: '4px 0', alignItems: 'center' }}>
+                  <span>
+                    <strong>{b.classLevel}</strong> · {b.billCategory} ({b.academicYear} {b.term}) — GHS {Number(b.amount).toFixed(2)}
+                    <span style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, background: b.specification === 'Compulsory' ? '#fee2e2' : '#fef3c7', color: b.specification === 'Compulsory' ? '#991b1b' : '#92400e', fontWeight: 700 }}>
+                      {b.specification}
+                    </span>
+                  </span>
+                  <button type="button" onClick={() => deleteDefinedBill && deleteDefinedBill(b.id)} style={{ color: '#dc2626', border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: 800 }}>✕ Remove</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="sims-modal-actions">
           <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
-          <button type="submit" className="sims-btn sims-btn-primary">Save Bill Item</button>
+          <button type="submit" className="sims-btn sims-btn-primary">💾 Save Class-Based Bill</button>
         </div>
-      </div>
+      </form>
     );
   }
 
@@ -13272,10 +13792,31 @@ function ScoreSheetEntryForm({ setM, students }) {
                 <input type="text" value={applyGrade ? remarks : ''} readOnly style={{ width: '100%', padding: 6, background: '#fed7aa', border: '1px solid #fdba74', borderRadius: 4, fontWeight: 800 }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <button type="submit" style={{ padding: '6px 12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 4, fontWeight: 800, color: '#3730a3', cursor: 'pointer' }}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (typeof saveScoreSheetEntry === 'function') {
+                      saveScoreSheetEntry({
+                        studentId: selectedStudent.studentId || selectedStudent.id,
+                        studentName: selectedStudent.fullName,
+                        classLevel: cls,
+                        subject,
+                        score: totalScore,
+                        grade,
+                        remarks,
+                        term,
+                        year,
+                        instructor
+                      });
+                    }
+                    alert(`✅ Score entry for ${selectedStudent.fullName} (${subject}) saved!\nTotal Score: ${totalScore}% | Grade: ${grade} (${remarks})`);
+                  }}
+                  style={{ padding: '6px 12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 4, fontWeight: 800, color: '#3730a3', cursor: 'pointer' }}
+                >
                   + Submit scores
                 </button>
-                <button type="button" onClick={() => alert('Test Roll Viewer Opened.')} style={{ padding: '6px 12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 4, fontWeight: 800, color: '#3730a3', cursor: 'pointer' }}>
+                <button type="button" onClick={() => alert(`Test Roll for ${cls} (${subject}): ${selectedStudent.fullName} - Score ${totalScore}% (Grade ${grade})`)} style={{ padding: '6px 12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 4, fontWeight: 800, color: '#3730a3', cursor: 'pointer' }}>
                   View Test Roll
                 </button>
               </div>
@@ -14302,14 +14843,22 @@ function ConsolidatedSubjectBasedAssessmentForm({ setM, students }) {
 }
 
 // ── REDESIGNED SIMS AUTH & ENTERPRISE COMMAND TERMINAL ──
-function SimsAuthTerminalView({ onOpenSimsModal }) {
+// ── REDESIGNED SIMS AUTH & ENTERPRISE COMMAND TERMINAL ──
+function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment, initialActionTab = 'Post Academic Bill Header' }) {
   const [simsRole, setSimsRole] = useState('Accountant / Finance Officer');
   const [simsUser, setSimsUser] = useState('ACCOUNTANT');
   const [simsPass, setSimsPass] = useState('••••••••');
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeSessionUser, setActiveSessionUser] = useState('Mrs. Grace Accountant');
   const [notice, setNotice] = useState('');
   const [selectedHub, setSelectedHub] = useState('Finance & Administration');
+  const [activeActionTab, setActiveActionTab] = useState(initialActionTab || 'Post Academic Bill Header');
+
+  useEffect(() => {
+    if (initialActionTab && initialActionTab !== 'SIMS Auth & Login Terminal') {
+      setActiveActionTab(initialActionTab);
+    }
+  }, [initialActionTab]);
 
   const handleLogin = (e) => {
     if (e) e.preventDefault();
@@ -14330,8 +14879,21 @@ function SimsAuthTerminalView({ onOpenSimsModal }) {
     setTimeout(() => setNotice(''), 4000);
   };
 
+  const ACTION_TABS = [
+    { id: 'Post Academic Bill Header', label: 'Post Academic Bill Header', badge: 'New', icon: '📄' },
+    { id: 'Print Individual Student Bill', label: 'Print Individual Student Bill', badge: 'Print', icon: '🖨️' },
+    { id: 'Receive Payments', label: 'Receive Payments', badge: 'Pay', icon: '💳' },
+    { id: 'Receive Other Payments', label: 'Receive Other Payments', badge: 'Misc', icon: '🧾' },
+    { id: 'Batch Processing', label: 'Batch Processing', badge: 'Batch', icon: '🥞' },
+    { id: 'Reprint Commercial Receipt', label: 'Reprint Commercial Receipt', badge: 'Reprint', icon: '🖨️' },
+    { id: 'Other Accounts Receivables', label: 'Other Accounts Receivables', badge: 'Recv', icon: '💲' },
+    { id: 'Authorise Bills/Accounts Receivables', label: 'Authorise Bills/Accounts Receivables', badge: 'Auth', icon: '☑️' },
+    { id: 'Approve Payment Voucher (PV)', label: 'Approve Payment Voucher (PV)', badge: 'Audit', icon: '🛡️' },
+    { id: 'Official Fee Schedule', label: 'Official Fee Schedule', badge: 'Bill', icon: '📊' },
+  ];
+
   return (
-    <div className="animate-fade-up" style={{ background: '#0f172a', borderRadius: 16, padding: 24, color: '#f8fafc', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', border: '1px solid #1e293b' }}>
+    <div style={{ background: '#0f172a', borderRadius: 16, padding: 24, color: '#f8fafc', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', border: '1px solid #1e293b' }}>
       {/* Top Header Card */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #334155', paddingBottom: 20, marginBottom: 20, flexWrap: 'wrap', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -14350,15 +14912,37 @@ function SimsAuthTerminalView({ onOpenSimsModal }) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-          <div style={{
-            background: isAuthenticated ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-            border: `1px solid ${isAuthenticated ? '#22c55e' : '#ef4444'}`,
-            color: isAuthenticated ? '#4ade80' : '#f87171',
-            padding: '6px 16px', borderRadius: 20, fontSize: 12, fontWeight: 800,
-            display: 'inline-flex', alignItems: 'center', gap: 8
-          }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: isAuthenticated ? '#22c55e' : '#ef4444', boxShadow: `0 0 10px ${isAuthenticated ? '#22c55e' : '#ef4444'}` }} />
-            {isAuthenticated ? `🟢 Authenticated: ${activeSessionUser}` : '🔴 SIMS Session Locked'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              background: isAuthenticated ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+              border: `1px solid ${isAuthenticated ? '#22c55e' : '#ef4444'}`,
+              color: isAuthenticated ? '#4ade80' : '#f87171',
+              padding: '6px 16px', borderRadius: 20, fontSize: 12, fontWeight: 800,
+              display: 'inline-flex', alignItems: 'center', gap: 8
+            }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: isAuthenticated ? '#22c55e' : '#ef4444', boxShadow: `0 0 10px ${isAuthenticated ? '#22c55e' : '#ef4444'}` }} />
+              {isAuthenticated ? `🟢 Authenticated: ${activeSessionUser}` : '🔴 SIMS Session Locked'}
+            </div>
+
+            {isAuthenticated && (
+              <button
+                type="button"
+                onClick={handleLogout}
+                style={{
+                  padding: '6px 14px',
+                  background: 'rgba(239,68,68,0.2)',
+                  border: '1px solid #ef4444',
+                  color: '#f87171',
+                  borderRadius: 20,
+                  fontSize: 11.5,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(239,68,68,0.2)'
+                }}
+              >
+                🔒 Lock Session
+              </button>
+            )}
           </div>
 
           <div style={{ fontSize: 10.5, color: '#64748b', fontFamily: 'monospace' }}>
@@ -14373,125 +14957,229 @@ function SimsAuthTerminalView({ onOpenSimsModal }) {
         </div>
       )}
 
-      {/* Authentication Login Terminal Card */}
-      <form onSubmit={handleLogin} style={{ background: '#1e293b', padding: 20, borderRadius: 12, border: '1px solid #334155', marginBottom: 24 }}>
-        <div style={{ fontWeight: 800, fontSize: 13, color: '#38bdf8', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span>🔐</span> SIMS Credentials & Security Authorization
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 160px', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 4 }}>Role Designation</label>
-            <select value={simsRole} onChange={(e) => setSimsRole(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #475569', background: '#0f172a', color: '#fff', fontSize: 12, fontWeight: 700 }}>
-              <option>Accountant / Finance Officer</option>
-              <option>Headmaster / Pre-Auditor</option>
-              <option>SIMS Administrator</option>
-              <option>Teacher / Class Master</option>
-            </select>
+      {/* Credentials Authentication Form (Only shown when session is locked) */}
+      {!isAuthenticated && (
+        <form onSubmit={handleLogin} style={{ background: '#1e293b', padding: 20, borderRadius: 12, border: '1px solid #334155', marginBottom: 24 }}>
+          <div style={{ fontWeight: 800, fontSize: 13, color: '#38bdf8', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>🔐</span> SIMS Credentials & Security Authorization
           </div>
 
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 4 }}>Username / SID</label>
-            <input type="text" value={simsUser} onChange={(e) => setSimsUser(e.target.value)} placeholder="Username..." style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #475569', background: '#0f172a', color: '#fff', fontSize: 12, fontWeight: 700 }} />
-          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 160px', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 4 }}>Role Designation</label>
+              <select value={simsRole} onChange={(e) => setSimsRole(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #475569', background: '#0f172a', color: '#fff', fontSize: 12, fontWeight: 700 }}>
+                <option>Accountant / Finance Officer</option>
+                <option>Headmaster / Pre-Auditor</option>
+                <option>SIMS Administrator</option>
+                <option>Teacher / Class Master</option>
+              </select>
+            </div>
 
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 4 }}>Security Password / PIN</label>
-            <input type="password" value={simsPass} onChange={(e) => setSimsPass(e.target.value)} placeholder="Password..." style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #475569', background: '#0f172a', color: '#fff', fontSize: 12 }} />
-          </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 4 }}>Username / SID</label>
+              <input type="text" value={simsUser} onChange={(e) => setSimsUser(e.target.value)} placeholder="Username..." style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #475569', background: '#0f172a', color: '#fff', fontSize: 12, fontWeight: 700 }} />
+            </div>
 
-          <div>
-            {isAuthenticated ? (
-              <button type="button" onClick={handleLogout} style={{ width: '100%', padding: '9px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer', boxShadow: '0 4px 12px rgba(220,38,38,0.3)' }}>
-                🔒 Lock Session
-              </button>
-            ) : (
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 4 }}>Security Password / PIN</label>
+              <input type="password" value={simsPass} onChange={(e) => setSimsPass(e.target.value)} placeholder="Password..." style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #475569', background: '#0f172a', color: '#fff', fontSize: 12 }} />
+            </div>
+
+            <div>
               <button type="submit" style={{ width: '100%', padding: '9px 14px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer', boxShadow: '0 4px 12px rgba(2,132,199,0.3)' }}>
                 🔓 Authenticate
               </button>
-            )}
+            </div>
           </div>
-        </div>
-      </form>
+        </form>
+      )}
 
       {/* Authenticated Command Center Section */}
       {isAuthenticated ? (
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 900, color: '#38bdf8', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>⚡</span> Authenticated Quick Action Launcher & PV Approvals
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* ── 10 QUICK ACTION TABS BAR (TOP ACTION HUB) ── */}
+          <div style={{ background: '#1e293b', borderRadius: 14, border: '1px solid #334155', padding: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>⚡</span> SIMS Financial Action Tools & Billing Hub
+              </span>
+              <span style={{ fontSize: 10.5, background: 'rgba(56,189,248,0.15)', color: '#38bdf8', padding: '3px 10px', borderRadius: 12, border: '1px solid rgba(56,189,248,0.3)' }}>
+                10 Active Modules
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+              {ACTION_TABS.map((tab) => {
+                const isActive = activeActionTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveActionTab(tab.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justify: 'space-between',
+                      padding: '11px 13px',
+                      borderRadius: 10,
+                      border: `1.5px solid ${isActive ? '#38bdf8' : '#334155'}`,
+                      background: isActive ? '#0284c7' : '#0f172a',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease-in-out',
+                      textAlign: 'left',
+                      boxShadow: isActive ? '0 4px 14px rgba(2,132,199,0.4)' : 'none'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+                      <span style={{ fontSize: 15, flexShrink: 0 }}>{tab.icon}</span>
+                      <span style={{ fontSize: 12, fontWeight: isActive ? 800 : 600, color: isActive ? '#ffffff' : '#cbd5e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {tab.label}
+                      </span>
+                    </div>
+                    <span style={{
+                      background: '#f43f5e',
+                      color: '#ffffff',
+                      fontSize: 9.5,
+                      fontWeight: 800,
+                      padding: '2px 7px',
+                      borderRadius: 10,
+                      letterSpacing: '0.02em',
+                      boxShadow: '0 2px 6px rgba(244,63,94,0.4)',
+                      flexShrink: 0,
+                      marginLeft: 4
+                    }}>
+                      {tab.badge}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Quick Launch Cards Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14, marginBottom: 28 }}>
-            {[
-              { label: 'Approve Payment Voucher (PV)', category: 'Back office Internal Accounts', badge: 'PV Audit', color: '#ef4444', desc: 'Pre-audit, review and authorize payment vouchers.' },
-              { label: 'Pay PV', category: 'Back office Internal Accounts', badge: 'Disburse', color: '#f59e0b', desc: 'Disburse funds for approved payment vouchers.' },
-              { label: 'Score Sheet [Entry]', category: 'Student\'s Progressive Evaluation', badge: 'Exams', color: '#3b82f6', desc: 'Record class tests, exams scores, and calculate grades.' },
-              { label: 'List of Staff', category: 'HR & Payroll', badge: 'Staff', color: '#8b5cf6', desc: 'Generate and print complete staff roster report.' },
-              { label: 'Creche Terminal Evaluation', category: 'Student\'s Progressive Evaluation', badge: 'Creche', color: '#10b981', desc: 'Assess early childhood developmental milestones checklist.' },
-              { label: 'View Pending Test Results', category: 'Student\'s Progressive Evaluation', badge: 'Audit', color: '#ec4899', desc: 'Review and approve un-published test scores.' },
-              { label: 'View registered students per class/Sub class per semester', category: 'Registers', badge: 'Roster', color: '#06b6d4', desc: 'Filter and print student class registration lists.' },
-              { label: 'View Un-Authorised Lists of Creche Progress Reports', category: 'Registers', badge: 'Creche', color: '#f97316', desc: 'Review and authorise pending creche progress reports.' }
-            ].map((card) => (
-              <div key={card.label} onClick={() => onOpenSimsModal({ category: card.category, link: card.label })} style={{
-                background: '#1e293b', border: '1px solid #334155', borderRadius: 10, padding: 14,
-                cursor: 'pointer', transition: 'all 0.2s ease', position: 'relative', overflow: 'hidden'
-              }} onMouseEnter={(e) => e.currentTarget.style.borderColor = card.color} onMouseLeave={(e) => e.currentTarget.style.borderColor = '#334155'}>
-                <div style={{ position: 'absolute', top: 0, left: 0, width: 4, height: '100%', background: card.color }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontSize: 10, fontWeight: 800, background: 'rgba(255,255,255,0.1)', color: card.color, padding: '2px 8px', borderRadius: 10 }}>{card.badge}</span>
-                  <span style={{ fontSize: 12, color: '#94a3b8' }}>→</span>
-                </div>
-                <div style={{ fontWeight: 800, fontSize: 13, color: '#fff', marginBottom: 4 }}>{card.label}</div>
-                <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>{card.desc}</div>
+          {/* ── FULL WIDTH ACTIVE WORKSPACE PANEL ── */}
+          <div style={{ background: '#ffffff', borderRadius: 14, padding: 22, color: '#0f172a', border: '1px solid #cbd5e1', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #e2e8f0', paddingBottom: 12, marginBottom: 18 }}>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 20 }}>{ACTION_TABS.find(t => t.id === activeActionTab)?.icon}</span>
+                <span>{activeActionTab}</span>
               </div>
-            ))}
-          </div>
-
-          {/* SIMS Category Explorer Tabs */}
-          <div style={{ background: '#1e293b', borderRadius: 12, border: '1px solid #334155', padding: 18 }}>
-            <div style={{ display: 'flex', gap: 10, borderBottom: '1px solid #334155', paddingBottom: 12, marginBottom: 16, overflowX: 'auto' }}>
-              {['Finance & Administration', 'Academics', 'Student Services Centre', 'System Administrator'].map((hub) => (
-                <button key={hub} onClick={() => setSelectedHub(hub)} style={{
-                  padding: '8px 16px', borderRadius: 8, border: 'none',
-                  background: selectedHub === hub ? '#0284c7' : 'rgba(255,255,255,0.05)',
-                  color: selectedHub === hub ? '#fff' : '#cbd5e1', fontWeight: 800, fontSize: 12, cursor: 'pointer'
-                }}>
-                  {hub}
-                </button>
-              ))}
+              <span style={{ background: '#0284c7', color: '#ffffff', fontSize: 11, fontWeight: 800, padding: '4px 14px', borderRadius: 12 }}>
+                AUTHENTICATED WORKSPACE
+              </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-              {(SIMS_DATA[selectedHub] || []).map((section) => (
-                <div key={section.category} style={{ background: '#0f172a', padding: 14, borderRadius: 8, border: '1px solid #334155' }}>
-                  <div style={{ fontSize: 12, fontWeight: 900, color: '#38bdf8', marginBottom: 8, borderBottom: '1px solid #1e293b', paddingBottom: 4 }}>
-                    {section.category}
+            {activeActionTab === 'Post Academic Bill Header' && (
+              <PrepareStudentAcademicBillForm setM={() => {}} students={students} />
+            )}
+            {activeActionTab === 'Print Individual Student Bill' && (
+              <PrintIndividualStudentBillForm setM={() => {}} students={students} />
+            )}
+            {activeActionTab === 'Receive Payments' && (
+              <ReceivePaymentsForm setM={() => {}} students={students} recordFeePayment={recordFeePayment} />
+            )}
+            {activeActionTab === 'Receive Other Payments' && (
+              <ReceiveOtherPaymentsForm setM={() => {}} />
+            )}
+            {activeActionTab === 'Batch Processing' && (
+              <BatchProcessingForm setM={() => {}} students={students} recordFeePayment={recordFeePayment} />
+            )}
+            {activeActionTab === 'Reprint Commercial Receipt' && (
+              <ReprintCommercialReceiptForm setM={() => {}} />
+            )}
+            {activeActionTab === 'Other Accounts Receivables' && (
+              <OtherAccountsReceivablesForm setM={() => {}} students={students} />
+            )}
+            {activeActionTab === 'Authorise Bills/Accounts Receivables' && (
+              <AuthoriseBillsReceivablesForm setM={() => {}} students={students} />
+            )}
+            {activeActionTab === 'Approve Payment Voucher (PV)' && (
+              <ApprovePVForm setM={() => {}} />
+            )}
+            {activeActionTab === 'Official Fee Schedule' && (
+              <OfficialSchoolFeeStructure onOpenSimsModal={onOpenSimsModal} />
+            )}
+          </div>
+
+          {/* ── EXPANDABLE SECONDARY DIRECTORY & EXPLORER ── */}
+          <details style={{ background: '#1e293b', borderRadius: 12, border: '1px solid #334155', padding: '14px 18px' }}>
+            <summary style={{ fontSize: 12.5, fontWeight: 900, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', outline: 'none' }}>
+              📁 Explore Additional SIMS Command Launchers & Registers
+            </summary>
+            
+            <div style={{ marginTop: 16 }}>
+              {/* Quick Launch Cards Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginBottom: 20 }}>
+                {[
+                  { label: 'Approve Payment Voucher (PV)', category: 'Back office Internal Accounts', badge: 'PV Audit', color: '#ef4444', desc: 'Pre-audit, review and authorize payment vouchers.' },
+                  { label: 'Pay PV', category: 'Back office Internal Accounts', badge: 'Disburse', color: '#f59e0b', desc: 'Disburse funds for approved payment vouchers.' },
+                  { label: 'Score Sheet [Entry]', category: 'Student\'s Progressive Evaluation', badge: 'Exams', color: '#3b82f6', desc: 'Record class tests, exams scores, and calculate grades.' },
+                  { label: 'List of Staff', category: 'HR & Payroll', badge: 'Staff', color: '#8b5cf6', desc: 'Generate and print complete staff roster report.' },
+                  { label: 'Creche Terminal Evaluation', category: 'Student\'s Progressive Evaluation', badge: 'Creche', color: '#10b981', desc: 'Assess early childhood developmental milestones checklist.' },
+                  { label: 'View Pending Test Results', category: 'Student\'s Progressive Evaluation', badge: 'Audit', color: '#ec4899', desc: 'Review and approve un-published test scores.' },
+                  { label: 'View registered students per class/Sub class per semester', category: 'Registers', badge: 'Roster', color: '#06b6d4', desc: 'Filter and print student class registration lists.' },
+                  { label: 'View Un-Authorised Lists of Creche Progress Reports', category: 'Registers', badge: 'Creche', color: '#f97316', desc: 'Review and authorise pending creche progress reports.' }
+                ].map((card) => (
+                  <div key={card.label} onClick={() => onOpenSimsModal({ category: card.category, link: card.label })} style={{
+                    background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: 12,
+                    cursor: 'pointer', transition: 'all 0.2s ease', position: 'relative', overflow: 'hidden'
+                  }} onMouseEnter={(e) => e.currentTarget.style.borderColor = card.color} onMouseLeave={(e) => e.currentTarget.style.borderColor = '#334155'}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, width: 4, height: '100%', background: card.color }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <span style={{ fontSize: 9.5, fontWeight: 800, background: 'rgba(255,255,255,0.1)', color: card.color, padding: '2px 6px', borderRadius: 8 }}>{card.badge}</span>
+                      <span style={{ fontSize: 11, color: '#94a3b8' }}>→</span>
+                    </div>
+                    <div style={{ fontWeight: 800, fontSize: 12, color: '#fff', marginBottom: 2 }}>{card.label}</div>
+                    <div style={{ fontSize: 10.5, color: '#94a3b8', lineHeight: 1.3 }}>{card.desc}</div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {(section.links || []).map((lnk) => (
-                      <button key={lnk} onClick={() => onOpenSimsModal({ category: section.category, link: lnk })} style={{
-                        textAlign: 'left', background: 'none', border: 'none', color: '#e2e8f0',
-                        fontSize: 11.5, padding: '4px 6px', borderRadius: 4, cursor: 'pointer',
-                        transition: 'background 0.15s ease'
-                      }} onMouseEnter={(e) => e.target.style.background = 'rgba(56,189,248,0.15)'} onMouseLeave={(e) => e.target.style.background = 'none'}>
-                        ▸ {lnk}
-                      </button>
-                    ))}
-                  </div>
+                ))}
+              </div>
+
+              {/* SIMS Category Explorer Tabs */}
+              <div style={{ background: '#0f172a', borderRadius: 10, border: '1px solid #334155', padding: 14 }}>
+                <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid #334155', paddingBottom: 10, marginBottom: 14, overflowX: 'auto' }}>
+                  {['Finance & Administration', 'Academics', 'Student Services Centre', 'System Administrator'].map((hub) => (
+                    <button key={hub} onClick={() => setSelectedHub(hub)} style={{
+                      padding: '6px 14px', borderRadius: 6, border: 'none',
+                      background: selectedHub === hub ? '#0284c7' : 'rgba(255,255,255,0.05)',
+                      color: selectedHub === hub ? '#fff' : '#cbd5e1', fontWeight: 800, fontSize: 11.5, cursor: 'pointer'
+                    }}>
+                      {hub}
+                    </button>
+                  ))}
                 </div>
-              ))}
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14 }}>
+                  {(SIMS_DATA[selectedHub] || []).map((section) => (
+                    <div key={section.category} style={{ background: '#1e293b', padding: 12, borderRadius: 6, border: '1px solid #334155' }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 900, color: '#38bdf8', marginBottom: 6, borderBottom: '1px solid #0f172a', paddingBottom: 4 }}>
+                        {section.category}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {(section.links || []).map((lnk) => (
+                          <button key={lnk} onClick={() => onOpenSimsModal({ category: section.category, link: lnk })} style={{
+                            textAlign: 'left', background: 'none', border: 'none', color: '#e2e8f0',
+                            fontSize: 11, padding: '3px 5px', borderRadius: 4, cursor: 'pointer',
+                            transition: 'background 0.15s ease'
+                          }} onMouseEnter={(e) => e.target.style.background = 'rgba(56,189,248,0.15)'} onMouseLeave={(e) => e.target.style.background = 'none'}>
+                            ▸ {lnk}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
+          </details>
         </div>
       ) : (
-        <div style={{ background: '#1e293b', padding: 32, borderRadius: 12, textAlign: 'center', border: '1px dashed #475569' }}>
-          <div style={{ fontSize: 36, marginBottom: 10 }}>🔒</div>
-          <h3 style={{ fontSize: 16, fontWeight: 900, color: '#fff', margin: 0 }}>SIMS Enterprise Features Locked</h3>
-          <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 4, maxWidth: 460, margin: '6px auto 16px auto' }}>
-            Please authenticate using your SIMS username and password above to unlock payment voucher approvals, score sheets, staff lists, terminal evaluations, and financial ledgers.
+        <div style={{ background: '#1e293b', padding: 36, borderRadius: 12, textAlign: 'center', border: '1px dashed #475569' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+          <h3 style={{ fontSize: 17, fontWeight: 900, color: '#fff', margin: 0 }}>SIMS Enterprise Features & Action Tools Locked</h3>
+          <p style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 6, maxWidth: 520, margin: '8px auto 18px auto', lineHeight: 1.5 }}>
+            Please authenticate using your SIMS username and password above to unlock Post Academic Bill Header, Print Student Bills, Receive Payments, Batch Processing, PV Approvals, and Official Fee Schedules.
           </p>
-          <button type="button" onClick={() => handleLogin()} style={{ padding: '10px 24px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
+          <button type="button" onClick={() => handleLogin()} style={{ padding: '10px 24px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 12px rgba(2,132,199,0.3)' }}>
             🔓 Authenticate SIMS Access Now
           </button>
         </div>

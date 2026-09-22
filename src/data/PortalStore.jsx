@@ -106,6 +106,18 @@ const INITIAL_DATA = {
     { id: 'A', name: 'Bus 01 – Bogoso Route', color: '#16a34a', stops: ['School Grounds', 'Anikoko Junction', 'Bogoso Market', 'Post Office'], driverName: 'Mr. Kweku Mensah', driverPhone: '024 444 5555', currentLat: 6.409, currentLng: -1.952, speed: '38 km/h', status: 'On Route' },
     { id: 'B', name: 'Bus 02 – Tarkwa Route', color: '#2563eb', stops: ['School Grounds', 'Tamso Junction', 'Tarkwa Main Station', 'University Roundabout'], driverName: 'Mr. Emmanuel Darko', driverPhone: '024 555 6666', currentLat: 6.415, currentLng: -1.96, speed: '45 km/h', status: 'On Route' }
   ],
+  definedBills: [
+    { id: 'def-1', classLevel: 'Primary 1', academicYear: '2026/2027', term: 'Term 1', billCategory: 'Tuition Fee', amount: 1350, specification: 'Compulsory', dateDefined: '2026-09-01' },
+    { id: 'def-2', classLevel: 'Primary 1', academicYear: '2026/2027', term: 'Term 1', billCategory: 'Bus Fee', amount: 450, specification: 'Optional', dateDefined: '2026-09-01' },
+    { id: 'def-3', classLevel: 'JHS 1', academicYear: '2026/2027', term: 'Term 1', billCategory: 'Tuition Fee', amount: 1800, specification: 'Compulsory', dateDefined: '2026-09-01' },
+    { id: 'def-4', classLevel: 'JHS 1', academicYear: '2026/2027', term: 'Term 1', billCategory: 'ICT Fee', amount: 300, specification: 'Compulsory', dateDefined: '2026-09-01' },
+    { id: 'def-5', classLevel: 'JHS 1', academicYear: '2026/2027', term: 'Term 1', billCategory: 'Bus Fee', amount: 500, specification: 'Optional', dateDefined: '2026-09-01' },
+  ],
+  semesterRegistrations: [
+    { id: 'reg-001', studentId: 'REMALJ-2026-001', studentName: 'Benjamin Edwards', classLevel: 'Grade 4', academicYear: '2026/2027', term: 'Term 1', status: 'Registered', registeredAt: '2026-09-01' },
+    { id: 'reg-002', studentId: 'REMALJ-2026-002', studentName: 'Adwoa Edwards', classLevel: 'Primary 5', academicYear: '2026/2027', term: 'Term 1', status: 'Registered', registeredAt: '2026-09-01' },
+    { id: 'reg-003', studentId: 'REMALJ-2026-041', studentName: 'Abena Mensah', classLevel: 'JHS 3', academicYear: '2026/2027', term: 'Term 1', status: 'Registered', registeredAt: '2026-09-01' },
+  ],
   theme: 'light',
   backendConnected: false,
 };
@@ -747,13 +759,112 @@ export function PortalDataProvider({ children }) {
     },
     updateOnboardedStudent: (id, updates) => setData((current) => ({
       ...current,
-      onboardedStudents: (current.onboardedStudents || []).map((s) => s.id === id ? { ...s, ...updates } : s),
+      onboardedStudents: (current.onboardedStudents || []).map((s) => (s.id === id || s.studentId === id) ? { ...s, ...updates } : s),
     })),
     deleteOnboardedStudent: (id) => setData((current) => ({
       ...current,
-      onboardedStudents: (current.onboardedStudents || []).filter((s) => s.id !== id),
+      onboardedStudents: (current.onboardedStudents || []).filter((s) => s.id !== id && s.studentId !== id),
     })),
-    recordFeePayment: async ({ id, paidAmount, paymentDate, paymentMethod = 'Mobile Money', notes = '' }) => {
+    // Admissions Edit & Update
+    updateStudentAdmission: (id, updates) => setData((current) => ({
+      ...current,
+      applications: (current.applications || []).map((app) => app.id === id ? { ...app, ...updates } : app),
+      onboardedStudents: (current.onboardedStudents || []).map((s) => (s.id === id || s.studentId === id) ? { ...s, ...updates } : s),
+    })),
+    // Define Bills Methods
+    saveDefinedBill: (billItem) => setData((current) => {
+      const existing = current.definedBills || [];
+      const newBill = {
+        id: billItem.id || `def-${Date.now()}`,
+        classLevel: billItem.classLevel || 'All Classes',
+        academicYear: billItem.academicYear || '2026/2027',
+        term: billItem.term || 'Term 1',
+        billCategory: billItem.billCategory || 'Tuition Fee',
+        amount: Number(billItem.amount) || 0,
+        specification: billItem.specification || 'Compulsory',
+        description: billItem.description || billItem.billCategory,
+        dateDefined: billItem.dateDefined || new Date().toISOString().split('T')[0]
+      };
+      const updated = existing.some(b => b.id === newBill.id)
+        ? existing.map(b => b.id === newBill.id ? newBill : b)
+        : [newBill, ...existing];
+      return { ...current, definedBills: updated };
+    }),
+    deleteDefinedBill: (id) => setData((current) => ({
+      ...current,
+      definedBills: (current.definedBills || []).filter(b => b.id !== id)
+    })),
+    // Semester Registration Methods
+    registerClassSemester: ({ classLevel, academicYear, term, studentId, studentName }) => setData((current) => {
+      const existingRegs = current.semesterRegistrations || [];
+      let newEntries = [];
+
+      if (studentId && studentName) {
+        // Individual Registration
+        newEntries.push({
+          id: `reg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          studentId,
+          studentName,
+          classLevel: classLevel || 'All Classes',
+          academicYear: academicYear || '2026/2027',
+          term: term || 'Term 1',
+          status: 'Registered',
+          registeredAt: new Date().toISOString().split('T')[0]
+        });
+      } else if (classLevel) {
+        // Class-based Bulk Registration
+        const targetStudents = (current.onboardedStudents || []).filter(s =>
+          classLevel === 'All Classes' || (s.level || '').toLowerCase().includes(classLevel.toLowerCase())
+        );
+        const listToUse = targetStudents.length > 0 ? targetStudents : current.onboardedStudents || [];
+        listToUse.forEach(s => {
+          newEntries.push({
+            id: `reg-${Date.now()}-${s.id || s.studentId}`,
+            studentId: s.studentId || s.id,
+            studentName: s.fullName || s.name,
+            classLevel: s.level || classLevel,
+            academicYear: academicYear || '2026/2027',
+            term: term || 'Term 1',
+            status: 'Registered',
+            registeredAt: new Date().toISOString().split('T')[0]
+          });
+        });
+      }
+
+      return {
+        ...current,
+        semesterRegistrations: [...newEntries, ...existingRegs]
+      };
+    }),
+    deleteSemesterRegistration: (id) => setData((current) => ({
+      ...current,
+      semesterRegistrations: (current.semesterRegistrations || []).filter(r => r.id !== id && r.studentId !== id)
+    })),
+    // Score Sheet Entry Persistence
+    saveScoreSheetEntry: (entry) => setData((current) => {
+      const existingResults = current.results || [];
+      const newResult = {
+        id: entry.id || `res-${Date.now()}`,
+        studentId: entry.studentId,
+        studentName: entry.studentName,
+        subject: entry.subject || 'General Subject',
+        score: entry.score,
+        grade: entry.grade,
+        remarks: entry.remarks,
+        classLevel: entry.classLevel,
+        term: entry.term,
+        year: entry.year,
+        lecturer: entry.instructor || 'Subject Teacher',
+        status: 'Approved',
+        updatedAt: new Date().toLocaleDateString()
+      };
+      const updated = existingResults.some(r => r.id === newResult.id || (r.subject === newResult.subject && r.studentName === newResult.studentName))
+        ? existingResults.map(r => (r.id === newResult.id || (r.subject === newResult.subject && r.studentName === newResult.studentName)) ? { ...r, ...newResult } : r)
+        : [newResult, ...existingResults];
+      return { ...current, results: updated };
+    }),
+    // Payment Recording with Robust Match Logic
+    recordFeePayment: async ({ id, paidAmount, paymentDate, paymentMethod = 'Mobile Money', notes = '', receivingAccount = 'GCB Main Account' }) => {
       try {
         await api.recordFeePayment(id, { paidAmount: Number(paidAmount), paymentMethod, paymentDate, notes });
       } catch (e) {
@@ -761,12 +872,22 @@ export function PortalDataProvider({ children }) {
       }
 
       setData((current) => {
+        const addAmount = Number(paidAmount) || 0;
+
+        let targetFound = false;
         const updatedFees = (current.studentFees || []).map((fee) => {
-          if (fee.id !== id) return fee;
-          const addAmount = Number(paidAmount) || 0;
-          const newPaid = fee.paidAmount + addAmount;
-          const newBalance = Math.max(0, fee.billedAmount - newPaid);
+          const isMatch = fee.id === id ||
+            fee.studentId === id ||
+            (fee.studentName && fee.studentName.toLowerCase().includes(String(id).toLowerCase())) ||
+            (id === 'all' || !id);
+
+          if (!isMatch && targetFound) return fee;
+          if (isMatch) targetFound = true;
+
+          const newPaid = (fee.paidAmount || 0) + addAmount;
+          const newBalance = Math.max(0, (fee.billedAmount || 0) - newPaid);
           const newStatus = newBalance <= 0 ? 'Paid' : newPaid > 0 ? 'Balance Due' : 'Not Paid';
+
           return {
             ...fee,
             paidAmount: newPaid,
@@ -774,21 +895,28 @@ export function PortalDataProvider({ children }) {
             status: newStatus,
             paymentDate: paymentDate || new Date().toISOString().split('T')[0],
             lastPaymentMethod: paymentMethod,
+            lastReceivingAccount: receivingAccount,
             lastNotes: notes,
           };
         });
-        const targetFee = (current.studentFees || []).find((f) => f.id === id);
+
+        // Also update matching fee account for parent/student portal summaries
+        const targetFee = (current.studentFees || []).find((f) =>
+          f.id === id || f.studentId === id || (f.studentName && f.studentName.toLowerCase().includes(String(id).toLowerCase()))
+        );
+
         const updatedFeeAccounts = (current.feeAccounts || []).map((acc) => {
-          if (!targetFee || acc.child !== targetFee.studentName) return acc;
-          const addAmount = Number(paidAmount) || 0;
-          const newPaid = acc.paid + addAmount;
-          const newBalance = Math.max(0, acc.billed - newPaid);
+          const isMatch = targetFee ? acc.child === targetFee.studentName : (acc.child && acc.child.toLowerCase().includes(String(id).toLowerCase()));
+          if (!isMatch) return acc;
+          const newPaid = (acc.paid || 0) + addAmount;
+          const newBalance = Math.max(0, (acc.billed || 0) - newPaid);
           return {
             ...acc,
             paid: newPaid,
             status: newBalance <= 0 ? 'Paid' : 'Balance due',
           };
         });
+
         return {
           ...current,
           studentFees: updatedFees,

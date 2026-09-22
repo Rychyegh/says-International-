@@ -238,7 +238,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
   };
 
   return (
-    <div className="fee-structure-container animate-fade-up">
+    <div className="fee-structure-container">
       {/* Toast Notification Banner */}
       {successMsg && (
         <div style={{
@@ -255,7 +255,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
       {/* Header Banner */}
       <div className="fee-header-card">
         <div className="fee-header-brand">
-          <SchoolLogoSVG size={100} />
+          <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 68, width: 'auto', borderRadius: 8, border: '2px solid #0284c7', boxShadow: '0 4px 10px rgba(2,132,199,0.2)' }} />
           <div>
             <h1 className="fee-header-title">REMALJ CAREWELL INSPIRATIONAL SCHOOL</h1>
             <p className="fee-header-sub">P. O. BOX 139, BOGOSO • Email: info@remaljschools.com • Phone: 024 111 2222</p>

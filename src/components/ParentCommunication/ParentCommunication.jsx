@@ -27,8 +27,18 @@ export default function ParentCommunication({ child }) {
     setNotice(`Message sent to ${teacher.name} about ${child.name}.`);
   };
 
+  const parentMessages = (messages || []).filter((item) =>
+    item.from === 'Mrs. Angela Edwards' ||
+    item.recipient === 'Mrs. Angela Edwards' ||
+    item.to === 'Mrs. Angela Edwards' ||
+    item.to === 'Parents' ||
+    item.recipientEmail === 'parent@remaljcarewell.edu.gh' ||
+    item.senderRole === 'Accountant' ||
+    item.from?.includes('Accounts')
+  );
+
   return <div className="parent-communication animate-fade-up">
-    <div className="page-header"><h1 className="page-header__title">Teachers & messages</h1><p className="page-header__subtitle">Contact the lecturers responsible for {child.name} and keep each concern attached to the right child.</p></div>
+    <div className="page-header"><h1 className="page-header__title">Teachers & messages</h1><p className="page-header__subtitle">Contact the lecturers responsible for {child.name} and view official communications from school accounts.</p></div>
     <div className="teacher-grid">
       <section className="panel teacher-directory"><div className="panel__header"><h2 className="panel__title">{child.name}'s lecturers</h2></div><div className="teacher-list">
         {TEACHERS.map((item) => <button key={item.id} onClick={() => setSelectedTeacher(item.id)} className={`teacher-card${selectedTeacher === item.id ? ' teacher-card--selected' : ''}`}>
@@ -44,7 +54,31 @@ export default function ParentCommunication({ child }) {
         {notice && <p className="parent-notice"><Mail size={15}/>{notice}</p>}
       </form></section>
     </div>
-    <section className="panel sent-messages"><div className="panel__header"><h2 className="panel__title">Messages</h2></div>{messages.filter((item) => item.from === 'Mrs. Angela Edwards' || item.recipient === 'Mrs. Angela Edwards').length ? <div>{messages.filter((item) => item.from === 'Mrs. Angela Edwards' || item.recipient === 'Mrs. Angela Edwards').map((item) => <div className="sent-message" key={item.id}><strong>{item.from === 'Mrs. Angela Edwards' ? `To ${item.recipient}` : `From ${item.from}`} · {item.subject}</strong><p>{item.body}</p><small>{item.sentAt}</small></div>)}</div> : <p className="message-empty">No messages about {child.name} yet.</p>}</section>
+    <section className="panel sent-messages">
+      <div className="panel__header"><h2 className="panel__title">Messages & Official Notices</h2></div>
+      {parentMessages.length ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {parentMessages.map((item) => (
+            <div className="sent-message" key={item.id} style={{ borderLeft: (item.senderRole === 'Accountant' || item.from?.includes('Accounts')) ? '4px solid #f59e0b' : '4px solid #1a3668', padding: 14, background: (item.senderRole === 'Accountant' || item.from?.includes('Accounts')) ? '#fffbeb' : '#ffffff', borderRadius: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <strong style={{ fontSize: 13, color: '#0f172a' }}>
+                  {item.from === 'Mrs. Angela Edwards' ? `To ${item.recipient || item.to}` : `From ${item.from}`} · {item.subject}
+                </strong>
+                {(item.senderRole === 'Accountant' || item.from?.includes('Accounts')) && (
+                  <span style={{ fontSize: 10, background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: 10, fontWeight: 800 }}>
+                    💳 Accounts & Fee Notice
+                  </span>
+                )}
+              </div>
+              <p style={{ margin: '4px 0 6px', fontSize: 12.5, lineHeight: 1.5, whiteSpace: 'pre-line', color: '#334155' }}>{item.body}</p>
+              <small style={{ color: '#64748b', fontSize: 11 }}>{item.sentAt}</small>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="message-empty">No messages about {child.name} yet.</p>
+      )}
+    </section>
   </div>;
 }
 
