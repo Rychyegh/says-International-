@@ -49,14 +49,36 @@ function DirectAccessNotice() {
 function AppRoutes() {
   const location = useLocation();
 
-  // Portals require authentication sign-in
-  const [authed, setAuthed] = useState({
-    admin: false,
-    accountant: false,
-    parent: false,
-    teacher: false,
-    student: false,
+  // Portals require authentication sign-in (persisted across page refresh)
+  const [authed, setAuthed] = useState(() => {
+    try {
+      const stored = localStorage.getItem('says_authed_portals');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {}
+    return {
+      admin: false,
+      accountant: false,
+      parent: false,
+      teacher: false,
+      student: false,
+    };
   });
+
+  const [adminRole, setAdminRole] = useState(() => {
+    return localStorage.getItem('says_admin_role') || 'head_admin';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('says_authed_portals', JSON.stringify(authed));
+    } catch (e) {}
+  }, [authed]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('says_admin_role', adminRole);
+    } catch (e) {}
+  }, [adminRole]);
 
   const getPortalFromPath = (pathname) => {
     if (pathname.includes('/admin')) return 'admin';
@@ -73,7 +95,13 @@ function AppRoutes() {
   const handleSignOut = () => {
     setAuthToken(null);
     setAuthUser(null);
-    setAuthed((prev) => ({ ...prev, [activePortal]: false }));
+    setAuthed((prev) => {
+      const next = { ...prev, [activePortal]: false };
+      try {
+        localStorage.setItem('says_authed_portals', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
   };
 
   // Automatic Inactivity Logout (5 minutes timeout)
@@ -118,16 +146,21 @@ function AppRoutes() {
     };
   }, [isAuthed, activePortal]);
 
-  const [adminRole, setAdminRole] = useState('head_admin');
-
   const renderPortalView = (portalKey, Component) => {
     if (!authed[portalKey]) {
       return (
         <LoginPage
           portal={portalKey}
           onLoginSuccess={(role) => {
-            if (role) setAdminRole(role);
-            setAuthed((prev) => ({ ...prev, [portalKey]: true }));
+            if (role) {
+              setAdminRole(role);
+              localStorage.setItem('says_admin_role', role);
+            }
+            setAuthed((prev) => {
+              const next = { ...prev, [portalKey]: true };
+              localStorage.setItem('says_authed_portals', JSON.stringify(next));
+              return next;
+            });
           }}
         />
       );

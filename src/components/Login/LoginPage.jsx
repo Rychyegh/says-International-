@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, Phone, UserCheck, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, Phone, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { api, setAuthToken, setAuthUser } from '../../services/api';
 import { usePortalData } from '../../data/PortalStore';
@@ -185,6 +185,9 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   };
 
   useEffect(() => () => stopCamera(), []);
+  useEffect(() => {
+    setRegRole(portal || 'teacher');
+  }, [portal]);
 
   // Handle Login Submit
   const handleLoginSubmit = async (e) => {
@@ -773,26 +776,6 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                       value={regPhone}
                       onChange={(e) => setRegPhone(e.target.value)}
                     />
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label" htmlFor="reg-role">Account Role / Portal</label>
-                  <div className="form-input-wrap">
-                    <UserCheck size={16} className="form-input-icon" />
-                    <select
-                      id="reg-role"
-                      className="form-input"
-                      value={regRole}
-                      onChange={(e) => setRegRole(e.target.value)}
-                      style={{ appearance: 'auto', cursor: 'pointer' }}
-                    >
-                      <option value="teacher">Staff / Teacher</option>
-                      <option value="parent">Parent / Guardian</option>
-                      <option value="student">Student</option>
-                      <option value="admin">Administrator</option>
-                      <option value="accountant">Accountant</option>
-                    </select>
                   </div>
                 </div>
 

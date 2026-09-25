@@ -185,6 +185,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    GLOBAL UNIVERSAL PRINT ENGINE
    ======================================== */
 @media print {
+  /* Page Setup & Margins */
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+
   html, body {
     background: #ffffff !important;
     color: #000000 !important;
@@ -192,15 +198,18 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     padding: 0 !important;
     width: 100% !important;
     height: auto !important;
+    min-height: 0 !important;
     overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* Hide non-printable elements */
+  /* Hide non-printable app UI elements */
   .no-print,
   .topbar,
+  .pre-header,
   .portal__sidebar,
+  .sidebar,
   .page-header,
   .sims-header,
   .sims-modal-header,
@@ -210,73 +219,168 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .fee-selector-bar,
   .official-form-toolbar,
   .official-form-nav,
-  .fee-selector-bar,
+  .inactivity-notice,
   button:not(.print-keep),
   input[type="button"],
   input[type="submit"] {
     display: none !important;
   }
 
-  /* Reset fixed positioning & dark background overlay on modals */
+  /* Hide background dashboard view elements inside portal__content when printing a modal document */
+  body:has(.official-transcript-printable) .portal__content > *:not(div:has(.official-transcript-printable)),
+  body:has(.official-document-printable) .portal__content > *:not(div:has(.official-document-printable)),
+  body:has(.official-bill-document) .portal__content > *:not(div:has(.official-bill-document)),
+  body:has(.fee-structure-printable) .portal__content > *:not(div:has(.fee-structure-printable)),
+  body:has(.credential-slip-printable) .portal__content > *:not(div:has(.credential-slip-printable)),
+  body:has(.accountant-printable) .portal__content > *:not(div:has(.accountant-printable)),
+  body:has(.sims-printable) .portal__content > *:not(div:has(.sims-printable)) {
+    display: none !important;
+  }
+
+  /* Reset layout wrappers to visible static containers */
+  #app-root, .app, .portal, .portal__layout, .portal__main, .portal__content {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    position: static !important;
+    display: block !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Reset fixed positioning & backdrop overlays on modals */
+  .modal-overlay,
   .sims-modal-overlay,
   div[style*="position: fixed"],
   div[style*="position:fixed"] {
     position: static !important;
+    inset: auto !important;
     background: transparent !important;
     backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
     box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
-    display: block !important;
     width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    display: block !important;
   }
 
   .sims-modal-card,
-  .printable-card,
-  div[style*="maxWidth"],
-  div[style*="max-height"] {
+  .printable-card {
     position: static !important;
-    max-width: 100% !important;
-    max-height: none !important;
-    overflow: visible !important;
     box-shadow: none !important;
     border: none !important;
     width: 100% !important;
+    max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
   }
 
-  /* Target printable document areas */
+  /* Printable Document Areas */
+  .official-document-printable,
+  .fee-structure-printable,
+  .official-bill-document,
+  .credential-slip-printable,
+  .accountant-printable,
   .printable-area,
   .printable-document,
-  .official-bill-document,
-  .accountant-printable,
-  .official-document-printable,
   .fee-structure-container,
-  .fee-structure-printable,
   .sims-printable {
     visibility: visible !important;
     display: block !important;
     position: static !important;
     width: 100% !important;
-    margin: 0 auto !important;
-    padding: 15px !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
     background: #ffffff !important;
     color: #000000 !important;
     box-shadow: none !important;
     border: none !important;
+    overflow: visible !important;
+  }
+
+  .official-transcript-printable {
+    visibility: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: 250mm !important;
+    margin: 0 !important;
+    padding: 2mm 2mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: hidden !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
 
-  /* Universal Receipt Header Inline Styling on Print */
+  /* Single-page document page-break prevention */
+  .credential-slip-printable,
+  .official-bill-document,
+  .accountant-printable {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .official-transcript-printable th,
+  .official-transcript-printable td {
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+  }
+
+  /* Multi-page document pages (Official Application Form 4-Page PDF) */
+  .official-document-page,
+  .printable-page {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    padding: 10mm 8mm !important;
+    margin: 0 0 10mm 0 !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+  }
+
+  .official-document-page:last-child,
+  .printable-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Universal Receipt & Document Header Inline Alignment */
   .receipt-header-box,
-  .receipt-header-inline {
+  .receipt-header-inline,
+  .school-header-box {
     display: flex !important;
     flex-direction: row !important;
     align-items: center !important;
-    justify-content: center !important;
+    justify-content: space-between !important;
     gap: 16px !important;
     text-align: left !important;
     page-break-inside: avoid !important;
@@ -290,15 +394,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     width: auto !important;
     display: block !important;
     flex-shrink: 0 !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
   }
 
   .receipt-school-text {
     text-align: left !important;
   }
 
-  /* Clean up tables for print */
+  /* Table and Row Page-Break Safety */
   table {
     width: 100% !important;
     border-collapse: collapse !important;
@@ -312,11 +414,31 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
   th, td {
     border-color: #cbd5e1 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
-  .page-break {
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  /* Page Break Utilities */
+  .page-break,
+  .form-page-break {
     page-break-after: always !important;
     break-after: page !important;
+  }
+
+  /* Prevent awkward breaks inside signature blocks & summary cards */
+  .signature-block,
+  .transcript-summary-card,
+  .seal-box {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }
 

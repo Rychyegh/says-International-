@@ -63,7 +63,16 @@ const TEACHER_UPDATES = [
 ];
 
 export default function ParentPortal() {
-  const [activeNav, setActiveNav] = useState('Dashboard');
+  const [activeNav, setActiveNavState] = useState(() => {
+    return localStorage.getItem('says_parent_active_nav') || 'Dashboard';
+  });
+
+  const setActiveNav = (nav) => {
+    setActiveNavState(nav);
+    try {
+      localStorage.setItem('says_parent_active_nav', nav);
+    } catch (e) {}
+  };
   const [activeChild, setActiveChild] = useState(0);
   const { results: staffResults, studentFees = [], messages = [] } = usePortalData();
 

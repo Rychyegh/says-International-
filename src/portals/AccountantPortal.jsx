@@ -7,6 +7,7 @@ import '../components/Portal/Portal.css';
 import { usePortalData } from '../data/PortalStore';
 
 import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeStructure';
+import RegisterForExamsForm from '../components/RegisterForExams/RegisterForExamsForm';
 import { getAuthUser } from '../services/api';
 
 const ACCOUNT_BG = '#0f3a4b';
@@ -72,6 +73,7 @@ const SIMS_DATA = {
     {
       category: 'Student\'s Progressive Evaluation',
       links: [
+        'Register for Exams',
         'Prepare Exams Score',
         'Score Sheet [Entry]',
         'Creche Terminal Evaluation',
@@ -207,8 +209,27 @@ const SIMS_DATA = {
 };
 
 export default function AccountantPortal({ onSignOut }) {
-  const [activeNav, setActiveNav] = useState('SIMS v2025 Module');
-  const [simsTab, setSimsTab] = useState('Student Services Centre');
+  const [activeNav, setActiveNavState] = useState(() => {
+    return localStorage.getItem('says_accountant_active_nav') || 'SIMS Auth & Login Terminal';
+  });
+
+  const setActiveNav = (nav) => {
+    setActiveNavState(nav);
+    try {
+      localStorage.setItem('says_accountant_active_nav', nav);
+    } catch (e) {}
+  };
+
+  const [simsTab, setSimsTabState] = useState(() => {
+    return localStorage.getItem('says_accountant_sims_tab') || 'Student Services Centre';
+  });
+
+  const setSimsTab = (tab) => {
+    setSimsTabState(tab);
+    try {
+      localStorage.setItem('says_accountant_sims_tab', tab);
+    } catch (e) {}
+  };
   const [simsSearchQuery, setSimsSearchQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [feeFilter, setFeeFilter] = useState('All');
@@ -246,10 +267,10 @@ export default function AccountantPortal({ onSignOut }) {
   const paidCount = (studentFees || []).filter((item) => item.balance === 0).length;
 
   const STATS = [
-    { label: 'Total Revenue Billed', value: `GHS ${totalBilled.toLocaleString()}`, trend: 'Term 1 · 2026', icon: '💳', bg: '#e0f2fe', ic: '#0369a1' },
-    { label: 'Total Collected', value: `GHS ${totalPaid.toLocaleString()}`, trend: `${Math.round((totalPaid / (totalBilled || 1)) * 100)}% collected`, icon: '✅', bg: '#dcfce7', ic: '#15803d' },
-    { label: 'Outstanding Balance', value: `GHS ${totalOutstanding.toLocaleString()}`, trend: `${owingCount} accounts owing`, icon: '⚠️', bg: '#fee2e2', ic: '#b91c1c' },
-    { label: 'Settled Accounts', value: String(paidCount), trend: `Out of ${studentFees.length} students`, icon: '🎉', bg: '#fef3c7', ic: '#b45309' },
+    { label: 'Total Revenue Billed', value: `GHS ${totalBilled.toLocaleString()}`, trend: 'Term 1 · 2026', icon: '💳', bg: '#e0f2fe', ic: '#0369a1', nav: 'Fee Structure & Rates' },
+    { label: 'Total Collected', value: `GHS ${totalPaid.toLocaleString()}`, trend: `${Math.round((totalPaid / (totalBilled || 1)) * 100)}% collected`, icon: '✅', bg: '#dcfce7', ic: '#15803d', nav: 'Daily Collection Summary' },
+    { label: 'Outstanding Balance', value: `GHS ${totalOutstanding.toLocaleString()}`, trend: `${owingCount} accounts owing`, icon: '⚠️', bg: '#fee2e2', ic: '#b91c1c', nav: 'Fee Debtors & Arrears' },
+    { label: 'Settled Accounts', value: String(paidCount), trend: `Out of ${studentFees.length} students`, icon: '🎉', bg: '#fef3c7', ic: '#b45309', nav: 'Fee Ledgers & Payments' },
   ];
 
   const filteredFees = (studentFees || []).filter((fee) => {
@@ -410,197 +431,14 @@ export default function AccountantPortal({ onSignOut }) {
 
           {/* ── SIMS v2025 MODULE VIEW ── */}
           {activeNav === 'SIMS v2025 Module' && (
-            <div>
-              {/* SIMS [School Info Management System] AUTHENTICATION / LOGIN HEADER BAR */}
-              <SimsAuthenticationHeaderBar />
-
-              {/* SIMS v2025 HERO COMMAND BANNER */}
-              <div className="sims-header" style={{ marginBottom: 20 }}>
-                <div className="sims-header__top">
-                  <div className="sims-header__brand">
-                    <School size={22} color="#38bdf8" />
-                    <span>SIMS v2025 Enterprise Command Module</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, background: 'rgba(255,255,255,0.12)', padding: '4px 12px', borderRadius: 20, color: '#e0f2fe', border: '1px solid rgba(255,255,255,0.2)', fontWeight: 700 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#34c57a', display: 'inline-block', boxShadow: '0 0 8px #34c57a' }} />
-                      🟢 System Operational · Build v2025.4
-                    </span>
-                    <span style={{ fontSize: 11, background: '#0284c7', color: '#fff', padding: '4px 10px', borderRadius: 20, fontWeight: 800 }}>
-                      Institutional Edition
-                    </span>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 8, color: '#e0f2fe', fontSize: 13, opacity: 0.9 }}>
-                  Unified Administrative & Financial Command Center for REMALJ Carewell Inspirational School.
-                </div>
-
-                {/* Hub Navigation Tabs */}
-                <div className="sims-header__tabs" style={{ marginTop: 16 }}>
-                  {[
-                    { label: 'Student Services Centre', icon: <Users size={14} />, count: 5 },
-                    { label: 'Academics', icon: <School size={14} />, count: 3 },
-                    { label: 'Finance & Administration', icon: <DollarSign size={14} />, count: 4 },
-                    { label: 'System Administrator', icon: <Sliders size={14} />, count: 5 }
-                  ].map((tabObj) => (
-                    <button
-                      key={tabObj.label}
-                      className={`sims-tab-btn ${simsTab === tabObj.label ? 'active' : ''}`}
-                      onClick={() => setSimsTab(tabObj.label)}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
-                    >
-                      {tabObj.icon}
-                      <span>{tabObj.label}</span>
-                      <span style={{
-                        fontSize: 10, padding: '2px 6px', borderRadius: 10,
-                        background: simsTab === tabObj.label ? '#0f3a4b' : 'rgba(255,255,255,0.2)',
-                        color: simsTab === tabObj.label ? '#fff' : '#e0f2fe', fontWeight: 800
-                      }}>
-                        {tabObj.count}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* SIMS Command Search & Quick Actions Bar */}
-              <div className="panel" style={{ padding: 18, marginBottom: 20, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12 }}>
-                <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
-                    <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--gray-400)' }} />
-                    <input
-                      type="text"
-                      placeholder="Search across 50+ SIMS v2025 action commands (e.g. Bill, Report, Admissions, Payroll)..."
-                      value={simsSearchQuery}
-                      onChange={(e) => setSimsSearchQuery(e.target.value)}
-                      style={{ width: '100%', padding: '10px 10px 10px 36px', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-300)', fontSize: 13, background: '#f8fafc' }}
-                    />
-                    {simsSearchQuery && (
-                      <button
-                        onClick={() => setSimsSearchQuery('')}
-                        style={{ position: 'absolute', right: 10, top: 10, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--gray-500)', fontSize: 12, fontWeight: 800 }}
-                      >
-                        ✕ Clear
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Frequently Launched SIMS Commands Bar */}
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--gray-200)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: '#0f3a4b', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span>⚡</span> Quick Launch:
-                  </span>
-
-                  {[
-                    { cat: 'Admissions', link: 'Add new Admissions', icon: <UserPlus size={12} /> },
-                    { cat: 'Student\'s Billings & Accounts', link: 'Prepare Student academic Bill', icon: <DollarSign size={12} /> },
-                    { cat: 'Student\'s Progressive Reports', link: 'Print Student\'s Progressive Report', icon: <Printer size={12} /> },
-                    { cat: 'Student\'s Billings & Accounts', link: 'Receive Payments from Students', icon: <CreditCard size={12} /> },
-                    { cat: 'User Account Management', link: 'Create new User Account', icon: <UserCheck size={12} /> },
-                  ].map((chip) => (
-                    <button
-                      key={chip.link}
-                      onClick={() => handleLinkClick(chip.cat, chip.link)}
-                      style={{
-                        padding: '5px 12px', background: '#f0f9ff', border: '1px solid #bae6fd',
-                        borderRadius: 20, color: '#0369a1', fontSize: 12, fontWeight: 700,
-                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      {chip.icon}
-                      {chip.link}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* SIMS Main Content Grid */}
-              <div className="sims-content-panel">
-                <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                  <div>
-                    <h2 style={{ fontSize: 18, fontWeight: 900, color: '#0f3a4b', margin: 0, fontFamily: 'var(--font-display)' }}>
-                      {simsSearchQuery ? `SIMS Search Results for "${simsSearchQuery}"` : simsTab}
-                    </h2>
-                    <p style={{ fontSize: 13, color: 'var(--gray-500)', margin: '2px 0 0' }}>
-                      {simsSearchQuery
-                        ? 'Showing matching SIMS v2025 administrative commands across all hubs.'
-                        : 'Select an administrative workflow link below to execute live actions.'}
-                    </p>
-                  </div>
-                  <span style={{ fontSize: 11, fontWeight: 800, background: '#e0f2fe', color: '#0369a1', padding: '4px 10px', borderRadius: 6, border: '1px solid #bae6fd' }}>
-                    {SIMS_DATA[simsTab]?.length || 0} Functional Categories
-                  </span>
-                </div>
-
-                <div className="sims-grid">
-                  {(simsSearchQuery ? Object.values(SIMS_DATA).flat() : SIMS_DATA[simsTab])?.map((catItem, idx) => {
-                    const filteredLinks = (catItem.links || []).filter(lnk =>
-                      !simsSearchQuery || lnk.toLowerCase().includes(simsSearchQuery.toLowerCase()) || catItem.category.toLowerCase().includes(simsSearchQuery.toLowerCase())
-                    );
-
-                    const filteredSubCats = (catItem.subCategories || []).map(sub => ({
-                      ...sub,
-                      links: sub.links.filter(lnk => !simsSearchQuery || lnk.toLowerCase().includes(simsSearchQuery.toLowerCase()) || sub.title.toLowerCase().includes(simsSearchQuery.toLowerCase()))
-                    })).filter(sub => sub.links.length > 0);
-
-                    if (simsSearchQuery && filteredLinks.length === 0 && filteredSubCats.length === 0) return null;
-
-                    const getIcon = (catName) => {
-                      if (catName.includes('Admissions') || catName.includes('Registration')) return <UserCheck size={16} color="#0284c7" />;
-                      if (catName.includes('Reports') || catName.includes('Evaluation') || catName.includes('Assessments')) return <FileCheck size={16} color="#0284c7" />;
-                      if (catName.includes('Billings') || catName.includes('Accounts') || catName.includes('Payroll') || catName.includes('Finance')) return <DollarSign size={16} color="#0284c7" />;
-                      if (catName.includes('Registers')) return <Users size={16} color="#0284c7" />;
-                      if (catName.includes('Remarks')) return <MessageSquare size={16} color="#0284c7" />;
-                      if (catName.includes('Academic') || catName.includes('User') || catName.includes('Settings')) return <ShieldCheck size={16} color="#0284c7" />;
-                      return <Layers size={16} color="#0284c7" />;
-                    };
-
-                    return (
-                      <div className="sims-category" key={`${catItem.category}-${idx}`}>
-                        <h3 className="sims-category-title">
-                          {getIcon(catItem.category)}
-                          {catItem.category}
-                        </h3>
-
-                        {/* Render direct links */}
-                        {filteredLinks.map((lnk, lIdx) => (
-                          <button
-                            key={lIdx}
-                            className="sims-link-item"
-                            onClick={() => handleLinkClick(catItem.category, lnk)}
-                          >
-                            <span>{lnk}</span>
-                            <ChevronRight size={13} style={{ opacity: 0.5, flexShrink: 0 }} />
-                          </button>
-                        ))}
-
-                        {/* Render subcategories if present */}
-                        {filteredSubCats.map((sub, sIdx) => (
-                          <div key={sIdx} style={{ marginTop: 8 }}>
-                            <h4 className="sims-subcategory-title">{sub.title}</h4>
-                            {sub.links.map((subLnk, subIdx) => (
-                              <button
-                                key={subIdx}
-                                className="sims-link-item"
-                                style={{ marginTop: 4 }}
-                                onClick={() => handleLinkClick(sub.title, subLnk)}
-                              >
-                                <span>{subLnk}</span>
-                                <ChevronRight size={13} style={{ opacity: 0.5, flexShrink: 0 }} />
-                              </button>
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+            <SimsAuthTerminalView
+              onOpenSimsModal={setActiveSimsModal}
+              students={onboardedStudents || []}
+              recordFeePayment={recordFeePayment}
+              initialActionTab="Post Academic Bill Header"
+            />
           )}
+
 
           {/* ── FINANCIAL OVERVIEW ── */}
           {activeNav === 'Financial Overview' && (
@@ -620,7 +458,15 @@ export default function AccountantPortal({ onSignOut }) {
               {/* Stats */}
               <div className="stats-grid">
                 {STATS.map((s) => (
-                  <div className="stat-card" key={s.label}>
+                  <div
+                    className="stat-card"
+                    key={s.label}
+                    onClick={() => {
+                      if (s.nav) setActiveNav(s.nav);
+                    }}
+                    style={{ cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease' }}
+                    title={`Click to view ${s.nav}`}
+                  >
                     <div className="stat-card__icon" style={{ background: s.bg, color: s.ic, fontSize: 20 }}>{s.icon}</div>
                     <div>
                       <div className="stat-card__value">{s.value}</div>
@@ -11786,6 +11632,11 @@ function SimsAuthenticationHeaderBar() {
 function renderSpecificContent(link, m, setM, students) {
   // Helper to update state field
   const update = (field, val) => setM((prev) => ({ ...prev, [field]: val }));
+
+  // Register for Exams Form (Individual & Class Bulk Candidate Exam Registration)
+  if (link === 'Register for Exams' || link === 'Register New Examination Candidate' || link === 'Register Student for a Specific Subject Examination' || link.toLowerCase().includes('register exam')) {
+    return <RegisterForExamsForm setM={setM} students={students} />;
+  }
 
   // Grade points / Define Grade Point Form (Official SIMS Grade Point Table)
   if (link === 'Grade points' || link === 'Define Grade Point' || link === 'Define Grade Points') {

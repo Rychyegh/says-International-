@@ -145,10 +145,38 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
   // Prepare & View Student Bill Modal State
   const [preparingStudentBill, setPreparingStudentBill] = useState(null);
 
+  // Post Bill Modal State
+  const [isPostingModalOpen, setIsPostingModalOpen] = useState(false);
+  const [postTargetScope, setPostTargetScope] = useState('student'); // 'student' | 'class' | 'all'
+  const [postingStudentSearch, setPostingStudentSearch] = useState('');
+  const [selectedPostingStudent, setSelectedPostingStudent] = useState(null);
+
   const activeClassData = feeSchedule[selectedClass] || feeSchedule['Creche / Nursery 1'];
   const baseBillItems = activeClassData.baseBill || [];
   const totalBase = baseBillItems.reduce((acc, item) => acc + Number(item.amount || 0), 0);
   const uniformsTotal = UNIFORMS_LIST.reduce((acc, u) => acc + u.amount, 0);
+
+  // Handle Post Academic Bill to Student Ledger & Accounts
+  const handlePostBillToLedger = (targetStudent = null) => {
+    const studentToUse = targetStudent || (postTargetScope === 'student' ? (selectedPostingStudent || preparingStudentBill) : null);
+    const targetName = studentToUse ? studentToUse.fullName : postTargetScope === 'all' ? 'All Active Students (School-wide)' : `All Enrolled Students in ${selectedClass}`;
+
+    if (portalData?.postAcademicBill) {
+      portalData.postAcademicBill({
+        studentId: studentToUse?.studentId || studentToUse?.id || null,
+        studentName: studentToUse?.fullName || null,
+        classLevel: selectedClass,
+        items: baseBillItems,
+        totalAmount: totalBase,
+        term: 'Term 1 · 2026'
+      });
+      setSuccessMsg(`⚡ Successfully posted Academic Bill of GHS ${totalBase.toFixed(2)} to ${targetName}'s ledger account & financial records!`);
+      setIsPostingModalOpen(false);
+      setSelectedPostingStudent(null);
+      setPostingStudentSearch('');
+      setTimeout(() => setSuccessMsg(''), 7000);
+    }
+  };
 
   // Handle Remove Fee Component Item
   const handleRemoveFeeItem = (itemIndex) => {
@@ -268,14 +296,8 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
             <Plus size={15} /> Add Fee Item
           </button>
 
-          <button className="fee-btn" style={{ background: '#1e1b4b', color: '#fff' }} onClick={() => {
-            if (onOpenSimsModal) {
-              onOpenSimsModal({ category: "Student's Billings & Accounts", link: 'Prepare Student academic Bill' });
-            } else {
-              setPreparingStudentBill(onboardedStudents[0] || null);
-            }
-          }}>
-            <FileText size={15} /> 🧾 Post Student Academic Bill
+          <button className="fee-btn" style={{ background: '#166534', color: '#fff', fontWeight: 800 }} onClick={() => setIsPostingModalOpen(true)}>
+            <FileText size={15} /> ⚡ Post Student Academic Bill
           </button>
 
           <button className="fee-btn fee-btn-primary" onClick={() => window.print()}>
@@ -467,11 +489,15 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
       {/* Add New Fee Component Modal */}
       {isAddingFeeModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15,23,42,0.65)', backdropFilter: 'blur(4px)',
-          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
-        }} className="no-print">
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setIsAddingFeeModal(false); }}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(15,23,42,0.65)', backdropFilter: 'blur(4px)',
+            zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '85px 16px 40px', overflowY: 'auto'
+          }}
+          className="no-print"
+        >
           <div style={{
             maxWidth: 480, width: '100%', background: '#fff', borderRadius: 16,
             padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', border: '1px solid #e2e8f0'
@@ -538,12 +564,15 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
       {/* Prepare & View Individual Student Bill Modal */}
       {preparingStudentBill && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15,23,42,0.75)', backdropFilter: 'blur(4px)',
-          zIndex: 9999, overflowY: 'auto', padding: '30px 16px',
-          display: 'flex', justifyContent: 'center', alignItems: 'flex-start'
-        }}>
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setPreparingStudentBill(null); }}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(15,23,42,0.75)', backdropFilter: 'blur(4px)',
+            zIndex: 10000, overflowY: 'auto', padding: '85px 16px 40px',
+            display: 'flex', justifyContent: 'center', alignItems: 'flex-start'
+          }}
+        >
           <div style={{
             width: '100%', maxWidth: 760, background: '#fff', borderRadius: 16,
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden',
@@ -570,6 +599,12 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                   style={{ padding: '6px 14px', background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 6, fontWeight: 900, fontSize: 12, cursor: 'pointer' }}
                 >
                   🖨️ Print Student Bill
+                </button>
+                <button
+                  onClick={() => handlePostBillToLedger(preparingStudentBill)}
+                  style={{ padding: '6px 14px', background: '#16a34a', color: '#ffffff', border: 'none', borderRadius: 6, fontWeight: 900, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                >
+                  ⚡ Post Bill to Student Ledger
                 </button>
                 <button
                   onClick={() => setPreparingStudentBill(null)}
@@ -752,6 +787,176 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                   <div style={{ fontWeight: 800, fontSize: 11, color: '#0f172a' }}>Bursar / Accountant Signature</div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Post Student Academic Bill Confirmation Modal */}
+      {isPostingModalOpen && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setIsPostingModalOpen(false); }}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(15,23,42,0.75)', backdropFilter: 'blur(4px)',
+            zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '85px 16px 40px', overflowY: 'auto'
+          }}
+          className="no-print"
+        >
+          <div style={{
+            maxWidth: 520, width: '100%', background: '#fff', borderRadius: 16,
+            padding: 24, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid #e2e8f0'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <FileText size={20} color="#16a34a" />
+                <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--gray-900)', margin: 0 }}>
+                  Post Academic Bill to Student Ledger
+                </h3>
+              </div>
+              <button onClick={() => setIsPostingModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <X size={18} color="var(--gray-500)" />
+              </button>
+            </div>
+
+            <p style={{ fontSize: 13, color: 'var(--gray-600)', marginBottom: 16, lineHeight: 1.5 }}>
+              This action will debit and post the itemized academic bill for <strong>Term 1 · 2026</strong> directly into the student's ledger account and financial records.
+            </p>
+
+            <div style={{ background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#64748b', marginBottom: 6 }}>TARGET RECIPIENT & SCOPE</div>
+              <select
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700, color: '#0f172a' }}
+                value={postTargetScope}
+                onChange={(e) => setPostTargetScope(e.target.value)}
+              >
+                <option value="student">🔎 Search & Select Specific Student</option>
+                <option value="class">All Enrolled Students in {selectedClass}</option>
+                <option value="all">All Active Students (School-wide)</option>
+              </select>
+
+              {/* Student Search Box */}
+              {postTargetScope === 'student' && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                    🔎 Search student by name, ID (e.g. REMALJ-2026-001), or class:
+                  </div>
+                  <div style={{ position: 'relative' }}>
+                    <UserCheck size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                    <input
+                      type="text"
+                      placeholder="Type to search student roster..."
+                      value={postingStudentSearch}
+                      onChange={(e) => setPostingStudentSearch(e.target.value)}
+                      style={{
+                        width: '100%', padding: '8px 12px 8px 34px', borderRadius: 6,
+                        border: '1px solid #0284c7', fontSize: 13, outline: 'none', background: '#fff', fontWeight: 600
+                      }}
+                    />
+                  </div>
+
+                  {/* Filtered Dropdown Results */}
+                  {postingStudentSearch.trim() && (
+                    <div style={{
+                      maxHeight: 180, overflowY: 'auto', background: '#fff', border: '1px solid #cbd5e1',
+                      borderRadius: 8, marginTop: 6, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 10
+                    }}>
+                      {onboardedStudents.filter(s =>
+                        (s.fullName || '').toLowerCase().includes(postingStudentSearch.toLowerCase()) ||
+                        (s.studentId || '').toLowerCase().includes(postingStudentSearch.toLowerCase()) ||
+                        (s.level || '').toLowerCase().includes(postingStudentSearch.toLowerCase())
+                      ).length === 0 ? (
+                        <div style={{ padding: '10px 12px', fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>
+                          No matching students found for "{postingStudentSearch}".
+                        </div>
+                      ) : (
+                        onboardedStudents.filter(s =>
+                          (s.fullName || '').toLowerCase().includes(postingStudentSearch.toLowerCase()) ||
+                          (s.studentId || '').toLowerCase().includes(postingStudentSearch.toLowerCase()) ||
+                          (s.level || '').toLowerCase().includes(postingStudentSearch.toLowerCase())
+                        ).map((stu) => (
+                          <div
+                            key={stu.id || stu.studentId}
+                            onClick={() => {
+                              setSelectedPostingStudent(stu);
+                              setPostingStudentSearch('');
+                            }}
+                            style={{
+                              padding: '8px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer',
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              background: (selectedPostingStudent?.id === stu.id || selectedPostingStudent?.studentId === stu.studentId) ? '#f0fdf4' : '#fff'
+                            }}
+                          >
+                            <div>
+                              <strong style={{ fontSize: 13, color: '#0f172a' }}>{stu.fullName}</strong>
+                              <span style={{ fontSize: 11, color: '#0284c7', marginLeft: 8, fontWeight: 700 }}>{stu.level}</span>
+                            </div>
+                            <code style={{ fontSize: 11, background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>{stu.studentId}</code>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {/* Selected Student Card */}
+                  {(selectedPostingStudent || preparingStudentBill) && (
+                    <div style={{
+                      marginTop: 10, padding: '10px 14px', background: '#f0fdf4',
+                      border: '1px solid #86efac', borderRadius: 8, display: 'flex',
+                      alignItems: 'center', justifyContent: 'space-between'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <CheckCircle2 size={18} color="#166534" />
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: 13, color: '#166534' }}>
+                            {(selectedPostingStudent || preparingStudentBill).fullName}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#15803d' }}>
+                            ID: {(selectedPostingStudent || preparingStudentBill).studentId} · Level: {(selectedPostingStudent || preparingStudentBill).level}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPostingStudent(null)}
+                        style={{ background: 'none', border: 'none', color: '#b91c1c', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}
+                      >
+                        Change
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div style={{ background: '#f0fdf4', padding: 14, borderRadius: 10, border: '1px solid #bbf7d0', marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#166534' }}>TOTAL BASE BILL TO DEBIT:</span>
+                <span style={{ fontSize: 18, fontWeight: 900, color: '#14532d' }}>GHS {totalBase.toFixed(2)}</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#15803d', marginTop: 4 }}>
+                {baseBillItems.length} fee components ({baseBillItems.map(i => i.details).slice(0, 3).join(', ')}...)
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => setIsPostingModalOpen(false)}
+                style={{ flex: 1, padding: 12, borderRadius: 8, border: '1px solid var(--gray-300)', background: '#fff', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetStu = postTargetScope === 'student' ? (selectedPostingStudent || preparingStudentBill) : null;
+                  handlePostBillToLedger(targetStu);
+                }}
+                style={{ flex: 1.5, padding: 12, borderRadius: 8, border: 'none', background: '#16a34a', color: '#fff', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              >
+                ⚡ Post Bill to Student Ledger Account
+              </button>
             </div>
           </div>
         </div>

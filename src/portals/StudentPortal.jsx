@@ -77,7 +77,16 @@ const ASSIGNMENTS = [
 const STATUS_C = { 'Pending': 'status-pill--warn', 'In Progress': 'status-pill--info', 'Overdue': 'status-pill--danger', 'Submitted': 'status-pill--success' };
 
 export default function StudentPortal() {
-  const [activeNav, setActiveNav] = useState('My Dashboard');
+  const [activeNav, setActiveNavState] = useState(() => {
+    return localStorage.getItem('says_student_active_nav') || 'My Dashboard';
+  });
+
+  const setActiveNav = (nav) => {
+    setActiveNavState(nav);
+    try {
+      localStorage.setItem('says_student_active_nav', nav);
+    } catch (e) {}
+  };
 
   return (
     <div className="portal">

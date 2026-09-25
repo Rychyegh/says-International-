@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard, Users, BookOpen, Calendar, ClipboardList,
-  MessageSquare, Settings, TrendingUp, Award, Bell, Bus, ClipboardCheck
+  MessageSquare, Settings, TrendingUp, Award, Bell, Bus, ClipboardCheck, FileCheck
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import '../components/BusTracker/BusTracker.css';
 import BusTracker from '../components/BusTracker/BusTracker';
-import { LecturerGrades, LecturerSchedule } from '../components/Academic/AcademicViews';
+import { LecturerGrades, LecturerSchedule, ExamRegistration } from '../components/Academic/AcademicViews';
 import TeacherMessages from '../components/TeacherMessages/TeacherMessages';
 import ContactDirectory from '../components/ContactDirectory/ContactDirectory';
 import { TeacherReports } from '../components/ReportWorkflow/ReportWorkflow';
@@ -15,6 +15,7 @@ import { PortalSettings, StaffAssignments, StaffCalendar } from '../components/S
 import { AdmissionsRegister } from '../components/Onboarding/Onboarding';
 import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
 import { getAuthUser } from '../services/api';
+import { usePortalData } from '../data/PortalStore';
 
 const TEACHER_GREEN = '#204d2d';
 const TEACHER_LIGHT = '#edf8f0';
@@ -23,6 +24,7 @@ const TEACHER_ACCENT = '#2e7a44';
 const NAV = [
   { icon: <LayoutDashboard size={15}/>, label: 'Dashboard',    badge: null },
   { icon: <Users size={15}/>,           label: 'Students',     badge: null },
+  { icon: <FileCheck size={15}/>,       label: 'Exam Registration', badge: null },
   { icon: <ClipboardCheck size={15}/>,  label: 'Admissions',   badge: null },
   { icon: <ClipboardList size={15}/>,   label: 'Assignments',  badge: '3'  },
   { icon: <BookOpen size={15}/>,        label: 'Grades',       badge: null },
@@ -35,14 +37,7 @@ const NAV = [
   { icon: <Settings size={15}/>,        label: 'Settings',     badge: null },
 ];
 
-const STATS = [
-  { label: 'Total Students',  value: '148', trend: '+4 this term',  up: true,  icon: '👥', bg: '#dcfce7', ic: '#166534' },
-  { label: 'Classes Today',   value: '6',   trend: '2 remaining',   up: true,  icon: '📚', bg: '#dbeafe', ic: '#1e3a8a' },
-  { label: 'Assignments Due', value: '11',  trend: '3 not graded',  up: false, icon: '📋', bg: '#fef9c3', ic: '#78350f' },
-  { label: 'Avg Class Score', value: '78%', trend: '+2.4% vs last', up: true,  icon: '📈', bg: '#dcfce7', ic: '#166534' },
-];
-
-const STUDENTS = [
+const FALLBACK_STUDENTS = [
   { name: 'Abena Mensah', class: 'JHS 3A', score: 92, id: 'REMALJ-2026-041', attendance: 98, mathGrade: 'A+', sciGrade: 'A',  color: '#204d2d' },
   { name: 'Kwame Asante', class: 'JHS 3A', score: 76, id: 'REMALJ-2026-112', attendance: 82, mathGrade: 'B+', sciGrade: 'A-', color: '#1e3a8a' },
   { name: 'Efua Darko',   class: 'JHS 2B', score: 64, id: 'REMALJ-2026-088', attendance: 74, mathGrade: 'C+', sciGrade: 'B',  color: '#78350f' },
@@ -67,11 +62,43 @@ const SUBJECTS = [
 ];
 
 export default function TeacherPortal() {
-  const [activeNav, setActiveNav] = useState('Dashboard');
+  const store = usePortalData();
+  const onboardedStudents = store?.onboardedStudents || [];
+  const teacherDirectory = store?.teacherDirectory || [];
+
+  const [activeNav, setActiveNavState] = useState(() => {
+    return localStorage.getItem('says_teacher_active_nav') || 'Dashboard';
+  });
+
+  const setActiveNav = (nav) => {
+    setActiveNavState(nav);
+    try {
+      localStorage.setItem('says_teacher_active_nav', nav);
+    } catch (e) {}
+  };
   const authUser = getAuthUser();
   const isClassTeacher = authUser?.teacherDesignation === 'class_teacher' || authUser?.name?.includes('Class Teacher');
   const teacherRole = isClassTeacher ? 'class_teacher' : 'subject_teacher';
   const staffId = isClassTeacher ? (authUser?.staffId || 'CT-2026-001') : (authUser?.staffId || 'STF-2026-003');
+
+  const displayStudents = onboardedStudents.length > 0 ? onboardedStudents.map(s => ({
+    name: s.fullName,
+    class: s.level,
+    score: 85,
+    id: s.studentId,
+    attendance: 95,
+    mathGrade: 'A',
+    sciGrade: 'A-',
+    color: TEACHER_GREEN,
+    email: s.studentEmail || `${s.fullName.toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`
+  })) : FALLBACK_STUDENTS;
+
+  const STATS = [
+    { label: 'Total Students',  value: String(displayStudents.length), trend: 'Active enrolled roster',  up: true,  icon: '👥', bg: '#dcfce7', ic: '#166534' },
+    { label: 'Classes Today',   value: '6',   trend: '2 remaining',   up: true,  icon: '📚', bg: '#dbeafe', ic: '#1e3a8a' },
+    { label: 'Assignments Due', value: '11',  trend: '3 not graded',  up: false, icon: '📋', bg: '#fef9c3', ic: '#78350f' },
+    { label: 'Avg Class Score', value: '78%', trend: '+2.4% vs last', up: true,  icon: '📈', bg: '#dcfce7', ic: '#166534' },
+  ];
 
   return (
     <div className="portal">
@@ -201,7 +228,7 @@ export default function TeacherPortal() {
                   <table className="data-table">
                     <thead><tr><th>Student Name</th><th>ID Number</th><th>Attendance</th><th>Maths Grade</th><th>Science Grade</th><th>Status</th></tr></thead>
                     <tbody>
-                      {STUDENTS.map((s) => (
+                      {displayStudents.map((s) => (
                         <tr key={s.name}>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -324,6 +351,7 @@ export default function TeacherPortal() {
               )}
             </div>
           )}
+          {activeNav === 'Exam Registration' && <ExamRegistration />}
           {activeNav === 'Admissions' && <AdmissionsRegister />}
           {activeNav === 'Assignments' && <StaffAssignments />}
           {activeNav === 'Academic Calendar' && <StaffCalendar />}
@@ -333,7 +361,7 @@ export default function TeacherPortal() {
           {activeNav === 'Settings' && <PortalSettings portal="teacher" />}
 
           {/* ── OTHER VIEWS placeholder ── */}
-          {!['Dashboard', 'Transport', 'Students', 'Admissions', 'Assignments', 'Schedule', 'Academic Calendar', 'Grades', 'Messages', 'Contacts', 'Reports', 'Operations', 'Settings'].includes(activeNav) && (
+          {!['Dashboard', 'Transport', 'Students', 'Exam Registration', 'Admissions', 'Assignments', 'Schedule', 'Academic Calendar', 'Grades', 'Messages', 'Contacts', 'Reports', 'Operations', 'Settings'].includes(activeNav) && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 12 }}>
               <div style={{ fontSize: 48 }}>🚧</div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--gray-700)' }}>{activeNav} — Coming Soon</h2>

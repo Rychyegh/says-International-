@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, FileText, Eye } from 'lucide-react';
+import { CheckCircle2, FileText, Eye, Edit3 } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
 import OfficialApplicationForm from './OfficialApplicationForm';
 import BulkStudentUpload from './BulkStudentUpload';
@@ -28,8 +28,8 @@ export function LearnerOnboarding() {
     };
 
     submitApplication(applicationRecord);
-    setNotice('Official Application Form submitted successfully! Administrators have received your application.');
-    setTimeout(() => setNotice(''), 6000);
+    setNotice('✅ Official Application Form submitted & Student onboarded successfully! Details populated across Student Roster, Credentials Vault, and Fee Schedule.');
+    setTimeout(() => setNotice(''), 7000);
   };
 
   return (
@@ -99,7 +99,7 @@ export function LearnerOnboarding() {
 }
 
 export function AdmissionsRegister() {
-  const { applications = [], updateApplicationStatus } = usePortalData();
+  const { applications = [], updateApplicationStatus, updateApplication } = usePortalData();
   const [selectedApp, setSelectedApp] = useState(null);
   const [notice, setNotice] = useState('');
 
@@ -123,6 +123,12 @@ export function AdmissionsRegister() {
           readOnly={true}
           isAdmin={true}
           onCancel={() => setSelectedApp(null)}
+          onUpdate={(id, updatedForm) => {
+            if (updateApplication) updateApplication(id, updatedForm);
+            setSelectedApp(null);
+            setNotice('✅ Application Form updated successfully! Changes reflected across all portals.');
+            setTimeout(() => setNotice(''), 6000);
+          }}
         />
       ) : (
         <section className="panel">
@@ -158,6 +164,25 @@ export function AdmissionsRegister() {
                     }}
                   >
                     <Eye size={14} /> View Form & PDF
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedApp(item)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 6,
+                      background: '#e0f2fe',
+                      color: '#0369a1',
+                      border: '1px solid #bae6fd',
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    <Edit3 size={14} /> Edit Form
                   </button>
 
                   <label>

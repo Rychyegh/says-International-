@@ -2,17 +2,17 @@
    Shared Portal Layout – REMALJ Carewell Light Theme
    ======================================== */
 
-/* Pre-header (36px) + Main topbar (70px) = 106px total offset */
+/* Main topbar (70px) total offset */
 .portal {
   min-height: 100vh;
-  padding-top: 106px;
+  padding-top: 70px;
   background: var(--gray-50);
 }
 
 /* ── Layout ─────────────────────────────────── */
 .portal__layout {
   display: flex;
-  min-height: calc(100vh - 106px);
+  min-height: calc(100vh - 70px);
 }
 
 /* ── Sidebar ────────────────────────────────── */
@@ -26,8 +26,8 @@
   flex-direction: column;
   gap: 2px;
   position: sticky;
-  top: 106px;
-  height: calc(100vh - 106px);
+  top: 70px;
+  height: calc(100vh - 70px);
   overflow-y: auto;
 }
 

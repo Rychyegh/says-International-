@@ -118,6 +118,38 @@ const INITIAL_DATA = {
     { id: 'reg-002', studentId: 'REMALJ-2026-002', studentName: 'Adwoa Edwards', classLevel: 'Primary 5', academicYear: '2026/2027', term: 'Term 1', status: 'Registered', registeredAt: '2026-09-01' },
     { id: 'reg-003', studentId: 'REMALJ-2026-041', studentName: 'Abena Mensah', classLevel: 'JHS 3', academicYear: '2026/2027', term: 'Term 1', status: 'Registered', registeredAt: '2026-09-01' },
   ],
+  examRegistrations: [
+    {
+      id: 'exam-reg-001',
+      studentId: 'REMALJ-2026-041',
+      studentName: 'Abena Mensah',
+      classLevel: 'JHS 3',
+      academicYear: '2025/2026',
+      term: 'Term 1',
+      examType: 'End-of-Term Final Examination',
+      indexNumber: 'EXAM-2026-JHS3-041',
+      examCenter: 'Main Examination Hall A',
+      subjects: ['Mathematics', 'English Language', 'Integrated Science', 'Social Studies', 'ICT / Computing', 'Religious & Moral Education'],
+      registeredAt: '2026-09-10',
+      registeredBy: 'Academic Head / Admin',
+      status: 'Registered - Hall Pass Valid'
+    },
+    {
+      id: 'exam-reg-002',
+      studentId: 'REMALJ-2026-112',
+      studentName: 'Kwame Asante',
+      classLevel: 'JHS 3',
+      academicYear: '2025/2026',
+      term: 'Term 1',
+      examType: 'End-of-Term Final Examination',
+      indexNumber: 'EXAM-2026-JHS3-112',
+      examCenter: 'Main Examination Hall A',
+      subjects: ['Mathematics', 'English Language', 'Integrated Science', 'Social Studies', 'ICT / Computing'],
+      registeredAt: '2026-09-10',
+      registeredBy: 'Academic Head / Admin',
+      status: 'Registered - Hall Pass Valid'
+    }
+  ],
   theme: 'light',
   backendConnected: false,
 };
@@ -471,22 +503,98 @@ export function PortalDataProvider({ children }) {
       }));
     },
     submitApplication: async (application) => {
+      const learnerName = `${application.firstName || ''} ${application.surname || ''}`.trim() || application.learner || application.fullName || 'Applicant';
+      const guardianName = application.fatherName || application.motherName || application.guardian || application.guardianName || 'Parent/Guardian';
+      const contactEmail = application.fatherEmail || application.motherEmail || application.email || application.guardianEmail || `${(application.surname || 'parent').toLowerCase()}@remaljcarewell.edu.gh`;
+      const contactPhone = application.fatherPhone || application.motherPhone || application.phone || application.guardianPhone || '024 111 2222';
+      const applyingLevel = application.applyingClass || application.level || 'JHS 1';
+
       try {
         await api.submitApplication({
-          learner_name: application.learner || application.fullName,
-          guardian_name: application.guardian || application.guardianName,
-          contact_email: application.email || application.guardianEmail,
-          contact_phone: application.phone || application.guardianPhone,
-          applying_level: application.level || 'JHS 1',
+          learner_name: learnerName,
+          guardian_name: guardianName,
+          contact_email: contactEmail,
+          contact_phone: contactPhone,
+          applying_level: applyingLevel,
           form_data: application
         });
       } catch (e) {
         console.warn('Backend application submit fallback:', e);
       }
-      setData((current) => ({
-        ...current,
-        applications: [{ id: crypto.randomUUID?.() || String(Date.now()), ...application, status: 'Submitted', submittedAt: new Date().toLocaleString() }, ...(current.applications || [])],
-      }));
+
+      setData((current) => {
+        const appId = crypto.randomUUID?.() || String(Date.now());
+        const classSection = application.officeFormAssigned || 'A';
+        const homeAddress = application.residentialAddress || application.homeAddress || 'Bogoso';
+
+        const newApp = {
+          id: appId,
+          ...application,
+          learner: learnerName,
+          guardian: guardianName,
+          email: contactEmail,
+          phone: contactPhone,
+          level: applyingLevel,
+          status: 'Submitted',
+          submittedAt: new Date().toLocaleString()
+        };
+
+        const studentCount = (current.onboardedStudents || []).length + 1;
+        const studentId = `REMALJ-${new Date().getFullYear()}-${String(studentCount).padStart(3, '0')}`;
+        const newStudent = {
+          id: appId,
+          studentId,
+          rfidCardCode: application.rfidCardCode || `CARD-${String(studentCount).padStart(3, '0')}`,
+          fullName: learnerName,
+          dob: application.dob || '2015-01-01',
+          gender: application.sex || application.gender || 'Male',
+          level: applyingLevel,
+          classSection,
+          guardianName,
+          guardianEmail: contactEmail,
+          guardianPhone: contactPhone,
+          homeAddress,
+          passportPhoto: application.passportPhoto || null,
+          enrollmentDate: new Date().toISOString().split('T')[0],
+          status: 'Active',
+          studentEmail: `${learnerName.toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`,
+          defaultPassword: `StuPass#${studentId.replace('REMALJ-', '')}`,
+        };
+
+        const defaultBilled = applyingLevel.includes('JHS') ? 5200 : applyingLevel.includes('SHS') ? 5800 : 4800;
+        const newFee = {
+          id: `fee-${appId}`,
+          studentId,
+          studentName: learnerName,
+          guardianName,
+          guardianEmail: contactEmail,
+          term: 'Term 1 · 2026',
+          billedAmount: defaultBilled,
+          paidAmount: 0,
+          balance: defaultBilled,
+          status: 'Not Paid',
+          dueDate: '2026-09-15',
+          paymentDate: null
+        };
+
+        const newFeeAccount = {
+          id: `fee-acc-${appId}`,
+          child: learnerName,
+          school: 'REMALJ Carewell Inspirational School',
+          term: 'Term 1 · 2026',
+          billed: defaultBilled,
+          paid: 0,
+          status: 'Not Paid'
+        };
+
+        return {
+          ...current,
+          applications: [newApp, ...(current.applications || [])],
+          onboardedStudents: [newStudent, ...(current.onboardedStudents || [])],
+          studentFees: [newFee, ...(current.studentFees || [])],
+          feeAccounts: [newFeeAccount, ...(current.feeAccounts || [])],
+        };
+      });
     },
     updateApplicationStatus: async (id, status) => {
       try {
@@ -551,6 +659,87 @@ export function PortalDataProvider({ children }) {
           ...current,
           applications: updatedApplications,
           messages: updatedMessages,
+        };
+      });
+    },
+    updateApplication: async (id, updatedForm) => {
+      try {
+        await api.updateApplication(id, updatedForm);
+      } catch (e) {
+        console.warn('Backend update application fallback:', e);
+      }
+
+      setData((current) => {
+        const existingApp = (current.applications || []).find(a => a.id === id);
+        if (!existingApp) return current;
+
+        const learnerName = `${updatedForm.firstName || ''} ${updatedForm.surname || ''}`.trim() || updatedForm.learner || updatedForm.fullName || existingApp.learner;
+        const guardianName = updatedForm.fatherName || updatedForm.motherName || updatedForm.guardian || updatedForm.guardianName || existingApp.guardian;
+        const contactEmail = updatedForm.fatherEmail || updatedForm.email || updatedForm.guardianEmail || existingApp.email;
+        const contactPhone = updatedForm.fatherPhone || updatedForm.motherPhone || updatedForm.phone || updatedForm.guardianPhone || existingApp.phone;
+        const applyingLevel = updatedForm.applyingClass || updatedForm.level || existingApp.level || 'JHS 1';
+
+        const updatedApplicationRecord = {
+          ...existingApp,
+          ...updatedForm,
+          learner: learnerName,
+          guardian: guardianName,
+          email: contactEmail,
+          phone: contactPhone,
+          level: applyingLevel,
+          updatedAt: new Date().toLocaleString(),
+        };
+
+        const updatedApplications = (current.applications || []).map(app =>
+          app.id === id ? updatedApplicationRecord : app
+        );
+
+        const updatedOnboardedStudents = (current.onboardedStudents || []).map(stu => {
+          if (stu.id === id || stu.studentId === id || stu.fullName === existingApp.learner || stu.fullName === learnerName) {
+            return {
+              ...stu,
+              fullName: learnerName,
+              level: applyingLevel,
+              guardianName: guardianName,
+              guardianEmail: contactEmail,
+              guardianPhone: contactPhone,
+              homeAddress: updatedForm.residentialAddress || stu.homeAddress,
+              dob: updatedForm.dob || stu.dob,
+              gender: updatedForm.sex || stu.gender,
+              passportPhoto: updatedForm.passportPhoto || stu.passportPhoto,
+            };
+          }
+          return stu;
+        });
+
+        const updatedStudentFees = (current.studentFees || []).map(fee => {
+          if (fee.studentName === existingApp.learner || fee.studentName === learnerName || fee.studentId === id) {
+            return {
+              ...fee,
+              studentName: learnerName,
+              guardianName: guardianName,
+              guardianEmail: contactEmail,
+            };
+          }
+          return fee;
+        });
+
+        const updatedFeeAccounts = (current.feeAccounts || []).map(acc => {
+          if (acc.child === existingApp.learner || acc.child === learnerName) {
+            return {
+              ...acc,
+              child: learnerName,
+            };
+          }
+          return acc;
+        });
+
+        return {
+          ...current,
+          applications: updatedApplications,
+          onboardedStudents: updatedOnboardedStudents,
+          studentFees: updatedStudentFees,
+          feeAccounts: updatedFeeAccounts,
         };
       });
     },
@@ -761,10 +950,65 @@ export function PortalDataProvider({ children }) {
       ...current,
       onboardedStudents: (current.onboardedStudents || []).map((s) => (s.id === id || s.studentId === id) ? { ...s, ...updates } : s),
     })),
-    deleteOnboardedStudent: (id) => setData((current) => ({
-      ...current,
-      onboardedStudents: (current.onboardedStudents || []).filter((s) => s.id !== id && s.studentId !== id),
-    })),
+    deleteOnboardedStudent: (id) => setData((current) => {
+      const targetStudent = (current.onboardedStudents || []).find((s) => s.id === id || s.studentId === id);
+      const studentId = targetStudent?.studentId || id;
+      const fullName = targetStudent?.fullName;
+      const email = targetStudent?.studentEmail;
+
+      const updatedStudents = (current.onboardedStudents || []).filter(
+        (s) => s.id !== id && s.studentId !== id && (!fullName || s.fullName !== fullName)
+      );
+
+      const updatedFees = (current.studentFees || []).filter(
+        (f) => f.id !== id && f.studentId !== id && (!fullName || f.studentName !== fullName)
+      );
+
+      const updatedFeeAccounts = (current.feeAccounts || []).filter(
+        (a) => a.id !== id && (!fullName || a.child !== fullName)
+      );
+
+      const updatedRegs = (current.semesterRegistrations || []).filter(
+        (r) => r.id !== id && r.studentId !== id && (!fullName || r.studentName !== fullName)
+      );
+
+      const updatedApps = (current.applications || []).filter(
+        (app) => app.id !== id && (!fullName || app.learner !== fullName)
+      );
+
+      const updatedResults = (current.results || []).filter(
+        (res) => res.id !== id && res.studentId !== id && (!fullName || res.studentName !== fullName)
+      );
+
+      const updatedExamRegs = (current.examRegistrations || []).filter(
+        (e) => e.id !== id && e.studentId !== studentId && (!fullName || e.studentName !== fullName)
+      );
+
+      try {
+        const raw = localStorage.getItem('registered_accounts');
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (email && list[email.toLowerCase()]) {
+            delete list[email.toLowerCase()];
+          }
+          if (studentId && list[studentId.toLowerCase()]) {
+            delete list[studentId.toLowerCase()];
+          }
+          localStorage.setItem('registered_accounts', JSON.stringify(list));
+        }
+      } catch (e) {}
+
+      return {
+        ...current,
+        onboardedStudents: updatedStudents,
+        studentFees: updatedFees,
+        feeAccounts: updatedFeeAccounts,
+        semesterRegistrations: updatedRegs,
+        applications: updatedApps,
+        results: updatedResults,
+        examRegistrations: updatedExamRegs,
+      };
+    }),
     // Admissions Edit & Update
     updateStudentAdmission: (id, updates) => setData((current) => ({
       ...current,
@@ -938,6 +1182,107 @@ export function PortalDataProvider({ children }) {
         paymentDate: (feeRecord.paidAmount || 0) > 0 ? (feeRecord.paymentDate || new Date().toISOString().split('T')[0]) : null,
       }, ...(current.studentFees || [])],
     })),
+    postAcademicBill: ({ studentId, studentName, classLevel, items, totalAmount, term = 'Term 1 · 2026' }) => setData((current) => {
+      const amountToPost = Number(totalAmount) || 0;
+      let targetStudents = [];
+      if (studentId) {
+        targetStudents = (current.onboardedStudents || []).filter(s => s.studentId === studentId || s.id === studentId || s.fullName === studentName);
+      } else if (classLevel && classLevel !== 'All Classes') {
+        const cleanClass = classLevel.toLowerCase();
+        targetStudents = (current.onboardedStudents || []).filter(s => {
+          const sLvl = (s.level || '').toLowerCase();
+          return sLvl.includes(cleanClass) || cleanClass.includes(sLvl) ||
+                 (cleanClass.includes('jhs') && sLvl.includes('jhs')) ||
+                 (cleanClass.includes('nursery') && (sLvl.includes('nursery') || sLvl.includes('creche'))) ||
+                 (cleanClass.includes('basic') && sLvl.includes('basic')) ||
+                 (cleanClass.includes('primary') && (sLvl.includes('primary') || sLvl.includes('grade')));
+        });
+      }
+
+      if (targetStudents.length === 0) {
+        targetStudents = current.onboardedStudents || [];
+      }
+
+      const updatedFees = [...(current.studentFees || [])];
+      const updatedFeeAccounts = [...(current.feeAccounts || [])];
+      const updatedLedgerLogs = [...(current.ledgerLogs || [])];
+
+      targetStudents.forEach(stu => {
+        const feeIndex = updatedFees.findIndex(f => f.studentId === stu.studentId || f.studentName === stu.fullName);
+        if (feeIndex >= 0) {
+          const existing = updatedFees[feeIndex];
+          const newBilled = (existing.billedAmount || 0) + amountToPost;
+          const newBalance = Math.max(0, newBilled - (existing.paidAmount || 0));
+          const newStatus = newBalance <= 0 ? 'Paid' : (existing.paidAmount || 0) > 0 ? 'Balance Due' : 'Not Paid';
+          updatedFees[feeIndex] = {
+            ...existing,
+            billedAmount: newBilled,
+            balance: newBalance,
+            status: newStatus,
+            lastBillPostedAt: new Date().toLocaleString(),
+            itemsBreakdown: items || existing.itemsBreakdown,
+          };
+        } else {
+          const newFee = {
+            id: `fee-${stu.id || Date.now()}`,
+            studentId: stu.studentId,
+            studentName: stu.fullName,
+            guardianName: stu.guardianName,
+            guardianEmail: stu.guardianEmail || 'parent@remaljcarewell.edu.gh',
+            term,
+            billedAmount: amountToPost,
+            paidAmount: 0,
+            balance: amountToPost,
+            status: 'Not Paid',
+            dueDate: '2026-09-15',
+            paymentDate: null,
+            itemsBreakdown: items,
+          };
+          updatedFees.unshift(newFee);
+        }
+
+        const accIndex = updatedFeeAccounts.findIndex(a => a.child === stu.fullName);
+        if (accIndex >= 0) {
+          const existingAcc = updatedFeeAccounts[accIndex];
+          const newBilled = (existingAcc.billed || 0) + amountToPost;
+          const newPaid = existingAcc.paid || 0;
+          updatedFeeAccounts[accIndex] = {
+            ...existingAcc,
+            billed: newBilled,
+            status: (newBilled - newPaid) <= 0 ? 'Paid' : 'Balance due',
+          };
+        } else {
+          updatedFeeAccounts.unshift({
+            id: `fee-acc-${stu.id || Date.now()}`,
+            child: stu.fullName,
+            school: 'REMALJ Carewell Inspirational School',
+            term,
+            billed: amountToPost,
+            paid: 0,
+            status: 'Not Paid',
+          });
+        }
+
+        updatedLedgerLogs.unshift({
+          id: `ledg-${Date.now()}-${stu.studentId}`,
+          studentId: stu.studentId,
+          studentName: stu.fullName,
+          classLevel: stu.level || classLevel,
+          transactionType: 'DEBIT (ACADEMIC BILL POSTING)',
+          amount: amountToPost,
+          description: `Term Academic Fee Bill Posted (${term}) - Total: GHS ${amountToPost.toFixed(2)}`,
+          postedBy: 'Admin / Accounts Office',
+          postedAt: new Date().toLocaleString(),
+        });
+      });
+
+      return {
+        ...current,
+        studentFees: updatedFees,
+        feeAccounts: updatedFeeAccounts,
+        ledgerLogs: updatedLedgerLogs,
+      };
+    }),
     sendAccountantMessage: async (msg) => {
       try {
         await api.sendFeeReminder({
@@ -998,13 +1343,16 @@ export function PortalDataProvider({ children }) {
     addStaffMember: (staffData) => setData((current) => {
       const currentList = current.teacherDirectory || [];
       const staffId = staffData.staffId || `STF-2026-${String(currentList.length + 1).padStart(3, '0')}`;
+      const email = staffData.email || `${(staffData.name || 'staff').toLowerCase().replace(/[^\w]/g, '.')}@remaljcarewell.edu.gh`;
+      const defaultPassword = staffData.password || `StaffPass#${staffId}`;
+
       const newStaff = {
         id: crypto.randomUUID?.() || String(Date.now()),
         staffId,
         name: staffData.name,
         subject: staffData.subject || 'General Education',
         classAssigned: staffData.classAssigned || 'Grade 4',
-        email: staffData.email || `${(staffData.name || 'staff').toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`,
+        email,
         phone: staffData.phone || '024 900 1100',
         role: staffData.role || 'Subject Teacher',
         status: staffData.status || 'Active',
@@ -1012,6 +1360,22 @@ export function PortalDataProvider({ children }) {
         photo: staffData.photo || (staffData.gender === 'Female' ? '👩‍🏫' : '👨‍🏫'),
         bio: staffData.bio || `${staffData.role || 'Teacher'} at REMALJ Carewell Inspirational School.`
       };
+
+      try {
+        const raw = localStorage.getItem('registered_accounts');
+        const list = raw ? JSON.parse(raw) : {};
+        list[email.toLowerCase()] = {
+          id: newStaff.id,
+          email: email.toLowerCase(),
+          password: defaultPassword,
+          fullName: staffData.name,
+          role: 'teacher',
+          staffId,
+          phone: staffData.phone
+        };
+        localStorage.setItem('registered_accounts', JSON.stringify(list));
+      } catch (e) {}
+
       return {
         ...current,
         teacherDirectory: [newStaff, ...currentList]
@@ -1059,6 +1423,47 @@ export function PortalDataProvider({ children }) {
         };
       });
     },
+    // Examination Candidate Registration Methods
+    registerIndividualExam: (regData) => setData((current) => {
+      const existing = current.examRegistrations || [];
+      const newReg = {
+        id: `exam-reg-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        registeredAt: new Date().toISOString().split('T')[0],
+        registeredBy: 'Academic Head / Admin',
+        status: 'Registered - Hall Pass Valid',
+        ...regData
+      };
+      return {
+        ...current,
+        examRegistrations: [newReg, ...existing]
+      };
+    }),
+    registerClassExams: (classRegData) => setData((current) => {
+      const existing = current.examRegistrations || [];
+      const newRegs = (classRegData.students || []).map((stu, idx) => ({
+        id: `exam-reg-${Date.now()}-${idx}`,
+        studentId: stu.studentId,
+        studentName: stu.studentName,
+        classLevel: classRegData.classLevel,
+        academicYear: classRegData.academicYear,
+        term: classRegData.term,
+        examType: classRegData.examType,
+        indexNumber: stu.indexNumber || `EXAM-${classRegData.academicYear.substring(0, 4)}-${classRegData.classLevel.replace(/\s+/g, '').toUpperCase()}-${String(idx + 1).padStart(3, '0')}`,
+        examCenter: classRegData.examCenter || 'Main Examination Hall A',
+        subjects: classRegData.subjects || [],
+        registeredAt: new Date().toISOString().split('T')[0],
+        registeredBy: 'Academic Head / Admin',
+        status: 'Registered - Hall Pass Valid'
+      }));
+      return {
+        ...current,
+        examRegistrations: [...newRegs, ...existing]
+      };
+    }),
+    cancelExamRegistration: (regId) => setData((current) => ({
+      ...current,
+      examRegistrations: (current.examRegistrations || []).filter(r => r.id !== regId && r.indexNumber !== regId)
+    })),
   }), [data, refreshBackendData]);
 
   return <PortalDataContext.Provider value={value}>{children}</PortalDataContext.Provider>;
@@ -1069,3 +1474,6 @@ export function usePortalData() {
   if (!context) throw new Error('usePortalData must be used inside PortalDataProvider');
   return context;
 }
+
+export const usePortalStore = usePortalData;
+export const usePortalContext = usePortalData;

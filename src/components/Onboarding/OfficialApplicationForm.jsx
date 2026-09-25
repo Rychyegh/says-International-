@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
-  FileText, Download, Printer, CheckCircle2, Save,
+  FileText, Download, Printer, CheckCircle2, Save, Edit3,
   ArrowLeft, ArrowRight, UserCheck, ShieldAlert, Upload, Image as ImageIcon
 } from 'lucide-react';
+import { usePortalData } from '../../data/PortalStore';
 import './OfficialApplicationForm.css';
 
 // Official Crest Emblem Logo for REMALJ Carewell Inspirational School
@@ -23,7 +24,7 @@ export function SchoolLogoSVG({ size = 110 }) {
   );
 }
 
-const DEFAULT_FORM = {
+export const getDefaultForm = () => ({
   // Header / Page 1
   applyingClass: '',
   enrolmentType: 'Day',
@@ -34,11 +35,12 @@ const DEFAULT_FORM = {
   sex: 'Male',
   dob: '',
   placeOfBirth: '',
-  nationality: 'Ghanaian',
+  nationality: '',
   religion: '',
   residentialAddress: '',
   postalAddress: '',
-  languagesSpoken: 'English',
+  languagesSpoken: '',
+  previousSchool: '',
   presentSchool: '',
   presentClass: '',
 
@@ -120,37 +122,46 @@ const DEFAULT_FORM = {
   officeStaffName: '',
   officeStaffSignature: '',
   officeDate: new Date().toISOString().split('T')[0],
-};
+});
 
 export default function OfficialApplicationForm({
   initialData = null,
   readOnly = false,
   isAdmin = false,
   onSubmit = null,
+  onUpdate = null,
   onSaveOfficeUse = null,
   onCancel = null
 }) {
+  const portalData = usePortalData() || {};
+  const { updateApplication } = portalData;
+
   const [formData, setFormData] = useState(() => ({
-    ...DEFAULT_FORM,
+    ...getDefaultForm(),
     ...(initialData || {})
   }));
 
   const [activeTab, setActiveTab] = useState('page1');
   const [successNotice, setSuccessNotice] = useState('');
+  const [isEditingMode, setIsEditingMode] = useState(!readOnly);
+
+  const effectiveReadOnly = readOnly && !isEditingMode;
 
   useEffect(() => {
     if (initialData) {
-      setFormData((prev) => ({ ...prev, ...initialData }));
+      setFormData({ ...getDefaultForm(), ...initialData });
+    } else {
+      setFormData(getDefaultForm());
     }
   }, [initialData]);
 
   const handleChange = (field, value) => {
-    if (readOnly && !isAdmin) return;
+    if (effectiveReadOnly && !isAdmin) return;
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSchoolTableChange = (index, field, value) => {
-    if (readOnly && !isAdmin) return;
+    if (effectiveReadOnly && !isAdmin) return;
     setFormData((prev) => {
       const updated = [...(prev.previousSchools || [])];
       updated[index] = { ...updated[index], [field]: value };
@@ -180,12 +191,29 @@ export default function OfficialApplicationForm({
   };
 
   const handleFormSubmit = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (onSubmit) {
       onSubmit(formData);
-      setSuccessNotice('Official Application Form successfully submitted online!');
-      setTimeout(() => setSuccessNotice(''), 6000);
     }
+    setSuccessNotice('Official Application Form successfully submitted online!');
+    if (!initialData) {
+      setFormData(getDefaultForm());
+      setActiveTab('page1');
+    }
+    setTimeout(() => setSuccessNotice(''), 6000);
+  };
+
+  const handleFormUpdate = (e) => {
+    if (e) e.preventDefault();
+    const targetId = formData.id || initialData?.id;
+    if (onUpdate) {
+      onUpdate(targetId, formData);
+    } else if (updateApplication && targetId) {
+      updateApplication(targetId, formData);
+    }
+    setIsEditingMode(false);
+    setSuccessNotice('✅ Application Form updated successfully! Changes reflected across all portals.');
+    setTimeout(() => setSuccessNotice(''), 6000);
   };
 
   const handleOfficeSave = () => {
@@ -213,12 +241,15 @@ export default function OfficialApplicationForm({
 
   // Print / Save as PDF
   const handlePrint = () => {
-    window.print();
+    setActiveTab('all');
+    setTimeout(() => {
+      window.print();
+    }, 150);
   };
 
   // Clear for blank download template
   const handleBlankDownload = () => {
-    setFormData(DEFAULT_FORM);
+    setFormData(getDefaultForm());
     setActiveTab('all');
     setTimeout(() => {
       window.print();
@@ -261,13 +292,31 @@ export default function OfficialApplicationForm({
             Blank Template PDF
           </button>
 
-          {!readOnly && (
-            <button className="btn-form-action btn-form-action--primary" type="button" onClick={handleFormSubmit}>
-              <CheckCircle2 size={14} /> Submit Application Online
+          {initialData && effectiveReadOnly && (
+            <button
+              className="btn-form-action"
+              style={{ background: '#0284c7', color: '#ffffff', fontWeight: 800 }}
+              type="button"
+              onClick={() => setIsEditingMode(true)}
+              title="Edit application form details"
+            >
+              <Edit3 size={14} /> Edit Application Form
             </button>
           )}
 
-          {isAdmin && readOnly && (
+          {(isEditingMode || !initialData) && (
+            <button
+              className="btn-form-action btn-form-action--primary"
+              style={{ background: '#16a34a', color: '#ffffff', fontWeight: 900 }}
+              type="button"
+              onClick={initialData ? handleFormUpdate : handleFormSubmit}
+            >
+              {initialData ? <Save size={14} /> : <CheckCircle2 size={14} />}
+              {initialData ? 'Save & Update Application' : 'Submit Application Online'}
+            </button>
+          )}
+
+          {isAdmin && effectiveReadOnly && (
             <button className="btn-form-action btn-form-action--primary" type="button" onClick={handleOfficeSave}>
               <Save size={14} /> Save Office Review
             </button>
@@ -435,8 +484,8 @@ export default function OfficialApplicationForm({
             </div>
 
             <div className="form-line-row">
-              <span className="form-line-label">Present School:</span>
-              <input className="form-line-input" value={formData.presentSchool} onChange={(e) => handleChange('presentSchool', e.target.value)} disabled={readOnly && !isAdmin} />
+              <span className="form-line-label">Previous School:</span>
+              <input className="form-line-input" value={formData.previousSchool !== undefined && formData.previousSchool !== '' ? formData.previousSchool : (formData.presentSchool || '')} onChange={(e) => { handleChange('previousSchool', e.target.value); handleChange('presentSchool', e.target.value); }} disabled={readOnly && !isAdmin} />
               <span className="form-line-label" style={{ marginLeft: 16 }}>Class/Form:</span>
               <input className="form-line-input" value={formData.presentClass} onChange={(e) => handleChange('presentClass', e.target.value)} disabled={readOnly && !isAdmin} />
             </div>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { GraduationCap, Users, BookOpen, LogOut, ShieldCheck, CreditCard, Radio } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
@@ -34,10 +34,25 @@ export default function Topbar({ activePortal, isAuthed, onSignOut }) {
     : defaultUser.role;
   const userInitial = (userName.charAt(0) || 'U').toUpperCase();
 
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 15);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
   return (
-    <header className="topbar" role="banner" style={{ borderBottom: '1px solid var(--gray-200)', background: '#fff' }}>
-      <div className="topbar__inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px' }}>
-        {/* School logo */}
+    <header className={`topbar ${scrolled ? 'topbar--scrolled' : ''}`} role="banner">
+      <div className="topbar__inner">
+        {/* School logo & School Name */}
         <Link to={`/${activePortal}`} className="topbar__logo" title="REMALJ Carewell Inspirational School · Bogoso" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12 }}>
           <img
             src="/remalj-carewell-logo.jpg"
@@ -54,7 +69,8 @@ export default function Topbar({ activePortal, isAuthed, onSignOut }) {
           </div>
         </Link>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {/* Middle section - transparent & hidden on scroll down */}
+        <div className="topbar__middle">
           {/* Live API Endpoint Indicator */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 20,
@@ -80,7 +96,7 @@ export default function Topbar({ activePortal, isAuthed, onSignOut }) {
 
         {/* User profile & Sign out */}
         {isAuthed ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="topbar__user" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--gray-700)' }}>
               <div style={{
                 width: 28, height: 28, borderRadius: '50%', background: currentInfo.color,
