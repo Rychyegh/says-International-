@@ -150,6 +150,70 @@ const INITIAL_DATA = {
       status: 'Registered - Hall Pass Valid'
     }
   ],
+  paymentVouchers: [
+    {
+      id: 'pv-088',
+      pvNo: 'PV-2026-088',
+      requisitionNo: 'REQ-99412',
+      provider: 'ELECTRICITY COMPANY OF GHANA (ECG)',
+      providerId: 'ECG-99310',
+      description: 'Cost of Electricity Bill & Utility Substation Maintenance',
+      qty: 1,
+      cost: 3200.00,
+      total: 3200.00,
+      datePrepared: '2026-09-05',
+      valuedDate: '2026-09-05',
+      auditRemarks: 'Pre-audited & verified against monthly meter consumption records.',
+      status: 'Pending Audit',
+      editedByHeadmaster: false,
+      correctionsLog: []
+    },
+    {
+      id: 'pv-082',
+      pvNo: 'PV-2026-082',
+      requisitionNo: 'REQ-99380',
+      provider: 'DAILY CANTEEN SUPPLIES LTD',
+      providerId: '931043',
+      description: 'Weekly Canteen Feeding & Grocery Stock Supply',
+      qty: 1,
+      cost: 1850.00,
+      total: 1850.00,
+      datePrepared: '2026-09-02',
+      valuedDate: '2026-09-02',
+      auditRemarks: 'Pending pre-audit verification.',
+      status: 'Pending Audit',
+      editedByHeadmaster: false,
+      correctionsLog: []
+    },
+    {
+      id: 'pv-075',
+      pvNo: 'PV-2026-075',
+      requisitionNo: 'REQ-99300',
+      provider: 'STATIONERY & PRINTING DEPOT',
+      providerId: '931088',
+      description: 'Terminal Assessment Paper & Printing Ink Cartridges',
+      qty: 5,
+      cost: 240.00,
+      total: 1200.00,
+      datePrepared: '2026-08-28',
+      valuedDate: '2026-08-28',
+      auditRemarks: 'Pre-audited & Approved',
+      status: 'Pre-Audited & Approved',
+      editedByHeadmaster: false,
+      correctionsLog: []
+    }
+  ],
+  academicSettings: {
+    academicYear: '2025/2026',
+    academicTerm: 'Term 3',
+    classTestWeight: 50,
+    examWeight: 50,
+    schoolName: 'REMALJ Carewell Inspirational School',
+    schoolBranch: 'Bogoso Main Campus',
+    gradingSystem: 'BECE 9-Point Scale (GES Standard)',
+    resumptionDate: '2026-09-08',
+    vacationDate: '2026-12-18'
+  },
   theme: 'light',
   backendConnected: false,
 };
@@ -159,7 +223,16 @@ const PortalDataContext = createContext(null);
 function readData() {
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
-    return saved ? { ...INITIAL_DATA, ...JSON.parse(saved) } : INITIAL_DATA;
+    if (!saved) return INITIAL_DATA;
+    const parsed = JSON.parse(saved);
+    return {
+      ...INITIAL_DATA,
+      ...parsed,
+      academicSettings: {
+        ...INITIAL_DATA.academicSettings,
+        ...(parsed.academicSettings || {})
+      }
+    };
   } catch {
     return INITIAL_DATA;
   }
@@ -388,8 +461,23 @@ export function PortalDataProvider({ children }) {
     refreshBackendData();
   }, [refreshBackendData]);
 
+  const sortedOnboardedStudents = useMemo(() => {
+    return [...(data.onboardedStudents || [])].sort((a, b) => (a.fullName || a.name || '').localeCompare(b.fullName || b.name || ''));
+  }, [data.onboardedStudents]);
+
+  const sortedStudentFees = useMemo(() => {
+    return [...(data.studentFees || [])].sort((a, b) => (a.studentName || '').localeCompare(b.studentName || ''));
+  }, [data.studentFees]);
+
   const value = useMemo(() => ({
     ...data,
+    academicSettings: data.academicSettings || INITIAL_DATA.academicSettings,
+    updateAcademicSettings: (newSettings) => setData((current) => ({
+      ...current,
+      academicSettings: { ...(current.academicSettings || INITIAL_DATA.academicSettings), ...newSettings }
+    })),
+    onboardedStudents: sortedOnboardedStudents,
+    studentFees: sortedStudentFees,
     refreshBackendData,
     saveTimetableEntry: (entry) => setData((current) => ({
       ...current,
@@ -1283,6 +1371,202 @@ export function PortalDataProvider({ children }) {
         ledgerLogs: updatedLedgerLogs,
       };
     }),
+    adjustStudentBill: ({
+      studentId,
+      studentName,
+      classLevel,
+      targetYearGroup,
+      adjustmentType = 'CREDIT',
+      amount = 0,
+      reason = 'Bill Ledger Adjustment',
+      invoiceNo = '',
+      items = null,
+      postedBy = 'Mrs. Grace Accountant (Finance Office)'
+    }) => setData((current) => {
+      const adjAmount = Math.abs(Number(amount) || 0);
+      const cleanClass = (classLevel || targetYearGroup || '').toLowerCase();
+      const cleanStudentName = (studentName || '').toLowerCase();
+      const cleanStudentId = String(studentId || '').toLowerCase();
+
+      let targetStudents = [];
+
+      if (cleanStudentId || cleanStudentName) {
+        targetStudents = (current.onboardedStudents || []).filter(s =>
+          (cleanStudentId && (String(s.studentId).toLowerCase() === cleanStudentId || String(s.id).toLowerCase() === cleanStudentId)) ||
+          (cleanStudentName && (s.fullName || s.name || '').toLowerCase().includes(cleanStudentName))
+        );
+        if (targetStudents.length === 0) {
+          const matchFee = (current.studentFees || []).find(f =>
+            (cleanStudentId && (String(f.studentId).toLowerCase() === cleanStudentId || String(f.id).toLowerCase() === cleanStudentId)) ||
+            (cleanStudentName && (f.studentName || '').toLowerCase().includes(cleanStudentName))
+          );
+          if (matchFee) {
+            targetStudents = [{
+              id: matchFee.id,
+              studentId: matchFee.studentId || matchFee.id,
+              fullName: matchFee.studentName,
+              level: matchFee.classLevel || 'General',
+              guardianName: matchFee.guardianName,
+              guardianEmail: matchFee.guardianEmail
+            }];
+          }
+        }
+      } else if (cleanClass && cleanClass !== 'all classes' && cleanClass !== 'all') {
+        targetStudents = (current.onboardedStudents || []).filter(s => {
+          const sLvl = (s.level || '').toLowerCase();
+          return sLvl.includes(cleanClass) || cleanClass.includes(sLvl) ||
+                 (cleanClass.includes('jhs 1') && sLvl.includes('jhs 1')) ||
+                 (cleanClass.includes('jhs 2') && sLvl.includes('jhs 2')) ||
+                 (cleanClass.includes('jhs 3') && sLvl.includes('jhs 3')) ||
+                 (cleanClass.includes('jhs') && sLvl.includes('jhs')) ||
+                 (cleanClass.includes('creche') && (sLvl.includes('creche') || sLvl.includes('nursery'))) ||
+                 (cleanClass.includes('nursery') && (sLvl.includes('nursery') || sLvl.includes('creche'))) ||
+                 (cleanClass.includes('primary') && (sLvl.includes('primary') || sLvl.includes('grade')));
+        });
+      }
+
+      if (targetStudents.length === 0 && (!cleanClass || cleanClass === 'all classes' || cleanClass === 'all')) {
+        targetStudents = current.onboardedStudents || [];
+      }
+
+      const updatedFees = [...(current.studentFees || [])];
+      const updatedFeeAccounts = [...(current.feeAccounts || [])];
+      const updatedLedgerLogs = [...(current.ledgerLogs || [])];
+      const nowStr = new Date().toLocaleString();
+
+      const typeLower = (adjustmentType || '').toLowerCase();
+      const isCreditType = ['credit', 'bulk discount / scholarship', 'waiver fee credit', 'discount', 'waiver', 'scholarship'].some(t => typeLower.includes(t));
+      const isDebitType = ['debit', 'add special infrastructure levy', 'fine', 'penalty', 'surcharge', 'levy', 'add'].some(t => typeLower.includes(t));
+      const isCancelType = ['cancel', 'cancellation', 'delete'].some(t => typeLower.includes(t));
+      const isOverrideType = ['override', 'set', 'recalculate', 'post'].some(t => typeLower.includes(t));
+
+      targetStudents.forEach(stu => {
+        const feeIndex = updatedFees.findIndex(f => f.studentId === stu.studentId || f.studentName === stu.fullName || (stu.id && f.id === stu.id));
+        
+        let existingBilled = 0;
+        let existingPaid = 0;
+        let existingRecord = null;
+
+        if (feeIndex >= 0) {
+          existingRecord = updatedFees[feeIndex];
+          existingBilled = Number(existingRecord.billedAmount || 0);
+          existingPaid = Number(existingRecord.paidAmount || 0);
+        }
+
+        let newBilled = existingBilled;
+
+        if (isCancelType) {
+          newBilled = existingPaid;
+        } else if (isCreditType) {
+          newBilled = Math.max(0, existingBilled - adjAmount);
+        } else if (isDebitType) {
+          newBilled = existingBilled + adjAmount;
+        } else if (isOverrideType) {
+          newBilled = adjAmount;
+        } else {
+          newBilled = Math.max(0, existingBilled - adjAmount);
+        }
+
+        const newBalance = Math.max(0, newBilled - existingPaid);
+        let newStatus = 'Not Paid';
+        if (isCancelType && newBalance === 0) {
+          newStatus = 'Cancelled';
+        } else if (newBalance <= 0) {
+          newStatus = 'Paid';
+        } else if (existingPaid > 0) {
+          newStatus = 'Balance Due';
+        } else {
+          newStatus = 'Not Paid';
+        }
+
+        const adjustmentRecord = {
+          id: `adj-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          date: new Date().toLocaleDateString(),
+          type: adjustmentType,
+          amount: adjAmount,
+          reason,
+          invoiceNo,
+          previousBilled: existingBilled,
+          newBilled,
+          postedBy
+        };
+
+        if (feeIndex >= 0) {
+          updatedFees[feeIndex] = {
+            ...existingRecord,
+            billedAmount: newBilled,
+            balance: newBalance,
+            status: newStatus,
+            lastAdjustedAt: nowStr,
+            itemsBreakdown: items || existingRecord.itemsBreakdown,
+            adjustmentHistory: [adjustmentRecord, ...(existingRecord.adjustmentHistory || [])]
+          };
+        } else {
+          const newFee = {
+            id: `fee-${stu.id || Date.now()}`,
+            studentId: stu.studentId || `SID-${stu.id}`,
+            studentName: stu.fullName || stu.name,
+            guardianName: stu.guardianName || 'Parent',
+            guardianEmail: stu.guardianEmail || 'parent@remaljcarewell.edu.gh',
+            term: 'Term 1 · 2026',
+            billedAmount: newBilled,
+            paidAmount: 0,
+            balance: newBalance,
+            status: newStatus,
+            dueDate: '2026-09-15',
+            paymentDate: null,
+            itemsBreakdown: items || [],
+            lastAdjustedAt: nowStr,
+            adjustmentHistory: [adjustmentRecord]
+          };
+          updatedFees.unshift(newFee);
+        }
+
+        const accIndex = updatedFeeAccounts.findIndex(a => a.child === (stu.fullName || stu.name));
+        if (accIndex >= 0) {
+          const existingAcc = updatedFeeAccounts[accIndex];
+          const accPaid = Number(existingAcc.paid || 0);
+          const accBalance = Math.max(0, newBilled - accPaid);
+          updatedFeeAccounts[accIndex] = {
+            ...existingAcc,
+            billed: newBilled,
+            status: accBalance <= 0 ? (isCancelType ? 'Cancelled' : 'Paid') : 'Balance due',
+          };
+        } else {
+          updatedFeeAccounts.unshift({
+            id: `fee-acc-${stu.id || Date.now()}`,
+            child: stu.fullName || stu.name,
+            school: 'REMALJ Carewell Inspirational School',
+            term: 'Term 1 · 2026',
+            billed: newBilled,
+            paid: 0,
+            status: newBalance <= 0 ? 'Paid' : 'Balance due',
+          });
+        }
+
+        updatedLedgerLogs.unshift({
+          id: `ledg-adj-${Date.now()}-${stu.studentId || Math.random()}`,
+          studentId: stu.studentId || `SID-${stu.id}`,
+          studentName: stu.fullName || stu.name,
+          classLevel: stu.level || classLevel || targetYearGroup || 'General',
+          transactionType: `BILL ADJUSTMENT (${adjustmentType.toUpperCase()})`,
+          amount: adjAmount,
+          previousBilled: existingBilled,
+          newBilledAmount: newBilled,
+          newBalance,
+          description: `Bill Ledger Adjusted [${adjustmentType}]: ${reason}${invoiceNo ? ` (Ref: ${invoiceNo})` : ''}`,
+          postedBy,
+          postedAt: nowStr,
+        });
+      });
+
+      return {
+        ...current,
+        studentFees: updatedFees,
+        feeAccounts: updatedFeeAccounts,
+        ledgerLogs: updatedLedgerLogs,
+      };
+    }),
     sendAccountantMessage: async (msg) => {
       try {
         await api.sendFeeReminder({
@@ -1464,6 +1748,169 @@ export function PortalDataProvider({ children }) {
       ...current,
       examRegistrations: (current.examRegistrations || []).filter(r => r.id !== regId && r.indexNumber !== regId)
     })),
+    // Payment Voucher (PV) Management Methods
+    addPaymentVoucher: (pvData) => setData((current) => {
+      const existing = current.paymentVouchers || [];
+      const newPV = {
+        id: `pv-${Date.now()}`,
+        pvNo: pvData.pvNo || `PV-2026-${String(existing.length + 100).padStart(3, '0')}`,
+        requisitionNo: pvData.requisitionNo || `REQ-${Math.floor(10000 + Math.random() * 90000)}`,
+        provider: pvData.provider || 'General Vendor',
+        providerId: pvData.providerId || 'VEN-001',
+        description: pvData.description || 'Expenditure Voucher',
+        qty: Number(pvData.qty) || 1,
+        cost: Number(pvData.cost || pvData.costPerItem) || 0,
+        total: (Number(pvData.qty) || 1) * (Number(pvData.cost || pvData.costPerItem) || 0),
+        datePrepared: pvData.datePrepared || new Date().toISOString().split('T')[0],
+        valuedDate: pvData.valuedDate || new Date().toISOString().split('T')[0],
+        auditRemarks: pvData.auditRemarks || 'Created in system.',
+        status: pvData.status || 'Pending Audit',
+        editedByHeadmaster: false,
+        correctionsLog: []
+      };
+      return {
+        ...current,
+        paymentVouchers: [newPV, ...existing]
+      };
+    }),
+    updatePaymentVoucher: (pvNo, updatedFields, editorRole = 'Headmaster / Pre-Auditor') => setData((current) => {
+      const existing = current.paymentVouchers || [];
+      const updated = existing.map(p => {
+        if (p.pvNo.toLowerCase() === String(pvNo).toLowerCase() || p.id === pvNo) {
+          const qtyVal = Number(updatedFields.qty !== undefined ? updatedFields.qty : p.qty) || 1;
+          const costVal = Number(updatedFields.cost !== undefined ? updatedFields.cost : (updatedFields.costPerItem !== undefined ? updatedFields.costPerItem : (p.cost || 0))) || 0;
+          const newTotal = qtyVal * costVal;
+          const correctionEntry = {
+            id: `corr-${Date.now()}`,
+            timestamp: new Date().toLocaleString(),
+            editedBy: editorRole,
+            changes: updatedFields
+          };
+          return {
+            ...p,
+            ...updatedFields,
+            qty: qtyVal,
+            cost: costVal,
+            total: newTotal,
+            editedByHeadmaster: true,
+            correctionsLog: [correctionEntry, ...(p.correctionsLog || [])]
+          };
+        }
+        return p;
+      });
+      return {
+        ...current,
+        paymentVouchers: updated
+      };
+    }),
+    approvePaymentVoucher: (pvNo, actionChoice, remarks, updatedFields = null, auditorName = 'Headmaster / Pre-Auditor') => setData((current) => {
+      const existing = current.paymentVouchers || [];
+      const statusText = actionChoice === 'Pre-audit Approve PV' ? 'Pre-Audited & Approved' : actionChoice;
+      const updated = existing.map(p => {
+        if (p.pvNo.toLowerCase() === String(pvNo).toLowerCase() || p.id === pvNo) {
+          const qtyVal = Number(updatedFields?.qty !== undefined ? updatedFields.qty : p.qty) || 1;
+          const costVal = Number(updatedFields?.cost !== undefined ? updatedFields.cost : (updatedFields?.costPerItem !== undefined ? updatedFields.costPerItem : (p.cost || 0))) || 0;
+          const newTotal = qtyVal * costVal;
+          const isEdited = !!updatedFields || p.editedByHeadmaster;
+          return {
+            ...p,
+            ...(updatedFields || {}),
+            qty: qtyVal,
+            cost: costVal,
+            total: newTotal,
+            status: statusText,
+            auditRemarks: remarks || p.auditRemarks,
+            approvedBy: auditorName,
+            approvedAt: new Date().toLocaleString(),
+            editedByHeadmaster: isEdited,
+          };
+        }
+        return p;
+      });
+      return {
+        ...current,
+        paymentVouchers: updated
+      };
+    }),
+    adminSetUserPassword: ({ identifier, email, studentId, staffId, newPassword, role = 'student', fullName = '', adminName = 'System Administrator' }) => {
+      const targetId = identifier || email || studentId || staffId;
+      if (!targetId || !newPassword) return false;
+      const cleanId = String(targetId).toLowerCase().trim();
+
+      try {
+        const raw = localStorage.getItem('registered_accounts');
+        const list = raw ? JSON.parse(raw) : {};
+
+        let foundKeys = Object.keys(list).filter(k => 
+          k.toLowerCase() === cleanId || 
+          (list[k] && (
+            (list[k].email && list[k].email.toLowerCase() === cleanId) ||
+            (list[k].studentId && list[k].studentId.toLowerCase() === cleanId) ||
+            (list[k].staffId && list[k].staffId.toLowerCase() === cleanId)
+          ))
+        );
+
+        if (foundKeys.length > 0) {
+          foundKeys.forEach(k => {
+            list[k] = {
+              ...list[k],
+              password: newPassword,
+              lastPasswordResetBy: adminName,
+              lastPasswordResetAt: new Date().toLocaleString()
+            };
+          });
+        } else {
+          list[cleanId] = {
+            id: `usr_${Date.now()}`,
+            email: cleanId,
+            password: newPassword,
+            fullName: fullName || cleanId,
+            role,
+            lastPasswordResetBy: adminName,
+            lastPasswordResetAt: new Date().toLocaleString()
+          };
+        }
+
+        localStorage.setItem('registered_accounts', JSON.stringify(list));
+      } catch (e) {}
+
+      setData((current) => {
+        const updatedStudents = (current.onboardedStudents || []).map(s => {
+          if ((s.studentId && s.studentId.toLowerCase() === cleanId) || (s.studentEmail && s.studentEmail.toLowerCase() === cleanId) || (s.id && s.id.toLowerCase() === cleanId) || (s.guardianEmail && s.guardianEmail.toLowerCase() === cleanId)) {
+            return {
+              ...s,
+              defaultPassword: newPassword,
+              portalPassword: newPassword,
+              password: newPassword,
+              lastPasswordResetBy: adminName,
+              lastPasswordResetAt: new Date().toLocaleString()
+            };
+          }
+          return s;
+        });
+
+        const updatedTeachers = (current.teacherDirectory || []).map(t => {
+          if ((t.staffId && t.staffId.toLowerCase() === cleanId) || (t.email && t.email.toLowerCase() === cleanId) || (t.id && t.id.toLowerCase() === cleanId)) {
+            return {
+              ...t,
+              password: newPassword,
+              passcode: newPassword,
+              lastPasswordResetBy: adminName,
+              lastPasswordResetAt: new Date().toLocaleString()
+            };
+          }
+          return t;
+        });
+
+        return {
+          ...current,
+          onboardedStudents: updatedStudents,
+          teacherDirectory: updatedTeachers
+        };
+      });
+
+      return true;
+    },
   }), [data, refreshBackendData]);
 
   return <PortalDataContext.Provider value={value}>{children}</PortalDataContext.Provider>;

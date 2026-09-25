@@ -8,17 +8,17 @@ import './Login.css';
 const PORTAL_CONFIG = {
   teacher: {
     label:    'Staff Portal',
-    badgeBg:  '#edf8f0',
-    badgeCol: '#204d2d',
-    accentBg: '#204d2d',
+    badgeBg:  '#e0f2fe',
+    badgeCol: '#0284c7',
+    accentBg: '#0284c7',
     title:    'Staff Sign In',
     subtitle: 'Access your classes, grades, transport dashboard and more.',
     icon:     '👨‍🏫',
     features: [
-      { text: 'Class & student management',         dot: '#34c57a' },
+      { text: 'Class & student management',         dot: '#38bdf8' },
       { text: 'Live bus tracking for all routes',   dot: '#4a9fe0' },
       { text: 'Grade entry & report generation',    dot: '#e0a24a' },
-      { text: 'Parent communication tools',         dot: '#34c57a' },
+      { text: 'Parent communication tools',         dot: '#0284c7' },
     ],
   },
   admin: {
@@ -31,7 +31,7 @@ const PORTAL_CONFIG = {
     icon:     '⚡',
     features: [
       { text: 'Onboard new students & create accounts', dot: '#7c3ac8' },
-      { text: 'Manage complete student roster & records', dot: '#34c57a' },
+      { text: 'Manage complete student roster & records', dot: '#38bdf8' },
       { text: 'Review admissions & applications', dot: '#e0a24a' },
       { text: 'Class & staff assignments', dot: '#4a9fe0' },
     ],
@@ -47,7 +47,7 @@ const PORTAL_CONFIG = {
     features: [
       { text: 'Record student fee payments (MoMo, Bank)', dot: '#0284c7' },
       { text: 'Send payment reminder notices to parents', dot: '#e0a24a' },
-      { text: 'Monitor revenue billed & debt balances', dot: '#34c57a' },
+      { text: 'Monitor revenue billed & debt balances', dot: '#38bdf8' },
       { text: 'Student & assigned teacher ledger view', dot: '#7c3ac8' },
     ],
   },
@@ -63,7 +63,7 @@ const PORTAL_CONFIG = {
     idLabel:  'Student ID',
     features: [
       { text: 'Personal academic timetable & schedule', dot: '#c8703a' },
-      { text: 'Published grades & coursework', dot: '#34c57a' },
+      { text: 'Published grades & coursework', dot: '#38bdf8' },
       { text: 'Assignment submissions & staff messaging', dot: '#4a9fe0' },
       { text: 'e-Library digital resources', dot: '#e0a24a' },
     ],
@@ -77,10 +77,10 @@ const PORTAL_CONFIG = {
     subtitle: 'Track your child\'s academic progress, fee billing, and real-time school bus location.',
     icon:     '👨‍👩‍👧',
     features: [
-      { text: 'Child progress & academic report downloads', dot: '#34c57a' },
+      { text: 'Child progress & academic report downloads', dot: '#38bdf8' },
       { text: 'Real-time bus tracking & pickup verification', dot: '#4a9fe0' },
       { text: 'Fee balances & mobile money payments', dot: '#e0a24a' },
-      { text: 'Direct messaging with teachers & staff', dot: '#34c57a' },
+      { text: 'Direct messaging with teachers & staff', dot: '#0284c7' },
     ],
   },
 };
@@ -434,6 +434,10 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     setForgotOtp('');
     setForgotNewPass('');
     setForgotConfirmPass('');
+    if (mode === 'signup' && portal !== 'admin') {
+      setViewMode('login');
+      return;
+    }
     setViewMode(mode);
   };
 
@@ -839,9 +843,6 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                 <span>{cfg.icon}</span> {cfg.label}
               </div>
 
-              <h2 className="login-form__title">{cfg.title}</h2>
-              <p className="login-form__subtitle">{cfg.subtitle}</p>
-
               {portal === 'teacher' && (
                 <div className="login-methods" role="tablist" aria-label="Staff Sign-in method" style={{ marginBottom: 20 }}>
                   <button
@@ -1051,21 +1052,33 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                 )}
               </form>
 
-              {/* Sign Up prompt */}
-              {portal === 'parent' ? (
-                <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--gray-500)', marginTop: 24, padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                  💡 <strong>Parent Notice:</strong> Parent account credentials are automatically issued and dispatched via SMS by the school administration once your child's application is accepted.
-                </div>
-              ) : portal === 'student' ? (
-                <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--gray-500)', marginTop: 24, padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                  💡 <strong>Student Notice:</strong> Student account credentials and ID cards are issued by school administration upon enrollment.
-                </div>
-              ) : (
+              {/* Sign Up prompt - Restricted Exclusively to Admin Portal */}
+              {portal === 'admin' ? (
                 <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--gray-600)', marginTop: 24 }}>
                   Don't have an account?{' '}
                   <button type="button" onClick={() => switchView('signup')} className="form-forgot" style={{ fontWeight: 800 }}>
                     Sign Up
                   </button>
+                </div>
+              ) : portal === 'teacher' ? (
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 24, padding: '12px 16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 12, border: '1px solid #bae6fd' }}>
+                  💡 <strong>Teacher Notice:</strong> Teacher account credentials are created and assigned by the System Administrator.
+                </div>
+              ) : portal === 'accountant' ? (
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 24, padding: '12px 16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 12, border: '1px solid #bae6fd' }}>
+                  💡 <strong>Accountant Notice:</strong> Accountant account credentials are assigned by the System Administrator.
+                </div>
+              ) : portal === 'parent' ? (
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 24, padding: '12px 16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 12, border: '1px solid #bae6fd' }}>
+                  💡 <strong>Parent Notice:</strong> Parent account credentials are automatically issued and dispatched via SMS by the school administration once your child's application is accepted.
+                </div>
+              ) : portal === 'student' ? (
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 24, padding: '12px 16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 12, border: '1px solid #bae6fd' }}>
+                  💡 <strong>Student Notice:</strong> Student account credentials and ID cards are issued by school administration upon enrollment.
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 24, padding: '12px 16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 12, border: '1px solid #bae6fd' }}>
+                  💡 <strong>Notice:</strong> Account credentials are authorized and issued by school administration.
                 </div>
               )}
 

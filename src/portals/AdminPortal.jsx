@@ -12,6 +12,9 @@ import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeS
 import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
 import BulkStudentUpload from '../components/Onboarding/BulkStudentUpload';
 import RegisterForExamsForm from '../components/RegisterForExams/RegisterForExamsForm';
+import AcademicSettingsManager from '../components/Academic/AcademicSettingsManager';
+import ApprovePVForm from '../components/Finance/ApprovePVForm';
+import UserPasswordAuthorizationPanel from '../components/Admin/UserPasswordAuthorizationPanel';
 import { getAuthUser } from '../services/api';
 
 const ADMIN_BG = '#4a1d6e';
@@ -20,8 +23,10 @@ const ADMIN_ACCENT = '#7c3ac8';
 
 const NAV = [
   { icon: <LayoutDashboard size={15} />, label: 'Dashboard', badge: null },
+  { icon: <Settings size={15} />, label: 'Academic Settings', badge: 'Global' },
   { icon: <ShieldAlert size={15} />, label: 'Security & Intrusion Alerts', badge: 'Alerts' },
-  { icon: <ShieldCheck size={15} />, label: 'Student Credentials Vault', badge: 'Head Admin' },
+  { icon: <ShieldCheck size={15} />, label: 'User Passwords & Authorization', badge: 'Super Admin' },
+  { icon: <FileCheck size={15} />, label: 'Pre-Audit & Approve PV', badge: 'Headmaster' },
   { icon: <FileCheck size={15} />, label: 'Register for Exams', badge: 'Exams' },
   { icon: <FileCheck size={15} />, label: 'Transcripts & Results', badge: 'All Classes' },
   { icon: <Radio size={15} />, label: 'Attendance & SMS Control', badge: 'Live' },
@@ -1111,151 +1116,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             </div>
           )}
 
-          {/* ── STUDENT CREDENTIALS VAULT (HEAD ADMIN ONLY) ── */}
-          {activeNav === 'Student Credentials Vault' && adminRole === 'head_admin' && (
+          {/* ── USER PASSWORDS & AUTHORIZATION VAULT (SYSTEM ADMIN / HEAD ADMIN) ── */}
+          {(activeNav === 'User Passwords & Authorization' || activeNav === 'Student Credentials Vault') && adminRole === 'head_admin' && (
             <div className="animate-fade-up">
-              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f3e8ff', color: '#6b21a8', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
-                    <span>🛡️</span> Head Admin Credentials Vault
-                  </div>
-                  <h1 className="page-header__title">Student Emails & Default Security Passwords</h1>
-                  <p className="page-header__subtitle">
-                    Inspect official institutional emails, view/reset initial default passwords, print login slips, or dispatch SMS notifications to guardians.
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <>
-                  <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
-                      <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--gray-400)' }} />
-                      <input
-                        type="text"
-                        placeholder="Search by student name, ID, class, or email..."
-                        value={credentialSearchQuery}
-                        onChange={(e) => setCredentialSearchQuery(e.target.value)}
-                        style={{ width: '100%', padding: '10px 10px 10px 36px', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-300)', fontSize: 13 }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="panel">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Student ID & Name</th>
-                          <th>Level / Class</th>
-                          <th>Official Student Email</th>
-                          <th>Default Security Password</th>
-                          <th>Guardian Contact</th>
-                          <th>Quick Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {onboardedStudents
-                          .filter((s) => {
-                            const q = credentialSearchQuery.toLowerCase();
-                            return (
-                              !q ||
-                              (s.fullName || '').toLowerCase().includes(q) ||
-                              (s.studentId || '').toLowerCase().includes(q) ||
-                              (s.level || '').toLowerCase().includes(q) ||
-                              (s.studentEmail || '').toLowerCase().includes(q) ||
-                              (s.guardianName || '').toLowerCase().includes(q)
-                            );
-                          })
-                          .map((s) => {
-                            const pass = s.defaultPassword || `StuPass#${s.studentId.replace('REMALJ-', '')}`;
-                            const isRevealed = showPassMap[s.id];
-
-                            const copyCredentials = () => {
-                              const text = `REMALJ Student Login Credentials:\nStudent: ${s.fullName} (${s.studentId})\nPortal: /student\nEmail: ${s.studentEmail}\nDefault Password: ${pass}`;
-                              navigator.clipboard.writeText(text);
-                              setSuccessMsg(`📋 Copied login credentials for ${s.fullName} to clipboard!`);
-                              setTimeout(() => setSuccessMsg(''), 4000);
-                            };
-
-                            const sendSmsCredentials = () => {
-                              setSuccessMsg(`📱 SMS dispatched to guardian (${s.guardianPhone}): "Dear Parent, ${s.fullName}'s Student Portal login email is ${s.studentEmail} and default pass is ${pass}. Access via /student."`);
-                              setTimeout(() => setSuccessMsg(''), 6000);
-                            };
-
-                            return (
-                              <tr key={s.id}>
-                                <td>
-                                  <div><strong>{s.fullName}</strong></div>
-                                  <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--gray-500)' }}>{s.studentId}</div>
-                                </td>
-                                <td>{s.level} ({s.classSection || 'A'})</td>
-                                <td>
-                                  <div style={{ fontSize: 12, fontWeight: 700, color: ADMIN_ACCENT }}>
-                                    {s.studentEmail}
-                                  </div>
-                                </td>
-                                <td>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <code style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: 4, fontWeight: 800, letterSpacing: isRevealed ? '0.05em' : '0.25em', color: '#0f172a' }}>
-                                      {isRevealed ? pass : '••••••••'}
-                                    </code>
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowPassMap(prev => ({ ...prev, [s.id]: !prev[s.id] }))}
-                                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--gray-600)' }}
-                                      title={isRevealed ? 'Hide Password' : 'Show Password'}
-                                    >
-                                      {isRevealed ? <EyeOff size={14} /> : <Eye size={14} />}
-                                    </button>
-                                  </div>
-                                </td>
-                                <td>
-                                  <div style={{ fontSize: 12, fontWeight: 600 }}>{s.guardianName}</div>
-                                  <div style={{ fontSize: 11, color: 'var(--gray-500)' }}>📞 {s.guardianPhone}</div>
-                                </td>
-                                <td>
-                                  <div style={{ display: 'flex', gap: 6 }}>
-                                    <button
-                                      onClick={copyCredentials}
-                                      style={{ padding: '5px 8px', background: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
-                                      title="Copy Email & Default Password"
-                                    >
-                                      <Copy size={12} /> Copy
-                                    </button>
-                                    <button
-                                      onClick={sendSmsCredentials}
-                                      style={{ padding: '5px 8px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
-                                      title="Dispatch SMS Credentials to Guardian Phone"
-                                    >
-                                      <Phone size={12} /> SMS
-                                    </button>
-                                    <button
-                                      onClick={() => setPrintingCredentialSlip(s)}
-                                      style={{ padding: '5px 8px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
-                                      title="Print Official Student Login Slip"
-                                    >
-                                      <Printer size={12} /> Slip
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        setEditingPasswordStudent(s);
-                                        setNewDefaultPassInput(pass);
-                                      }}
-                                      style={{ padding: '5px 8px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}
-                                      title="Reset Default Password"
-                                    >
-                                      <Edit size={12} /> Reset
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              </div>
+              <UserPasswordAuthorizationPanel />
             </div>
           )}
 
@@ -2046,6 +1910,26 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             </div>
           )}
 
+          {/* ── PRE-AUDIT & APPROVE PV (HEADMASTER VOUCHER EDITING & APPROVAL STATION) ── */}
+          {(activeNav === 'Pre-Audit & Approve PV' || activeNav === 'Approve Payment Voucher (PV)') && (
+            <div className="animate-fade-up">
+              <ApprovePVForm setM={() => {}} />
+            </div>
+          )}
+
+          {/* ── ACADEMIC SETTINGS ── */}
+          {activeNav === 'Academic Settings' && (
+            <div className="animate-fade-up">
+              <div className="page-header">
+                <h1 className="page-header__title">Global Academic Settings ⚙️</h1>
+                <p className="page-header__subtitle">
+                  Configure and synchronize active academic year, term, continuous assessment weights, exam weights, and grading standards across all school portals.
+                </p>
+              </div>
+              <AcademicSettingsManager inline={true} />
+            </div>
+          )}
+
           {/* ── OFFICIAL FEE SCHEDULE VIEW ── */}
           {activeNav === 'Official Fee Schedule' && (
             <OfficialSchoolFeeStructure />
@@ -2175,12 +2059,15 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
               {/* Class Teacher Credentials Issuance Modal */}
               {isIssuingCTModal && (
-                <div style={{
-                  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                  background: 'rgba(15,23,42,0.65)', backdropFilter: 'blur(4px)',
-                  zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
-                }}>
-                  <div style={{
+                <div
+                  onClick={(e) => { if (e.target === e.currentTarget) setIsIssuingCTModal(false); }}
+                  style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(15,23,42,0.65)', backdropFilter: 'blur(4px)',
+                    zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+                  }}
+                >
+                  <div onClick={(e) => e.stopPropagation()} style={{
                     maxWidth: 520, width: '100%', background: '#fff', borderRadius: 16,
                     padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', border: '1px solid #e2e8f0'
                   }}>
@@ -2469,11 +2356,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
           {/* ── ONBOARD NEW STAFF MODAL ── */}
           {isAddingStaff && (
-            <div style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
-            }}>
-              <div style={{ background: '#fff', width: '100%', maxWidth: 560, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
+            <div
+              onClick={(e) => { if (e.target === e.currentTarget) setIsAddingStaff(false); }}
+              style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+              }}
+            >
+              <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 560, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
                 <div style={{ background: ADMIN_BG, padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>➕ Onboard New Staff Member</h3>
@@ -2596,11 +2486,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
           {/* ── EDIT STAFF DETAILS MODAL ── */}
           {editingStaff && (
-            <div style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
-            }}>
-              <div style={{ background: '#fff', width: '100%', maxWidth: 560, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
+            <div
+              onClick={(e) => { if (e.target === e.currentTarget) setEditingStaff(null); }}
+              style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+              }}
+            >
+              <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 560, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
                 <div style={{ background: ADMIN_BG, padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>✏️ Edit Staff Details — {editingStaff.name}</h3>
@@ -2708,11 +2601,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
           {/* ── OFFBOARD STAFF CONFIRMATION MODAL ── */}
           {offboardingStaff && (
-            <div style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
-            }}>
-              <div style={{ background: '#fff', width: '100%', maxWidth: 480, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
+            <div
+              onClick={(e) => { if (e.target === e.currentTarget) setOffboardingStaff(null); }}
+              style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+              }}
+            >
+              <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 480, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
                 <div style={{ background: '#991b1b', padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>🚫 Confirm Staff Offboarding</h3>
@@ -2752,11 +2648,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
           {/* ── ADD NEW CLASS LEVEL MODAL ── */}
           {isAddingClass && (
-            <div style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
-            }}>
-              <div style={{ background: '#fff', width: '100%', maxWidth: 480, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
+            <div
+              onClick={(e) => { if (e.target === e.currentTarget) setIsAddingClass(false); }}
+              style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+              }}
+            >
+              <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 480, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
                 <div style={{ background: '#1e1b4b', padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>🏫 Create New Class Level</h3>
@@ -2815,11 +2714,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
           {/* ── ADD NEW SUBJECT / DEPARTMENT MODAL ── */}
           {isAddingSubject && (
-            <div style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
-            }}>
-              <div style={{ background: '#fff', width: '100%', maxWidth: 480, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
+            <div
+              onClick={(e) => { if (e.target === e.currentTarget) setIsAddingSubject(false); }}
+              style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+              }}
+            >
+              <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 480, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
                 <div style={{ background: 'var(--ics-green-700)', padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>📚 Add New Subject / Department</h3>
@@ -2864,11 +2766,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
           {/* ── EDIT STUDENT MODAL ── */}
           {editingId && (
-            <div style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex',
-              alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
-            }}>
-              <div style={{ background: '#fff', width: '100%', maxWidth: 500, borderRadius: 'var(--radius-lg)', padding: 24 }}>
+            <div
+              onClick={(e) => { if (e.target === e.currentTarget) setEditingId(null); }}
+              style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+              }}
+            >
+              <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 500, borderRadius: 'var(--radius-lg)', padding: 24 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                   <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--gray-900)' }}>Edit Student Record</h2>
                   <button onClick={() => setEditingId(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
@@ -2939,11 +2844,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
           {/* ── ISSUE / ENCODE STUDENT RFID CARD MODAL ── */}
           {issuingCardStudent && (
-            <div style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
-            }}>
-              <div style={{ background: '#fff', width: '100%', maxWidth: 520, borderRadius: 16, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
+            <div
+              onClick={(e) => { if (e.target === e.currentTarget) setIssuingCardStudent(null); }}
+              style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+              }}
+            >
+              <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 520, borderRadius: 16, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
                 <div style={{ background: ADMIN_BG, padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>💳 Encode & Issue Student Smart RFID Card</h3>
@@ -3017,11 +2925,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
           {/* ── ISSUE PARENT PICKUP CARD MODAL ── */}
           {issuingParentCardStudent && (
-            <div style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
-            }}>
-              <div style={{ background: '#fff', width: '100%', maxWidth: 520, borderRadius: 16, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
+            <div
+              onClick={(e) => { if (e.target === e.currentTarget) setIssuingParentCardStudent(null); }}
+              style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+              }}
+            >
+              <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 520, borderRadius: 16, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
                 <div style={{ background: '#4a1d6e', padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>👨‍👩‍👧 Issue Official Parent Pickup Pass</h3>

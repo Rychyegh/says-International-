@@ -14,6 +14,7 @@ import OperationsCentre from '../components/OperationsCentre/OperationsCentre';
 import { PortalSettings, StaffAssignments, StaffCalendar } from '../components/SchoolWorkflows/SchoolWorkflows';
 import { AdmissionsRegister } from '../components/Onboarding/Onboarding';
 import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
+import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
 import { getAuthUser } from '../services/api';
 import { usePortalData } from '../data/PortalStore';
 
@@ -23,6 +24,7 @@ const TEACHER_ACCENT = '#2e7a44';
 
 const NAV = [
   { icon: <LayoutDashboard size={15}/>, label: 'Dashboard',    badge: null },
+  { icon: <FileCheck size={15}/>,       label: 'Score Sheet [Entry]', badge: 'SIMS' },
   { icon: <Users size={15}/>,           label: 'Students',     badge: null },
   { icon: <FileCheck size={15}/>,       label: 'Exam Registration', badge: null },
   { icon: <ClipboardCheck size={15}/>,  label: 'Admissions',   badge: null },
@@ -320,8 +322,32 @@ export default function TeacherPortal() {
             </>
           )}
 
+          {activeNav === 'Score Sheet [Entry]' && (
+            <div className="animate-fade-up">
+              <div className="page-header">
+                <h1 className="page-header__title">SIMS Score Sheet [Entry] 📝</h1>
+                <p className="page-header__subtitle">
+                  Enter student progressive evaluation scores for arrival test, class tests (1, 2, 3), and end-of-term examinations. Converts continuous assessment and exams to 50% weighting each.
+                </p>
+              </div>
+              <ScoreSheetEntryForm students={onboardedStudents} />
+            </div>
+          )}
+
           {activeNav === 'Schedule' && <LecturerSchedule />}
-          {activeNav === 'Grades' && <LecturerGrades />}
+          {activeNav === 'Grades' && (
+            <div className="animate-fade-up">
+              <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
+                <button
+                  onClick={() => setActiveNav('Score Sheet [Entry]')}
+                  style={{ padding: '8px 16px', background: TEACHER_GREEN, color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  📝 Open Score Sheet [Entry] Form
+                </button>
+              </div>
+              <LecturerGrades />
+            </div>
+          )}
           {activeNav === 'Messages' && <TeacherMessages />}
           {activeNav === 'Students' && (
             <div className="animate-fade-up">
@@ -361,7 +387,7 @@ export default function TeacherPortal() {
           {activeNav === 'Settings' && <PortalSettings portal="teacher" />}
 
           {/* ── OTHER VIEWS placeholder ── */}
-          {!['Dashboard', 'Transport', 'Students', 'Exam Registration', 'Admissions', 'Assignments', 'Schedule', 'Academic Calendar', 'Grades', 'Messages', 'Contacts', 'Reports', 'Operations', 'Settings'].includes(activeNav) && (
+          {!['Dashboard', 'Transport', 'Score Sheet [Entry]', 'Students', 'Exam Registration', 'Admissions', 'Assignments', 'Schedule', 'Academic Calendar', 'Grades', 'Messages', 'Contacts', 'Reports', 'Operations', 'Settings'].includes(activeNav) && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 12 }}>
               <div style={{ fontSize: 48 }}>🚧</div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--gray-700)' }}>{activeNav} — Coming Soon</h2>

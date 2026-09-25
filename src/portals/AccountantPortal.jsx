@@ -8,6 +8,9 @@ import { usePortalData } from '../data/PortalStore';
 
 import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeStructure';
 import RegisterForExamsForm from '../components/RegisterForExams/RegisterForExamsForm';
+import AcademicSettingsManager from '../components/Academic/AcademicSettingsManager';
+import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
+import ApprovePVForm from '../components/Finance/ApprovePVForm';
 import { getAuthUser } from '../services/api';
 
 const ACCOUNT_BG = '#0f3a4b';
@@ -258,6 +261,9 @@ export default function AccountantPortal({ onSignOut }) {
     sendAccountantMessage,
     onboardStudent,
     addServiceRecord,
+    adjustStudentBill,
+    postAcademicBill,
+    adminSetUserPassword,
   } = usePortalData();
 
   const totalBilled = (studentFees || []).reduce((acc, item) => acc + (item.billedAmount || 0), 0);
@@ -366,9 +372,44 @@ export default function AccountantPortal({ onSignOut }) {
     e.preventDefault();
     if (!activeSimsModal) return;
 
-    const { link, studentName, amount, cardId } = activeSimsModal;
+    const { link, studentName, targetYearGroup, adjType, amount, notes, invoiceNo, cancelReason, cardId } = activeSimsModal;
 
-    if (link.includes('Payment') || link.includes('Pay') || link.includes('Receive')) {
+    if (link === 'Adjust Bills on Year Group Accounts') {
+      if (adjustStudentBill) {
+        adjustStudentBill({
+          classLevel: targetYearGroup,
+          adjustmentType: adjType || 'Bulk Discount / Scholarship',
+          amount: Number(amount) || 0,
+          reason: notes || 'Year Group Accounts Adjustment',
+          postedBy: getAuthUser()?.fullName || 'Mrs. Grace Accountant'
+        });
+      }
+      setSuccessNotice(`[Ledger Updated] Successfully applied "${adjType || 'Adjustment'}" of GHS ${Number(amount || 0).toFixed(2)} to ${targetYearGroup || 'Year Group'}!`);
+    } else if (link === 'Cancel Student Bill') {
+      if (adjustStudentBill) {
+        adjustStudentBill({
+          studentName,
+          adjustmentType: 'CANCEL',
+          amount: 0,
+          reason: cancelReason || 'Student Bill Cancellation',
+          invoiceNo: invoiceNo || 'INV-2026-0881',
+          postedBy: getAuthUser()?.fullName || 'Mrs. Grace Accountant'
+        });
+      }
+      setSuccessNotice(`[Ledger Updated] Cancelled bill for ${studentName || 'Student'} (Ref: ${invoiceNo || 'INV-2026-0881'}). Ledger balance updated.`);
+    } else if (link === 'Reset User Password') {
+      const targetUser = activeSimsModal.userName || studentName;
+      const targetPass = activeSimsModal.newPassword || 'Pass-998124#';
+      if (adminSetUserPassword) {
+        adminSetUserPassword({
+          identifier: targetUser,
+          newPassword: targetPass,
+          role: 'User Account',
+          adminName: getAuthUser()?.fullName || 'System Administrator'
+        });
+      }
+      setSuccessNotice(`[System Security Authorization] Successfully set new password "${targetPass}" for user account [${targetUser}]!`);
+    } else if (link.includes('Payment') || link.includes('Pay') || link.includes('Receive')) {
       const fee = (studentFees || []).find((f) => studentName && f.studentName?.toLowerCase() === studentName.toLowerCase()) || studentFees[0];
       if (fee) {
         recordFeePayment({
@@ -378,6 +419,7 @@ export default function AccountantPortal({ onSignOut }) {
           notes: `${link} processed in SIMS module`,
         });
       }
+      setSuccessNotice(`[SIMS Action Executed] Successfully completed: "${link}" for ${studentName || 'System'}!`);
     } else if (link.includes('Card') || link.includes('Bus') || link.includes('Feeding')) {
       addServiceRecord({
         module: 'Card Services & Feeding',
@@ -385,9 +427,23 @@ export default function AccountantPortal({ onSignOut }) {
         detail: `${link} processed. Card/Tag ID: ${cardId}`,
         status: 'Approved',
       });
+      setSuccessNotice(`[SIMS Action Executed] Successfully completed: "${link}" for ${studentName || 'System'}!`);
+    } else {
+      if (amount || adjType || notes) {
+        if (adjustStudentBill) {
+          adjustStudentBill({
+            studentName,
+            classLevel: targetYearGroup,
+            adjustmentType: adjType || 'CREDIT',
+            amount: Number(amount) || 0,
+            reason: notes || link,
+            postedBy: getAuthUser()?.fullName || 'Mrs. Grace Accountant'
+          });
+        }
+      }
+      setSuccessNotice(`[SIMS Action Executed] Successfully completed: "${link}" for ${studentName || 'System'}!`);
     }
 
-    setSuccessNotice(`[SIMS Action Executed] Successfully completed: "${link}" for ${studentName || 'System'}!`);
     setActiveSimsModal(null);
     setTimeout(() => setSuccessNotice(''), 5000);
   };
@@ -1014,12 +1070,15 @@ export default function AccountantPortal({ onSignOut }) {
 
           {/* ── MESSAGE PARENT MODAL ── */}
           {selectedFeeForReminder && (
-            <div style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex',
-              alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20,
-              backdropFilter: 'blur(3px)'
-            }}>
-              <div style={{ background: '#fff', width: '100%', maxWidth: 560, borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)' }}>
+            <div
+              onClick={(e) => { if (e.target === e.currentTarget) setSelectedFeeForReminder(null); }}
+              style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20,
+                backdropFilter: 'blur(3px)'
+              }}
+            >
+              <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 560, borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid #e2e8f0', paddingBottom: 12 }}>
                   <div>
                     <h2 style={{ fontSize: 17, fontWeight: 900, color: '#0f3a4b', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1084,11 +1143,14 @@ export default function AccountantPortal({ onSignOut }) {
 
           {/* ── RECORD PAYMENT MODAL ── */}
           {selectedFeeForPayment && (
-            <div style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex',
-              alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
-            }}>
-              <div style={{ background: '#fff', width: '100%', maxWidth: 500, borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: 'var(--shadow-xl)' }}>
+            <div
+              onClick={(e) => { if (e.target === e.currentTarget) setSelectedFeeForPayment(null); }}
+              style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
+              }}
+            >
+              <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 500, borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: 'var(--shadow-xl)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                   <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--gray-900)' }}>Record Fee Payment</h2>
                   <button onClick={() => setSelectedFeeForPayment(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
@@ -1180,8 +1242,8 @@ function SimsModalRenderer({ modalData, setModalData, onClose, onSubmit, student
   const isReceivePayment = link === 'Receive Payments from Students' || link === 'Issue Other receipts' || link === 'Re-print Commercial Receipt' || link === 'Receive Other Payments' || link === 'Batch Processing' || link.toLowerCase().includes('receivables') || link.toLowerCase().includes('pv') || link.toLowerCase().includes('authorise');
 
   return (
-    <div className="sims-modal-overlay">
-      <div className="sims-modal-card" style={{ maxWidth: (isPrepareBill || isReceivePayment) ? 1280 : 960, width: (isPrepareBill || isReceivePayment) ? '96vw' : '94vw', boxSizing: 'border-box', overflowX: 'hidden' }}>
+    <div className="sims-modal-overlay" onClick={onClose}>
+      <div className="sims-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: (isPrepareBill || isReceivePayment) ? 1280 : 960, width: (isPrepareBill || isReceivePayment) ? '96vw' : '94vw', boxSizing: 'border-box', overflowX: 'hidden' }}>
         <div className="sims-modal-header" style={{ display: 'flex', alignItems: 'center' }}>
           <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 38, width: 'auto', borderRadius: 4, marginRight: 12, border: '1px solid rgba(255,255,255,0.3)' }} />
           <div style={{ flex: 1 }}>
@@ -1361,7 +1423,7 @@ function OfficialSchoolHeaderBar({ documentTitle, documentSubtitle }) {
 
 function PrepareStudentAcademicBillForm({ setM, students = [] }) {
   // Dropdown Options
-  const [years, setYears] = useState(['2025/2026', '2026/2027', '2027/2028']);
+  const [years, setYears] = useState(['2023/2024', '2024/2025', '2025/2026', '2026/2027', '2027/2028', '2028/2029', '2029/2030']);
   const [terms, setTerms] = useState(['1st Term', '2nd Term', '3rd Term']);
   const [classes, setClasses] = useState([
     'Nursery 1', 'Nursery 2', 'KG 1', 'KG 2', 'Creche',
@@ -1605,8 +1667,17 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
     setBillItems((prev) =>
       prev.map((item) => ({ ...item, status: 'Posted' }))
     );
+    if (portalData?.postAcademicBill) {
+      portalData.postAcademicBill({
+        studentName: formStudentName,
+        classLevel: formCurrentClass || currClass,
+        items: billItems,
+        totalAmount: compulsoryTotal + otherTotal,
+        term: `${currTerm || '1st Term'} · ${currYear || '2025/2026'}`
+      });
+    }
     setJournalStatusNotice(
-      `✓ Posted Next Term Compulsory Bill (GHS ${compulsoryTotal.toLocaleString()}) to Student Journal for ${formStudentName}!`
+      `✓ Posted Next Term Compulsory Bill (GHS ${compulsoryTotal.toLocaleString()}) to Student Ledger & Accounts for ${formStudentName}!`
     );
   };
 
@@ -2489,7 +2560,7 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
 
 function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
   // Top Academic Period & Header Controls
-  const [years, setYears] = useState(['2025/2026', '2026/2027', '2027/2028']);
+  const [years, setYears] = useState(['2023/2024', '2024/2025', '2025/2026', '2026/2027', '2027/2028', '2028/2029', '2029/2030']);
   const [terms, setTerms] = useState(['1st Term', '2nd Term', '3rd Term']);
   const [currYear, setCurrYear] = useState('2026/2027');
   const [currTerm, setCurrTerm] = useState('1st Term');
@@ -3444,8 +3515,11 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
 
       {/* ── OPTIONAL BILL DIALOG MODAL ── */}
       {showOptionalDialog && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}>
-          <div style={{ background: '#fff', width: '100%', maxWidth: 480, borderRadius: 8, padding: 20, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setShowOptionalDialog(false); }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 480, borderRadius: 8, padding: 20, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, borderBottom: '2px solid #0f3a4b', paddingBottom: 8 }}>
               <h4 style={{ margin: 0, fontSize: 14, fontWeight: 900, color: '#0f3a4b', textTransform: 'uppercase' }}>
                 Open Optional Bill Dialog Box
@@ -3513,8 +3587,11 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
 
       {/* ── PREVIEW STUDENT LEDGER MODAL ── */}
       {showLedgerPreview && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}>
-          <div style={{ background: '#fff', width: '100%', maxWidth: 640, borderRadius: 8, padding: 20, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setShowLedgerPreview(false); }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 640, borderRadius: 8, padding: 20, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '2px solid #0f3a4b', paddingBottom: 8 }}>
               <h4 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: '#0f3a4b' }}>
                 Official Student Financial Ledger — {studentName} ({studentId})
@@ -3569,8 +3646,11 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
 
       {/* ── PREVIEW STUDENT BILL MODAL ── */}
       {showBillPreview && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}>
-          <div style={{ background: '#fff', width: '100%', maxWidth: 640, borderRadius: 8, padding: 20, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setShowBillPreview(false); }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 640, borderRadius: 8, padding: 20, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '2px solid #0f3a4b', paddingBottom: 8 }}>
               <h4 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: '#0f3a4b' }}>
                 Preview Official Student Bill — {studentName}
@@ -3602,7 +3682,7 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
 
 function ReceiveOtherPaymentsForm({ setM }) {
   // Top Academic Period & Header Controls
-  const [years, setYears] = useState(['2025/2026', '2026/2027', '2027/2028']);
+  const [years, setYears] = useState(['2023/2024', '2024/2025', '2025/2026', '2026/2027', '2027/2028', '2028/2029', '2029/2030']);
   const [terms, setTerms] = useState(['1st Term', '2nd Term', '3rd Term']);
   const [currYear, setCurrYear] = useState('2026/2027');
   const [currTerm, setCurrTerm] = useState('1st Term');
@@ -4132,7 +4212,7 @@ function ReceiveOtherPaymentsForm({ setM }) {
 
 function BatchProcessingForm({ setM, students = [], recordFeePayment }) {
   // Top Academic Period & Header Controls
-  const [years, setYears] = useState(['2025/2026', '2026/2027', '2027/2028']);
+  const [years, setYears] = useState(['2023/2024', '2024/2025', '2025/2026', '2026/2027', '2027/2028', '2028/2029', '2029/2030']);
   const [terms, setTerms] = useState(['1st Term', '2nd Term', '3rd Term']);
   const [currYear, setCurrYear] = useState('2026/2027');
   const [currTerm, setCurrTerm] = useState('1st Term');
@@ -6901,431 +6981,7 @@ function AuthoriseBillsReceivablesForm({ setM, students = [] }) {
   );
 }
 
-function ApprovePVForm({ setM }) {
-  const [pvNo, setPvNo] = useState('PV-2026-088');
-  const [itemRequisitionNo, setItemRequisitionNo] = useState('REQ-99412');
 
-  const [description, setDescription] = useState('Cost of Electricity Bill & Utility Substation Maintenance');
-  const [datePrepared, setDatePrepared] = useState('2026-09-05');
-  const [clientProvider, setClientProvider] = useState('ELECTRICITY COMPANY OF GHANA (ECG)');
-  const [providerId, setProviderId] = useState('ECG-99310');
-
-  const [qty, setQty] = useState('1');
-  const [costPerItem, setCostPerItem] = useState('3200.00');
-
-  const [auditRemarks, setAuditRemarks] = useState('Pre-audited & verified against monthly meter consumption records. Approved for disbursement.');
-  const [valuedDate, setValuedDate] = useState('2026-09-05');
-  const [actionChoice, setActionChoice] = useState('Pre-audit Approve PV');
-
-  const [bannerNotice, setBannerNotice] = useState('');
-
-  const [pvQueue, setPvQueue] = useState([
-    {
-      id: '1',
-      pvNo: 'PV-2026-088',
-      requisitionNo: 'REQ-99412',
-      provider: 'ELECTRICITY COMPANY OF GHANA (ECG)',
-      providerId: 'ECG-99310',
-      description: 'Cost of Electricity Bill & Utility Substation Maintenance',
-      qty: 1,
-      cost: 3200.00,
-      total: 3200.00,
-      datePrepared: '2026-09-05',
-      status: 'Pending Audit'
-    },
-    {
-      id: '2',
-      pvNo: 'PV-2026-082',
-      requisitionNo: 'REQ-99380',
-      provider: 'DAILY CANTEEN SUPPLIES LTD',
-      providerId: '931043',
-      description: 'Weekly Canteen Feeding & Grocery Stock Supply',
-      qty: 1,
-      cost: 1850.00,
-      total: 1850.00,
-      datePrepared: '2026-09-02',
-      status: 'Pending Audit'
-    },
-    {
-      id: '3',
-      pvNo: 'PV-2026-075',
-      requisitionNo: 'REQ-99300',
-      provider: 'STATIONERY & PRINTING DEPOT',
-      providerId: '931088',
-      description: 'Terminal Assessment Paper & Printing Ink Cartridges',
-      qty: 5,
-      cost: 240.00,
-      total: 1200.00,
-      datePrepared: '2026-08-28',
-      status: 'Pre-Audited & Approved'
-    }
-  ]);
-
-  const formatDatePreview = (dateStr) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    return `${days[d.getDay()]} , ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
-  };
-
-  const handleSearchPV = () => {
-    const match = pvQueue.find(p => p.pvNo.toLowerCase().includes(pvNo.toLowerCase()));
-    if (match) {
-      setPvNo(match.pvNo);
-      setItemRequisitionNo(match.requisitionNo);
-      setClientProvider(match.provider);
-      setProviderId(match.providerId);
-      setDescription(match.description);
-      setQty(String(match.qty));
-      setCostPerItem(match.cost.toFixed(2));
-      setDatePrepared(match.datePrepared);
-      setBannerNotice(`Loaded PV record #${match.pvNo}.`);
-    } else {
-      setBannerNotice(`Searching PV Records for #${pvNo}...`);
-    }
-    setTimeout(() => setBannerNotice(''), 3000);
-  };
-
-  const handleActionSingleItem = () => {
-    const updatedStatus = actionChoice === 'Pre-audit Approve PV' ? 'Pre-Audited & Approved' : actionChoice;
-    setPvQueue(prev => prev.map(p => p.pvNo === pvNo ? { ...p, status: updatedStatus } : p));
-    setBannerNotice(`✅ Applied action "${actionChoice}" for PV Item #${pvNo}.`);
-    setTimeout(() => setBannerNotice(''), 3500);
-  };
-
-  const handleActionAllItems = () => {
-    const updatedStatus = actionChoice === 'Pre-audit Approve PV' ? 'Pre-Audited & Approved' : actionChoice;
-    setPvQueue(prev => prev.map(p => ({ ...p, status: updatedStatus })));
-    setBannerNotice(`✅ Applied action "${actionChoice}" for ALL pending PV items in queue.`);
-    setTimeout(() => setBannerNotice(''), 3500);
-  };
-
-  const calculatedTotalAmount = (parseFloat(qty) || 0) * (parseFloat(costPerItem) || 0);
-
-  return (
-    <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a' }}>
-      <OfficialSchoolHeaderBar
-        documentTitle="Approve Payment Voucher (PV)"
-        documentSubtitle="REMALJ Carewell Accounts Office · Payment Voucher Pre-Audit Approval Station"
-      />
-      {/* ── TOP BLUE TITLE BAR ── */}
-      <div style={{
-        background: '#0f3a4b',
-        color: '#ffffff',
-        padding: '10px 16px',
-        borderRadius: '8px 8px 0 0',
-        display: 'flex',
-        justify: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: 10
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ background: '#0284c7', width: 6, height: 22, borderRadius: 3 }} />
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#ffffff', letterSpacing: '0.02em' }}>
-            Approve PV
-          </h3>
-        </div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#e0f2fe' }}>
-          REMALJ Carewell Accounts Office · Payment Voucher Pre-Audit Approval Station
-        </div>
-      </div>
-
-      {/* ── TOP SEARCH ROW: PV # & REQUISITION # ── */}
-      <div style={{
-        background: '#f1f5f9',
-        padding: 12,
-        border: '1px solid #cbd5e1',
-        borderTop: 'none',
-        display: 'grid',
-        gridTemplateColumns: '1.4fr 1fr',
-        gap: 16,
-        alignItems: 'center'
-      }}>
-        <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>PV #</label>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input
-              type="text"
-              value={pvNo}
-              onChange={(e) => setPvNo(e.target.value)}
-              placeholder="Enter PV N/o..."
-              style={{ width: 140, padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 800, background: '#fff' }}
-            />
-            <button
-              type="button"
-              onClick={handleSearchPV}
-              style={{ padding: '5px 14px', background: '#e2e8f0', color: '#0f3a4b', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer' }}
-            >
-              Search PV Records &gt;&gt;
-            </button>
-          </div>
-        </div>
-
-        <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Item Requisition #</label>
-          <input
-            type="text"
-            value={itemRequisitionNo}
-            onChange={(e) => setItemRequisitionNo(e.target.value)}
-            placeholder="Requisition N/o..."
-            style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff', fontWeight: 700 }}
-          />
-        </div>
-      </div>
-
-      {/* ── NOTIFICATION BANNER ── */}
-      {bannerNotice && (
-        <div style={{ background: '#dcfce7', color: '#15803d', padding: '6px 14px', fontSize: 12, fontWeight: 800, borderBottom: '1px solid #bbf7d0' }}>
-          <span>ℹ️</span> {bannerNotice}
-        </div>
-      )}
-
-      {/* ── MIDDLE PV DETAILS FORM PANEL ── */}
-      <div style={{ background: '#ffffff', padding: 14, border: '1px solid #cbd5e1', borderTop: 'none' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
-
-          {/* Description or Particulars */}
-          <div style={{ gridColumn: 'span 3' }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>
-              Description or Particulars (Eg. Prepaid, Cost of Electricity Bill)
-            </label>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
-            />
-          </div>
-
-          {/* Date Prepared */}
-          <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Date Prepared</label>
-            <input
-              type="date"
-              value={datePrepared}
-              onChange={(e) => setDatePrepared(e.target.value)}
-              style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
-            />
-            <div style={{ fontSize: 10.5, color: '#0284c7', fontWeight: 700, marginTop: 2 }}>
-              {formatDatePreview(datePrepared)}
-            </div>
-          </div>
-
-          {/* Select Client/Service Provider */}
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Select Client/Service Provider</label>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <select
-                value={clientProvider}
-                onChange={(e) => setClientProvider(e.target.value)}
-                style={{ flex: 1, padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff', fontWeight: 700 }}
-              >
-                <option value="ELECTRICITY COMPANY OF GHANA (ECG)">ELECTRICITY COMPANY OF GHANA (ECG)</option>
-                <option value="GHANA WATER COMPANY LTD (GWCL)">GHANA WATER COMPANY LTD (GWCL)</option>
-                <option value="DAILY CANTEEN SUPPLIES LTD">DAILY CANTEEN SUPPLIES LTD</option>
-                <option value="STATIONERY & PRINTING DEPOT">STATIONERY & PRINTING DEPOT</option>
-                <option value="BUS TRANSPORT MAINTENANCE SERVICES">BUS TRANSPORT MAINTENANCE SERVICES</option>
-              </select>
-              <button
-                type="button"
-                style={{ padding: '5px 10px', background: '#cbd5e1', color: '#0f3a4b', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 900, cursor: 'pointer' }}
-              >
-                [...]
-              </button>
-            </div>
-          </div>
-
-          {/* Service Provider's ID */}
-          <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Service Provider's ID</label>
-            <input
-              type="text"
-              value={providerId}
-              onChange={(e) => setProviderId(e.target.value)}
-              style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#f8fafc', fontWeight: 700 }}
-            />
-          </div>
-
-          {/* Qty. */}
-          <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Qty.</label>
-            <input
-              type="number"
-              min="1"
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-              style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff', fontWeight: 700 }}
-            />
-          </div>
-
-          {/* Cost Per Item (GHS) */}
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Cost Per Item (GHS)</label>
-            <input
-              type="number"
-              step="0.01"
-              value={costPerItem}
-              onChange={(e) => setCostPerItem(e.target.value)}
-              style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff', fontWeight: 800 }}
-            />
-          </div>
-
-          {/* Total Amount (GHS) */}
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Total Amount (GHS)</label>
-            <input
-              type="text"
-              readOnly
-              value={calculatedTotalAmount.toFixed(2)}
-              style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #0284c7', fontSize: 13, fontWeight: 900, color: '#0369a1', background: '#f8fafc' }}
-            />
-          </div>
-        </div>
-
-        {/* ── BOTTOM PRE-AUDIT APPROVAL SECTION ── */}
-        <div style={{
-          background: '#f1f5f9',
-          padding: 12,
-          borderRadius: 6,
-          border: '1px solid #cbd5e1',
-          marginBottom: 14
-        }}>
-          <div style={{ fontSize: 12, fontWeight: 900, color: '#0f3a4b', borderBottom: '2px solid #0f3a4b', paddingBottom: 4, marginBottom: 10 }}>
-            Pre-Audit
-          </div>
-
-          {/* Pre Audit Remarks */}
-          <div style={{ marginBottom: 10 }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Pre Audit Remarks</label>
-            <input
-              type="text"
-              placeholder="Enter auditor audit remarks, query notes, or approval comments..."
-              value={auditRemarks}
-              onChange={(e) => setAuditRemarks(e.target.value)}
-              style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
-            />
-          </div>
-
-          {/* Valued Date & Action Dropdown */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-            <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Valued Date</label>
-              <input
-                type="date"
-                value={valuedDate}
-                onChange={(e) => setValuedDate(e.target.value)}
-                style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
-              />
-              <div style={{ fontSize: 10.5, color: '#0284c7', fontWeight: 700, marginTop: 2 }}>
-                {formatDatePreview(valuedDate)}
-              </div>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Action</label>
-              <select
-                value={actionChoice}
-                onChange={(e) => setActionChoice(e.target.value)}
-                style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff', fontWeight: 800, color: '#0f3a4b' }}
-              >
-                <option value="Pre-audit Approve PV">Pre-audit Approve PV</option>
-                <option value="Reject / Query PV">Reject / Query PV</option>
-                <option value="Hold PV for Clarification">Hold PV for Clarification</option>
-                <option value="Cancel PV">Cancel PV</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Audit Action Buttons */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <button
-              type="button"
-              onClick={handleActionSingleItem}
-              style={{ padding: '8px 14px', background: '#0f3a4b', color: '#fff', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
-            >
-              Action Single PV Item Only
-            </button>
-
-            <button
-              type="button"
-              onClick={handleActionAllItems}
-              style={{ padding: '8px 14px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 900, cursor: 'pointer' }}
-            >
-              Action All PV Items
-            </button>
-          </div>
-        </div>
-
-        {/* ── PV AUDIT QUEUE TABLE ── */}
-        <div style={{ background: '#ffffff', borderRadius: 6, border: '1px solid #cbd5e1', overflow: 'hidden' }}>
-          <div style={{ background: '#f1f5f9', padding: '8px 12px', fontSize: 12, fontWeight: 900, color: '#0f3a4b', borderBottom: '1px solid #cbd5e1' }}>
-            Pending & Audited Payment Vouchers ({pvQueue.length} records)
-          </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left', color: '#475569' }}>
-                <th style={{ padding: '8px 10px' }}>#</th>
-                <th style={{ padding: '8px 10px' }}>PV N/o</th>
-                <th style={{ padding: '8px 10px' }}>Requisition #</th>
-                <th style={{ padding: '8px 10px' }}>Service Provider</th>
-                <th style={{ padding: '8px 10px' }}>Particulars / Description</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Total (GHS)</th>
-                <th style={{ padding: '8px 10px', textAlign: 'center' }}>Audit Status</th>
-                <th style={{ padding: '8px 10px', textAlign: 'center' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pvQueue.map((item, idx) => (
-                <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0', background: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
-                  <td style={{ padding: '8px 10px', color: '#64748b', fontWeight: 700 }}>{idx + 1}</td>
-                  <td style={{ padding: '8px 10px', fontWeight: 900, color: '#0369a1' }}>#{item.pvNo}</td>
-                  <td style={{ padding: '8px 10px', fontWeight: 700, color: '#475569' }}>{item.requisitionNo}</td>
-                  <td style={{ padding: '8px 10px', fontWeight: 800, color: '#0f3a4b' }}>{item.provider}</td>
-                  <td style={{ padding: '8px 10px' }}>{item.description}</td>
-                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 900, color: '#0f172a' }}>
-                    {item.total.toFixed(2)}
-                  </td>
-                  <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                    <span style={{
-                      fontSize: 10.5,
-                      fontWeight: 800,
-                      padding: '2px 8px',
-                      borderRadius: 10,
-                      background: item.status.includes('Approved') ? '#dcfce7' : '#fef3c7',
-                      color: item.status.includes('Approved') ? '#15803d' : '#b45309'
-                    }}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPvNo(item.pvNo);
-                        setItemRequisitionNo(item.requisitionNo);
-                        setClientProvider(item.provider);
-                        setProviderId(item.providerId);
-                        setDescription(item.description);
-                        setQty(String(item.qty));
-                        setCostPerItem(item.cost.toFixed(2));
-                      }}
-                      style={{ padding: '3px 8px', background: '#e0f2fe', color: '#0369a1', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer' }}
-                    >
-                      Select
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function PayPVForm({ setM }) {
   const [pvNo, setPvNo] = useState('PV-2026-088');
@@ -11633,6 +11289,11 @@ function renderSpecificContent(link, m, setM, students) {
   // Helper to update state field
   const update = (field, val) => setM((prev) => ({ ...prev, [field]: val }));
 
+  // Academic Settings & Academic Header Manager
+  if (link === 'Academic Settings' || link === 'Add new year student academic bill header file' || link.toLowerCase().includes('academic setting') || link === 'Global Academic Settings') {
+    return <AcademicSettingsManager inline={true} />;
+  }
+
   // Register for Exams Form (Individual & Class Bulk Candidate Exam Registration)
   if (link === 'Register for Exams' || link === 'Register New Examination Candidate' || link === 'Register Student for a Specific Subject Examination' || link.toLowerCase().includes('register exam')) {
     return <RegisterForExamsForm setM={setM} students={students} />;
@@ -12214,9 +11875,13 @@ function renderSpecificContent(link, m, setM, students) {
           <div className="sims-form-group">
             <label>Academic Year</label>
             <select value={acadYear} onChange={(e) => update('academicYear', e.target.value)}>
+              <option>2023/2024</option>
+              <option>2024/2025</option>
               <option>2025/2026</option>
               <option>2026/2027</option>
               <option>2027/2028</option>
+              <option>2028/2029</option>
+              <option>2029/2030</option>
             </select>
           </div>
           <div className="sims-form-group">
@@ -12292,9 +11957,13 @@ function renderSpecificContent(link, m, setM, students) {
           <div className="sims-form-group">
             <label>Academic Year</label>
             <select value={acadYear} onChange={(e) => update('academicYear', e.target.value)}>
+              <option>2023/2024</option>
+              <option>2024/2025</option>
               <option>2025/2026</option>
               <option>2026/2027</option>
               <option>2027/2028</option>
+              <option>2028/2029</option>
+              <option>2029/2030</option>
             </select>
           </div>
           <div className="sims-form-group">
@@ -12610,13 +12279,13 @@ function renderSpecificContent(link, m, setM, students) {
     return (
       <div>
         <div className="sims-form-group">
-          <label>Target User Account</label>
-          <input type="email" value={m.userName} onChange={(e) => update('userName', e.target.value)} required />
+          <label>Target User Account (Email / Username / SID)</label>
+          <input type="text" value={m.userName} onChange={(e) => update('userName', e.target.value)} placeholder="e.g. g.accountant@remaljcarewell.edu.gh or REMALJ-2026-001" required />
         </div>
         {link === 'Reset User Password' ? (
           <div className="sims-form-group">
-            <label>New System Generated Password</label>
-            <input type="text" value="Pass-998124#" disabled readOnly />
+            <label>New Authorized Password</label>
+            <input type="text" value={m.newPassword || 'Pass-998124#'} onChange={(e) => update('newPassword', e.target.value)} required style={{ fontWeight: 800, fontFamily: 'monospace' }} />
           </div>
         ) : (
           <div className="sims-form-group">
@@ -12628,7 +12297,7 @@ function renderSpecificContent(link, m, setM, students) {
         )}
         <div className="sims-modal-actions">
           <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
-          <button type="submit" className="sims-btn sims-btn-primary">Save Security Changes</button>
+          <button type="submit" className="sims-btn sims-btn-primary">Save Authorized Password</button>
         </div>
       </div>
     );
@@ -12791,9 +12460,13 @@ function renderSpecificContent(link, m, setM, students) {
           <div className="sims-form-group">
             <label>Academic Year</label>
             <select value={acadYear} onChange={(e) => update('academicYear', e.target.value)}>
+              <option>2023/2024</option>
+              <option>2024/2025</option>
               <option>2025/2026</option>
               <option>2026/2027</option>
               <option>2027/2028</option>
+              <option>2028/2029</option>
+              <option>2029/2030</option>
             </select>
           </div>
           <div className="sims-form-group">
@@ -13130,8 +12803,13 @@ function renderSpecificContent(link, m, setM, students) {
         <div className="sims-form-group">
           <label>Select Academic & Fiscal Year to Finalize</label>
           <select value={m.closeYearVal || '2025/2026 Academic Year'} onChange={(e) => update('closeYearVal', e.target.value)}>
-            <option>2025/2026 Academic Year</option>
+            <option>2023/2024 Academic Year</option>
             <option>2024/2025 Academic Year</option>
+            <option>2025/2026 Academic Year</option>
+            <option>2026/2027 Academic Year</option>
+            <option>2027/2028 Academic Year</option>
+            <option>2028/2029 Academic Year</option>
+            <option>2029/2030 Academic Year</option>
           </select>
         </div>
         <div className="sims-form-group">
@@ -13188,7 +12866,15 @@ function renderSpecificContent(link, m, setM, students) {
       <div>
         <div className="sims-form-group">
           <label>Academic Year Session Title</label>
-          <input type="text" value={m.yearTitle || '2026 / 2027 Academic Session'} onChange={(e) => update('yearTitle', e.target.value)} required />
+          <select value={m.yearTitle || '2026 / 2027 Academic Session'} onChange={(e) => update('yearTitle', e.target.value)}>
+            <option>2023 / 2024 Academic Session</option>
+            <option>2024 / 2025 Academic Session</option>
+            <option>2025 / 2026 Academic Session</option>
+            <option>2026 / 2027 Academic Session</option>
+            <option>2027 / 2028 Academic Session</option>
+            <option>2028 / 2029 Academic Session</option>
+            <option>2029 / 2030 Academic Session</option>
+          </select>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div className="sims-form-group">
@@ -13459,234 +13145,7 @@ function renderSpecificContent(link, m, setM, students) {
   );
 }
 
-// ── SCORE SHEET [ENTRY] FORM ──
-function ScoreSheetEntryForm({ setM, students }) {
-  const [selectedStudent, setSelectedStudent] = useState(students[0] || { fullName: 'NANA ADJOA ASARI SEREBOUR', studentId: '421270' });
-  const [cls, setCls] = useState('Basic 1');
-  const [year, setYear] = useState('2025/2026');
-  const [term, setTerm] = useState('Term 3');
-  const [subject, setSubject] = useState('Mathematics');
-  const [category, setCategory] = useState('Core');
-  const [instructor, setInstructor] = useState('Mr. Ebenezer Arthur');
-  const [examDate, setExamDate] = useState('2025-07-16');
 
-  const [arrivalTest, setArrivalTest] = useState(0);
-  const [test1, setTest1] = useState(15);
-  const [test2, setTest2] = useState(18);
-  const [test3, setTest3] = useState(17);
-  const [examsScore, setExamsScore] = useState(84);
-  const [applyGrade, setApplyGrade] = useState(true);
-
-  const totalTest = Number(arrivalTest) + Number(test1) + Number(test2) + Number(test3);
-  const test50 = Math.min(50, Math.round((totalTest / 60) * 50));
-  const exams50 = Math.min(50, Math.round((Number(examsScore) / 100) * 50));
-  const totalScore = test50 + exams50;
-
-  const getGrade = (score) => {
-    if (score >= 80) return { grade: '1', remarks: 'Highly Proficient' };
-    if (score >= 75) return { grade: '2', remarks: 'Proficient' };
-    if (score >= 65) return { grade: '3', remarks: 'Approaching Proficiency' };
-    if (score >= 60) return { grade: '4', remarks: 'Developing' };
-    if (score >= 55) return { grade: '5', remarks: 'Emerging' };
-    if (score >= 50) return { grade: '6', remarks: 'Average' };
-    if (score >= 40) return { grade: '7', remarks: 'Pass' };
-    if (score >= 36) return { grade: '8', remarks: 'Weak' };
-    return { grade: '9', remarks: 'Fail' };
-  };
-  const { grade, remarks } = getGrade(totalScore);
-
-  return (
-    <div style={{ background: '#f0f4f8', padding: 16, borderRadius: 6, fontSize: 12, boxSizing: 'border-box', overflowX: 'hidden', width: '100%' }}>
-      <div style={{ background: '#38bdf8', color: '#0f172a', padding: '8px 14px', borderRadius: '4px 4px 0 0', fontWeight: 900, fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>Score Sheet [Entry]</span>
-        <span>REMALJ Carewell Inspirational School</span>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '210px 1fr', gap: 16, background: '#fff', border: '1px solid #cbd5e1', padding: 16, borderRadius: '0 0 4px 4px', boxSizing: 'border-box' }}>
-        <div style={{ borderRight: '1px solid #e2e8f0', paddingRight: 14 }}>
-          <div style={{ marginBottom: 8 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Class</label>
-            <select value={cls} onChange={(e) => setCls(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }}>
-              <option>Creche</option><option>Nursery 1</option><option>Nursery 2</option><option>KG 1</option><option>KG 2</option><option>Basic 1</option><option>Basic 2</option><option>Basic 3</option><option>Basic 4</option><option>Basic 5</option><option>Basic 6</option><option>JHS 1</option><option>JHS 2</option><option>JHS 3</option>
-            </select>
-          </div>
-          <div style={{ marginBottom: 8 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Academic year</label>
-            <input type="text" value={year} onChange={(e) => setYear(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }} />
-          </div>
-          <div style={{ marginBottom: 8 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Academic term</label>
-            <select value={term} onChange={(e) => setTerm(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }}>
-              <option>Term 1</option><option>Term 2</option><option>Term 3</option>
-            </select>
-          </div>
-          <div style={{ marginBottom: 8 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Subject title</label>
-            <select value={subject} onChange={(e) => setSubject(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }}>
-              <option>Mathematics</option><option>English Language</option><option>Integrated Science</option><option>Social Studies</option><option>RME</option><option>ICT / Computing</option><option>Creative Arts</option><option>OWOP</option>
-            </select>
-          </div>
-          <div style={{ marginBottom: 8 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Category</label>
-            <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }} />
-          </div>
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Instructor</label>
-            <input type="text" value={instructor} onChange={(e) => setInstructor(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }} />
-          </div>
-
-          {/* Student Photo Preview Box */}
-          <div style={{ width: 110, height: 120, margin: '10px auto', border: '1px dashed #94a3b8', background: '#f8fafc', borderRadius: 6, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-            {selectedStudent.photo || selectedStudent.passportPhoto ? (
-              <img src={selectedStudent.photo || selectedStudent.passportPhoto} alt={selectedStudent.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <div style={{ textAlign: 'center', color: '#64748b', fontSize: 10, padding: 4 }}>
-                <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#cbd5e1', margin: '0 auto 4px auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>👤</div>
-                <span>Student Photo</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <div style={{ display: 'grid', gridTemplateColumns: '110px 90px 2.2fr 1.3fr', gap: 10, marginBottom: 16, alignItems: 'flex-start' }}>
-            <div>
-              <label style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 2 }}>Enrollment ID</label>
-              <input type="text" value={selectedStudent.studentId || 'ENR-4212'} readOnly style={{ width: '100%', padding: '5px 8px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 4, fontWeight: 700, fontSize: 11.5 }} />
-            </div>
-            <div>
-              <label style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 2 }}>Index N/o.</label>
-              <input type="text" value="IX-104" readOnly style={{ width: '100%', padding: '5px 8px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 11.5 }} />
-            </div>
-            <div>
-              <label style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 2, whiteSpace: 'nowrap' }}>Student's Name</label>
-              <select value={selectedStudent.fullName} onChange={(e) => {
-                const s = students.find(x => x.fullName === e.target.value);
-                if (s) setSelectedStudent(s);
-              }} style={{ width: '100%', minWidth: 220, padding: '5px 8px', border: '1px solid #0f3a4b', borderRadius: 4, fontWeight: 800, fontSize: 12, background: '#ffffff', color: '#0f3a4b' }}>
-                {students.map(s => <option key={s.id} value={s.fullName}>{s.fullName} ({s.studentId})</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 2, whiteSpace: 'nowrap' }}>Date Exams taken</label>
-              <input
-                type="date"
-                value={examDate}
-                onChange={(e) => setExamDate(e.target.value)}
-                style={{ width: '100%', padding: '4px 6px', border: '1px solid #0f3a4b', borderRadius: 4, fontWeight: 700, fontSize: 12, background: '#ffffff', cursor: 'pointer' }}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: 12, borderRadius: 6 }}>
-              <div style={{ fontWeight: 800, fontSize: 11, color: '#0f3a4b', marginBottom: 8, borderBottom: '1px solid #cbd5e1', paddingBottom: 4 }}>Class test</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 11 }}>Arrival test:</span>
-                <input type="number" value={arrivalTest} onChange={(e) => setArrivalTest(e.target.value)} style={{ width: 80, padding: 3, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right' }} />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 11 }}>Class test 1:</span>
-                <input type="number" value={test1} onChange={(e) => setTest1(e.target.value)} style={{ width: 80, padding: 3, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right' }} />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 11 }}>Class test 2:</span>
-                <input type="number" value={test2} onChange={(e) => setTest2(e.target.value)} style={{ width: 80, padding: 3, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right' }} />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 11 }}>Class test 3:</span>
-                <input type="number" value={test3} onChange={(e) => setTest3(e.target.value)} style={{ width: 80, padding: 3, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right' }} />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, fontWeight: 700, background: '#fef3c7', padding: '4px 6px', borderRadius: 4 }}>
-                <span style={{ fontSize: 11 }}>Total Class test:</span>
-                <span>{totalTest}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 800, background: '#fed7aa', padding: '4px 6px', borderRadius: 4 }}>
-                <span style={{ fontSize: 11 }}>Class test converted to 50%:</span>
-                <span>{test50}</span>
-              </div>
-            </div>
-
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: 12, borderRadius: 6 }}>
-              <div style={{ fontWeight: 800, fontSize: 11, color: '#0f3a4b', marginBottom: 8, borderBottom: '1px solid #cbd5e1', paddingBottom: 4 }}>Exams score</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 11 }}>Exams score (100):</span>
-                <input type="number" value={examsScore} onChange={(e) => setExamsScore(e.target.value)} style={{ width: 80, padding: 4, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right', fontWeight: 700 }} />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 800, background: '#fed7aa', padding: '6px 8px', borderRadius: 4, marginBottom: 12 }}>
-                <span style={{ fontSize: 11 }}>Exams score converted to 50%:</span>
-                <span>{exams50}</span>
-              </div>
-
-              <div style={{ fontWeight: 800, fontSize: 11, color: '#0f3a4b', marginBottom: 4 }}>Scores summary</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 900, background: '#fed7aa', padding: '8px 10px', borderRadius: 4, fontSize: 13, color: '#9a3412' }}>
-                <span>Total score (100%):</span>
-                <span>{totalScore} / 100</span>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 14, background: '#f8fafc', border: '1px solid #e2e8f0', padding: 12, borderRadius: 6 }}>
-            <div style={{ fontWeight: 800, fontSize: 11, color: '#0f3a4b', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>Grading</span>
-              <label style={{ fontSize: 11, fontWeight: 600, marginLeft: 10 }}>
-                <input type="checkbox" checked={applyGrade} onChange={(e) => setApplyGrade(e.target.checked)} /> Apply grade marks?
-              </label>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 160px', gap: 12, alignItems: 'center' }}>
-              <div>
-                <label style={{ fontSize: 10, fontWeight: 700 }}>Grade</label>
-                <input type="text" value={applyGrade ? grade : ''} readOnly style={{ width: '100%', padding: 6, background: '#fed7aa', border: '1px solid #fdba74', borderRadius: 4, fontWeight: 800 }} />
-              </div>
-              <div>
-                <label style={{ fontSize: 10, fontWeight: 700 }}>Remarks</label>
-                <input type="text" value={applyGrade ? remarks : ''} readOnly style={{ width: '100%', padding: 6, background: '#fed7aa', border: '1px solid #fdba74', borderRadius: 4, fontWeight: 800 }} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (typeof saveScoreSheetEntry === 'function') {
-                      saveScoreSheetEntry({
-                        studentId: selectedStudent.studentId || selectedStudent.id,
-                        studentName: selectedStudent.fullName,
-                        classLevel: cls,
-                        subject,
-                        score: totalScore,
-                        grade,
-                        remarks,
-                        term,
-                        year,
-                        instructor
-                      });
-                    }
-                    alert(`✅ Score entry for ${selectedStudent.fullName} (${subject}) saved!\nTotal Score: ${totalScore}% | Grade: ${grade} (${remarks})`);
-                  }}
-                  style={{ padding: '6px 12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 4, fontWeight: 800, color: '#3730a3', cursor: 'pointer' }}
-                >
-                  + Submit scores
-                </button>
-                <button type="button" onClick={() => alert(`Test Roll for ${cls} (${subject}): ${selectedStudent.fullName} - Score ${totalScore}% (Grade ${grade})`)} style={{ padding: '6px 12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 4, fontWeight: 800, color: '#3730a3', cursor: 'pointer' }}>
-                  View Test Roll
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="button" onClick={() => {
-              const idx = students.findIndex(s => s.fullName === selectedStudent.fullName);
-              if (idx < students.length - 1) setSelectedStudent(students[idx + 1]);
-            }} style={{ padding: '10px 24px', background: '#e2e8f0', border: '1px solid #94a3b8', borderRadius: 4, fontWeight: 900, fontSize: 13, cursor: 'pointer' }}>
-              Next &gt;&gt;
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── LIST OF STAFF REPORT FORM ──
 function ListOfStaffReportForm({ setM }) {
@@ -13820,7 +13279,15 @@ function CrecheTerminalEvaluationForm({ setM, students }) {
         <div style={{ display: 'grid', gridTemplateColumns: '120px 120px 140px 1fr', gap: 10, marginBottom: 14 }}>
           <div>
             <label style={{ fontSize: 10, fontWeight: 700 }}>Academic year</label>
-            <input type="text" value={year} onChange={(e) => setYear(e.target.value)} style={{ width: '100%', padding: 4, border: '1px solid #cbd5e1', borderRadius: 4 }} />
+            <select value={year} onChange={(e) => setYear(e.target.value)} style={{ width: '100%', padding: 4, border: '1px solid #cbd5e1', borderRadius: 4 }}>
+              <option value="2023/2024">2023/2024</option>
+              <option value="2024/2025">2024/2025</option>
+              <option value="2025/2026">2025/2026</option>
+              <option value="2026/2027">2026/2027</option>
+              <option value="2027/2028">2027/2028</option>
+              <option value="2028/2029">2028/2029</option>
+              <option value="2029/2030">2029/2030</option>
+            </select>
           </div>
           <div>
             <label style={{ fontSize: 10, fontWeight: 700 }}>Academic term</label>
@@ -13941,7 +13408,15 @@ function ViewPendingTestResultsForm({ setM, students }) {
           </div>
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Academic year</label>
-            <input type="text" value={year} onChange={(e) => setYear(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }} />
+            <select value={year} onChange={(e) => setYear(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }}>
+              <option value="2023/2024">2023/2024</option>
+              <option value="2024/2025">2024/2025</option>
+              <option value="2025/2026">2025/2026</option>
+              <option value="2026/2027">2026/2027</option>
+              <option value="2027/2028">2027/2028</option>
+              <option value="2028/2029">2028/2029</option>
+              <option value="2029/2030">2029/2030</option>
+            </select>
           </div>
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Academic term</label>
@@ -14251,14 +13726,34 @@ function ViewUnauthorisedCrecheReportsForm({ setM, students }) {
 }
 
 // ── PRINT INDIVIDUAL TERMINAL REPORT FORM ──
-function PrintIndividualTerminalReportForm({ setM, students }) {
+function PrintIndividualTerminalReportForm({ setM, students = [] }) {
   const [dept, setDept] = useState('Primary Department');
   const [cls, setCls] = useState('Basic 1');
   const [subClass, setSubClass] = useState('Stream A - Gold');
   const [year, setYear] = useState('2025/2026');
   const [term, setTerm] = useState('Term 3');
+  const [studentSearch, setStudentSearch] = useState('');
+  const [studentSort, setStudentSort] = useState('AZ');
   const [selectedStudent, setSelectedStudent] = useState(students[0] || { fullName: 'NANA ADJOA ASARI SEREBOUR', studentId: '421270' });
   const [isCreche, setIsCreche] = useState(false);
+
+  const filteredStudents = useMemo(() => {
+    let list = [...(students || [])];
+    if (studentSearch.trim()) {
+      const q = studentSearch.toLowerCase();
+      list = list.filter(s =>
+        (s.fullName || s.name || '').toLowerCase().includes(q) ||
+        (s.studentId || s.id || '').toLowerCase().includes(q) ||
+        (s.level || '').toLowerCase().includes(q)
+      );
+    }
+    list.sort((a, b) => {
+      if (studentSort === 'ZA') return (b.fullName || b.name || '').localeCompare(a.fullName || a.name || '');
+      if (studentSort === 'Class') return (a.level || '').localeCompare(b.level || '') || (a.fullName || a.name || '').localeCompare(b.fullName || b.name || '');
+      return (a.fullName || a.name || '').localeCompare(b.fullName || b.name || '');
+    });
+    return list;
+  }, [students, studentSearch, studentSort]);
 
   return (
     <div style={{ background: '#f0f4f8', padding: 16, borderRadius: 6, fontSize: 12 }}>
@@ -14313,12 +13808,30 @@ function PrintIndividualTerminalReportForm({ setM, students }) {
           </div>
 
           <div style={{ marginBottom: 8 }}>
-            <label style={{ fontSize: 10, fontWeight: 700 }}>Student's Name</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+              <label style={{ fontSize: 10, fontWeight: 700 }}>Student's Name</label>
+              <select
+                value={studentSort}
+                onChange={(e) => setStudentSort(e.target.value)}
+                style={{ fontSize: 9, padding: '1px 3px', borderRadius: 3, border: '1px solid #cbd5e1', cursor: 'pointer', background: '#e0f2fe', fontWeight: 800, color: '#0369a1' }}
+              >
+                <option value="AZ">Sort: A-Z</option>
+                <option value="ZA">Sort: Z-A</option>
+                <option value="Class">Sort: Class</option>
+              </select>
+            </div>
+            <input
+              type="text"
+              placeholder="🔍 Search name or ID..."
+              value={studentSearch}
+              onChange={(e) => setStudentSearch(e.target.value)}
+              style={{ width: '100%', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 11, marginBottom: 4 }}
+            />
             <select value={selectedStudent.fullName} onChange={(e) => {
               const s = students.find(x => x.fullName === e.target.value);
               if (s) setSelectedStudent(s);
             }} style={{ width: '100%', padding: 6, border: '1px solid #fdba74', borderRadius: 4, background: '#ffedd5', fontWeight: 800, color: '#9a3412' }}>
-              {students.map(s => <option key={s.id} value={s.fullName}>{s.fullName}</option>)}
+              {filteredStudents.map(s => <option key={s.id} value={s.fullName}>{s.fullName} ({s.studentId || s.id})</option>)}
             </select>
           </div>
 
@@ -14536,7 +14049,15 @@ function PreviewSubjectBasedAssessmentForm({ setM, students }) {
           </div>
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 10, fontWeight: 700 }}>Academic year</label>
-            <input type="text" value={year} onChange={(e) => setYear(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }} />
+            <select value={year} onChange={(e) => setYear(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }}>
+              <option value="2023/2024">2023/2024</option>
+              <option value="2024/2025">2024/2025</option>
+              <option value="2025/2026">2025/2026</option>
+              <option value="2026/2027">2026/2027</option>
+              <option value="2027/2028">2027/2028</option>
+              <option value="2028/2029">2028/2029</option>
+              <option value="2029/2030">2029/2030</option>
+            </select>
           </div>
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 10, fontWeight: 700 }}>Academic term</label>

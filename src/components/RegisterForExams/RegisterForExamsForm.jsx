@@ -70,7 +70,7 @@ const EXAM_CENTERS = [
 ];
 
 export default function RegisterForExamsForm({ setM, students: propStudents }) {
-  const { onboardedStudents, examRegistrations, registerIndividualExam, registerClassExams, cancelExamRegistration } = usePortalData();
+  const { academicSettings, onboardedStudents, examRegistrations, registerIndividualExam, registerClassExams, cancelExamRegistration } = usePortalData();
 
   const allStudents = propStudents || onboardedStudents || [];
   const currentRegistrations = examRegistrations || [];
@@ -78,19 +78,39 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
   const [activeTab, setActiveTab] = useState('individual'); // 'individual' | 'bulk' | 'roster'
 
   // Individual Registration State
+  const [indivSearch, setIndivSearch] = useState('');
+  const [indivSort, setIndivSort] = useState('AZ'); // 'AZ' | 'ZA' | 'Class'
   const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [indivYear, setIndivYear] = useState('2025/2026');
-  const [indivTerm, setIndivTerm] = useState('Term 1');
+  const [indivYear, setIndivYear] = useState(academicSettings?.academicYear || '2025/2026');
+  const [indivTerm, setIndivTerm] = useState(academicSettings?.academicTerm || 'Term 1');
   const [indivExamType, setIndivExamType] = useState(EXAM_TYPES[0]);
   const [indivCenter, setIndivCenter] = useState(EXAM_CENTERS[0]);
   const [indivIndexNum, setIndivIndexNum] = useState('');
   const [selectedSubjects, setSelectedSubjects] = useState(DEFAULT_SUBJECTS.slice(0, 6));
   const [indivNotes, setIndivNotes] = useState('');
 
+  const filteredAllStudents = React.useMemo(() => {
+    let list = [...(allStudents || [])];
+    if (indivSearch.trim()) {
+      const q = indivSearch.toLowerCase();
+      list = list.filter(s =>
+        (s.fullName || s.name || '').toLowerCase().includes(q) ||
+        (s.studentId || s.id || '').toLowerCase().includes(q) ||
+        (s.level || '').toLowerCase().includes(q)
+      );
+    }
+    list.sort((a, b) => {
+      if (indivSort === 'ZA') return (b.fullName || b.name || '').localeCompare(a.fullName || a.name || '');
+      if (indivSort === 'Class') return (a.level || '').localeCompare(b.level || '') || (a.fullName || a.name || '').localeCompare(b.fullName || b.name || '');
+      return (a.fullName || a.name || '').localeCompare(b.fullName || b.name || '');
+    });
+    return list;
+  }, [allStudents, indivSearch, indivSort]);
+
   // Bulk Registration State
   const [bulkClass, setBulkClass] = useState('JHS 3');
-  const [bulkYear, setBulkYear] = useState('2025/2026');
-  const [bulkTerm, setBulkTerm] = useState('Term 1');
+  const [bulkYear, setBulkYear] = useState(academicSettings?.academicYear || '2025/2026');
+  const [bulkTerm, setBulkTerm] = useState(academicSettings?.academicTerm || 'Term 1');
   const [bulkExamType, setBulkExamType] = useState(EXAM_TYPES[0]);
   const [bulkCenter, setBulkCenter] = useState(EXAM_CENTERS[0]);
   const [bulkSubjects, setBulkSubjects] = useState(DEFAULT_SUBJECTS.slice(0, 6));
@@ -317,8 +337,13 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
                 onChange={(e) => setIndivYear(e.target.value)}
                 style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #475569', borderRadius: 8, color: '#fff', fontSize: 13 }}
               >
+                <option value="2023/2024">2023/2024 Academic Session</option>
+                <option value="2024/2025">2024/2025 Academic Session</option>
                 <option value="2025/2026">2025/2026 Academic Session</option>
                 <option value="2026/2027">2026/2027 Academic Session</option>
+                <option value="2027/2028">2027/2028 Academic Session</option>
+                <option value="2028/2029">2028/2029 Academic Session</option>
+                <option value="2029/2030">2029/2030 Academic Session</option>
               </select>
             </div>
 
@@ -366,16 +391,36 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
 
           {/* Student Picker */}
           <div style={{ background: '#0f172a', padding: 16, borderRadius: 10, border: '1px solid #334155', marginBottom: 20 }}>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 900, color: '#38bdf8', marginBottom: 8 }}>
-              5. Pick Student Candidate
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+              <label style={{ fontSize: 13, fontWeight: 900, color: '#38bdf8' }}>
+                5. Pick Student Candidate ({filteredAllStudents.length} Available)
+              </label>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <select
+                  value={indivSort}
+                  onChange={(e) => setIndivSort(e.target.value)}
+                  style={{ fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid #0284c7', background: '#1e293b', color: '#38bdf8', fontWeight: 800 }}
+                >
+                  <option value="AZ">Sort: Name A-Z</option>
+                  <option value="ZA">Sort: Name Z-A</option>
+                  <option value="Class">Sort: Class / Level</option>
+                </select>
+              </div>
+            </div>
+            <input
+              type="text"
+              placeholder="🔍 Search candidate by name, ID, or class..."
+              value={indivSearch}
+              onChange={(e) => setIndivSearch(e.target.value)}
+              style={{ width: '100%', padding: '10px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#fff', fontSize: 13, marginBottom: 8 }}
+            />
             <select
               value={selectedStudentId}
               onChange={(e) => handleStudentPick(e.target.value)}
               style={{ width: '100%', padding: '12px', background: '#1e293b', border: '1px solid #0284c7', borderRadius: 8, color: '#fff', fontSize: 14, fontWeight: 700 }}
             >
               <option value="">-- Choose Student Candidate from Register --</option>
-              {allStudents.map((s) => (
+              {filteredAllStudents.map((s) => (
                 <option key={s.id || s.studentId} value={s.id || s.studentId}>
                   {s.fullName} ({s.studentId}) — Class: {s.level || 'Unassigned'}
                 </option>
@@ -510,8 +555,13 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
                 onChange={(e) => setBulkYear(e.target.value)}
                 style={{ width: '100%', padding: '10px 12px', background: '#0f172a', border: '1px solid #475569', borderRadius: 8, color: '#fff', fontSize: 13 }}
               >
+                <option value="2023/2024">2023/2024 Academic Session</option>
+                <option value="2024/2025">2024/2025 Academic Session</option>
                 <option value="2025/2026">2025/2026 Academic Session</option>
                 <option value="2026/2027">2026/2027 Academic Session</option>
+                <option value="2027/2028">2027/2028 Academic Session</option>
+                <option value="2028/2029">2028/2029 Academic Session</option>
+                <option value="2029/2030">2029/2030 Academic Session</option>
               </select>
             </div>
 
@@ -789,12 +839,15 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
 
       {/* ── PRINTABLE HALL PASS ADMIT CARD MODAL ── */}
       {printingPass && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-          background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex',
-          alignItems: 'center', justifyContent: 'center', padding: 20
-        }}>
-          <div style={{
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setPrintingPass(null); }}
+          style={{
+            position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+            background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex',
+            alignItems: 'center', justifyContent: 'center', padding: 20
+          }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{
             background: '#ffffff', color: '#0f172a', width: 680, maxWidth: '95vw',
             borderRadius: 14, padding: 28, boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
             border: '3px solid #0284c7', position: 'relative'

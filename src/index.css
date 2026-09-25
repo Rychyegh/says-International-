@@ -68,6 +68,25 @@
   --z-modal:   300;
 }
 
+/* Modal Backdrop Overlay & Centered Alignment */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  animation: fadeIn 0.2s ease;
+}
+
 /* The preference is set by the shared portal settings screen. */
 :root[data-theme='dark'] {
   --white: #17212b;
