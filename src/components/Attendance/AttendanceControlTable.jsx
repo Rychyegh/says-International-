@@ -8,16 +8,7 @@ import { usePortalData } from '../../data/PortalStore';
 import { api } from '../../services/api';
 import './AttendanceControlTable.css';
 
-const INITIAL_ATTENDANCE_LOGS = [
-  { id: 'log-101', date: '2026-09-05', time: '08:15 AM', studentId: 'REMALJ-2026-001', studentName: 'Benjamin Edwards', level: 'Grade 4 (B)', method: 'RFID Card Reader', status: 'Check In', guardianName: 'Mrs. Angela Edwards', phone: '054 176 9621', smsStatus: 'Sent' },
-  { id: 'log-102', date: '2026-09-05', time: '08:30 AM', studentId: 'REMALJ-2026-002', studentName: 'Adwoa Edwards', level: 'Primary 5 (5A)', method: 'Manual Roll Call', status: 'Present', guardianName: 'Mrs. Angela Edwards', phone: '054 176 9621', smsStatus: 'Sent' },
-  { id: 'log-103', date: '2026-09-05', time: '01:45 PM', studentId: 'REMALJ-2026-041', studentName: 'Abena Mensah', level: 'JHS 3 (3A)', method: 'RFID Card Reader', status: 'Check Out', guardianName: 'Mr. Kofi Mensah', phone: '054 176 9621', smsStatus: 'Sent' },
-  { id: 'log-104', date: '2026-09-05', time: '09:00 AM', studentId: 'REMALJ-2026-112', studentName: 'Kwame Asante', level: 'JHS 3 (3A)', method: 'Manual Roll Call', status: 'Absent', guardianName: 'Mrs. Ama Asante', phone: '054 176 9621', smsStatus: 'Sent' },
-  { id: 'log-105', date: '2026-09-05', time: '03:12 PM', studentId: 'REMALJ-2026-088', studentName: 'Efua Darko', level: 'JHS 2 (2B)', method: 'RFID Card Reader', status: 'Check Out', guardianName: 'Mr. Yaw Darko', phone: '054 176 9621', smsStatus: 'Sent' },
-  { id: 'log-106', date: '2026-09-04', time: '08:10 AM', studentId: 'REMALJ-2026-001', studentName: 'Benjamin Edwards', level: 'Grade 4 (B)', method: 'RFID Card Reader', status: 'Check In', guardianName: 'Mrs. Angela Edwards', phone: '054 176 9621', smsStatus: 'Sent' },
-  { id: 'log-107', date: '2026-09-04', time: '03:22 PM', studentId: 'REMALJ-2026-002', studentName: 'Adwoa Edwards', level: 'Primary 5 (5A)', method: 'RFID Card Reader', status: 'Check Out', guardianName: 'Mrs. Angela Edwards', phone: '054 176 9621', smsStatus: 'Sent' },
-  { id: 'log-108', date: '2026-09-04', time: '08:35 AM', studentId: 'REMALJ-2026-041', studentName: 'Abena Mensah', level: 'JHS 3 (3A)', method: 'Manual Roll Call', status: 'Present', guardianName: 'Mr. Kofi Mensah', phone: '054 176 9621', smsStatus: 'Sent' },
-];
+const INITIAL_ATTENDANCE_LOGS = [];
 
 export default function AttendanceControlTable() {
   const { onboardedStudents, updateOnboardedStudent } = usePortalData();
@@ -120,13 +111,7 @@ export default function AttendanceControlTable() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [autoFocusEnabled, activeTab]);
 
-  const studentsList = onboardedStudents && onboardedStudents.length > 0 ? onboardedStudents : [
-    { id: 'stu-001', studentId: 'REMALJ-2026-001', rfidCardCode: '0009841234', fullName: 'Benjamin Edwards', level: 'Grade 4', classSection: 'B', guardianName: 'Mrs. Angela Edwards', guardianPhone: '054 176 9621' },
-    { id: 'stu-002', studentId: 'REMALJ-2026-002', rfidCardCode: '0014298132', fullName: 'Adwoa Edwards', level: 'Primary 5', classSection: '5A', guardianName: 'Mrs. Angela Edwards', guardianPhone: '054 176 9621' },
-    { id: 'stu-003', studentId: 'REMALJ-2026-041', rfidCardCode: '0008431920', fullName: 'Abena Mensah', level: 'JHS 3', classSection: '3A', guardianName: 'Mr. Kofi Mensah', guardianPhone: '054 176 9621' },
-    { id: 'stu-004', studentId: 'REMALJ-2026-112', rfidCardCode: '10485721', fullName: 'Kwame Asante', level: 'JHS 3', classSection: '3A', guardianName: 'Mrs. Ama Asante', guardianPhone: '054 176 9621' },
-    { id: 'stu-005', studentId: 'REMALJ-2026-088', rfidCardCode: '82930419', fullName: 'Efua Darko', level: 'JHS 2', classSection: '2B', guardianName: 'Mr. Yaw Darko', guardianPhone: '054 176 9621' },
-  ];
+  const studentsList = onboardedStudents || [];
 
   // Helper to append a new attendance record entry to the Historical Register Logs
   const logNewAttendanceRecord = (student, status, method, timeStr, phone, guardianName) => {

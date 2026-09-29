@@ -4,8 +4,11 @@ from sqlalchemy import select, or_
 from typing import List, Optional
 from datetime import datetime
 
+import random
+from pydantic import BaseModel
+
 from backend.database import get_db
-from backend.models import FeeRecord, PaymentVoucher
+from backend.models import FeeRecord, PaymentVoucher, DefinedBill
 from backend.schemas import (
     FeePaymentRequest, FeeReminderRequest, PaymentVoucherRequest,
     PaymentVoucherStatusRequest
@@ -118,3 +121,71 @@ async def update_pv_status(pv_id: str, req: PaymentVoucherStatusRequest, db: Asy
     await db.commit()
     await db.refresh(pv)
     return pv
+
+# --- Defined Bills ---
+class DefinedBillCreate(BaseModel):
+    classLevel: str
+    academicYear: Optional[str] = "2026/2027"
+    term: Optional[str] = "Term 1"
+    billCategory: str
+    amount: float
+    specification: Optional[str] = "Compulsory"
+    description: Optional[str] = None
+
+@router.get("/bills")
+async def get_defined_bills(db: AsyncSession = Depends(get_db)):
+    query = select(DefinedBill).order_by(DefinedBill.created_at.desc())
+    res = await db.execute(query)
+    bills = res.scalars().all()
+    return [
+        {
+            "id": b.id,
+            "classLevel": b.class_level,
+            "academicYear": b.academic_year,
+            "term": b.term,
+            "billCategory": b.bill_category,
+            "amount": b.amount,
+            "specification": b.specification,
+            "description": b.description,
+            "dateDefined": b.date_defined
+        }
+        for b in bills
+    ]
+
+@router.post("/bills")
+async def create_defined_bill(req: DefinedBillCreate, db: AsyncSession = Depends(get_db)):
+    bill = DefinedBill(
+        class_level=req.classLevel,
+        academic_year=req.academicYear or "2026/2027",
+        term=req.term or "Term 1",
+        bill_category=req.billCategory,
+        amount=req.amount,
+        specification=req.specification or "Compulsory",
+        description=req.description or req.billCategory
+    )
+    db.add(bill)
+    await db.commit()
+    await db.refresh(bill)
+    return {
+        "id": bill.id,
+        "classLevel": bill.class_level,
+        "academicYear": bill.academic_year,
+        "term": bill.term,
+        "billCategory": bill.bill_category,
+        "amount": bill.amount,
+        "specification": bill.specification,
+        "description": bill.description,
+        "dateDefined": bill.date_defined
+    }
+
+@router.delete("/bills/{id}")
+async def delete_defined_bill(id: str, db: AsyncSession = Depends(get_db)):
+    query = select(DefinedBill).where(DefinedBill.id == id)
+    res = await db.execute(query)
+    bill = res.scalars().first()
+    if not bill:
+        raise HTTPException(status_code=404, detail="Defined bill not found")
+    await db.delete(bill)
+    await db.commit()
+    return {"success": True, "message": "Defined bill deleted"}
+

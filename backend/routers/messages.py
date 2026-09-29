@@ -14,19 +14,6 @@ async def get_messages(db: AsyncSession = Depends(get_db)):
     query = select(Message).order_by(Message.sent_at.desc())
     res = await db.execute(query)
     messages = res.scalars().all()
-    if not messages:
-        return [
-            {
-                "id": "message-001",
-                "from": "Mr. Samuel Amponsah",
-                "senderRole": "Staff",
-                "to": "Parents",
-                "recipient": "Mrs. Angela Edwards",
-                "subject": "Academic update",
-                "body": "Term results will be published after moderation.",
-                "sentAt": "20 Aug 2026, 09:15"
-            }
-        ]
     return [
         {
             "id": m.id,

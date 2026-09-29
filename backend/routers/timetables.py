@@ -16,19 +16,18 @@ async def get_timetables(classLevel: Optional[str] = None, db: AsyncSession = De
         query = query.where(TimetableEntry.class_level == classLevel)
     res = await db.execute(query)
     entries = res.scalars().all()
-    
-    if not entries:
-        # Return default schedule if none seeded
-        return [
-            { "id": "math-mon", "day": "Monday", "time": "08:00 AM", "subject": "Pure Mathematics", "room": "Room 402", "lecturer": "Prof. Mensah" },
-            { "id": "physics-tue", "day": "Tuesday", "time": "10:30 AM", "subject": "Physics Lab", "room": "Science Block 1", "lecturer": "Mr. Boateng" },
-            { "id": "english-wed", "day": "Wednesday", "time": "08:00 AM", "subject": "Literature in English", "room": "Auditorium B", "lecturer": "Dr. Anane" },
-            { "id": "ict-mon", "day": "Monday", "time": "01:00 PM", "subject": "ICT Project", "room": "Lab 2", "lecturer": "Ms. Mensah" },
-            { "id": "english-tue", "day": "Tuesday", "time": "01:00 PM", "subject": "English Essay", "room": "Room 204", "lecturer": "Mrs. Adjei" },
-            { "id": "math-wed", "day": "Wednesday", "time": "01:00 PM", "subject": "Mathematics", "room": "Room 402", "lecturer": "Prof. Mensah" },
-        ]
-
-    return entries
+    return [
+        {
+            "id": t.id,
+            "day": t.day,
+            "time": t.time,
+            "subject": t.subject,
+            "room": t.room,
+            "lecturer": t.lecturer,
+            "class_level": t.class_level
+        }
+        for t in entries
+    ]
 
 @router.post("")
 async def create_timetable_entry(req: TimetableCreateRequest, db: AsyncSession = Depends(get_db)):

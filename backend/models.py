@@ -245,3 +245,66 @@ class PasswordResetOTP(Base):
     expires_at = Column(DateTime, nullable=False)
     is_used = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class StaffMember(Base):
+    __tablename__ = "staff_members"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    staff_id = Column(String(50), unique=True, index=True, nullable=False) # e.g. STF-2026-001
+    name = Column(String(255), nullable=False)
+    subject = Column(String(100), default="General Education")
+    class_assigned = Column(String(100), default="Grade 4")
+    email = Column(String(255), unique=True, nullable=False)
+    phone = Column(String(50), nullable=True)
+    role = Column(String(100), default="Subject Teacher")
+    status = Column(String(50), default="Active")
+    joined_date = Column(String(50), default=lambda: str(date.today()))
+    photo = Column(String(50), default="👨‍🏫")
+    bio = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class DefinedBill(Base):
+    __tablename__ = "defined_bills"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    class_level = Column(String(100), nullable=False)
+    academic_year = Column(String(50), default="2026/2027")
+    term = Column(String(50), default="Term 1")
+    bill_category = Column(String(100), nullable=False)
+    amount = Column(Float, nullable=False, default=0.0)
+    specification = Column(String(50), default="Compulsory") # Compulsory, Optional
+    description = Column(Text, nullable=True)
+    date_defined = Column(String(50), default=lambda: str(date.today()))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class SemesterRegistration(Base):
+    __tablename__ = "semester_registrations"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    student_id = Column(String(50), index=True, nullable=False)
+    student_name = Column(String(255), nullable=False)
+    class_level = Column(String(100), nullable=False)
+    academic_year = Column(String(50), default="2026/2027")
+    term = Column(String(50), default="Term 1")
+    status = Column(String(50), default="Registered")
+    registered_at = Column(String(50), default=lambda: str(date.today()))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class ExamRegistration(Base):
+    __tablename__ = "exam_registrations"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    student_id = Column(String(50), index=True, nullable=False)
+    student_name = Column(String(255), nullable=False)
+    class_level = Column(String(100), nullable=False)
+    academic_year = Column(String(50), default="2025/2026")
+    term = Column(String(50), default="Term 1")
+    exam_type = Column(String(100), default="End-of-Term Final Examination")
+    index_number = Column(String(100), unique=True, index=True, nullable=False)
+    exam_center = Column(String(255), default="Main Examination Hall A")
+    subjects = Column(JSON, default=list)
+    registered_at = Column(String(50), default=lambda: str(date.today()))
+    registered_by = Column(String(255), default="Academic Head / Admin")
+    status = Column(String(100), default="Registered - Hall Pass Valid")
+    created_at = Column(DateTime, default=datetime.utcnow)
+

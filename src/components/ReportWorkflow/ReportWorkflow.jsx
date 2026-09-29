@@ -5,7 +5,6 @@ import { downloadPublishedReport } from '../../data/reportDownload';
 import './ReportWorkflow.css';
 
 const SEMESTERS = ['Semester 1 · 2026', 'Semester 2 · 2026', 'Semester 1 · 2027'];
-const CHILDREN = ['Benjamin Edwards', 'Adwoa Edwards'];
 
 export function ParentReports({ child }) {
   const { reportRequests, publishedReports, requestReport } = usePortalData();

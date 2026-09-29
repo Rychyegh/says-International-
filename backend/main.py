@@ -9,7 +9,7 @@ from backend.database import engine, Base
 from backend.routers import (
     health, auth, students, attendance, finance, admissions,
     reports, results, timetables, assignments, incidents, assets,
-    messages, bus
+    messages, bus, staff, academic
 )
 
 @asynccontextmanager
@@ -59,6 +59,8 @@ app.include_router(incidents.router, prefix=API_PREFIX)
 app.include_router(assets.router, prefix=API_PREFIX)
 app.include_router(messages.router, prefix=API_PREFIX)
 app.include_router(bus.router, prefix=API_PREFIX)
+app.include_router(staff.router, prefix=API_PREFIX)
+app.include_router(academic.router, prefix=API_PREFIX)
 
 @app.get("/")
 async def root():

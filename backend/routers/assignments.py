@@ -14,18 +14,6 @@ async def get_assignments(db: AsyncSession = Depends(get_db)):
     query = select(Assignment).order_by(Assignment.created_at.desc())
     res = await db.execute(query)
     assignments = res.scalars().all()
-    if not assignments:
-        return [
-            {
-                "id": "assignment-001",
-                "title": "Advanced Calculus Thesis",
-                "instructions": "Submit the completed problem set with working.",
-                "audience": "SH2 Class Group",
-                "due": "2026-10-24",
-                "author": "Mr. Samuel Amponsah",
-                "status": "Published"
-            }
-        ]
     return [
         {
             "id": a.id,

@@ -604,4 +604,132 @@ export const api = {
       body: JSON.stringify(telemetryData),
     });
   },
+
+  // --- Staff & Teacher Directory ---
+  getStaff: async () => {
+    return await request('/staff');
+  },
+
+  createStaff: async (staffData) => {
+    return await request('/staff', {
+      method: 'POST',
+      body: JSON.stringify(staffData),
+    });
+  },
+
+  updateStaff: async (id, staffData) => {
+    return await request(`/staff/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(staffData),
+    });
+  },
+
+  deleteStaff: async (id) => {
+    return await request(`/staff/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // --- Defined Fee Bills ---
+  getDefinedBills: async () => {
+    return await request('/finance/bills');
+  },
+
+  createDefinedBill: async (billData) => {
+    return await request('/finance/bills', {
+      method: 'POST',
+      body: JSON.stringify(billData),
+    });
+  },
+
+  deleteDefinedBill: async (id) => {
+    return await request(`/finance/bills/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // --- Payment Vouchers ---
+  getPaymentVouchers: async () => {
+    return await request('/finance/pv');
+  },
+
+  createPaymentVoucher: async (pvData) => {
+    return await request('/finance/pv', {
+      method: 'POST',
+      body: JSON.stringify(pvData),
+    });
+  },
+
+  updatePaymentVoucherStatus: async (pvId, statusData) => {
+    return await request(`/finance/pv/${pvId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(statusData),
+    });
+  },
+
+  // --- Timetables ---
+  createTimetableEntry: async (entryData) => {
+    return await request('/timetables', {
+      method: 'POST',
+      body: JSON.stringify(entryData),
+    });
+  },
+
+  // --- Academic Results ---
+  recordResult: async (resultData) => {
+    return await request('/results', {
+      method: 'POST',
+      body: JSON.stringify(resultData),
+    });
+  },
+
+  updateResultStatus: async (id, statusData) => {
+    return await request(`/results/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(statusData),
+    });
+  },
+
+  // --- Asset Tasks ---
+  createAssetTask: async (taskData) => {
+    return await request('/asset-tasks', {
+      method: 'POST',
+      body: JSON.stringify(taskData),
+    });
+  },
+
+  // --- Semester & Exam Registrations ---
+  getSemesterRegistrations: async () => {
+    return await request('/academic/semester-registrations');
+  },
+
+  createSemesterRegistration: async (regData) => {
+    return await request('/academic/semester-registrations', {
+      method: 'POST',
+      body: JSON.stringify(regData),
+    });
+  },
+
+  deleteSemesterRegistration: async (id) => {
+    return await request(`/academic/semester-registrations/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  getExamRegistrations: async () => {
+    return await request('/academic/exam-registrations');
+  },
+
+  createExamRegistration: async (examData) => {
+    return await request('/academic/exam-registrations', {
+      method: 'POST',
+      body: JSON.stringify(examData),
+    });
+  },
+
+  deleteExamRegistration: async (id) => {
+    return await request(`/academic/exam-registrations/${id}`, {
+      method: 'DELETE',
+    });
+  },
 };

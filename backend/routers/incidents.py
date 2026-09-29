@@ -14,11 +14,6 @@ async def get_incidents(db: AsyncSession = Depends(get_db)):
     query = select(Incident)
     res = await db.execute(query)
     incidents = res.scalars().all()
-    if not incidents:
-        return [
-            { "id": "case-001", "category": "Safeguarding", "person": "Student A", "severity": "Restricted", "status": "Under review", "loggedAt": "20 Aug 2026, 08:35" },
-            { "id": "case-002", "category": "Health & welfare", "person": "Student B", "severity": "Confidential", "status": "Follow-up due", "loggedAt": "19 Aug 2026, 14:10" }
-        ]
     return [
         {
             "id": inc.id,

@@ -14,11 +14,6 @@ async def get_asset_tasks(db: AsyncSession = Depends(get_db)):
     query = select(AssetTask)
     res = await db.execute(query)
     tasks = res.scalars().all()
-    if not tasks:
-        return [
-            { "id": "asset-001", "asset": "Bus 01", "task": "Quarterly safety inspection", "owner": "Transport lead", "status": "Scheduled", "due": "23 Aug 2026" },
-            { "id": "asset-002", "asset": "ICT Lab 2", "task": "Replace projector lamp", "owner": "Facilities", "status": "In progress", "due": "22 Aug 2026" }
-        ]
     return [
         {
             "id": t.id,

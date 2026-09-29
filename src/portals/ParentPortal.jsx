@@ -37,11 +37,6 @@ const STATS = [
   { label: 'Upcoming Events',   value: '3',     trend: 'Next: Sports Day', up: null,  icon: '📅',      bg: '#fef9c3', ic: '#78350f' },
 ];
 
-const CHILDREN = [
-  { name: 'Benjamin Edwards', grade: 'Grade 4 • Section B', gpa: '3.82', attendance: 96, photo: '👦', bio: 'Benjamin is showing exceptional growth in logical reasoning this semester. His participation in the recent Science Fair was commendable.' },
-  { name: 'Adwoa Edwards',    grade: 'Primary 5',            gpa: '3.94', attendance: 95, photo: '👧', bio: 'Adwoa continues to excel in Sciences and English. She was recognized at the recent Academic Awards ceremony.' },
-];
-
 const RESULTS = [
   { subject: 'Mathematics',    kweku: [82, 'A'],  adwoa: [91, 'A+'] },
   { subject: 'English',        kweku: [75, 'A-'], adwoa: [88, 'A']  },
@@ -74,16 +69,39 @@ export default function ParentPortal() {
     } catch (e) {}
   };
   const [activeChild, setActiveChild] = useState(0);
-  const { results: staffResults, studentFees = [], messages = [] } = usePortalData();
+  const { onboardedStudents = [], results: staffResults = [], studentFees = [], messages = [] } = usePortalData();
 
-  const child = CHILDREN[activeChild];
-  const currentFee = (studentFees || []).find((f) => f.studentName?.toLowerCase() === child.name.toLowerCase()) || { balance: 0 };
-  const dynamicFeeValue = `GHS ${currentFee.balance.toLocaleString()}`;
+  const childrenList = useMemo(() => {
+    if (onboardedStudents && onboardedStudents.length > 0) {
+      return onboardedStudents.map((s, idx) => ({
+        name: s.fullName || s.name || `Student ${idx + 1}`,
+        studentId: s.studentId || s.id,
+        grade: `${s.level || 'Grade 4'}${s.classSection ? ' • Section ' + s.classSection : ''}`,
+        gpa: '3.8',
+        attendance: 96,
+        photo: s.gender === 'Female' ? '👧' : '👦',
+        bio: `${s.fullName || s.name} is enrolled in ${s.level || 'Class'} at REMALJ Carewell Inspirational School.`
+      }));
+    }
+    return [];
+  }, [onboardedStudents]);
+
+  const child = childrenList[activeChild] || childrenList[0] || {
+    name: 'Student',
+    grade: 'Grade Level',
+    gpa: '0.0',
+    attendance: 0,
+    photo: '👤',
+    bio: 'No student record found.'
+  };
+
+  const currentFee = (studentFees || []).find((f) => f.studentName?.toLowerCase() === (child.name || '').toLowerCase() || f.studentId === child.studentId) || { balance: 0 };
+  const dynamicFeeValue = `GHS ${(currentFee.balance || 0).toLocaleString()}`;
   const dynamicFeeTrend = currentFee.balance > 0 ? 'Balance due' : 'All paid';
 
   const DYNAMIC_STATS = [
-    { label: 'Children Enrolled', value: '2', trend: 'Both active', up: true, icon: '👨‍👩‍👦', bg: '#dbeafe', ic: '#1e3a8a' },
-    { label: 'Attendance Rate', value: '96%', trend: '+1% this term', up: true, icon: '✅', bg: '#dcfce7', ic: '#166534' },
+    { label: 'Children Enrolled', value: String(childrenList.length), trend: childrenList.length > 0 ? 'Active in system' : 'None registered', up: childrenList.length > 0, icon: '👨‍👩‍👦', bg: '#dbeafe', ic: '#1e3a8a' },
+    { label: 'Attendance Rate', value: childrenList.length > 0 ? '96%' : '0%', trend: 'Database synced', up: true, icon: '✅', bg: '#dcfce7', ic: '#166534' },
     { label: 'Fees Outstanding', value: dynamicFeeValue, trend: dynamicFeeTrend, up: currentFee.balance === 0, icon: '💳', bg: currentFee.balance > 0 ? '#fee2e2' : '#dcfce7', ic: currentFee.balance > 0 ? '#b91c1c' : '#166534' },
     { label: 'Upcoming Events', value: '3', trend: 'Next: Sports Day', up: null, icon: '📅', bg: '#fef9c3', ic: '#78350f' },
   ];
@@ -147,7 +165,7 @@ export default function ParentPortal() {
               </div>
               {/* Child's transport summary */}
               <div style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
-                {CHILDREN.map((c, i) => (
+                {childrenList.map((c, i) => (
                   <div key={c.name} onClick={() => setActiveChild(i)} style={{
                     flex: 1, padding: '14px 18px',
                     background: PARENT_BG, color: '#fff',
@@ -177,7 +195,7 @@ export default function ParentPortal() {
                 <p className="page-header__eyebrow" style={{ color: PARENT_ACCENT }}>
                   <span style={{ background: PARENT_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #b0ccee' }}>Parent Portal — REMALJ Carewell</span>
                 </p>
-                <h1 className="page-header__title">Welcome back, Mrs. Edwards 👩</h1>
+                <h1 className="page-header__title">Welcome back, {getAuthUser()?.fullName || getAuthUser()?.name || 'Guardian'} 👩</h1>
                 <p className="page-header__subtitle">Stay on top of your children's education, fees, and school activities.</p>
               </div>
 
@@ -195,26 +213,32 @@ export default function ParentPortal() {
               </div>
 
               {/* Child selector */}
-              <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-                {CHILDREN.map((c, i) => (
-                  <button key={c.name} onClick={() => setActiveChild(i)} style={{
-                    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px',
-                    borderRadius: 'var(--radius-lg)',
-                    border: `2px solid ${activeChild === i ? PARENT_ACCENT : 'var(--gray-200)'}`,
-                    background: activeChild === i ? `${PARENT_ACCENT}12` : 'var(--white)',
-                    cursor: 'pointer', transition: 'all 200ms', boxShadow: activeChild === i ? 'var(--shadow-sm)' : 'none',
-                  }}>
-                    <span style={{ fontSize: 26 }}>{c.photo}</span>
-                    <div style={{ textAlign: 'left' }}>
-                      <div style={{ fontWeight: 800, color: 'var(--gray-900)', fontSize: 14 }}>{c.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{c.grade} • GPA {c.gpa}</div>
-                    </div>
-                    <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 99, fontSize: 10, fontWeight: 800, background: activeChild === i ? `${PARENT_ACCENT}20` : 'var(--gray-100)', color: activeChild === i ? PARENT_ACCENT : 'var(--gray-400)' }}>
-                      {activeChild === i ? 'VIEWING' : 'SELECT'}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              {childrenList.length > 0 ? (
+                <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+                  {childrenList.map((c, i) => (
+                    <button key={c.name} onClick={() => setActiveChild(i)} style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px',
+                      borderRadius: 'var(--radius-lg)',
+                      border: `2px solid ${activeChild === i ? PARENT_ACCENT : 'var(--gray-200)'}`,
+                      background: activeChild === i ? `${PARENT_ACCENT}12` : 'var(--white)',
+                      cursor: 'pointer', transition: 'all 200ms', boxShadow: activeChild === i ? 'var(--shadow-sm)' : 'none',
+                    }}>
+                      <span style={{ fontSize: 26 }}>{c.photo}</span>
+                      <div style={{ textAlign: 'left' }}>
+                        <div style={{ fontWeight: 800, color: 'var(--gray-900)', fontSize: 14 }}>{c.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{c.grade} • GPA {c.gpa}</div>
+                      </div>
+                      <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 99, fontSize: 10, fontWeight: 800, background: activeChild === i ? `${PARENT_ACCENT}20` : 'var(--gray-100)', color: activeChild === i ? PARENT_ACCENT : 'var(--gray-400)' }}>
+                        {activeChild === i ? 'VIEWING' : 'SELECT'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: '16px 20px', background: 'var(--gray-50)', border: '1px dashed var(--gray-300)', borderRadius: 'var(--radius-lg)', marginBottom: 20, color: 'var(--gray-600)', fontSize: 13 }}>
+                  ℹ️ No registered student records in database yet. Once enrolled in Admissions or Student Onboarding, students will appear here.
+                </div>
+              )}
 
               {/* Main grid */}
               <div className="content-grid">

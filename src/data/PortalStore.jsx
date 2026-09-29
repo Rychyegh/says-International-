@@ -1,208 +1,42 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { api } from '../services/api';
 
-const STORAGE_KEY = 'remalj-portal-live-data-v1';
+const STORAGE_KEY = 'remalj-portal-live-data-v3';
 
 const INITIAL_DATA = {
-  timetable: [
-    { id: 'math-mon', day: 'Monday', time: '08:00 AM', subject: 'Pure Mathematics', room: 'Room 402', lecturer: 'Prof. Mensah' },
-    { id: 'physics-tue', day: 'Tuesday', time: '10:30 AM', subject: 'Physics Lab', room: 'Science Block 1', lecturer: 'Mr. Boateng' },
-    { id: 'english-wed', day: 'Wednesday', time: '08:00 AM', subject: 'Literature in English', room: 'Auditorium B', lecturer: 'Dr. Anane' },
-    { id: 'ict-mon', day: 'Monday', time: '01:00 PM', subject: 'ICT Project', room: 'Lab 2', lecturer: 'Ms. Mensah' },
-    { id: 'english-tue', day: 'Tuesday', time: '01:00 PM', subject: 'English Essay', room: 'Room 204', lecturer: 'Mrs. Adjei' },
-    { id: 'math-wed', day: 'Wednesday', time: '01:00 PM', subject: 'Mathematics', room: 'Room 402', lecturer: 'Prof. Mensah' },
-  ],
-  results: [
-    { id: 'math', subject: 'Pure Mathematics', score: 91, grade: 'A', lecturer: 'Prof. Mensah', status: 'Approved', declineNote: null, updatedAt: '20 Aug 2026' },
-    { id: 'physics', subject: 'Physics', score: 86, grade: 'A-', lecturer: 'Mr. Boateng', status: 'Pending Approval', declineNote: null, updatedAt: '21 Aug 2026' },
-    { id: 'english', subject: 'Literature in English', score: 48, grade: 'F', lecturer: 'Dr. Anane', status: 'Declined', declineNote: 'Calculation Error: Exam mark mismatch on section B total. Please re-check and resubmit.', updatedAt: '22 Aug 2026' },
-  ],
-  courses: ['Pure Mathematics', 'Physics', 'Literature in English'],
+  timetable: [],
+  results: [],
+  courses: [],
   reportRequests: [],
   publishedReports: [],
-  incidents: [
-    { id: 'case-001', category: 'Safeguarding', person: 'Student A', severity: 'Restricted', status: 'Under review', loggedAt: '20 Aug 2026, 08:35' },
-    { id: 'case-002', category: 'Health & welfare', person: 'Student B', severity: 'Confidential', status: 'Follow-up due', loggedAt: '19 Aug 2026, 14:10' },
-  ],
-  assetTasks: [
-    { id: 'asset-001', asset: 'Bus 01', task: 'Quarterly safety inspection', owner: 'Transport lead', status: 'Scheduled', due: '23 Aug 2026' },
-    { id: 'asset-002', asset: 'ICT Lab 2', task: 'Replace projector lamp', owner: 'Facilities', status: 'In progress', due: '22 Aug 2026' },
-  ],
-  documentation: [
-    { id: 'doc-001', title: 'System architecture and integration register', owner: 'ICT Administration', status: 'Current', updatedAt: '15 Aug 2026' },
-    { id: 'doc-002', title: 'Backup and disaster recovery runbook', owner: 'ICT Administration', status: 'Review due', updatedAt: '01 Aug 2026' },
-    { id: 'doc-003', title: 'Safeguarding access-control procedure', owner: 'Designated Safeguarding Lead', status: 'Current', updatedAt: '18 Aug 2026' },
-  ],
-  acceptanceChecks: [
-    { id: 'functional', label: 'Functional workflows verified', done: true },
-    { id: 'roles', label: 'Role and access testing completed', done: false },
-    { id: 'migration', label: 'Data migration validation completed', done: false },
-    { id: 'recovery', label: 'Backup and recovery test evidenced', done: false },
-    { id: 'training', label: 'Training and competency checks recorded', done: false },
-  ],
-  academicCalendar: [
-    { id: 'cal-001', title: 'Term 1 resumes', start: '2026-09-08', end: '2026-09-08', type: 'Resumption' },
-    { id: 'cal-002', title: 'Mid-term vacation', start: '2026-10-23', end: '2026-10-30', type: 'Vacation' },
-    { id: 'cal-003', title: 'End-of-term examinations', start: '2026-11-23', end: '2026-12-04', type: 'Assessment' },
-  ],
-  feeAccounts: [
-    { id: 'fee-benjamin', child: 'Benjamin Edwards', school: 'REMALJ Carewell Inspirational School', term: 'Term 1 · 2026', billed: 4800, paid: 4800, status: 'Paid' },
-    { id: 'fee-adwoa', child: 'Adwoa Edwards', school: 'REMALJ Carewell Inspirational School', term: 'Term 1 · 2026', billed: 4800, paid: 3200, status: 'Balance due' },
-  ],
-  messages: [
-    { id: 'message-001', from: 'Mr. Samuel Amponsah', senderRole: 'Staff', to: 'Parents', recipient: 'Mrs. Angela Edwards', subject: 'Academic update', body: 'Term results will be published after moderation.', sentAt: '20 Aug 2026, 09:15' },
-  ],
-  assignments: [
-    { id: 'assignment-001', title: 'Advanced Calculus Thesis', instructions: 'Submit the completed problem set with working.', audience: 'SH2 Class Group', due: '2026-10-24', author: 'Mr. Samuel Amponsah', status: 'Published' },
-  ],
-  applications: [
-    { id: 'app-001', learner: 'Akosua Agyeman', guardian: 'Mr. Kwesi Agyeman', email: 'kwesi.agyeman@example.com', phone: '024 000 0000', level: 'JHS 1', status: 'Documents review', submittedAt: '20 Aug 2026, 09:00' },
-  ],
-  serviceRecords: [
-    { id: 'service-001', module: 'Smart identity & pickup', person: 'Benjamin Edwards', detail: 'Pickup card verified for Mrs. Angela Edwards', status: 'Approved', recordedAt: '20 Aug 2026, 08:20' },
-    { id: 'service-002', module: 'FACU health & welfare', person: 'Adwoa Edwards', detail: 'First-aid follow-up scheduled', status: 'Follow-up', recordedAt: '19 Aug 2026, 14:10' },
-  ],
+  incidents: [],
+  assetTasks: [],
+  documentation: [],
+  acceptanceChecks: [],
+  academicCalendar: [],
+  feeAccounts: [],
+  messages: [],
+  assignments: [],
+  applications: [],
+  serviceRecords: [],
   profiles: {
-    teacher: { name: 'Mr. Samuel Amponsah', photo: '' },
-    parent: { name: 'Mrs. Angela Edwards', photo: '' },
-    student: { name: 'Kwame Edwards', photo: '' },
-    admin: { name: 'Mr. John Admin', photo: '' },
-    accountant: { name: 'Mrs. Grace Accountant', photo: '' },
+    teacher: { name: 'Teacher', photo: '' },
+    parent: { name: 'Parent', photo: '' },
+    student: { name: 'Student', photo: '' },
+    admin: { name: 'System Administrator', photo: '' },
+    accountant: { name: 'Finance / Accounts Office', photo: '' },
   },
-  securityAlerts: [
-    { id: 'sec-001', portal: 'admin', targetAccount: 'admin@remaljcarewell.edu.gh', ipAddress: '197.251.14.82 (Bogoso Campus)', attemptedAt: '2026-09-08 09:12 AM', reason: 'Incorrect 4-Digit Security PIN Entered (Entered: 9999)', severity: 'High', status: 'Unresolved', device: 'Chrome / macOS' },
-    { id: 'sec-002', portal: 'accountant', targetAccount: 'accountant@remaljcarewell.edu.gh', ipAddress: '197.251.14.89 (Prestea Network)', attemptedAt: '2026-09-08 08:45 AM', reason: 'Invalid Password Attempt for Accountant Portal', severity: 'Medium', status: 'Unresolved', device: 'Safari / iPhone' },
-    { id: 'sec-003', portal: 'student', targetAccount: 'benjamin.edwards@remaljcarewell.edu.gh', ipAddress: '102.176.4.11 (Anikoko Junction)', attemptedAt: '2026-09-07 04:30 PM', reason: 'Unrecognized Student Card Barcode Scan Attempt', severity: 'Low', status: 'Acknowledged', device: 'Android Mobile' },
-  ],
-  onboardedStudents: [
-    { id: 'stu-001', studentId: 'REMALJ-2026-001', rfidCardCode: '0009841234', fullName: 'Benjamin Edwards', dob: '2015-03-12', gender: 'Male', level: 'Grade 4', classSection: 'Section B', guardianName: 'Mrs. Angela Edwards', guardianEmail: 'parent@remaljcarewell.edu.gh', guardianPhone: '024 111 2222', homeAddress: 'Bogoso, Anikoko', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'benjamin.edwards@remaljcarewell.edu.gh', defaultPassword: 'StuPass#2026-001' },
-    { id: 'stu-002', studentId: 'REMALJ-2026-002', rfidCardCode: '0014298132', fullName: 'Adwoa Edwards', dob: '2014-07-22', gender: 'Female', level: 'Primary 5', classSection: 'Primary 5A', guardianName: 'Mrs. Angela Edwards', guardianEmail: 'parent@remaljcarewell.edu.gh', guardianPhone: '024 111 2222', homeAddress: 'Bogoso, Anikoko', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'adwoa.edwards@remaljcarewell.edu.gh', defaultPassword: 'StuPass#2026-002' },
-    { id: 'stu-003', studentId: 'REMALJ-2026-041', rfidCardCode: '0008431920', fullName: 'Abena Mensah', dob: '2013-02-05', gender: 'Female', level: 'JHS 3', classSection: '3A', guardianName: 'Mr. Kofi Mensah', guardianEmail: 'kofi.mensah@example.com', guardianPhone: '024 333 4444', homeAddress: 'Tarkwa', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'abena.mensah@remaljcarewell.edu.gh', defaultPassword: 'StuPass#2026-041' },
-    { id: 'stu-004', studentId: 'REMALJ-2026-112', rfidCardCode: '10485721', fullName: 'Kwame Asante', dob: '2013-05-18', gender: 'Male', level: 'JHS 3', classSection: '3A', guardianName: 'Mrs. Ama Asante', guardianEmail: 'ama.asante@example.com', guardianPhone: '024 555 6666', homeAddress: 'Prestea', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'kwame.asante@remaljcarewell.edu.gh', defaultPassword: 'StuPass#2026-112' },
-    { id: 'stu-005', studentId: 'REMALJ-2026-088', rfidCardCode: '82930419', fullName: 'Efua Darko', dob: '2014-11-30', gender: 'Female', level: 'JHS 2', classSection: '2B', guardianName: 'Mr. Yaw Darko', guardianEmail: 'yaw.darko@example.com', guardianPhone: '024 777 8888', homeAddress: 'Bogoso', enrollmentDate: '2026-09-01', status: 'Active', studentEmail: 'efua.darko@remaljcarewell.edu.gh', defaultPassword: 'StuPass#2026-088' },
-  ],
-  teacherDirectory: [
-    { id: 'tch-001', staffId: 'STF-2026-001', name: 'Mr. Samuel Amponsah', subject: 'Pure Mathematics', classAssigned: 'SH2', email: 's.amponsah@remaljcarewell.edu.gh', phone: '024 900 1100', photo: '👨‍🏫', role: 'Senior Tutor & Form Master', status: 'Active', bio: '12 years teaching experience. BSc Mathematics, University of Ghana.' },
-    { id: 'tch-002', staffId: 'STF-2026-002', name: 'Prof. Mensah', subject: 'Mathematics', classAssigned: 'Grade 4', email: 'prof.mensah@remaljcarewell.edu.gh', phone: '024 900 1101', photo: '👨‍🏫', role: 'Mathematics Department Head', status: 'Active', bio: 'PhD Mathematics Education. Passionate about early numeracy.' },
-    { id: 'tch-003', staffId: 'STF-2026-003', name: 'Mr. Boateng', subject: 'Physics / Science', classAssigned: 'SHS & Primary', email: 'k.boateng@remaljcarewell.edu.gh', phone: '024 900 1102', photo: '👨‍🔬', role: 'Science Department Head', status: 'Active', bio: 'BSc Physics. Head of Science Department.' },
-    { id: 'tch-004', staffId: 'STF-2026-004', name: 'Dr. Anane', subject: 'Literature in English', classAssigned: 'SHS', email: 'dr.anane@remaljcarewell.edu.gh', phone: '024 900 1103', photo: '👩‍🏫', role: 'Languages Senior Lecturer', status: 'Active', bio: 'PhD English Literature. Author of two textbooks.' },
-    { id: 'tch-005', staffId: 'STF-2026-005', name: 'Ms. Mensah', subject: 'ICT / Computing', classAssigned: 'All Levels', email: 'm.mensah@remaljcarewell.edu.gh', phone: '024 900 1104', photo: '👩‍💻', role: 'ICT Administrator', status: 'Active', bio: 'BSc Computer Science. Cisco and Microsoft certified instructor.' },
-    { id: 'tch-006', staffId: 'STF-2026-006', name: 'Mrs. Adjei', subject: 'English Language', classAssigned: 'JHS 2', email: 'a.adjei@remaljcarewell.edu.gh', phone: '024 900 1105', photo: '👩‍🏫', role: 'Languages Department Head', status: 'Active', bio: 'MA English Language. Head of Languages Department.' },
-    { id: 'tch-007', staffId: 'STF-2026-007', name: 'Ms. Sarah Mensah', subject: 'Social Studies', classAssigned: 'Grade 4', email: 's.mensah@remaljcarewell.edu.gh', phone: '024 900 1106', photo: '👩‍🏫', role: 'Subject Teacher', status: 'Active', bio: 'BA Social Sciences. 8 years teaching experience.' },
-    { id: 'tch-008', staffId: 'STF-2026-008', name: 'Mr. Kofi Appiah', subject: 'Mathematics', classAssigned: 'Grade 4', email: 'k.appiah@remaljcarewell.edu.gh', phone: '024 900 1107', photo: '👨‍🏫', role: 'Form Tutor', status: 'Active', bio: 'BEd Mathematics. Form tutor for Grade 4 Section B.' },
-  ],
-  studentFees: [
-    { id: 'fee-stu-001', studentId: 'REMALJ-2026-001', studentName: 'Benjamin Edwards', guardianName: 'Mrs. Angela Edwards', guardianEmail: 'parent@remaljcarewell.edu.gh', term: 'Term 1 · 2026', billedAmount: 4800, paidAmount: 4800, balance: 0, status: 'Paid', dueDate: '2026-09-15', paymentDate: '2026-09-01' },
-    { id: 'fee-stu-002', studentId: 'REMALJ-2026-002', studentName: 'Adwoa Edwards', guardianName: 'Mrs. Angela Edwards', guardianEmail: 'parent@remaljcarewell.edu.gh', term: 'Term 1 · 2026', billedAmount: 4800, paidAmount: 3200, balance: 1600, status: 'Balance Due', dueDate: '2026-09-15', paymentDate: '2026-09-05' },
-    { id: 'fee-stu-003', studentId: 'REMALJ-2026-041', studentName: 'Abena Mensah', guardianName: 'Mr. Kofi Mensah', guardianEmail: 'kofi.mensah@example.com', term: 'Term 1 · 2026', billedAmount: 5200, paidAmount: 5200, balance: 0, status: 'Paid', dueDate: '2026-09-15', paymentDate: '2026-08-30' },
-    { id: 'fee-stu-004', studentId: 'REMALJ-2026-112', studentName: 'Kwame Asante', guardianName: 'Mrs. Ama Asante', guardianEmail: 'ama.asante@example.com', term: 'Term 1 · 2026', billedAmount: 5200, paidAmount: 2000, balance: 3200, status: 'Balance Due', dueDate: '2026-09-15', paymentDate: '2026-09-10' },
-    { id: 'fee-stu-005', studentId: 'REMALJ-2026-088', studentName: 'Efua Darko', guardianName: 'Mr. Yaw Darko', guardianEmail: 'yaw.darko@example.com', term: 'Term 1 · 2026', billedAmount: 4900, paidAmount: 0, balance: 4900, status: 'Not Paid', dueDate: '2026-09-15', paymentDate: null },
-  ],
-  accountantMessages: [
-    { id: 'acc-msg-001', from: 'Mrs. Grace Accountant', senderRole: 'Accountant', to: 'Mrs. Ama Asante', recipientEmail: 'ama.asante@example.com', studentName: 'Kwame Asante', subject: 'Outstanding Fees Reminder', body: 'Dear Mrs. Asante, this is a friendly reminder that Kwame has an outstanding balance of GHS 3,200 for Term 1. Please arrange payment by 30th September to avoid late fees. Thank you.', sentAt: '25 Aug 2026, 10:30 AM', status: 'Sent' },
-    { id: 'acc-msg-002', from: 'Mrs. Grace Accountant', senderRole: 'Accountant', to: 'Mr. Yaw Darko', recipientEmail: 'yaw.darko@example.com', studentName: 'Efua Darko', subject: 'Urgent: Fee Payment Required', body: 'Dear Mr. Darko, Efua\'s school fees for Term 1 (GHS 4,900) are currently outstanding. Please contact the accounts office to discuss payment arrangements. We appreciate your prompt attention to this matter.', sentAt: '26 Aug 2026, 09:15 AM', status: 'Sent' },
-  ],
-  busRoutes: [
-    { id: 'A', name: 'Bus 01 – Bogoso Route', color: '#16a34a', stops: ['School Grounds', 'Anikoko Junction', 'Bogoso Market', 'Post Office'], driverName: 'Mr. Kweku Mensah', driverPhone: '024 444 5555', currentLat: 6.409, currentLng: -1.952, speed: '38 km/h', status: 'On Route' },
-    { id: 'B', name: 'Bus 02 – Tarkwa Route', color: '#2563eb', stops: ['School Grounds', 'Tamso Junction', 'Tarkwa Main Station', 'University Roundabout'], driverName: 'Mr. Emmanuel Darko', driverPhone: '024 555 6666', currentLat: 6.415, currentLng: -1.96, speed: '45 km/h', status: 'On Route' }
-  ],
-  definedBills: [
-    { id: 'def-1', classLevel: 'Primary 1', academicYear: '2026/2027', term: 'Term 1', billCategory: 'Tuition Fee', amount: 1350, specification: 'Compulsory', dateDefined: '2026-09-01' },
-    { id: 'def-2', classLevel: 'Primary 1', academicYear: '2026/2027', term: 'Term 1', billCategory: 'Bus Fee', amount: 450, specification: 'Optional', dateDefined: '2026-09-01' },
-    { id: 'def-3', classLevel: 'JHS 1', academicYear: '2026/2027', term: 'Term 1', billCategory: 'Tuition Fee', amount: 1800, specification: 'Compulsory', dateDefined: '2026-09-01' },
-    { id: 'def-4', classLevel: 'JHS 1', academicYear: '2026/2027', term: 'Term 1', billCategory: 'ICT Fee', amount: 300, specification: 'Compulsory', dateDefined: '2026-09-01' },
-    { id: 'def-5', classLevel: 'JHS 1', academicYear: '2026/2027', term: 'Term 1', billCategory: 'Bus Fee', amount: 500, specification: 'Optional', dateDefined: '2026-09-01' },
-  ],
-  semesterRegistrations: [
-    { id: 'reg-001', studentId: 'REMALJ-2026-001', studentName: 'Benjamin Edwards', classLevel: 'Grade 4', academicYear: '2026/2027', term: 'Term 1', status: 'Registered', registeredAt: '2026-09-01' },
-    { id: 'reg-002', studentId: 'REMALJ-2026-002', studentName: 'Adwoa Edwards', classLevel: 'Primary 5', academicYear: '2026/2027', term: 'Term 1', status: 'Registered', registeredAt: '2026-09-01' },
-    { id: 'reg-003', studentId: 'REMALJ-2026-041', studentName: 'Abena Mensah', classLevel: 'JHS 3', academicYear: '2026/2027', term: 'Term 1', status: 'Registered', registeredAt: '2026-09-01' },
-  ],
-  examRegistrations: [
-    {
-      id: 'exam-reg-001',
-      studentId: 'REMALJ-2026-041',
-      studentName: 'Abena Mensah',
-      classLevel: 'JHS 3',
-      academicYear: '2025/2026',
-      term: 'Term 1',
-      examType: 'End-of-Term Final Examination',
-      indexNumber: 'EXAM-2026-JHS3-041',
-      examCenter: 'Main Examination Hall A',
-      subjects: ['Mathematics', 'English Language', 'Integrated Science', 'Social Studies', 'ICT / Computing', 'Religious & Moral Education'],
-      registeredAt: '2026-09-10',
-      registeredBy: 'Academic Head / Admin',
-      status: 'Registered - Hall Pass Valid'
-    },
-    {
-      id: 'exam-reg-002',
-      studentId: 'REMALJ-2026-112',
-      studentName: 'Kwame Asante',
-      classLevel: 'JHS 3',
-      academicYear: '2025/2026',
-      term: 'Term 1',
-      examType: 'End-of-Term Final Examination',
-      indexNumber: 'EXAM-2026-JHS3-112',
-      examCenter: 'Main Examination Hall A',
-      subjects: ['Mathematics', 'English Language', 'Integrated Science', 'Social Studies', 'ICT / Computing'],
-      registeredAt: '2026-09-10',
-      registeredBy: 'Academic Head / Admin',
-      status: 'Registered - Hall Pass Valid'
-    }
-  ],
-  paymentVouchers: [
-    {
-      id: 'pv-088',
-      pvNo: 'PV-2026-088',
-      requisitionNo: 'REQ-99412',
-      provider: 'ELECTRICITY COMPANY OF GHANA (ECG)',
-      providerId: 'ECG-99310',
-      description: 'Cost of Electricity Bill & Utility Substation Maintenance',
-      qty: 1,
-      cost: 3200.00,
-      total: 3200.00,
-      datePrepared: '2026-09-05',
-      valuedDate: '2026-09-05',
-      auditRemarks: 'Pre-audited & verified against monthly meter consumption records.',
-      status: 'Pending Audit',
-      editedByHeadmaster: false,
-      correctionsLog: []
-    },
-    {
-      id: 'pv-082',
-      pvNo: 'PV-2026-082',
-      requisitionNo: 'REQ-99380',
-      provider: 'DAILY CANTEEN SUPPLIES LTD',
-      providerId: '931043',
-      description: 'Weekly Canteen Feeding & Grocery Stock Supply',
-      qty: 1,
-      cost: 1850.00,
-      total: 1850.00,
-      datePrepared: '2026-09-02',
-      valuedDate: '2026-09-02',
-      auditRemarks: 'Pending pre-audit verification.',
-      status: 'Pending Audit',
-      editedByHeadmaster: false,
-      correctionsLog: []
-    },
-    {
-      id: 'pv-075',
-      pvNo: 'PV-2026-075',
-      requisitionNo: 'REQ-99300',
-      provider: 'STATIONERY & PRINTING DEPOT',
-      providerId: '931088',
-      description: 'Terminal Assessment Paper & Printing Ink Cartridges',
-      qty: 5,
-      cost: 240.00,
-      total: 1200.00,
-      datePrepared: '2026-08-28',
-      valuedDate: '2026-08-28',
-      auditRemarks: 'Pre-audited & Approved',
-      status: 'Pre-Audited & Approved',
-      editedByHeadmaster: false,
-      correctionsLog: []
-    }
-  ],
+  securityAlerts: [],
+  onboardedStudents: [],
+  teacherDirectory: [],
+  studentFees: [],
+  accountantMessages: [],
+  busRoutes: [],
+  definedBills: [],
+  semesterRegistrations: [],
+  examRegistrations: [],
+  paymentVouchers: [],
+  ledgerLogs: [],
   academicSettings: {
     academicYear: '2025/2026',
     academicTerm: 'Term 3',
@@ -216,6 +50,7 @@ const INITIAL_DATA = {
   },
   theme: 'light',
   backendConnected: false,
+  isLoadingBackend: true,
 };
 
 const PortalDataContext = createContext(null);
@@ -257,203 +92,287 @@ export function PortalDataProvider({ children }) {
     return () => window.removeEventListener('storage', sync);
   }, []);
 
-  // Sync with live backend API endpoints on mount & token availability
+  // Sync strictly with live backend API endpoints on mount
   const refreshBackendData = useCallback(async () => {
     try {
       // 1. Bus Routes
       try {
         const routesRes = await api.getBusRoutes();
-        if (routesRes && routesRes.routes) {
+        if (Array.isArray(routesRes)) {
+          setData(current => ({ ...current, busRoutes: routesRes, backendConnected: true }));
+        } else if (routesRes && Array.isArray(routesRes.routes)) {
           setData(current => ({ ...current, busRoutes: routesRes.routes, backendConnected: true }));
         }
-      } catch (e) { /* fallback to local */ }
+      } catch (e) { /* silent */ }
 
       // 2. Timetable
       try {
         const timetables = await api.getTimetables();
-        if (Array.isArray(timetables) && timetables.length > 0) {
+        if (Array.isArray(timetables)) {
           const mapped = timetables.map(t => ({
             id: t.id,
             day: t.day,
-            time: `${t.start_time}${t.end_time ? ' - ' + t.end_time : ''}`,
+            time: t.time || `${t.start_time || ''}${t.end_time ? ' - ' + t.end_time : ''}`,
             subject: t.subject,
             room: t.room,
-            lecturer: t.lecturer_name,
-            classLevel: t.class_level
+            lecturer: t.lecturer || t.lecturer_name,
+            classLevel: t.class_level || t.classLevel
           }));
           setData(current => ({ ...current, timetable: mapped, backendConnected: true }));
         }
-      } catch (e) { /* fallback */ }
+      } catch (e) { /* silent */ }
 
       // 3. Results
       try {
         const results = await api.getResults();
-        if (Array.isArray(results) && results.length > 0) {
+        if (Array.isArray(results)) {
           const mapped = results.map(r => ({
             id: r.id,
+            studentId: r.student_id || r.studentId,
+            studentName: r.student_name || r.studentName,
             subject: r.subject,
             score: r.score,
             grade: r.grade,
             lecturer: r.lecturer,
-            updatedAt: r.updated_at
+            status: r.status || 'Approved',
+            declineNote: r.decline_note || r.declineNote,
+            updatedAt: r.updated_at || r.updatedAt
           }));
           setData(current => ({ ...current, results: mapped, backendConnected: true }));
         }
-      } catch (e) { /* fallback */ }
+      } catch (e) { /* silent */ }
 
       // 4. Report Requests
       try {
         const reports = await api.getReportRequests();
-        if (Array.isArray(reports) && reports.length > 0) {
+        if (Array.isArray(reports)) {
           const mapped = reports.map(r => ({
             id: r.id,
-            child: r.child_name,
+            child: r.child || r.child_name,
             semester: r.semester,
             note: r.note,
             status: r.status,
-            fileName: r.file_name,
-            fileUrl: r.file_url,
-            requestedAt: r.requested_at,
-            uploadedAt: r.uploaded_at
+            fileName: r.file_name || r.fileName,
+            fileUrl: r.file_url || r.fileUrl,
+            requestedAt: r.created_at || r.requestedAt,
+            uploadedAt: r.uploaded_at || r.uploadedAt
           }));
           setData(current => ({ ...current, reportRequests: mapped, backendConnected: true }));
         }
-      } catch (e) { /* fallback */ }
+      } catch (e) { /* silent */ }
 
       // 5. Incidents
       try {
         const incidents = await api.getIncidents();
-        if (Array.isArray(incidents) && incidents.length > 0) {
+        if (Array.isArray(incidents)) {
           const mapped = incidents.map(i => ({
             id: i.id,
             category: i.category,
             person: i.person,
             severity: i.severity,
             status: i.status,
-            loggedAt: i.logged_at
+            loggedAt: i.logged_at || i.loggedAt
           }));
           setData(current => ({ ...current, incidents: mapped, backendConnected: true }));
         }
-      } catch (e) { /* fallback */ }
+      } catch (e) { /* silent */ }
 
       // 6. Asset Tasks
       try {
         const tasks = await api.getAssetTasks();
-        if (Array.isArray(tasks) && tasks.length > 0) {
+        if (Array.isArray(tasks)) {
           const mapped = tasks.map(t => ({
             id: t.id,
             asset: t.asset,
             task: t.task,
             owner: t.owner,
             status: t.status,
-            due: t.due_date
+            due: t.due_date || t.due
           }));
           setData(current => ({ ...current, assetTasks: mapped, backendConnected: true }));
         }
-      } catch (e) { /* fallback */ }
+      } catch (e) { /* silent */ }
 
       // 7. Messages
       try {
         const msgs = await api.getMessages();
-        if (Array.isArray(msgs) && msgs.length > 0) {
+        if (Array.isArray(msgs)) {
           const mapped = msgs.map(m => ({
             id: m.id,
-            from: m.sender_name,
-            senderRole: m.sender_role,
-            to: m.recipient_role,
-            recipient: m.recipient_name,
+            from: m.from || m.from_name || m.sender_name,
+            senderRole: m.senderRole || m.sender_role,
+            to: m.to || m.to_role || m.recipient_role,
+            recipient: m.recipient || m.recipient_name || m.recipient_email,
+            studentName: m.studentName || m.student_name,
             subject: m.subject,
             body: m.body,
-            sentAt: m.sent_at
+            sentAt: m.sentAt || m.sent_at
           }));
           setData(current => ({ ...current, messages: mapped, backendConnected: true }));
         }
-      } catch (e) { /* fallback */ }
+      } catch (e) { /* silent */ }
 
       // 8. Assignments
       try {
         const assignments = await api.getAssignments();
-        if (Array.isArray(assignments) && assignments.length > 0) {
+        if (Array.isArray(assignments)) {
           const mapped = assignments.map(a => ({
             id: a.id,
             title: a.title,
             instructions: a.instructions,
             audience: a.audience,
-            due: a.due_date,
-            author: a.author_name,
+            due: a.due || a.due_date,
+            author: a.author || a.author_name,
             status: a.status
           }));
           setData(current => ({ ...current, assignments: mapped, backendConnected: true }));
         }
-      } catch (e) { /* fallback */ }
+      } catch (e) { /* silent */ }
 
       // 9. Admissions Applications
       try {
         const apps = await api.getApplications();
-        if (Array.isArray(apps) && apps.length > 0) {
+        if (Array.isArray(apps)) {
           const mapped = apps.map(a => ({
             id: a.id,
-            learner: a.learner_name,
-            guardian: a.guardian_name,
-            email: a.contact_email,
-            phone: a.contact_phone,
-            level: a.applying_level,
+            learner: a.learner || a.learner_name,
+            guardian: a.guardian || a.guardian_name,
+            email: a.email || a.contact_email,
+            phone: a.phone || a.contact_phone,
+            level: a.level || a.applying_level,
             status: a.status,
-            submittedAt: a.submitted_at,
-            office_use_notes: a.office_use_notes
+            submittedAt: a.submittedAt || a.submitted_at,
+            office_use_notes: a.office_use_notes,
+            ...(a.formData || a.form_data || {})
           }));
           setData(current => ({ ...current, applications: mapped, backendConnected: true }));
         }
-      } catch (e) { /* fallback */ }
+      } catch (e) { /* silent */ }
 
       // 10. Onboarded Students
       try {
         const students = await api.getStudents();
-        if (Array.isArray(students) && students.length > 0) {
+        if (Array.isArray(students)) {
           const mapped = students.map(s => ({
             id: s.id,
-            studentId: s.student_code || s.id,
-            fullName: s.full_name,
+            studentId: s.studentId || s.student_id_code || s.student_code || s.id,
+            rfidCardCode: s.rfidCardCode || s.rfid_card_code,
+            fullName: s.fullName || s.full_name,
             dob: s.dob,
             gender: s.gender,
-            level: s.class_level,
-            classSection: s.class_section || 'A',
-            guardianName: s.guardian_name,
-            guardianEmail: s.guardian_email,
-            guardianPhone: s.guardian_phone,
-            homeAddress: s.home_address,
-            enrollmentDate: s.enrollment_date || new Date().toISOString().split('T')[0],
+            level: s.level || s.class_level,
+            classSection: s.classSection || s.class_section || 'A',
+            guardianName: s.guardianName || s.guardian_name,
+            guardianEmail: s.guardianEmail || s.guardian_email,
+            guardianPhone: s.guardianPhone || s.guardian_phone,
+            homeAddress: s.homeAddress || s.home_address,
+            enrollmentDate: s.enrollmentDate || s.enrollment_date || new Date().toISOString().split('T')[0],
             status: s.status || 'Active',
-            studentEmail: s.student_email
+            studentEmail: s.studentEmail || s.student_email,
+            defaultPassword: s.defaultPassword || s.default_password
           }));
           setData(current => ({ ...current, onboardedStudents: mapped, backendConnected: true }));
         }
-      } catch (e) { /* fallback */ }
+      } catch (e) { /* silent */ }
 
       // 11. Fees
       try {
         const fees = await api.getFees();
-        if (Array.isArray(fees) && fees.length > 0) {
+        if (Array.isArray(fees)) {
           const mapped = fees.map(f => ({
             id: f.id,
-            studentId: f.student_id || f.student_code,
-            studentName: f.student_name,
-            guardianName: f.guardian_name,
-            guardianEmail: f.guardian_email,
+            studentId: f.studentId || f.student_id || f.student_code,
+            studentName: f.studentName || f.student_name,
+            guardianName: f.guardianName || f.guardian_name,
+            guardianEmail: f.guardianEmail || f.guardian_email,
             term: f.term || 'Term 1 · 2026',
-            billedAmount: f.billed_amount,
-            paidAmount: f.paid_amount,
-            balance: f.balance,
-            status: f.status,
-            dueDate: f.due_date,
-            paymentDate: f.payment_date
+            billedAmount: Number(f.billedAmount !== undefined ? f.billedAmount : f.billed_amount) || 0,
+            paidAmount: Number(f.paidAmount !== undefined ? f.paidAmount : f.paid_amount) || 0,
+            balance: Number(f.balance) || 0,
+            status: f.status || 'Not Paid',
+            dueDate: f.dueDate || f.due_date || '2026-09-15',
+            paymentDate: f.paymentDate || f.payment_date
           }));
-          setData(current => ({ ...current, studentFees: mapped, backendConnected: true }));
+          const mappedAccounts = mapped.map(f => ({
+            id: `fee-acc-${f.studentId || f.id}`,
+            child: f.studentName,
+            school: 'REMALJ Carewell Inspirational School',
+            term: f.term,
+            billed: f.billedAmount,
+            paid: f.paidAmount,
+            status: f.status
+          }));
+          setData(current => ({
+            ...current,
+            studentFees: mapped,
+            feeAccounts: mappedAccounts,
+            backendConnected: true
+          }));
         }
-      } catch (e) { /* fallback */ }
+      } catch (e) { /* silent */ }
+
+      // 12. Staff & Teacher Directory
+      try {
+        const staff = await api.getStaff();
+        if (Array.isArray(staff)) {
+          setData(current => ({ ...current, teacherDirectory: staff, backendConnected: true }));
+        }
+      } catch (e) { /* silent */ }
+
+      // 13. Defined Bills
+      try {
+        const bills = await api.getDefinedBills();
+        if (Array.isArray(bills)) {
+          setData(current => ({ ...current, definedBills: bills, backendConnected: true }));
+        }
+      } catch (e) { /* silent */ }
+
+      // 14. Payment Vouchers
+      try {
+        const pvs = await api.getPaymentVouchers();
+        if (Array.isArray(pvs)) {
+          const mapped = pvs.map(p => ({
+            id: p.id,
+            pvNo: p.pv_number || p.pvNo || `PV-${p.id}`,
+            requisitionNo: p.requisition_no || p.requisitionNo,
+            provider: p.payee_name || p.provider || 'Vendor',
+            providerId: p.payee_id || p.providerId,
+            description: p.description,
+            qty: p.quantity || p.qty || 1,
+            cost: p.unit_cost || p.cost || 0,
+            total: p.total_amount || p.total || 0,
+            datePrepared: p.date_prepared || p.datePrepared,
+            valuedDate: p.date_prepared || p.valuedDate,
+            auditRemarks: p.auditRemarks || p.pre_audited_by || 'Registered in system',
+            status: p.status === 'PRE_AUDITED' ? 'Pre-Audited & Approved' : p.status || 'Pending Audit',
+            editedByHeadmaster: false,
+            correctionsLog: []
+          }));
+          setData(current => ({ ...current, paymentVouchers: mapped, backendConnected: true }));
+        }
+      } catch (e) { /* silent */ }
+
+      // 15. Semester Registrations
+      try {
+        const semRegs = await api.getSemesterRegistrations();
+        if (Array.isArray(semRegs)) {
+          setData(current => ({ ...current, semesterRegistrations: semRegs, backendConnected: true }));
+        }
+      } catch (e) { /* silent */ }
+
+      // 16. Exam Registrations
+      try {
+        const examRegs = await api.getExamRegistrations();
+        if (Array.isArray(examRegs)) {
+          setData(current => ({ ...current, examRegistrations: examRegs, backendConnected: true }));
+        }
+      } catch (e) { /* silent */ }
+
+      setData(current => ({ ...current, isLoadingBackend: false, backendConnected: true }));
 
     } catch (err) {
-      console.warn('Backend sync failed:', err);
+      console.warn('Backend sync error:', err);
+      setData(current => ({ ...current, isLoadingBackend: false }));
     }
   }, []);
 
@@ -466,42 +385,8 @@ export function PortalDataProvider({ children }) {
   }, [data.onboardedStudents]);
 
   const sortedStudentFees = useMemo(() => {
-    const feeMap = new Map();
-    (data.studentFees || []).forEach((f) => {
-      if (f.studentId) feeMap.set(String(f.studentId).toLowerCase(), f);
-      if (f.studentName) feeMap.set(String(f.studentName).toLowerCase(), f);
-      if (f.id) feeMap.set(String(f.id).toLowerCase(), f);
-    });
-
-    const merged = [...(data.studentFees || [])];
-
-    (data.onboardedStudents || []).forEach((s) => {
-      const keyId = (s.studentId || '').toLowerCase();
-      const keyName = (s.fullName || s.name || '').toLowerCase();
-      if ((keyId && !feeMap.has(keyId)) && (keyName && !feeMap.has(keyName))) {
-        const defaultBilled = (s.level || '').includes('JHS') ? 5200 : (s.level || '').includes('SHS') ? 5800 : 4800;
-        const autoFee = {
-          id: `fee-${s.id || s.studentId}`,
-          studentId: s.studentId || `REMALJ-${s.id}`,
-          studentName: s.fullName || s.name,
-          guardianName: s.guardianName || 'Parent / Guardian',
-          guardianEmail: s.guardianEmail || 'parent@remaljcarewell.edu.gh',
-          term: 'Term 1 · 2026',
-          billedAmount: defaultBilled,
-          paidAmount: 0,
-          balance: defaultBilled,
-          status: 'Not Paid',
-          dueDate: '2026-09-15',
-          paymentDate: null
-        };
-        merged.push(autoFee);
-        if (keyId) feeMap.set(keyId, autoFee);
-        if (keyName) feeMap.set(keyName, autoFee);
-      }
-    });
-
-    return merged.sort((a, b) => (a.studentName || '').localeCompare(b.studentName || ''));
-  }, [data.studentFees, data.onboardedStudents]);
+    return [...(data.studentFees || [])].sort((a, b) => (a.studentName || '').localeCompare(b.studentName || ''));
+  }, [data.studentFees]);
 
   const value = useMemo(() => ({
     ...data,
@@ -513,26 +398,54 @@ export function PortalDataProvider({ children }) {
     onboardedStudents: sortedOnboardedStudents,
     studentFees: sortedStudentFees,
     refreshBackendData,
-    saveTimetableEntry: (entry) => setData((current) => ({
-      ...current,
-      timetable: current.timetable.some((item) => item.id === entry.id)
-        ? current.timetable.map((item) => item.id === entry.id ? entry : item)
-        : [...current.timetable, { ...entry, id: crypto.randomUUID?.() || String(Date.now()) }],
-    })),
-    publishResult: (result) => setData((current) => ({
-      ...current,
-      results: current.results.some((item) => item.subject === result.subject)
-        ? current.results.map((item) => item.subject === result.subject ? { ...result, id: item.id, status: 'Pending Approval', declineNote: null, updatedAt: new Date().toLocaleString() } : item)
-        : [...current.results, { ...result, id: crypto.randomUUID?.() || String(Date.now()), status: 'Pending Approval', declineNote: null, updatedAt: new Date().toLocaleString() }],
-    })),
-    approveResult: (id) => setData((current) => ({
-      ...current,
-      results: (current.results || []).map((item) => item.id === id ? { ...item, status: 'Approved', declineNote: null, approvedAt: new Date().toLocaleString() } : item),
-    })),
-    declineResult: (id, note) => setData((current) => ({
-      ...current,
-      results: (current.results || []).map((item) => item.id === id ? { ...item, status: 'Declined', declineNote: note || 'Error detected in score breakdown by Academic Head.', declinedAt: new Date().toLocaleString() } : item),
-    })),
+    saveTimetableEntry: async (entry) => {
+      try {
+        await api.createTimetableEntry(entry);
+      } catch (e) {
+        console.warn('Backend timetable create fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        timetable: current.timetable.some((item) => item.id === entry.id)
+          ? current.timetable.map((item) => item.id === entry.id ? entry : item)
+          : [...current.timetable, { ...entry, id: entry.id || crypto.randomUUID?.() || String(Date.now()) }],
+      }));
+    },
+    publishResult: async (result) => {
+      try {
+        await api.recordResult(result);
+      } catch (e) {
+        console.warn('Backend result record fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        results: current.results.some((item) => item.subject === result.subject)
+          ? current.results.map((item) => item.subject === result.subject ? { ...result, id: item.id, status: 'Pending Approval', declineNote: null, updatedAt: new Date().toLocaleString() } : item)
+          : [...current.results, { ...result, id: crypto.randomUUID?.() || String(Date.now()), status: 'Pending Approval', declineNote: null, updatedAt: new Date().toLocaleString() }],
+      }));
+    },
+    approveResult: async (id) => {
+      try {
+        await api.updateResultStatus(id, { status: 'Approved' });
+      } catch (e) {
+        console.warn('Backend result approve fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        results: (current.results || []).map((item) => item.id === id ? { ...item, status: 'Approved', declineNote: null, approvedAt: new Date().toLocaleString() } : item),
+      }));
+    },
+    declineResult: async (id, note) => {
+      try {
+        await api.updateResultStatus(id, { status: 'Declined', decline_note: note });
+      } catch (e) {
+        console.warn('Backend result decline fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        results: (current.results || []).map((item) => item.id === id ? { ...item, status: 'Declined', declineNote: note || 'Error detected in score breakdown by Academic Head.', declinedAt: new Date().toLocaleString() } : item),
+      }));
+    },
     registerCourse: (course) => setData((current) => ({
       ...current,
       courses: current.courses.includes(course) ? current.courses : [...current.courses, course],
@@ -1191,74 +1104,104 @@ export function PortalDataProvider({ children }) {
       onboardedStudents: (current.onboardedStudents || []).map((s) => (s.id === id || s.studentId === id) ? { ...s, ...updates } : s),
     })),
     // Define Bills Methods
-    saveDefinedBill: (billItem) => setData((current) => {
-      const existing = current.definedBills || [];
-      const newBill = {
-        id: billItem.id || `def-${Date.now()}`,
-        classLevel: billItem.classLevel || 'All Classes',
-        academicYear: billItem.academicYear || '2026/2027',
-        term: billItem.term || 'Term 1',
-        billCategory: billItem.billCategory || 'Tuition Fee',
-        amount: Number(billItem.amount) || 0,
-        specification: billItem.specification || 'Compulsory',
-        description: billItem.description || billItem.billCategory,
-        dateDefined: billItem.dateDefined || new Date().toISOString().split('T')[0]
-      };
-      const updated = existing.some(b => b.id === newBill.id)
-        ? existing.map(b => b.id === newBill.id ? newBill : b)
-        : [newBill, ...existing];
-      return { ...current, definedBills: updated };
-    }),
-    deleteDefinedBill: (id) => setData((current) => ({
-      ...current,
-      definedBills: (current.definedBills || []).filter(b => b.id !== id)
-    })),
+    saveDefinedBill: async (billItem) => {
+      try {
+        await api.createDefinedBill(billItem);
+      } catch (e) {
+        console.warn('Backend bill create fallback:', e);
+      }
+      setData((current) => {
+        const existing = current.definedBills || [];
+        const newBill = {
+          id: billItem.id || `def-${Date.now()}`,
+          classLevel: billItem.classLevel || 'All Classes',
+          academicYear: billItem.academicYear || '2026/2027',
+          term: billItem.term || 'Term 1',
+          billCategory: billItem.billCategory || 'Tuition Fee',
+          amount: Number(billItem.amount) || 0,
+          specification: billItem.specification || 'Compulsory',
+          description: billItem.description || billItem.billCategory,
+          dateDefined: billItem.dateDefined || new Date().toISOString().split('T')[0]
+        };
+        const updated = existing.some(b => b.id === newBill.id)
+          ? existing.map(b => b.id === newBill.id ? newBill : b)
+          : [newBill, ...existing];
+        return { ...current, definedBills: updated };
+      });
+    },
+    deleteDefinedBill: async (id) => {
+      try {
+        await api.deleteDefinedBill(id);
+      } catch (e) {
+        console.warn('Backend bill delete fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        definedBills: (current.definedBills || []).filter(b => b.id !== id)
+      }));
+    },
     // Semester Registration Methods
-    registerClassSemester: ({ classLevel, academicYear, term, studentId, studentName }) => setData((current) => {
-      const existingRegs = current.semesterRegistrations || [];
-      let newEntries = [];
+    registerClassSemester: async ({ classLevel, academicYear, term, studentId, studentName }) => {
+      try {
+        if (studentId && studentName) {
+          await api.createSemesterRegistration({ studentId, studentName, classLevel, academicYear, term });
+        }
+      } catch (e) {
+        console.warn('Backend semester reg fallback:', e);
+      }
+      setData((current) => {
+        const existingRegs = current.semesterRegistrations || [];
+        let newEntries = [];
 
-      if (studentId && studentName) {
-        // Individual Registration
-        newEntries.push({
-          id: `reg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-          studentId,
-          studentName,
-          classLevel: classLevel || 'All Classes',
-          academicYear: academicYear || '2026/2027',
-          term: term || 'Term 1',
-          status: 'Registered',
-          registeredAt: new Date().toISOString().split('T')[0]
-        });
-      } else if (classLevel) {
-        // Class-based Bulk Registration
-        const targetStudents = (current.onboardedStudents || []).filter(s =>
-          classLevel === 'All Classes' || (s.level || '').toLowerCase().includes(classLevel.toLowerCase())
-        );
-        const listToUse = targetStudents.length > 0 ? targetStudents : current.onboardedStudents || [];
-        listToUse.forEach(s => {
+        if (studentId && studentName) {
+          // Individual Registration
           newEntries.push({
-            id: `reg-${Date.now()}-${s.id || s.studentId}`,
-            studentId: s.studentId || s.id,
-            studentName: s.fullName || s.name,
-            classLevel: s.level || classLevel,
+            id: `reg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            studentId,
+            studentName,
+            classLevel: classLevel || 'All Classes',
             academicYear: academicYear || '2026/2027',
             term: term || 'Term 1',
             status: 'Registered',
             registeredAt: new Date().toISOString().split('T')[0]
           });
-        });
-      }
+        } else if (classLevel) {
+          // Class-based Bulk Registration
+          const targetStudents = (current.onboardedStudents || []).filter(s =>
+            classLevel === 'All Classes' || (s.level || '').toLowerCase().includes(classLevel.toLowerCase())
+          );
+          const listToUse = targetStudents.length > 0 ? targetStudents : current.onboardedStudents || [];
+          listToUse.forEach(s => {
+            newEntries.push({
+              id: `reg-${Date.now()}-${s.id || s.studentId}`,
+              studentId: s.studentId || s.id,
+              studentName: s.fullName || s.name,
+              classLevel: s.level || classLevel,
+              academicYear: academicYear || '2026/2027',
+              term: term || 'Term 1',
+              status: 'Registered',
+              registeredAt: new Date().toISOString().split('T')[0]
+            });
+          });
+        }
 
-      return {
+        return {
+          ...current,
+          semesterRegistrations: [...newEntries, ...existingRegs]
+        };
+      });
+    },
+    deleteSemesterRegistration: async (id) => {
+      try {
+        await api.deleteSemesterRegistration(id);
+      } catch (e) {
+        console.warn('Backend semester reg delete fallback:', e);
+      }
+      setData((current) => ({
         ...current,
-        semesterRegistrations: [...newEntries, ...existingRegs]
-      };
-    }),
-    deleteSemesterRegistration: (id) => setData((current) => ({
-      ...current,
-      semesterRegistrations: (current.semesterRegistrations || []).filter(r => r.id !== id && r.studentId !== id)
-    })),
+        semesterRegistrations: (current.semesterRegistrations || []).filter(r => r.id !== id && r.studentId !== id)
+      }));
+    },
     // Score Sheet Entry Persistence
     saveScoreSheetEntry: (entry) => setData((current) => {
       const existingResults = current.results || [];
@@ -1747,59 +1690,82 @@ export function PortalDataProvider({ children }) {
       }
     },
     // Staff Onboarding & Management Methods
-    addStaffMember: (staffData) => setData((current) => {
-      const currentList = current.teacherDirectory || [];
-      const staffId = staffData.staffId || `STF-2026-${String(currentList.length + 1).padStart(3, '0')}`;
-      const email = staffData.email || `${(staffData.name || 'staff').toLowerCase().replace(/[^\w]/g, '.')}@remaljcarewell.edu.gh`;
-      const defaultPassword = staffData.password || `StaffPass#${staffId}`;
-
-      const newStaff = {
-        id: crypto.randomUUID?.() || String(Date.now()),
-        staffId,
-        name: staffData.name,
-        subject: staffData.subject || 'General Education',
-        classAssigned: staffData.classAssigned || 'Grade 4',
-        email,
-        phone: staffData.phone || '024 900 1100',
-        role: staffData.role || 'Subject Teacher',
-        status: staffData.status || 'Active',
-        joinedDate: staffData.joinedDate || new Date().toISOString().split('T')[0],
-        photo: staffData.photo || (staffData.gender === 'Female' ? '👩‍🏫' : '👨‍🏫'),
-        bio: staffData.bio || `${staffData.role || 'Teacher'} at REMALJ Carewell Inspirational School.`
-      };
-
+    addStaffMember: async (staffData) => {
+      let created = null;
       try {
-        const raw = localStorage.getItem('registered_accounts');
-        const list = raw ? JSON.parse(raw) : {};
-        list[email.toLowerCase()] = {
-          id: newStaff.id,
-          email: email.toLowerCase(),
-          password: defaultPassword,
-          fullName: staffData.name,
-          role: 'teacher',
-          staffId,
-          phone: staffData.phone
-        };
-        localStorage.setItem('registered_accounts', JSON.stringify(list));
-      } catch (e) {}
+        created = await api.createStaff(staffData);
+      } catch (e) {
+        console.warn('Backend staff create fallback:', e);
+      }
 
-      return {
+      setData((current) => {
+        const currentList = current.teacherDirectory || [];
+        const staffId = staffData.staffId || `STF-2026-${String(currentList.length + 1).padStart(3, '0')}`;
+        const email = staffData.email || `${(staffData.name || 'staff').toLowerCase().replace(/[^\w]/g, '.')}@remaljcarewell.edu.gh`;
+        const defaultPassword = staffData.password || `StaffPass#${staffId}`;
+
+        const newStaff = created || {
+          id: crypto.randomUUID?.() || String(Date.now()),
+          staffId,
+          name: staffData.name,
+          subject: staffData.subject || 'General Education',
+          classAssigned: staffData.classAssigned || 'Grade 4',
+          email,
+          phone: staffData.phone || '024 900 1100',
+          role: staffData.role || 'Subject Teacher',
+          status: staffData.status || 'Active',
+          joinedDate: staffData.joinedDate || new Date().toISOString().split('T')[0],
+          photo: staffData.photo || (staffData.gender === 'Female' ? '👩‍🏫' : '👨‍🏫'),
+          bio: staffData.bio || `${staffData.role || 'Teacher'} at REMALJ Carewell Inspirational School.`
+        };
+
+        try {
+          const raw = localStorage.getItem('registered_accounts');
+          const list = raw ? JSON.parse(raw) : {};
+          list[email.toLowerCase()] = {
+            id: newStaff.id,
+            email: email.toLowerCase(),
+            password: defaultPassword,
+            fullName: staffData.name,
+            role: 'teacher',
+            staffId,
+            phone: staffData.phone
+          };
+          localStorage.setItem('registered_accounts', JSON.stringify(list));
+        } catch (e) {}
+
+        return {
+          ...current,
+          teacherDirectory: [newStaff, ...currentList.filter(t => t.id !== newStaff.id && t.staffId !== newStaff.staffId)]
+        };
+      });
+    },
+    updateStaffMember: async (id, updates) => {
+      try {
+        await api.updateStaff(id, updates);
+      } catch (e) {
+        console.warn('Backend staff update fallback:', e);
+      }
+      setData((current) => ({
         ...current,
-        teacherDirectory: [newStaff, ...currentList]
-      };
-    }),
-    updateStaffMember: (id, updates) => setData((current) => ({
-      ...current,
-      teacherDirectory: (current.teacherDirectory || []).map((t) => (t.id === id || t.staffId === id) ? { ...t, ...updates } : t)
-    })),
+        teacherDirectory: (current.teacherDirectory || []).map((t) => (t.id === id || t.staffId === id) ? { ...t, ...updates } : t)
+      }));
+    },
     offboardStaffMember: (id) => setData((current) => ({
       ...current,
       teacherDirectory: (current.teacherDirectory || []).map((t) => (t.id === id || t.staffId === id) ? { ...t, status: 'Offboarded' } : t)
     })),
-    deleteStaffMember: (id) => setData((current) => ({
-      ...current,
-      teacherDirectory: (current.teacherDirectory || []).filter((t) => t.id !== id && t.staffId !== id)
-    })),
+    deleteStaffMember: async (id) => {
+      try {
+        await api.deleteStaff(id);
+      } catch (e) {
+        console.warn('Backend staff delete fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        teacherDirectory: (current.teacherDirectory || []).filter((t) => t.id !== id && t.staffId !== id)
+      }));
+    },
     // Dynamic Classes & Subjects Methods
     addClassLevel: (newClass) => {
       if (!newClass) return;
@@ -1831,71 +1797,125 @@ export function PortalDataProvider({ children }) {
       });
     },
     // Examination Candidate Registration Methods
-    registerIndividualExam: (regData) => setData((current) => {
-      const existing = current.examRegistrations || [];
-      const newReg = {
-        id: `exam-reg-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        registeredAt: new Date().toISOString().split('T')[0],
-        registeredBy: 'Academic Head / Admin',
-        status: 'Registered - Hall Pass Valid',
-        ...regData
-      };
-      return {
+    registerIndividualExam: async (regData) => {
+      try {
+        await api.createExamRegistration(regData);
+      } catch (e) {
+        console.warn('Backend exam reg fallback:', e);
+      }
+      setData((current) => {
+        const existing = current.examRegistrations || [];
+        const newReg = {
+          id: `exam-reg-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          registeredAt: new Date().toISOString().split('T')[0],
+          registeredBy: 'Academic Head / Admin',
+          status: 'Registered - Hall Pass Valid',
+          ...regData
+        };
+        return {
+          ...current,
+          examRegistrations: [newReg, ...existing]
+        };
+      });
+    },
+    registerClassExams: async (classRegData) => {
+      try {
+        if (Array.isArray(classRegData.students)) {
+          for (const stu of classRegData.students) {
+            await api.createExamRegistration({
+              studentId: stu.studentId,
+              studentName: stu.studentName,
+              classLevel: classRegData.classLevel,
+              academicYear: classRegData.academicYear,
+              term: classRegData.term,
+              examType: classRegData.examType,
+              indexNumber: stu.indexNumber,
+              examCenter: classRegData.examCenter,
+              subjects: classRegData.subjects,
+              registeredBy: 'Academic Head / Admin'
+            }).catch(() => {});
+          }
+        }
+      } catch (e) {
+        console.warn('Backend class exams reg fallback:', e);
+      }
+      setData((current) => {
+        const existing = current.examRegistrations || [];
+        const newRegs = (classRegData.students || []).map((stu, idx) => ({
+          id: `exam-reg-${Date.now()}-${idx}`,
+          studentId: stu.studentId,
+          studentName: stu.studentName,
+          classLevel: classRegData.classLevel,
+          academicYear: classRegData.academicYear,
+          term: classRegData.term,
+          examType: classRegData.examType,
+          indexNumber: stu.indexNumber || `EXAM-${classRegData.academicYear.substring(0, 4)}-${classRegData.classLevel.replace(/\s+/g, '').toUpperCase()}-${String(idx + 1).padStart(3, '0')}`,
+          examCenter: classRegData.examCenter || 'Main Examination Hall A',
+          subjects: classRegData.subjects || [],
+          registeredAt: new Date().toISOString().split('T')[0],
+          registeredBy: 'Academic Head / Admin',
+          status: 'Registered - Hall Pass Valid'
+        }));
+        return {
+          ...current,
+          examRegistrations: [...newRegs, ...existing]
+        };
+      });
+    },
+    cancelExamRegistration: async (regId) => {
+      try {
+        await api.deleteExamRegistration(regId);
+      } catch (e) {
+        console.warn('Backend exam reg cancel fallback:', e);
+      }
+      setData((current) => ({
         ...current,
-        examRegistrations: [newReg, ...existing]
-      };
-    }),
-    registerClassExams: (classRegData) => setData((current) => {
-      const existing = current.examRegistrations || [];
-      const newRegs = (classRegData.students || []).map((stu, idx) => ({
-        id: `exam-reg-${Date.now()}-${idx}`,
-        studentId: stu.studentId,
-        studentName: stu.studentName,
-        classLevel: classRegData.classLevel,
-        academicYear: classRegData.academicYear,
-        term: classRegData.term,
-        examType: classRegData.examType,
-        indexNumber: stu.indexNumber || `EXAM-${classRegData.academicYear.substring(0, 4)}-${classRegData.classLevel.replace(/\s+/g, '').toUpperCase()}-${String(idx + 1).padStart(3, '0')}`,
-        examCenter: classRegData.examCenter || 'Main Examination Hall A',
-        subjects: classRegData.subjects || [],
-        registeredAt: new Date().toISOString().split('T')[0],
-        registeredBy: 'Academic Head / Admin',
-        status: 'Registered - Hall Pass Valid'
+        examRegistrations: (current.examRegistrations || []).filter(r => r.id !== regId && r.indexNumber !== regId)
       }));
-      return {
-        ...current,
-        examRegistrations: [...newRegs, ...existing]
-      };
-    }),
-    cancelExamRegistration: (regId) => setData((current) => ({
-      ...current,
-      examRegistrations: (current.examRegistrations || []).filter(r => r.id !== regId && r.indexNumber !== regId)
-    })),
+    },
     // Payment Voucher (PV) Management Methods
-    addPaymentVoucher: (pvData) => setData((current) => {
-      const existing = current.paymentVouchers || [];
-      const newPV = {
-        id: `pv-${Date.now()}`,
-        pvNo: pvData.pvNo || `PV-2026-${String(existing.length + 100).padStart(3, '0')}`,
-        requisitionNo: pvData.requisitionNo || `REQ-${Math.floor(10000 + Math.random() * 90000)}`,
-        provider: pvData.provider || 'General Vendor',
-        providerId: pvData.providerId || 'VEN-001',
-        description: pvData.description || 'Expenditure Voucher',
-        qty: Number(pvData.qty) || 1,
-        cost: Number(pvData.cost || pvData.costPerItem) || 0,
-        total: (Number(pvData.qty) || 1) * (Number(pvData.cost || pvData.costPerItem) || 0),
-        datePrepared: pvData.datePrepared || new Date().toISOString().split('T')[0],
-        valuedDate: pvData.valuedDate || new Date().toISOString().split('T')[0],
-        auditRemarks: pvData.auditRemarks || 'Created in system.',
-        status: pvData.status || 'Pending Audit',
-        editedByHeadmaster: false,
-        correctionsLog: []
-      };
-      return {
-        ...current,
-        paymentVouchers: [newPV, ...existing]
-      };
-    }),
+    addPaymentVoucher: async (pvData) => {
+      try {
+        await api.createPaymentVoucher({
+          pv_number: pvData.pvNo,
+          requisition_no: pvData.requisitionNo,
+          payee_name: pvData.provider,
+          payee_id: pvData.providerId,
+          department: pvData.department || 'Administration',
+          description: pvData.description,
+          quantity: Number(pvData.qty) || 1,
+          unit_cost: Number(pvData.cost || pvData.costPerItem) || 0,
+          total_amount: (Number(pvData.qty) || 1) * (Number(pvData.cost || pvData.costPerItem) || 0),
+          date_prepared: pvData.datePrepared
+        });
+      } catch (e) {
+        console.warn('Backend PV create fallback:', e);
+      }
+      setData((current) => {
+        const existing = current.paymentVouchers || [];
+        const newPV = {
+          id: `pv-${Date.now()}`,
+          pvNo: pvData.pvNo || `PV-2026-${String(existing.length + 100).padStart(3, '0')}`,
+          requisitionNo: pvData.requisitionNo || `REQ-${Math.floor(10000 + Math.random() * 90000)}`,
+          provider: pvData.provider || 'General Vendor',
+          providerId: pvData.providerId || 'VEN-001',
+          description: pvData.description || 'Expenditure Voucher',
+          qty: Number(pvData.qty) || 1,
+          cost: Number(pvData.cost || pvData.costPerItem) || 0,
+          total: (Number(pvData.qty) || 1) * (Number(pvData.cost || pvData.costPerItem) || 0),
+          datePrepared: pvData.datePrepared || new Date().toISOString().split('T')[0],
+          valuedDate: pvData.valuedDate || new Date().toISOString().split('T')[0],
+          auditRemarks: pvData.auditRemarks || 'Created in system.',
+          status: pvData.status || 'Pending Audit',
+          editedByHeadmaster: false,
+          correctionsLog: []
+        };
+        return {
+          ...current,
+          paymentVouchers: [newPV, ...existing]
+        };
+      });
+    },
     updatePaymentVoucher: (pvNo, updatedFields, editorRole = 'Headmaster / Pre-Auditor') => setData((current) => {
       const existing = current.paymentVouchers || [];
       const updated = existing.map(p => {
@@ -1926,35 +1946,45 @@ export function PortalDataProvider({ children }) {
         paymentVouchers: updated
       };
     }),
-    approvePaymentVoucher: (pvNo, actionChoice, remarks, updatedFields = null, auditorName = 'Headmaster / Pre-Auditor') => setData((current) => {
-      const existing = current.paymentVouchers || [];
-      const statusText = actionChoice === 'Pre-audit Approve PV' ? 'Pre-Audited & Approved' : actionChoice;
-      const updated = existing.map(p => {
-        if (p.pvNo.toLowerCase() === String(pvNo).toLowerCase() || p.id === pvNo) {
-          const qtyVal = Number(updatedFields?.qty !== undefined ? updatedFields.qty : p.qty) || 1;
-          const costVal = Number(updatedFields?.cost !== undefined ? updatedFields.cost : (updatedFields?.costPerItem !== undefined ? updatedFields.costPerItem : (p.cost || 0))) || 0;
-          const newTotal = qtyVal * costVal;
-          const isEdited = !!updatedFields || p.editedByHeadmaster;
-          return {
-            ...p,
-            ...(updatedFields || {}),
-            qty: qtyVal,
-            cost: costVal,
-            total: newTotal,
-            status: statusText,
-            auditRemarks: remarks || p.auditRemarks,
-            approvedBy: auditorName,
-            approvedAt: new Date().toLocaleString(),
-            editedByHeadmaster: isEdited,
-          };
-        }
-        return p;
+    approvePaymentVoucher: async (pvNo, actionChoice, remarks, updatedFields = null, auditorName = 'Headmaster / Pre-Auditor') => {
+      try {
+        await api.updatePaymentVoucherStatus(pvNo, {
+          status: actionChoice === 'Pre-audit Approve PV' ? 'PRE_AUDITED' : 'APPROVED',
+          auditor_name: auditorName
+        });
+      } catch (e) {
+        console.warn('Backend PV status update fallback:', e);
+      }
+      setData((current) => {
+        const existing = current.paymentVouchers || [];
+        const statusText = actionChoice === 'Pre-audit Approve PV' ? 'Pre-Audited & Approved' : actionChoice;
+        const updated = existing.map(p => {
+          if (p.pvNo.toLowerCase() === String(pvNo).toLowerCase() || p.id === pvNo) {
+            const qtyVal = Number(updatedFields?.qty !== undefined ? updatedFields.qty : p.qty) || 1;
+            const costVal = Number(updatedFields?.cost !== undefined ? updatedFields.cost : (updatedFields?.costPerItem !== undefined ? updatedFields.costPerItem : (p.cost || 0))) || 0;
+            const newTotal = qtyVal * costVal;
+            const isEdited = !!updatedFields || p.editedByHeadmaster;
+            return {
+              ...p,
+              ...(updatedFields || {}),
+              qty: qtyVal,
+              cost: costVal,
+              total: newTotal,
+              status: statusText,
+              auditRemarks: remarks || p.auditRemarks,
+              approvedBy: auditorName,
+              approvedAt: new Date().toLocaleString(),
+              editedByHeadmaster: isEdited,
+            };
+          }
+          return p;
+        });
+        return {
+          ...current,
+          paymentVouchers: updated
+        };
       });
-      return {
-        ...current,
-        paymentVouchers: updated
-      };
-    }),
+    },
     adminSetUserPassword: async ({ identifier, email, studentId, staffId, newPassword, role = 'student', fullName = '', adminName = 'System Administrator' }) => {
       const targetId = identifier || email || studentId || staffId;
       if (!targetId || !newPassword) return false;

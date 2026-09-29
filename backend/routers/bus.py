@@ -15,33 +15,19 @@ async def get_bus_routes(db: AsyncSession = Depends(get_db)):
     query = select(BusRoute)
     res = await db.execute(query)
     routes = res.scalars().all()
-    if not routes:
-        # Return default Bogoso school bus routes
-        return [
-            {
-                "id": "route-01",
-                "name": "Route A · Bogoso Anikoko - Shining Star",
-                "busNumber": "WR-4412-24",
-                "driver": "Mr. Isaac Mensah",
-                "phone": "024 100 2001",
-                "status": "In Transit",
-                "currentLocation": { "lat": 5.5824, "lng": -2.0123 },
-                "speed": 34,
-                "stops": ["Shining Star Hotel", "Anikoko Junction", "REMALJ Campus"]
-            },
-            {
-                "id": "route-02",
-                "name": "Route B · Prestea Mining Highway",
-                "busNumber": "WR-8821-25",
-                "driver": "Mr. Joseph Quaye",
-                "phone": "024 100 2002",
-                "status": "On Route",
-                "currentLocation": { "lat": 5.5711, "lng": -2.0234 },
-                "speed": 28,
-                "stops": ["Prestea Barrier", "Market Circle", "REMALJ Campus"]
-            }
-        ]
-    return routes
+    return [
+        {
+            "id": r.id,
+            "name": r.route_name,
+            "busNumber": r.bus_number,
+            "driver": r.driver_name,
+            "phone": r.driver_phone,
+            "status": r.status,
+            "currentLocation": { "lat": r.current_lat, "lng": r.current_lng },
+            "speed": r.speed
+        }
+        for r in routes
+    ]
 
 @router.post("/telemetry")
 async def update_bus_telemetry(req: BusTelemetryRequest, db: AsyncSession = Depends(get_db)):
