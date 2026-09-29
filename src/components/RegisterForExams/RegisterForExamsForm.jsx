@@ -87,11 +87,25 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
   const [indivExamType, setIndivExamType] = useState(EXAM_TYPES[0]);
   const [indivCenter, setIndivCenter] = useState(EXAM_CENTERS[0]);
   const [indivIndexNum, setIndivIndexNum] = useState('');
-  const [selectedSubjects, setSelectedSubjects] = useState(DEFAULT_SUBJECTS.slice(0, 6));
   const [indivNotes, setIndivNotes] = useState('');
+
+  // Student picker filters
+  const [indivClassFilter, setIndivClassFilter] = useState('All');
+  const [indivGenderFilter, setIndivGenderFilter] = useState('All');
+  const [indivRegFilter, setIndivRegFilter] = useState('All'); // 'All' | 'Not Registered' | 'Registered'
+
+
+  // Shared editable subject pool (both tabs share the same pool)
+  const [allSubjects, setAllSubjects] = useState([...DEFAULT_SUBJECTS]);
+  const [newSubjectInput, setNewSubjectInput] = useState('');
+
+  // Start with all subjects pre-selected for individual
+  const [selectedSubjects, setSelectedSubjects] = useState([...DEFAULT_SUBJECTS]);
 
   const filteredAllStudents = React.useMemo(() => {
     let list = [...(allStudents || [])];
+
+    // Text search (name / ID / class)
     if (indivSearch.trim()) {
       const q = indivSearch.toLowerCase();
       list = list.filter(s =>
@@ -100,13 +114,34 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
         (s.level || '').toLowerCase().includes(q)
       );
     }
+
+    // Class / level filter
+    if (indivClassFilter !== 'All') {
+      list = list.filter(s => (s.level || '').toLowerCase().trim() === indivClassFilter.toLowerCase().trim());
+    }
+
+    // Gender filter
+    if (indivGenderFilter !== 'All') {
+      list = list.filter(s => (s.gender || '').toLowerCase() === indivGenderFilter.toLowerCase());
+    }
+
+    // Registration status filter
+    if (indivRegFilter === 'Not Registered') {
+      const regIds = new Set(currentRegistrations.map(r => r.studentId));
+      list = list.filter(s => !regIds.has(s.studentId || s.id));
+    } else if (indivRegFilter === 'Registered') {
+      const regIds = new Set(currentRegistrations.map(r => r.studentId));
+      list = list.filter(s => regIds.has(s.studentId || s.id));
+    }
+
+    // Sort
     list.sort((a, b) => {
       if (indivSort === 'ZA') return (b.fullName || b.name || '').localeCompare(a.fullName || a.name || '');
       if (indivSort === 'Class') return (a.level || '').localeCompare(b.level || '') || (a.fullName || a.name || '').localeCompare(b.fullName || b.name || '');
       return (a.fullName || a.name || '').localeCompare(b.fullName || b.name || '');
     });
     return list;
-  }, [allStudents, indivSearch, indivSort]);
+  }, [allStudents, indivSearch, indivSort, indivClassFilter, indivGenderFilter, indivRegFilter, currentRegistrations]);
 
   // Bulk Registration State
   const [bulkClass, setBulkClass] = useState('JHS 3');
@@ -114,7 +149,8 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
   const [bulkTerm, setBulkTerm] = useState(academicSettings?.academicTerm || 'Term 1');
   const [bulkExamType, setBulkExamType] = useState(EXAM_TYPES[0]);
   const [bulkCenter, setBulkCenter] = useState(EXAM_CENTERS[0]);
-  const [bulkSubjects, setBulkSubjects] = useState(DEFAULT_SUBJECTS.slice(0, 6));
+  // Bulk starts with all subjects pre-selected
+  const [bulkSubjects, setBulkSubjects] = useState([...DEFAULT_SUBJECTS]);
   const [bulkPrefix, setBulkPrefix] = useState('EXAM-2026-');
   const [selectedBulkStudents, setSelectedBulkStudents] = useState([]);
 
@@ -152,6 +188,32 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
     } else {
       setBulkSubjects([...bulkSubjects, sub]);
     }
+  };
+
+  // Add a new subject to the shared pool
+  const addSubjectToPool = (forBulk = false) => {
+    const trimmed = newSubjectInput.trim();
+    if (!trimmed) return;
+    if (allSubjects.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
+      alert('This subject already exists in the list.');
+      return;
+    }
+    const updated = [...allSubjects, trimmed];
+    setAllSubjects(updated);
+    // Auto-select the new subject in whichever tab added it
+    if (forBulk) {
+      setBulkSubjects(prev => [...prev, trimmed]);
+    } else {
+      setSelectedSubjects(prev => [...prev, trimmed]);
+    }
+    setNewSubjectInput('');
+  };
+
+  // Remove a subject from the pool entirely (and deselect it)
+  const removeSubjectFromPool = (sub) => {
+    setAllSubjects(prev => prev.filter(s => s !== sub));
+    setSelectedSubjects(prev => prev.filter(s => s !== sub));
+    setBulkSubjects(prev => prev.filter(s => s !== sub));
   };
 
   // Submit Individual Registration
@@ -392,40 +454,100 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
 
           {/* Student Picker */}
           <div style={{ background: '#0f172a', padding: 16, borderRadius: 10, border: '1px solid #334155', marginBottom: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
               <label style={{ fontSize: 13, fontWeight: 900, color: '#38bdf8' }}>
-                5. Pick Student Candidate ({filteredAllStudents.length} Available)
+                5. Pick Student Candidate
+                <span style={{ marginLeft: 8, background: '#0284c7', color: '#fff', fontSize: 11, fontWeight: 800, padding: '2px 9px', borderRadius: 20 }}>
+                  {filteredAllStudents.length} of {allStudents.length}
+                </span>
               </label>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <select
-                  value={indivSort}
-                  onChange={(e) => setIndivSort(e.target.value)}
-                  style={{ fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid #0284c7', background: '#1e293b', color: '#38bdf8', fontWeight: 800 }}
-                >
-                  <option value="AZ">Sort: Name A-Z</option>
-                  <option value="ZA">Sort: Name Z-A</option>
-                  <option value="Class">Sort: Class / Level</option>
-                </select>
-              </div>
             </div>
-            <input
-              type="text"
-              placeholder="🔍 Search candidate by name, ID, or class..."
-              value={indivSearch}
-              onChange={(e) => setIndivSearch(e.target.value)}
-              style={{ width: '100%', padding: '10px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#fff', fontSize: 13, marginBottom: 8 }}
-            />
+
+            {/* Filter bar */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginBottom: 10 }}>
+              {/* Text search */}
+              <div style={{ position: 'relative', gridColumn: 'span 2' }}>
+                <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
+                <input
+                  type="text"
+                  placeholder="Search by name, student ID, or class..."
+                  value={indivSearch}
+                  onChange={(e) => setIndivSearch(e.target.value)}
+                  style={{ width: '100%', padding: '9px 12px 9px 32px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#fff', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              {/* Class / Level filter */}
+              <select
+                value={indivClassFilter}
+                onChange={(e) => setIndivClassFilter(e.target.value)}
+                style={{ padding: '9px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 700 }}
+              >
+                <option value="All">All Classes</option>
+                {CLASS_LEVELS.map(lvl => <option key={lvl} value={lvl}>{lvl}</option>)}
+              </select>
+
+              {/* Gender filter */}
+              <select
+                value={indivGenderFilter}
+                onChange={(e) => setIndivGenderFilter(e.target.value)}
+                style={{ padding: '9px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 700 }}
+              >
+                <option value="All">All Genders</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+
+              {/* Registration status filter */}
+              <select
+                value={indivRegFilter}
+                onChange={(e) => setIndivRegFilter(e.target.value)}
+                style={{ padding: '9px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 700 }}
+              >
+                <option value="All">All Students</option>
+                <option value="Not Registered">Not Yet Registered</option>
+                <option value="Registered">Already Registered</option>
+              </select>
+
+              {/* Sort */}
+              <select
+                value={indivSort}
+                onChange={(e) => setIndivSort(e.target.value)}
+                style={{ padding: '9px 10px', background: '#1e293b', border: '1px solid #0284c7', borderRadius: 8, color: '#38bdf8', fontSize: 12, fontWeight: 800 }}
+              >
+                <option value="AZ">Sort: A → Z</option>
+                <option value="ZA">Sort: Z → A</option>
+                <option value="Class">Sort: Class</option>
+              </select>
+
+              {/* Clear filters */}
+              {(indivClassFilter !== 'All' || indivGenderFilter !== 'All' || indivRegFilter !== 'All' || indivSearch) && (
+                <button
+                  type="button"
+                  onClick={() => { setIndivClassFilter('All'); setIndivGenderFilter('All'); setIndivRegFilter('All'); setIndivSearch(''); }}
+                  style={{ padding: '9px 12px', background: '#334155', border: 'none', borderRadius: 8, color: '#94a3b8', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  ✕ Clear Filters
+                </button>
+              )}
+            </div>
+
+            {/* Dropdown select */}
             <select
               value={selectedStudentId}
               onChange={(e) => handleStudentPick(e.target.value)}
               style={{ width: '100%', padding: '12px', background: '#1e293b', border: '1px solid #0284c7', borderRadius: 8, color: '#fff', fontSize: 14, fontWeight: 700 }}
             >
-              <option value="">-- Choose Student Candidate from Register --</option>
-              {filteredAllStudents.map((s) => (
-                <option key={s.id || s.studentId} value={s.id || s.studentId}>
-                  {s.fullName} ({s.studentId}) — Class: {s.level || 'Unassigned'}
-                </option>
-              ))}
+              <option value="">-- Choose Student Candidate from Filtered List ({filteredAllStudents.length}) --</option>
+              {filteredAllStudents.map((s) => {
+                const isReg = currentRegistrations.some(r => r.studentId === (s.studentId || s.id));
+                return (
+                  <option key={s.id || s.studentId} value={s.id || s.studentId}>
+                    {isReg ? '✓ ' : ''}{s.fullName} ({s.studentId}) — {s.level || 'Unassigned'}{s.gender ? ` · ${s.gender}` : ''}
+                  </option>
+                );
+              })}
             </select>
 
             {/* Selected Student Card */}
@@ -459,15 +581,15 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
             })()}
           </div>
 
-          {/* Subject Checkboxes */}
+          {/* Subject Checkboxes — Individual */}
           <div style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <label style={{ fontSize: 13, fontWeight: 900, color: '#38bdf8' }}>
                 6. Select Subjects for Candidate Examination ({selectedSubjects.length} Selected)
               </label>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" onClick={() => setSelectedSubjects([...DEFAULT_SUBJECTS])} style={{ background: '#0369a1', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                  Select All Subjects
+                <button type="button" onClick={() => setSelectedSubjects([...allSubjects])} style={{ background: '#0369a1', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  Select All
                 </button>
                 <button type="button" onClick={() => setSelectedSubjects([])} style={{ background: '#334155', color: '#cbd5e1', border: 'none', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                   Clear All
@@ -475,25 +597,56 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
               </div>
             </div>
 
+            {/* Add new subject row */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input
+                type="text"
+                placeholder="Type a new subject name and press Add…"
+                value={newSubjectInput}
+                onChange={(e) => setNewSubjectInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSubjectToPool(false); } }}
+                style={{ flex: 1, padding: '9px 12px', background: '#0f172a', border: '1px solid #0284c7', borderRadius: 8, color: '#fff', fontSize: 13 }}
+              />
+              <button
+                type="button"
+                onClick={() => addSubjectToPool(false)}
+                style={{ padding: '9px 16px', background: 'linear-gradient(135deg,#0284c7,#0369a1)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+              >
+                <Plus size={14} /> Add Subject
+              </button>
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
-              {DEFAULT_SUBJECTS.map((sub) => {
+              {allSubjects.map((sub) => {
                 const isSelected = selectedSubjects.includes(sub);
                 return (
-                  <label key={sub} style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                    background: isSelected ? 'rgba(2, 132, 199, 0.2)' : '#0f172a',
-                    border: `1px solid ${isSelected ? '#0284c7' : '#334155'}`,
-                    borderRadius: 8, cursor: 'pointer', fontSize: 12.5, fontWeight: isSelected ? 800 : 500,
-                    color: isSelected ? '#ffffff' : '#cbd5e1', transition: 'all 0.15s ease'
-                  }}>
+                  <div
+                    key={sub}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '10px 10px 10px 12px',
+                      background: isSelected ? 'rgba(2, 132, 199, 0.2)' : '#0f172a',
+                      border: `1px solid ${isSelected ? '#0284c7' : '#334155'}`,
+                      borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s ease'
+                    }}
+                    onClick={() => toggleIndivSubject(sub)}
+                  >
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleIndivSubject(sub)}
-                      style={{ width: 16, height: 16, accentColor: '#0284c7' }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ width: 16, height: 16, accentColor: '#0284c7', flexShrink: 0, cursor: 'pointer' }}
                     />
-                    <span>{sub}</span>
-                  </label>
+                    <span style={{ flex: 1, fontSize: 12.5, fontWeight: isSelected ? 800 : 500, color: isSelected ? '#ffffff' : '#cbd5e1' }}>{sub}</span>
+                    <button
+                      type="button"
+                      title="Remove this subject from the list"
+                      onClick={(e) => { e.stopPropagation(); removeSubjectFromPool(sub); }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 2, lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center' }}
+                    >
+                      <XCircle size={14} />
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -649,33 +802,72 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
             )}
           </div>
 
-          {/* Class Subjects Grid */}
+          {/* Class Subjects Grid — Bulk */}
           <div style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <label style={{ fontSize: 13, fontWeight: 900, color: '#38bdf8' }}>
                 Subjects for Class {bulkClass} Examination ({bulkSubjects.length} Selected)
               </label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={() => setBulkSubjects([...allSubjects])} style={{ background: '#0369a1', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  Select All
+                </button>
+                <button type="button" onClick={() => setBulkSubjects([])} style={{ background: '#334155', color: '#cbd5e1', border: 'none', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  Clear All
+                </button>
+              </div>
+            </div>
+
+            {/* Add new subject row */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input
+                type="text"
+                placeholder="Type a new subject name and press Add…"
+                value={newSubjectInput}
+                onChange={(e) => setNewSubjectInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSubjectToPool(true); } }}
+                style={{ flex: 1, padding: '9px 12px', background: '#0f172a', border: '1px solid #0284c7', borderRadius: 8, color: '#fff', fontSize: 13 }}
+              />
+              <button
+                type="button"
+                onClick={() => addSubjectToPool(true)}
+                style={{ padding: '9px 16px', background: 'linear-gradient(135deg,#0284c7,#0369a1)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+              >
+                <Plus size={14} /> Add Subject
+              </button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
-              {DEFAULT_SUBJECTS.map((sub) => {
+              {allSubjects.map((sub) => {
                 const isSelected = bulkSubjects.includes(sub);
                 return (
-                  <label key={sub} style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                    background: isSelected ? 'rgba(2, 132, 199, 0.2)' : '#0f172a',
-                    border: `1px solid ${isSelected ? '#0284c7' : '#334155'}`,
-                    borderRadius: 8, cursor: 'pointer', fontSize: 12.5, fontWeight: isSelected ? 800 : 500,
-                    color: isSelected ? '#ffffff' : '#cbd5e1'
-                  }}>
+                  <div
+                    key={sub}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '10px 10px 10px 12px',
+                      background: isSelected ? 'rgba(2, 132, 199, 0.2)' : '#0f172a',
+                      border: `1px solid ${isSelected ? '#0284c7' : '#334155'}`,
+                      borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s ease'
+                    }}
+                    onClick={() => toggleBulkSubject(sub)}
+                  >
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleBulkSubject(sub)}
-                      style={{ width: 16, height: 16, accentColor: '#0284c7' }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ width: 16, height: 16, accentColor: '#0284c7', flexShrink: 0, cursor: 'pointer' }}
                     />
-                    <span>{sub}</span>
-                  </label>
+                    <span style={{ flex: 1, fontSize: 12.5, fontWeight: isSelected ? 800 : 500, color: isSelected ? '#ffffff' : '#cbd5e1' }}>{sub}</span>
+                    <button
+                      type="button"
+                      title="Remove this subject from the list"
+                      onClick={(e) => { e.stopPropagation(); removeSubjectFromPool(sub); }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 2, lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center' }}
+                    >
+                      <XCircle size={14} />
+                    </button>
+                  </div>
                 );
               })}
             </div>

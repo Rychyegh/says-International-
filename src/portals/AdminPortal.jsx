@@ -1741,24 +1741,38 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
               <div style={{ background: '#fff', padding: '16px 20px', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', marginBottom: 20, border: '1px solid var(--gray-200)' }}>
                 <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
                   {/* Name / ID Search */}
-                  <div style={{ flex: 2, minWidth: 260, position: 'relative' }}>
-                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--gray-500)', marginBottom: 4 }}>
-                      🔍 Filter Student Name or ID
+                  <div style={{ flex: 2, minWidth: 260 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--gray-500)', marginBottom: 6, letterSpacing: '0.05em' }}>
+                      Filter Student Name or ID
                     </label>
-                    <div className="search-bar" style={{ width: '100%' }}>
-                      <Search size={15} className="search-bar__icon" />
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <Search size={15} style={{ position: 'absolute', left: 12, color: 'var(--gray-400)', pointerEvents: 'none', flexShrink: 0 }} />
                       <input
                         type="text"
-                        className="search-bar__input"
                         placeholder="Type student name, ID, or guardian to filter..."
                         value={transcriptSearch}
                         onChange={(e) => setTranscriptSearch(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 36px 10px 36px',
+                          borderRadius: 8,
+                          border: '1.5px solid var(--gray-300)',
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: 'var(--gray-800)',
+                          background: '#fff',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                          transition: 'border-color 0.15s',
+                        }}
+                        onFocus={e => e.target.style.borderColor = 'var(--primary)'}
+                        onBlur={e => e.target.style.borderColor = 'var(--gray-300)'}
                       />
                       {transcriptSearch && (
                         <button
                           type="button"
                           onClick={() => setTranscriptSearch('')}
-                          style={{ position: 'absolute', right: 12, top: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-400)' }}
+                          style={{ position: 'absolute', right: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-400)', display: 'flex', alignItems: 'center', padding: 2 }}
                         >
                           <X size={14} />
                         </button>
