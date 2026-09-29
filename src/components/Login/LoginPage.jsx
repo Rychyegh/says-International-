@@ -114,7 +114,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   const [regFullName, setRegFullName] = useState('');
   const [regEmail,    setRegEmail]    = useState('');
   const [regPhone,    setRegPhone]    = useState('');
-  const [regRole,     setRegRole]     = useState(portal || 'teacher');
+  const [regRole,     setRegRole]     = useState(portal === 'student' ? 'student' : 'parent');
   const [regPass,     setRegPass]     = useState('');
   const [regConfirm,  setRegConfirm]  = useState('');
 
@@ -186,7 +186,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
 
   useEffect(() => () => stopCamera(), []);
   useEffect(() => {
-    setRegRole(portal || 'teacher');
+    setRegRole(portal === 'student' ? 'student' : 'parent');
   }, [portal]);
 
   // Handle Login Submit
@@ -394,26 +394,28 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     setLoading(true);
 
     try {
+      const targetRole = regRole || (portal === 'student' ? 'student' : 'parent');
       const res = await api.registerUser({
-        fullName: regFullName,
-        email: regEmail,
-        phone: regPhone,
-        role: regRole,
+        fullName: regFullName.trim(),
+        email: regEmail.trim(),
+        phone: regPhone.trim(),
+        role: targetRole,
         password: regPass
       });
       if (res.token) setAuthToken(res.token);
+      const registeredRole = res.user?.role || targetRole;
       const userPayload = {
         ...(res.user || {}),
-        fullName: res.user?.fullName || res.user?.full_name || regFullName,
-        name: regFullName,
-        email: regEmail,
-        role: regRole,
+        fullName: res.user?.fullName || res.user?.full_name || regFullName.trim(),
+        name: res.user?.fullName || regFullName.trim(),
+        email: regEmail.trim().toLowerCase(),
+        role: registeredRole,
       };
       setAuthUser(userPayload);
 
       setLoading(false);
       setSuccess(true);
-      setTimeout(() => onLoginSuccess(), 900);
+      setTimeout(() => onLoginSuccess(registeredRole), 900);
     } catch (err) {
       setLoading(false);
       setError(err.message || 'Account registration failed. Please try again.');
@@ -434,10 +436,6 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     setForgotOtp('');
     setForgotNewPass('');
     setForgotConfirmPass('');
-    if (mode === 'signup' && portal !== 'admin') {
-      setViewMode('login');
-      return;
-    }
     setViewMode(mode);
   };
 
@@ -706,6 +704,25 @@ export default function LoginPage({ portal, onLoginSuccess }) {
               </p>
 
               <form onSubmit={handleSignUpSubmit} noValidate>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="reg-role">Account Type / Portal</label>
+                  <div className="form-input-wrap">
+                    <select
+                      id="reg-role"
+                      className="form-input"
+                      value={regRole}
+                      onChange={(e) => setRegRole(e.target.value)}
+                      style={{ cursor: 'pointer', fontWeight: 700, paddingLeft: 14 }}
+                    >
+                      <option value="parent">👨‍👩‍👧 Parent / Guardian (Parent Portal)</option>
+                      <option value="student">📚 Student Learner (Student Portal)</option>
+                    </select>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 5, lineHeight: 1.4 }}>
+                    💡 Self-registration connects directly to the school database. Teaching & administrative credentials are issued by the Administrator.
+                  </div>
+                </div>
+
                 <div className="form-group">
                   <label className="form-label" htmlFor="reg-fullname">Full Name</label>
                   <div className="form-input-wrap">
@@ -1014,33 +1031,33 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                 )}
               </form>
 
-              {/* Sign Up prompt - Restricted Exclusively to Admin Portal */}
-              {portal === 'admin' ? (
-                <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--gray-600)', marginTop: 24 }}>
-                  Don't have an account?{' '}
-                  <button type="button" onClick={() => switchView('signup')} className="form-forgot" style={{ fontWeight: 800 }}>
-                    Sign Up
-                  </button>
-                </div>
-              ) : portal === 'teacher' ? (
-                <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 24, padding: '12px 16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 12, border: '1px solid #bae6fd' }}>
+              {/* Universal Sign Up prompt */}
+              <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--gray-600)', marginTop: 24 }}>
+                Don't have an account?{' '}
+                <button type="button" onClick={() => switchView('signup')} className="form-forgot" style={{ fontWeight: 800 }}>
+                  Sign Up
+                </button>
+              </div>
+
+              {portal === 'teacher' ? (
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 14, padding: '10px 14px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 10, border: '1px solid #bae6fd' }}>
                   💡 <strong>Teacher Notice:</strong> Teacher account credentials are created and assigned by the System Administrator.
                 </div>
               ) : portal === 'accountant' ? (
-                <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 24, padding: '12px 16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 12, border: '1px solid #bae6fd' }}>
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 14, padding: '10px 14px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 10, border: '1px solid #bae6fd' }}>
                   💡 <strong>Accountant Notice:</strong> Accountant account credentials are assigned by the System Administrator.
                 </div>
               ) : portal === 'parent' ? (
-                <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 24, padding: '12px 16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 12, border: '1px solid #bae6fd' }}>
-                  💡 <strong>Parent Notice:</strong> Parent account credentials are automatically issued and dispatched via SMS by the school administration once your child's application is accepted.
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 14, padding: '10px 14px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 10, border: '1px solid #bae6fd' }}>
+                  💡 <strong>Parent Notice:</strong> Parents can self-register above or use credentials dispatched via SMS by the school.
                 </div>
               ) : portal === 'student' ? (
-                <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 24, padding: '12px 16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 12, border: '1px solid #bae6fd' }}>
-                  💡 <strong>Student Notice:</strong> Student account credentials and ID cards are issued by school administration upon enrollment.
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 14, padding: '10px 14px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 10, border: '1px solid #bae6fd' }}>
+                  💡 <strong>Student Notice:</strong> Students can self-register or sign in using their assigned Student ID & Card.
                 </div>
               ) : (
-                <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 24, padding: '12px 16px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 12, border: '1px solid #bae6fd' }}>
-                  💡 <strong>Notice:</strong> Account credentials are authorized and issued by school administration.
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 14, padding: '10px 14px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 10, border: '1px solid #bae6fd' }}>
+                  💡 <strong>Notice:</strong> Institutional administrative and teaching credentials are authorized and managed by the System Administrator.
                 </div>
               )}
 

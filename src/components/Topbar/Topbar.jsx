@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { GraduationCap, Users, BookOpen, LogOut, ShieldCheck, CreditCard } from 'lucide-react';
 import { getAuthUser } from '../../services/api';
+import DashboardSearch from '../DashboardSearch/DashboardSearch';
 import './Topbar.css';
 
 const PORTAL_INFO = {
@@ -66,13 +67,15 @@ export default function Topbar({ activePortal, isAuthed, onSignOut }) {
           </div>
         </Link>
 
-        {/* Middle section - transparent & hidden on scroll down */}
+        {/* Middle section - Universal Search Bar & Portal Badge */}
         <div className="topbar__middle">
+          <DashboardSearch activePortal={activePortal} />
+
           {/* Current Portal Badge */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px',
+          <div className="topbar__portal-badge" style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px',
             borderRadius: 99, background: currentInfo.color, color: '#fff',
-            fontWeight: 800, fontSize: 13, boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+            fontWeight: 800, fontSize: 12, flexShrink: 0, boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
           }}>
             <span>{currentInfo.icon}</span>
             <span>{currentInfo.label}</span>

@@ -14,6 +14,7 @@ import BulkStudentUpload from '../components/Onboarding/BulkStudentUpload';
 import RegisterForExamsForm from '../components/RegisterForExams/RegisterForExamsForm';
 import AcademicSettingsManager from '../components/Academic/AcademicSettingsManager';
 import ApprovePVForm from '../components/Finance/ApprovePVForm';
+import UserAccessControl from '../components/AccessControl/UserAccessControl';
 import { getAuthUser } from '../services/api';
 
 const ADMIN_BG = '#4a1d6e';
@@ -22,6 +23,7 @@ const ADMIN_ACCENT = '#7c3ac8';
 
 const NAV = [
   { icon: <LayoutDashboard size={15} />, label: 'Dashboard', badge: null },
+  { icon: <ShieldCheck size={15} />, label: 'User Access Control (UAC)', badge: 'Admin' },
   { icon: <Settings size={15} />, label: 'Academic Settings', badge: 'Global' },
   { icon: <ShieldAlert size={15} />, label: 'Security & Intrusion Alerts', badge: 'Alerts' },
   { icon: <FileCheck size={15} />, label: 'Pre-Audit & Approve PV', badge: 'Headmaster' },
@@ -51,6 +53,20 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       localStorage.setItem('says_admin_active_nav', nav);
     } catch (e) {}
   };
+
+  useEffect(() => {
+    const handleNavEvent = (e) => {
+      if (e.detail?.portal === 'admin' && e.detail?.nav) {
+        setActiveNav(e.detail.nav);
+        if (e.detail.tab) setAdminOnboardTab(e.detail.tab);
+        if (e.detail.isCreatingApp !== undefined) setIsCreatingApp(e.detail.isCreatingApp);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('says_navigate', handleNavEvent);
+    return () => window.removeEventListener('says_navigate', handleNavEvent);
+  }, []);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editingStudent, setEditingStudent] = useState({});
@@ -707,8 +723,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </div>
                   <div className="panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <button
-                      onClick={() => setActiveNav('Applications & Forms')}
+                      onClick={() => setActiveNav('User Access Control (UAC)')}
                       style={{ padding: 12, background: ADMIN_LIGHT, color: ADMIN_BG, border: '1px solid #d8b4fe', borderRadius: 'var(--radius-md)', fontWeight: 700, textAlign: 'left', cursor: 'pointer' }}
+                    >
+                      🛡️ User Access Control & Passwords (UAC)
+                    </button>
+                    <button
+                      onClick={() => setActiveNav('Applications & Forms')}
+                      style={{ padding: 12, background: 'var(--gray-100)', color: 'var(--gray-800)', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius-md)', fontWeight: 700, textAlign: 'left', cursor: 'pointer' }}
                     >
                       📄 Official Application Forms & PDF
                     </button>
@@ -727,6 +749,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ── USER ACCESS CONTROL (UAC) ── */}
+          {(activeNav === 'User Access Control (UAC)' || activeNav === 'UAC' || activeNav === 'User Access Control') && (
+            <div className="animate-fade-up">
+              <UserAccessControl adminRole={adminRole} />
             </div>
           )}
 

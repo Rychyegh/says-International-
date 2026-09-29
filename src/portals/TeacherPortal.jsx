@@ -78,6 +78,18 @@ export default function TeacherPortal() {
       localStorage.setItem('says_teacher_active_nav', nav);
     } catch (e) {}
   };
+
+  useEffect(() => {
+    const handleNavEvent = (e) => {
+      if (e.detail?.portal === 'teacher' && e.detail?.nav) {
+        setActiveNav(e.detail.nav);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('says_navigate', handleNavEvent);
+    return () => window.removeEventListener('says_navigate', handleNavEvent);
+  }, []);
+
   const authUser = getAuthUser();
   const isClassTeacher = authUser?.teacherDesignation === 'class_teacher' || authUser?.name?.includes('Class Teacher');
   const teacherRole = isClassTeacher ? 'class_teacher' : 'subject_teacher';

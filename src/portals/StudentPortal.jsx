@@ -88,6 +88,17 @@ export default function StudentPortal() {
     } catch (e) {}
   };
 
+  useEffect(() => {
+    const handleNavEvent = (e) => {
+      if (e.detail?.portal === 'student' && e.detail?.nav) {
+        setActiveNav(e.detail.nav);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('says_navigate', handleNavEvent);
+    return () => window.removeEventListener('says_navigate', handleNavEvent);
+  }, []);
+
   return (
     <div className="portal">
       <div className="portal__layout">

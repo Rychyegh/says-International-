@@ -92,65 +92,28 @@ function saveRegisteredAccount(acc) {
   } catch (e) {}
 }
 
-function getRegisteredAccount(email) {
-  try {
-    const raw = localStorage.getItem('registered_accounts');
-    const list = raw ? JSON.parse(raw) : {};
-    return list[(email || '').toLowerCase()] || null;
-  } catch {
-    return null;
-  }
-}
-
 export const api = {
   // --- Auth & User Access ---
   login: async (credentials) => {
     // credentials: { email, password, portal }
-    try {
-      const res = await request('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify(credentials),
-      });
-      if (res.token) setAuthToken(res.token);
-      if (res.user) setAuthUser(res.user);
-      return res;
-    } catch (err) {
-      // Check locally registered accounts fallback
-      const localAcc = getRegisteredAccount(credentials.email);
-      if (localAcc && localAcc.password === credentials.password) {
-        const token = `token_local_${Date.now()}`;
-        const user = {
-          id: localAcc.id || `usr_${Date.now()}`,
-          email: localAcc.email,
-          fullName: localAcc.fullName || localAcc.name,
-          role: localAcc.role || credentials.portal,
-          phoneNumber: localAcc.phone
-        };
-        setAuthToken(token);
-        setAuthUser(user);
-        return { token, user };
-      }
-      throw err;
-    }
+    const res = await request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    });
+    if (res && res.token) setAuthToken(res.token);
+    if (res && res.user) setAuthUser(res.user);
+    return res;
   },
 
   cardScan: async (cardData) => {
     // cardData: { cardId, portal }
-    try {
-      const res = await request('/auth/card-scan', {
-        method: 'POST',
-        body: JSON.stringify(cardData),
-      });
-      if (res.token) setAuthToken(res.token);
-      if (res.user) setAuthUser(res.user);
-      return res;
-    } catch (err) {
-      const token = `token_card_${Date.now()}`;
-      const user = { id: `usr_${cardData.cardId}`, cardId: cardData.cardId, role: cardData.portal, fullName: `Student ${cardData.cardId}` };
-      setAuthToken(token);
-      setAuthUser(user);
-      return { token, user };
-    }
+    const res = await request('/auth/card-scan', {
+      method: 'POST',
+      body: JSON.stringify(cardData),
+    });
+    if (res && res.token) setAuthToken(res.token);
+    if (res && res.user) setAuthUser(res.user);
+    return res;
   },
 
   logout: () => {
@@ -159,56 +122,45 @@ export const api = {
   },
 
   registerUser: async (userData) => {
-    // userData: { fullName, email, phone, role, password }
-    saveRegisteredAccount({
-      id: `usr_${Date.now()}`,
-      email: userData.email,
-      password: userData.password,
-      fullName: userData.fullName || userData.name,
-      phone: userData.phone || userData.phoneNumber,
-      role: userData.role || 'parent'
-    });
+    // userData: { fullName, email, phone, role, password, portal }
+    const cleanEmail = (userData.email || '').trim().toLowerCase();
+    const fullName = (userData.fullName || userData.full_name || userData.name || '').trim();
+    const phone = (userData.phone || userData.phoneNumber || userData.phone_number || '').trim();
+    const role = userData.role || userData.portal || 'parent';
 
-    try {
-      const res = await request('/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: userData.email,
-          password: userData.password,
-          full_name: userData.fullName || userData.name,
-          phone_number: userData.phone || userData.phoneNumber,
-          role: userData.role || 'parent',
-          portal: userData.role || 'parent'
-        }),
-      });
-      if (res.token) setAuthToken(res.token);
-      if (res.user) setAuthUser(res.user);
-      return res;
-    } catch (err) {
-      const token = `token_reg_${Date.now()}`;
-      const user = { id: `usr_${Date.now()}`, email: userData.email, fullName: userData.fullName, role: userData.role, phoneNumber: userData.phone };
-      setAuthToken(token);
-      setAuthUser(user);
-      return { token, user };
-    }
+    const res = await request('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: cleanEmail,
+        password: userData.password,
+        full_name: fullName,
+        fullName: fullName,
+        phone_number: phone,
+        phone: phone,
+        phoneNumber: phone,
+        role: role,
+        portal: role
+      }),
+    });
+    // Only write to localStorage when the backend API successfully confirmed registration
+    if (res && res.token) setAuthToken(res.token);
+    if (res && res.user) setAuthUser(res.user);
+    saveRegisteredAccount({
+      id: res?.user?.id || `usr_${Date.now()}`,
+      email: cleanEmail,
+      password: userData.password,
+      fullName: fullName,
+      phone: phone,
+      role: res?.user?.role || role
+    });
+    return res;
   },
 
   requestPasswordResetOtp: async ({ identifier }) => {
-    try {
-      const res = await request('/auth/forgot-password/request-otp', {
-        method: 'POST',
-        body: JSON.stringify({ identifier }),
-      });
-      return res;
-    } catch (err) {
-      // Fallback if network offline
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const text = `[REMALJ Carewell] Your password reset verification code is ${otp}. Valid for 10 minutes.`;
-      try {
-        await api.sendSms({ recipientPhone: identifier, messageText: text });
-      } catch (e) {}
-      return { success: true, message: `Verification code dispatched to ${identifier}`, otp, maskedPhone: identifier };
-    }
+    return await request('/auth/forgot-password/request-otp', {
+      method: 'POST',
+      body: JSON.stringify({ identifier }),
+    });
   },
 
   verifyPasswordResetOtp: async ({ identifier, otp }) => {
@@ -219,40 +171,23 @@ export const api = {
   },
 
   resetPasswordWithOtp: async ({ identifier, otp, newPassword }) => {
+    const res = await request('/auth/forgot-password/reset', {
+      method: 'POST',
+      body: JSON.stringify({ identifier, otp, newPassword }),
+    });
+    // Only update credential cache when backend API confirms password reset
     try {
-      const res = await request('/auth/forgot-password/reset', {
-        method: 'POST',
-        body: JSON.stringify({ identifier, otp, newPassword }),
-      });
-      // Sync local account password if registered locally
-      try {
-        const raw = localStorage.getItem('registered_accounts');
-        if (raw) {
-          const list = JSON.parse(raw);
-          const key = (identifier || '').toLowerCase();
-          if (list[key]) {
-            list[key].password = newPassword;
-            localStorage.setItem('registered_accounts', JSON.stringify(list));
-          }
+      const raw = localStorage.getItem('registered_accounts');
+      if (raw) {
+        const list = JSON.parse(raw);
+        const key = (identifier || '').toLowerCase();
+        if (list[key]) {
+          list[key].password = newPassword;
+          localStorage.setItem('registered_accounts', JSON.stringify(list));
         }
-      } catch (e) {}
-      return res;
-    } catch (err) {
-      // Sync local account password if registered locally
-      try {
-        const raw = localStorage.getItem('registered_accounts');
-        if (raw) {
-          const list = JSON.parse(raw);
-          const key = (identifier || '').toLowerCase();
-          if (list[key]) {
-            list[key].password = newPassword;
-            localStorage.setItem('registered_accounts', JSON.stringify(list));
-            return { success: true, message: 'Password reset successfully' };
-          }
-        }
-      } catch (e) {}
-      throw err;
-    }
+      }
+    } catch (e) {}
+    return res;
   },
 
   requestSmsOtp: async ({ phone, purpose = 'password_reset' }) => {
@@ -279,12 +214,11 @@ export const api = {
     }
     const cleanId = String(targetId).toLowerCase().trim();
 
-    try {
-      await request('/auth/admin/set-password', {
-        method: 'POST',
-        body: JSON.stringify({ identifier: cleanId, newPassword, role }),
-      });
-    } catch (e) {}
+    // Verify backend call succeeds before updating credentials
+    const res = await request('/auth/admin/set-password', {
+      method: 'POST',
+      body: JSON.stringify({ identifier: cleanId, newPassword, role }),
+    });
 
     try {
       const raw = localStorage.getItem('registered_accounts');
@@ -321,11 +255,9 @@ export const api = {
       }
 
       localStorage.setItem('registered_accounts', JSON.stringify(list));
-      return { success: true, message: `System Administrator successfully updated password for user account [${cleanId}].` };
-    } catch (err) {
-      console.error('Local password override error:', err);
-      return { success: true, message: `Password updated for ${cleanId}` };
-    }
+    } catch (err) {}
+
+    return res || { success: true, message: `System Administrator successfully updated password for user account [${cleanId}].` };
   },
 
   // --- Health Check ---

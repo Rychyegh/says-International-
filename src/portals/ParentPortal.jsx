@@ -68,6 +68,18 @@ export default function ParentPortal() {
       localStorage.setItem('says_parent_active_nav', nav);
     } catch (e) {}
   };
+
+  useEffect(() => {
+    const handleNavEvent = (e) => {
+      if (e.detail?.portal === 'parent' && e.detail?.nav) {
+        setActiveNav(e.detail.nav);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('says_navigate', handleNavEvent);
+    return () => window.removeEventListener('says_navigate', handleNavEvent);
+  }, []);
+
   const [activeChild, setActiveChild] = useState(0);
   const { onboardedStudents = [], results: staffResults = [], studentFees = [], messages = [] } = usePortalData();
 

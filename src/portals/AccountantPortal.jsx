@@ -233,6 +233,19 @@ export default function AccountantPortal({ onSignOut }) {
       localStorage.setItem('says_accountant_sims_tab', tab);
     } catch (e) {}
   };
+
+  useEffect(() => {
+    const handleNavEvent = (e) => {
+      if (e.detail?.portal === 'accountant') {
+        if (e.detail.nav) setActiveNav(e.detail.nav);
+        if (e.detail.simsTab) setSimsTab(e.detail.simsTab);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('says_navigate', handleNavEvent);
+    return () => window.removeEventListener('says_navigate', handleNavEvent);
+  }, []);
+
   const [simsSearchQuery, setSimsSearchQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [feeFilter, setFeeFilter] = useState('All');

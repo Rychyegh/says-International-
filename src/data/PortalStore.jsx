@@ -20,6 +20,103 @@ function mergeByKey(arrA = [], arrB = [], keyFn) {
   return Array.from(map.values());
 }
 
+export function deduplicateStudents(students = []) {
+  if (!Array.isArray(students)) return [];
+  const result = [];
+
+  for (const s of students) {
+    if (!s || typeof s !== 'object') continue;
+
+    const normName = (s.fullName || s.name || s.full_name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const normStudentId = (s.studentId || s.student_id_code || s.student_code || '').toLowerCase().trim();
+    const normId = String(s.id || '').toLowerCase().trim();
+    const normEmail = (s.studentEmail || s.student_email || s.email || '').toLowerCase().trim();
+    const normRfid = (s.rfidCardCode || s.rfid_card_code || '').toLowerCase().trim();
+
+    // Find if this student matches any existing entry in result
+    const existingIndex = result.findIndex(prev => {
+      const prevName = (prev.fullName || prev.name || prev.full_name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      const prevStudentId = (prev.studentId || prev.student_id_code || prev.student_code || '').toLowerCase().trim();
+      const prevId = String(prev.id || '').toLowerCase().trim();
+      const prevEmail = (prev.studentEmail || prev.student_email || prev.email || '').toLowerCase().trim();
+      const prevRfid = (prev.rfidCardCode || prev.rfid_card_code || '').toLowerCase().trim();
+
+      // 1. Matches by normalized non-empty student ID
+      if (normStudentId && prevStudentId && normStudentId === prevStudentId) return true;
+      // 2. Matches by database/store ID
+      if (normId && prevId && normId === prevId) return true;
+      // 3. Matches by student email
+      if (normEmail && prevEmail && normEmail === prevEmail) return true;
+      // 4. Matches by RFID card code
+      if (normRfid && prevRfid && normRfid === prevRfid) return true;
+      // 5. Matches by full name
+      if (normName && prevName && normName === prevName) return true;
+
+      return false;
+    });
+
+    if (existingIndex === -1) {
+      result.push({ ...s });
+    } else {
+      const prev = result[existingIndex];
+      const isPrevOfficialId = /REMALJ-\d{4}-\d{3}$/i.test(prev.studentId || '');
+      const isCurOfficialId = /REMALJ-\d{4}-\d{3}$/i.test(s.studentId || '');
+      const preferredId = isCurOfficialId ? s.studentId : (isPrevOfficialId ? prev.studentId : (s.studentId || prev.studentId));
+      const preferredRfid = prev.rfidCardCode || s.rfidCardCode || s.rfid_card_code;
+
+      const merged = {
+        ...prev,
+        ...s,
+        id: prev.id || s.id,
+        studentId: preferredId,
+        fullName: s.fullName || prev.fullName || s.name || prev.name,
+        dob: s.dob || prev.dob,
+        gender: s.gender || prev.gender,
+        level: s.level || prev.level || s.class_level || prev.class_level,
+        classSection: s.classSection || prev.classSection || s.class_section || prev.class_section || 'A',
+        guardianName: (s.guardianName && s.guardianName !== 'Parent/Guardian') ? s.guardianName : (prev.guardianName || s.guardianName || 'Parent/Guardian'),
+        guardianEmail: s.guardianEmail || prev.guardianEmail,
+        guardianPhone: s.guardianPhone || prev.guardianPhone,
+        homeAddress: s.homeAddress || prev.homeAddress,
+        enrollmentDate: prev.enrollmentDate || s.enrollmentDate || new Date().toISOString().split('T')[0],
+        status: s.status || prev.status || 'Active',
+        studentEmail: s.studentEmail || prev.studentEmail,
+        defaultPassword: s.defaultPassword || prev.defaultPassword,
+        rfidCardCode: preferredRfid,
+      };
+
+      result[existingIndex] = merged;
+    }
+  }
+
+  return result;
+}
+
+export function deduplicateFees(fees = []) {
+  const map = new Map();
+  (fees || []).forEach(f => {
+    if (!f) return;
+    const nameKey = (f.studentName || '').toLowerCase().trim();
+    const termKey = (f.term || 'Term 1 · 2026').toLowerCase().trim();
+    const key = nameKey ? `${nameKey}::${termKey}` : (f.studentId || f.id || '').toLowerCase().trim();
+    if (!key) return;
+
+    if (!map.has(key)) {
+      map.set(key, f);
+    } else {
+      const prev = map.get(key);
+      map.set(key, {
+        ...prev,
+        ...f,
+        paidAmount: Math.max(Number(prev.paidAmount) || 0, Number(f.paidAmount) || 0),
+        balance: Math.min(Number(prev.balance !== undefined ? prev.balance : prev.billedAmount) || 0, Number(f.balance !== undefined ? f.balance : f.billedAmount) || 0),
+        status: (prev.status === 'Paid' || f.status === 'Paid') ? 'Paid' : (prev.status === 'Partially Paid' || f.status === 'Partially Paid') ? 'Partially Paid' : (f.status || prev.status || 'Not Paid')
+      });
+    }
+  });
+  return Array.from(map.values());
+}
+
 const INITIAL_DATA = {
   timetable: [],
   results: [],
@@ -80,6 +177,8 @@ function readData() {
     return {
       ...INITIAL_DATA,
       ...parsed,
+      onboardedStudents: deduplicateStudents(parsed.onboardedStudents || []),
+      studentFees: deduplicateFees(parsed.studentFees || []),
       academicSettings: {
         ...INITIAL_DATA.academicSettings,
         ...(parsed.academicSettings || {})
@@ -95,14 +194,16 @@ export function PortalDataProvider({ children }) {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      if (data.backendConnected) {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        // Real-Time Cloud Hub Push only when connected
+        cloudSync.pushLatestData(data);
+      }
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
         const channel = new BroadcastChannel('rcis_portal_data_sync');
         channel.postMessage({ type: 'DATA_UPDATE', payload: data });
         channel.close();
       }
-      // Real-Time Cloud Hub Push
-      cloudSync.pushLatestData(data);
     } catch (e) {}
   }, [data]);
 
@@ -149,10 +250,10 @@ export function PortalDataProvider({ children }) {
         const cloudData = await cloudSync.pullLatestData();
         if (cloudData && typeof cloudData === 'object') {
           setData(current => {
-            const mergedStudents = mergeByKey(current.onboardedStudents || [], cloudData.onboardedStudents || [], s => s.studentId || s.id || s.fullName);
+            const mergedStudents = deduplicateStudents([...(current.onboardedStudents || []), ...(cloudData.onboardedStudents || [])]);
             const mergedApps = mergeByKey(current.applications || [], cloudData.applications || [], a => a.id || a.learner);
-            const mergedFees = mergeByKey(current.studentFees || [], cloudData.studentFees || [], f => f.studentId || f.id || f.studentName);
-            const mergedFeeAccounts = mergeByKey(current.feeAccounts || [], cloudData.feeAccounts || [], a => a.id || a.child);
+            const mergedFees = deduplicateFees(mergeByKey(current.studentFees || [], cloudData.studentFees || [], f => (f.studentName ? `${(f.studentName).toLowerCase().trim()}::${(f.term || '').toLowerCase().trim()}` : f.studentId || f.id)));
+            const mergedFeeAccounts = mergeByKey(current.feeAccounts || [], cloudData.feeAccounts || [], a => (a.child || a.id || '').toLowerCase().trim());
             const mergedStaff = mergeByKey(current.teacherDirectory || [], cloudData.teacherDirectory || [], s => s.staffId || s.id || s.email || s.name);
             const mergedBills = mergeByKey(current.definedBills || [], cloudData.definedBills || [], b => b.id || b.title || b.name);
             const mergedPVs = mergeByKey(current.paymentVouchers || [], cloudData.paymentVouchers || [], p => p.pvNo || p.id);
@@ -361,19 +462,7 @@ export function PortalDataProvider({ children }) {
           }));
           setData(current => {
             const currentList = current.onboardedStudents || [];
-            const mergedMap = new Map();
-            currentList.forEach(s => {
-              const k = (s.studentId || s.id || s.fullName || '').toLowerCase().trim();
-              if (k) mergedMap.set(k, s);
-            });
-            mapped.forEach(s => {
-              const k = (s.studentId || s.id || s.fullName || '').toLowerCase().trim();
-              if (k) {
-                const prev = mergedMap.get(k) || {};
-                mergedMap.set(k, { ...prev, ...s });
-              }
-            });
-            const merged = Array.from(mergedMap.values());
+            const merged = deduplicateStudents([...currentList, ...mapped]);
             return {
               ...current,
               onboardedStudents: merged.length > 0 ? merged : mapped,
@@ -413,19 +502,7 @@ export function PortalDataProvider({ children }) {
           }));
           setData(current => {
             const curFees = current.studentFees || [];
-            const feeMap = new Map();
-            curFees.forEach(f => {
-              const k = (f.studentId || f.id || f.studentName || '').toLowerCase().trim();
-              if (k) feeMap.set(k, f);
-            });
-            mapped.forEach(f => {
-              const k = (f.studentId || f.id || f.studentName || '').toLowerCase().trim();
-              if (k) {
-                const prev = feeMap.get(k) || {};
-                feeMap.set(k, { ...prev, ...f });
-              }
-            });
-            const mergedFees = Array.from(feeMap.values());
+            const mergedFees = deduplicateFees(mergeByKey(curFees, mapped, f => (f.studentName ? `${(f.studentName).toLowerCase().trim()}::${(f.term || '').toLowerCase().trim()}` : f.studentId || f.id)));
             return {
               ...current,
               studentFees: mergedFees.length > 0 ? mergedFees : mapped,
@@ -585,11 +662,11 @@ export function PortalDataProvider({ children }) {
   }, [refreshBackendData]);
 
   const sortedOnboardedStudents = useMemo(() => {
-    return [...(data.onboardedStudents || [])].sort((a, b) => (a.fullName || a.name || '').localeCompare(b.fullName || b.name || ''));
+    return deduplicateStudents(data.onboardedStudents || []).sort((a, b) => (a.fullName || a.name || '').localeCompare(b.fullName || b.name || ''));
   }, [data.onboardedStudents]);
 
   const sortedStudentFees = useMemo(() => {
-    return [...(data.studentFees || [])].sort((a, b) => (a.studentName || '').localeCompare(b.studentName || ''));
+    return deduplicateFees(data.studentFees || []).sort((a, b) => (a.studentName || '').localeCompare(b.studentName || ''));
   }, [data.studentFees]);
 
   const value = useMemo(() => ({
@@ -778,60 +855,9 @@ export function PortalDataProvider({ children }) {
           submittedAt: new Date().toLocaleString()
         };
 
-        const studentCount = (current.onboardedStudents || []).length + 1;
-        const studentId = `REMALJ-${new Date().getFullYear()}-${String(studentCount).padStart(3, '0')}`;
-        const newStudent = {
-          id: appId,
-          studentId,
-          rfidCardCode: application.rfidCardCode || `CARD-${String(studentCount).padStart(3, '0')}`,
-          fullName: learnerName,
-          dob: application.dob || '2015-01-01',
-          gender: application.sex || application.gender || 'Male',
-          level: applyingLevel,
-          classSection,
-          guardianName,
-          guardianEmail: contactEmail,
-          guardianPhone: contactPhone,
-          homeAddress,
-          passportPhoto: application.passportPhoto || null,
-          enrollmentDate: new Date().toISOString().split('T')[0],
-          status: 'Active',
-          studentEmail: `${learnerName.toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`,
-          defaultPassword: `StuPass#${studentId.replace('REMALJ-', '')}`,
-        };
-
-        const defaultBilled = applyingLevel.includes('JHS') ? 5200 : applyingLevel.includes('SHS') ? 5800 : 4800;
-        const newFee = {
-          id: `fee-${appId}`,
-          studentId,
-          studentName: learnerName,
-          guardianName,
-          guardianEmail: contactEmail,
-          term: 'Term 1 · 2026',
-          billedAmount: defaultBilled,
-          paidAmount: 0,
-          balance: defaultBilled,
-          status: 'Not Paid',
-          dueDate: '2026-09-15',
-          paymentDate: null
-        };
-
-        const newFeeAccount = {
-          id: `fee-acc-${appId}`,
-          child: learnerName,
-          school: 'REMALJ Carewell Inspirational School',
-          term: 'Term 1 · 2026',
-          billed: defaultBilled,
-          paid: 0,
-          status: 'Not Paid'
-        };
-
         return {
           ...current,
           applications: [newApp, ...(current.applications || [])],
-          onboardedStudents: [newStudent, ...(current.onboardedStudents || [])],
-          studentFees: [newFee, ...(current.studentFees || [])],
-          feeAccounts: [newFeeAccount, ...(current.feeAccounts || [])],
         };
       });
     },
@@ -1029,8 +1055,9 @@ export function PortalDataProvider({ children }) {
     updateProfile: (portal, updates) => setData((current) => ({ ...current, profiles: { ...current.profiles, [portal]: { ...current.profiles[portal], ...updates } } })),
     setTheme: (theme) => setData((current) => ({ ...current, theme })),
     onboardStudent: async (student) => {
+      let createdFromApi = null;
       try {
-        await api.onboardStudent({
+        createdFromApi = await api.onboardStudent({
           fullName: student.fullName,
           full_name: student.fullName,
           name: student.fullName,
@@ -1057,70 +1084,87 @@ export function PortalDataProvider({ children }) {
       }
 
       setData((current) => {
-        const studentId = `REMALJ-${new Date().getFullYear()}-${String((current.onboardedStudents || []).length + 1).padStart(3, '0')}`;
+        const studentNormName = (student.fullName || '').toLowerCase().trim();
+        const studentNormLevel = (student.level || '').toLowerCase().trim();
+
+        const currentStudents = current.onboardedStudents || [];
+        const existingStudent = currentStudents.find(
+          s => (s.fullName || s.name || '').toLowerCase().trim() === studentNormName ||
+               (s.studentId && student.studentId && s.studentId.toLowerCase().trim() === student.studentId.toLowerCase().trim())
+        );
+
+        const apiStudent = (createdFromApi && typeof createdFromApi === 'object')
+          ? (createdFromApi.student || (createdFromApi.studentId || createdFromApi.id || createdFromApi.student_id_code ? createdFromApi : null))
+          : null;
+
+        const studentId = apiStudent?.studentId || apiStudent?.student_id_code || apiStudent?.student_id || existingStudent?.studentId || student.studentId || `REMALJ-${new Date().getFullYear()}-${String(currentStudents.length + 1).padStart(3, '0')}`;
+        const studentDbId = apiStudent?.id || existingStudent?.id || crypto.randomUUID?.() || String(Date.now());
         const studentEmail = `${student.fullName.toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`;
-        const defaultPassword = student.defaultPassword || `StuPass#${studentId.replace('REMALJ-', '')}`;
+        const defaultPassword = student.defaultPassword || apiStudent?.defaultPassword || apiStudent?.default_password || existingStudent?.defaultPassword || `StuPass#${studentId.replace('REMALJ-', '')}`;
         const parentPassword = student.parentPassword || 'ParentPass2026!';
+        const rfidCode = student.rfidCardCode || apiStudent?.rfidCardCode || apiStudent?.rfid_card_code || existingStudent?.rfidCardCode || `CARD-${String(currentStudents.length + 1).padStart(3, '0')}`;
 
         const newStudent = {
-          id: crypto.randomUUID?.() || String(Date.now()),
+          id: studentDbId,
           studentId,
-          rfidCardCode: student.rfidCardCode || `CARD-${String((current.onboardedStudents || []).length + 1).padStart(3, '0')}`,
+          rfidCardCode: rfidCode,
           fullName: student.fullName,
-          dob: student.dob,
-          gender: student.gender,
-          level: student.level,
-          classSection: student.classSection || 'A',
-          guardianName: student.guardianName,
-          guardianEmail: student.guardianEmail,
-          guardianPhone: student.guardianPhone,
-          homeAddress: student.homeAddress,
-          enrollmentDate: new Date().toISOString().split('T')[0],
+          dob: student.dob || apiStudent?.dob || existingStudent?.dob,
+          gender: student.gender || apiStudent?.gender || existingStudent?.gender,
+          level: student.level || apiStudent?.level || apiStudent?.class_level || existingStudent?.level,
+          classSection: student.classSection || apiStudent?.classSection || apiStudent?.class_section || existingStudent?.classSection || 'A',
+          guardianName: (student.guardianName && student.guardianName !== 'Parent/Guardian') ? student.guardianName : (existingStudent?.guardianName || student.guardianName),
+          guardianEmail: student.guardianEmail || apiStudent?.guardianEmail || apiStudent?.guardian_email || existingStudent?.guardianEmail,
+          guardianPhone: student.guardianPhone || apiStudent?.guardianPhone || apiStudent?.guardian_phone || existingStudent?.guardianPhone,
+          homeAddress: student.homeAddress || apiStudent?.homeAddress || apiStudent?.home_address || existingStudent?.homeAddress,
+          enrollmentDate: apiStudent?.enrollmentDate || existingStudent?.enrollmentDate || new Date().toISOString().split('T')[0],
           status: 'Active',
           studentEmail,
           defaultPassword,
         };
 
-        // Sync credentials into registered_accounts for student and parent
-        try {
-          const raw = localStorage.getItem('registered_accounts');
-          const list = raw ? JSON.parse(raw) : {};
-          list[studentEmail.toLowerCase()] = {
-            id: `usr_${studentId}`,
-            studentId,
-            email: studentEmail,
-            password: defaultPassword,
-            fullName: student.fullName,
-            role: 'student'
-          };
-          list[studentId.toLowerCase()] = {
-            id: `usr_${studentId}`,
-            studentId,
-            email: studentEmail,
-            password: defaultPassword,
-            fullName: student.fullName,
-            role: 'student'
-          };
-          if (student.guardianEmail) {
-            list[student.guardianEmail.toLowerCase()] = {
-              id: `usr_parent_${studentId}`,
-              email: student.guardianEmail,
-              phone: student.guardianPhone,
-              password: parentPassword,
-              fullName: student.guardianName || `Parent of ${student.fullName}`,
-              role: 'parent'
+        // Only cache credentials into registered_accounts if backend API confirmed creation
+        if (createdFromApi) {
+          try {
+            const raw = localStorage.getItem('registered_accounts');
+            const list = raw ? JSON.parse(raw) : {};
+            list[studentEmail.toLowerCase()] = {
+              id: `usr_${studentId}`,
+              studentId,
+              email: studentEmail,
+              password: defaultPassword,
+              fullName: student.fullName,
+              role: 'student'
             };
-          }
-          localStorage.setItem('registered_accounts', JSON.stringify(list));
-        } catch (e) {}
+            list[studentId.toLowerCase()] = {
+              id: `usr_${studentId}`,
+              studentId,
+              email: studentEmail,
+              password: defaultPassword,
+              fullName: student.fullName,
+              role: 'student'
+            };
+            if (student.guardianEmail) {
+              list[student.guardianEmail.toLowerCase()] = {
+                id: `usr_parent_${studentId}`,
+                email: student.guardianEmail,
+                phone: student.guardianPhone,
+                password: parentPassword,
+                fullName: student.guardianName || `Parent of ${student.fullName}`,
+                role: 'parent'
+              };
+            }
+            localStorage.setItem('registered_accounts', JSON.stringify(list));
+          } catch (e) {}
+        }
 
-        const defaultBilled = student.level.includes('JHS') ? 5200 : student.level.includes('SHS') ? 5800 : 4800;
+        const defaultBilled = (student.level || '').includes('JHS') ? 5200 : (student.level || '').includes('SHS') ? 5800 : 4800;
         const newFee = {
           id: `fee-${newStudent.id}`,
           studentId,
           studentName: student.fullName,
-          guardianName: student.guardianName,
-          guardianEmail: student.guardianEmail,
+          guardianName: newStudent.guardianName,
+          guardianEmail: newStudent.guardianEmail,
           term: 'Term 1 · 2026',
           billedAmount: defaultBilled,
           paidAmount: 0,
@@ -1138,11 +1182,28 @@ export function PortalDataProvider({ children }) {
           paid: 0,
           status: 'Not Paid'
         };
+
+        const otherStudents = (current.onboardedStudents || []).filter(s => {
+          const sName = (s.fullName || s.name || '').toLowerCase().trim();
+          const sId = (s.studentId || '').toLowerCase().trim();
+          const sDbId = String(s.id || '').toLowerCase().trim();
+          if (studentNormName && sName === studentNormName) return false;
+          if (studentId && sId === studentId.toLowerCase().trim()) return false;
+          if (newStudent.id && sDbId === String(newStudent.id).toLowerCase().trim()) return false;
+          return true;
+        });
+        const otherFees = (current.studentFees || []).filter(
+          f => (f.studentName || '').toLowerCase().trim() !== studentNormName && f.studentId !== studentId
+        );
+        const otherFeeAccounts = (current.feeAccounts || []).filter(
+          a => (a.child || '').toLowerCase().trim() !== studentNormName
+        );
+
         return {
           ...current,
-          onboardedStudents: [newStudent, ...(current.onboardedStudents || [])],
-          studentFees: [newFee, ...(current.studentFees || [])],
-          feeAccounts: [newFeeAccount, ...(current.feeAccounts || [])],
+          onboardedStudents: deduplicateStudents([newStudent, ...otherStudents]),
+          studentFees: deduplicateFees([newFee, ...otherFees]),
+          feeAccounts: [newFeeAccount, ...otherFeeAccounts],
         };
       });
     },
@@ -1231,8 +1292,8 @@ export function PortalDataProvider({ children }) {
 
         return {
           ...current,
-          onboardedStudents: [...newStudents, ...(current.onboardedStudents || [])],
-          studentFees: [...newFees, ...(current.studentFees || [])],
+          onboardedStudents: deduplicateStudents([...newStudents, ...(current.onboardedStudents || [])]),
+          studentFees: deduplicateFees([...newFees, ...(current.studentFees || [])]),
           feeAccounts: [...newAccounts, ...(current.feeAccounts || [])],
         };
       });
@@ -1932,20 +1993,22 @@ export function PortalDataProvider({ children }) {
           bio: staffData.bio || `${staffData.role || 'Teacher'} at REMALJ Carewell Inspirational School.`
         };
 
-        try {
-          const raw = localStorage.getItem('registered_accounts');
-          const list = raw ? JSON.parse(raw) : {};
-          list[email.toLowerCase()] = {
-            id: newStaff.id,
-            email: email.toLowerCase(),
-            password: defaultPassword,
-            fullName: staffData.name,
-            role: 'teacher',
-            staffId,
-            phone: staffData.phone
-          };
-          localStorage.setItem('registered_accounts', JSON.stringify(list));
-        } catch (e) {}
+        if (created) {
+          try {
+            const raw = localStorage.getItem('registered_accounts');
+            const list = raw ? JSON.parse(raw) : {};
+            list[email.toLowerCase()] = {
+              id: newStaff.id,
+              email: email.toLowerCase(),
+              password: defaultPassword,
+              fullName: staffData.name,
+              role: 'teacher',
+              staffId,
+              phone: staffData.phone
+            };
+            localStorage.setItem('registered_accounts', JSON.stringify(list));
+          } catch (e) {}
+        }
 
         return {
           ...current,
@@ -2203,54 +2266,13 @@ export function PortalDataProvider({ children }) {
       if (!targetId || !newPassword) return false;
       const cleanId = String(targetId).toLowerCase().trim();
 
-      try {
-        await api.adminSetUserPassword({
-          identifier: cleanId,
-          newPassword,
-          role,
-          fullName,
-          adminName
-        });
-      } catch (e) {
-        console.warn('Backend admin set password API call fallback:', e);
-      }
-
-      try {
-        const raw = localStorage.getItem('registered_accounts');
-        const list = raw ? JSON.parse(raw) : {};
-
-        let foundKeys = Object.keys(list).filter(k => 
-          k.toLowerCase() === cleanId || 
-          (list[k] && (
-            (list[k].email && list[k].email.toLowerCase() === cleanId) ||
-            (list[k].studentId && list[k].studentId.toLowerCase() === cleanId) ||
-            (list[k].staffId && list[k].staffId.toLowerCase() === cleanId)
-          ))
-        );
-
-        if (foundKeys.length > 0) {
-          foundKeys.forEach(k => {
-            list[k] = {
-              ...list[k],
-              password: newPassword,
-              lastPasswordResetBy: adminName,
-              lastPasswordResetAt: new Date().toLocaleString()
-            };
-          });
-        } else {
-          list[cleanId] = {
-            id: `usr_${Date.now()}`,
-            email: cleanId,
-            password: newPassword,
-            fullName: fullName || cleanId,
-            role,
-            lastPasswordResetBy: adminName,
-            lastPasswordResetAt: new Date().toLocaleString()
-          };
-        }
-
-        localStorage.setItem('registered_accounts', JSON.stringify(list));
-      } catch (e) {}
+      await api.adminSetUserPassword({
+        identifier: cleanId,
+        newPassword,
+        role,
+        fullName,
+        adminName
+      });
 
       setData((current) => {
         const updatedStudents = (current.onboardedStudents || []).map(s => {
