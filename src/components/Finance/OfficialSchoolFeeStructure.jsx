@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Printer, CheckCircle2, DollarSign, BookOpen, Shirt, ShoppingBag, HeartHandshake, Layers, Plus, Trash2, FileText, Send, X, UserCheck, Upload, Camera, User, Bus, Utensils, Award, CreditCard, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Printer, CheckCircle2, DollarSign, BookOpen, Layers, Plus, Trash2, FileText, Send, X, UserCheck, Upload, Camera, User, Bus, Utensils, Award, CreditCard, Sparkles, ChevronRight, GraduationCap, Edit3, Save, Check } from 'lucide-react';
 import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
 import { usePortalData } from '../../data/PortalStore';
 import './OfficialSchoolFeeStructure.css';
@@ -12,178 +12,267 @@ export const OFFICIAL_OPTIONAL_PRESETS = [
   { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', defaultAmount: 50.00, icon: '🪪', account: 'Sundry / Miscellaneous', description: 'Security authorized parent/guardian pick-up ID card' },
 ];
 
+export const GRADE_LEVEL_CATEGORIES = [
+  {
+    id: 'nursery_creche',
+    name: 'Nursery / Creche',
+    shortName: 'Nursery & Creche',
+    icon: '👶',
+    subLevels: [
+      { id: 'Creche', label: 'Creche', code: 'CR', stationery: 695.00 },
+      { id: 'Nursery 1', label: 'Nursery 1', code: 'N1', stationery: 695.00 },
+      { id: 'Nursery 2', label: 'Nursery 2', code: 'N2', stationery: 1180.00 },
+    ]
+  },
+  {
+    id: 'kindergarten',
+    name: 'Kindergarten',
+    shortName: 'Kindergarten',
+    icon: '🧒',
+    subLevels: [
+      { id: 'Kindergarten 1', label: 'Kindergarten 1 (KG 1)', code: 'KG1', stationery: 1205.00, ucmas: 295.00 },
+      { id: 'Kindergarten 2', label: 'Kindergarten 2 (KG 2)', code: 'KG2', stationery: 1205.00, ucmas: 295.00 },
+    ]
+  },
+  {
+    id: 'basic_school',
+    name: 'Basic School (Grades 1 - 9)',
+    shortName: 'Basic (Grade 1 - 9)',
+    icon: '🎓',
+    subLevels: [
+      { id: 'Grade 1', label: 'Grade 1 (Basic 1)', code: 'B1', stationery: 1365.00, ucmas: 295.00 },
+      { id: 'Grade 2', label: 'Grade 2 (Basic 2)', code: 'B2', stationery: 1115.00, ucmas: 295.00 },
+      { id: 'Grade 3', label: 'Grade 3 (Basic 3)', code: 'B3', stationery: 1115.00, ucmas: 295.00 },
+      { id: 'Grade 4', label: 'Grade 4 (Basic 4)', code: 'B4', stationery: 1040.00, scienceSet: 190.00, ucmas: 295.00 },
+      { id: 'Grade 5', label: 'Grade 5 (Basic 5)', code: 'B5', stationery: 1040.00, scienceSet: 190.00, ucmas: 295.00 },
+      { id: 'Grade 6', label: 'Grade 6 (Basic 6)', code: 'B6', stationery: 1040.00, scienceSet: 190.00, ucmas: 295.00 },
+      { id: 'Grade 7', label: 'Grade 7 (JHS 1)', code: 'J1', stationery: 2090.00 },
+      { id: 'Grade 8', label: 'Grade 8 (JHS 2)', code: 'J2', stationery: 2090.00 },
+      { id: 'Grade 9', label: 'Grade 9 (JHS 3)', code: 'J3', stationery: 2090.00 },
+    ]
+  }
+];
+
+const makeBaseBill = (tuition, admission = 1000.00) => [
+  { details: 'ADMISSION FEE', amount: admission },
+  { details: 'TUITION FEE', amount: tuition },
+  { details: 'PTA DUES', amount: 15.00 },
+  { details: 'GNAPS DUES', amount: 20.00 },
+  { details: 'MAINTENANCE FEE', amount: 30.00 },
+  { details: 'FIRST AID LEVI', amount: 50.00 },
+  { details: 'TOILETRIES', amount: 60.00 },
+  { details: 'STUDENT\'S CARD SERVICE', amount: 125.00 },
+];
+
+const makeOptionalBills = (stationeryAmt = 500.00, subLevelName = '') => [
+  { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', amount: 150.00, enabled: true, icon: '🔥', description: 'Academic motivation & teaching incentive' },
+  { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', amount: 600.00, enabled: true, icon: '🚌', description: 'Daily roundtrip school bus transit route' },
+  { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', amount: 450.00, enabled: true, icon: '🍲', description: 'Daily hot meal & mid-day refreshment' },
+  { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', amount: stationeryAmt, enabled: true, icon: '📚', description: `${subLevelName || 'Official'} exercise & stationery pack` },
+  { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', amount: 50.00, enabled: true, icon: '🪪', description: 'Authorized parent pick-up card' },
+];
+
 const INITIAL_FEE_SCHEDULE = {
-  'Creche / Nursery 1': {
-    baseBill: [
-      { details: 'ADMISSION FEE', amount: 1000.00 },
-      { details: 'TUITION FEE', amount: 1200.00 },
-      { details: 'PTA DUES', amount: 15.00 },
-      { details: 'GNAPS DUES', amount: 20.00 },
-      { details: 'MAINTENANCE FEE', amount: 30.00 },
-      { details: 'FIRST AID LEVI', amount: 50.00 },
-      { details: 'TOILETRIES', amount: 60.00 },
-      { details: 'STUDENT\'S CARD SERVICE', amount: 125.00 },
-    ],
-    optionalBills: [
-      { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', amount: 150.00, enabled: true, icon: '🔥', description: 'Academic motivation & teaching incentive' },
-      { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', amount: 600.00, enabled: true, icon: '🚌', description: 'Daily roundtrip school bus transit route' },
-      { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', amount: 450.00, enabled: true, icon: '🍲', description: 'Daily hot meal & mid-day refreshment' },
-      { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', amount: 695.00, enabled: true, icon: '📚', description: 'Creche / Nursery 1 exercise & stationery set' },
-      { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', amount: 50.00, enabled: true, icon: '🪪', description: 'Authorized parent pick-up card' },
-    ],
+  // --- NURSERY / CRECHE SUB-LEVELS ---
+  'Creche': {
+    levelCategory: 'nursery_creche',
+    subLevelName: 'Creche',
+    baseBill: makeBaseBill(1200.00),
+    optionalBills: makeOptionalBills(695.00, 'Creche'),
+    stationery: 695.00,
+    isBaby: true,
+  },
+  'Nursery 1': {
+    levelCategory: 'nursery_creche',
+    subLevelName: 'Nursery 1',
+    baseBill: makeBaseBill(1200.00),
+    optionalBills: makeOptionalBills(695.00, 'Nursery 1'),
     stationery: 695.00,
     isBaby: true,
   },
   'Nursery 2': {
-    baseBill: [
-      { details: 'ADMISSION FEE', amount: 1000.00 },
-      { details: 'TUITION FEE', amount: 1200.00 },
-      { details: 'PTA DUES', amount: 15.00 },
-      { details: 'GNAPS DUES', amount: 20.00 },
-      { details: 'MAINTENANCE FEE', amount: 30.00 },
-      { details: 'FIRST AID LEVI', amount: 50.00 },
-      { details: 'TOILETRIES', amount: 60.00 },
-      { details: 'STUDENT\'S CARD SERVICE', amount: 125.00 },
-    ],
-    optionalBills: [
-      { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', amount: 150.00, enabled: true, icon: '🔥', description: 'Academic motivation & teaching incentive' },
-      { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', amount: 600.00, enabled: true, icon: '🚌', description: 'Daily roundtrip school bus transit route' },
-      { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', amount: 450.00, enabled: true, icon: '🍲', description: 'Daily hot meal & mid-day refreshment' },
-      { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', amount: 1180.00, enabled: true, icon: '📚', description: 'Nursery 2 official stationery & books' },
-      { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', amount: 50.00, enabled: true, icon: '🪪', description: 'Authorized parent pick-up card' },
-    ],
+    levelCategory: 'nursery_creche',
+    subLevelName: 'Nursery 2',
+    baseBill: makeBaseBill(1200.00),
+    optionalBills: makeOptionalBills(1180.00, 'Nursery 2'),
     stationery: 1180.00,
     isBaby: true,
   },
+
+  // --- KINDERGARTEN SUB-LEVELS ---
+  'Kindergarten 1': {
+    levelCategory: 'kindergarten',
+    subLevelName: 'Kindergarten 1 (KG 1)',
+    baseBill: makeBaseBill(1250.00),
+    optionalBills: makeOptionalBills(1205.00, 'Kindergarten 1'),
+    stationery: 1205.00,
+    ucmas: 295.00,
+    isBaby: false,
+  },
+  'Kindergarten 2': {
+    levelCategory: 'kindergarten',
+    subLevelName: 'Kindergarten 2 (KG 2)',
+    baseBill: makeBaseBill(1250.00),
+    optionalBills: makeOptionalBills(1205.00, 'Kindergarten 2'),
+    stationery: 1205.00,
+    ucmas: 295.00,
+    isBaby: false,
+  },
+
+  // --- BASIC SCHOOL SUB-LEVELS (GRADE 1 TO 9) ---
+  'Grade 1': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Grade 1 (Basic 1)',
+    baseBill: makeBaseBill(1350.00),
+    optionalBills: makeOptionalBills(1365.00, 'Grade 1'),
+    stationery: 1365.00,
+    ucmas: 295.00,
+    isBaby: false,
+  },
+  'Grade 2': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Grade 2 (Basic 2)',
+    baseBill: makeBaseBill(1350.00),
+    optionalBills: makeOptionalBills(1115.00, 'Grade 2'),
+    stationery: 1115.00,
+    ucmas: 295.00,
+    isBaby: false,
+  },
+  'Grade 3': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Grade 3 (Basic 3)',
+    baseBill: makeBaseBill(1350.00),
+    optionalBills: makeOptionalBills(1115.00, 'Grade 3'),
+    stationery: 1115.00,
+    ucmas: 295.00,
+    isBaby: false,
+  },
+  'Grade 4': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Grade 4 (Basic 4)',
+    baseBill: makeBaseBill(1450.00),
+    optionalBills: makeOptionalBills(1040.00, 'Grade 4'),
+    stationery: 1040.00,
+    scienceSet: 190.00,
+    ucmas: 295.00,
+    isBaby: false,
+  },
+  'Grade 5': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Grade 5 (Basic 5)',
+    baseBill: makeBaseBill(1450.00),
+    optionalBills: makeOptionalBills(1040.00, 'Grade 5'),
+    stationery: 1040.00,
+    scienceSet: 190.00,
+    ucmas: 295.00,
+    isBaby: false,
+  },
+  'Grade 6': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Grade 6 (Basic 6)',
+    baseBill: makeBaseBill(1450.00),
+    optionalBills: makeOptionalBills(1040.00, 'Grade 6'),
+    stationery: 1040.00,
+    scienceSet: 190.00,
+    ucmas: 295.00,
+    isBaby: false,
+  },
+  'Grade 7': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Grade 7 (JHS 1)',
+    baseBill: makeBaseBill(1800.00),
+    optionalBills: makeOptionalBills(2090.00, 'Grade 7 / JHS 1'),
+    stationery: 2090.00,
+    isBaby: false,
+  },
+  'Grade 8': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Grade 8 (JHS 2)',
+    baseBill: makeBaseBill(1800.00),
+    optionalBills: makeOptionalBills(2090.00, 'Grade 8 / JHS 2'),
+    stationery: 2090.00,
+    isBaby: false,
+  },
+  'Grade 9': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Grade 9 (JHS 3)',
+    baseBill: makeBaseBill(1800.00),
+    optionalBills: makeOptionalBills(2090.00, 'Grade 9 / JHS 3'),
+    stationery: 2090.00,
+    isBaby: false,
+  },
+
+  // Compatibility aliases
+  'Creche / Nursery 1': {
+    levelCategory: 'nursery_creche',
+    subLevelName: 'Creche / Nursery 1',
+    baseBill: makeBaseBill(1200.00),
+    optionalBills: makeOptionalBills(695.00, 'Creche / Nursery 1'),
+    stationery: 695.00,
+    isBaby: true,
+  },
   'Kindergarten 1 & 2': {
-    baseBill: [
-      { details: 'ADMISSION FEE', amount: 1000.00 },
-      { details: 'TUITION FEE', amount: 1250.00 },
-      { details: 'PTA DUES', amount: 15.00 },
-      { details: 'GNAPS DUES', amount: 20.00 },
-      { details: 'MAINTENANCE FEE', amount: 30.00 },
-      { details: 'FIRST AID LEVI', amount: 50.00 },
-      { details: 'TOILETRIES', amount: 60.00 },
-      { details: 'STUDENT\'S CARD SERVICE', amount: 125.00 },
-    ],
-    optionalBills: [
-      { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', amount: 150.00, enabled: true, icon: '🔥', description: 'Academic motivation & teaching incentive' },
-      { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', amount: 600.00, enabled: true, icon: '🚌', description: 'Daily roundtrip school bus transit route' },
-      { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', amount: 450.00, enabled: true, icon: '🍲', description: 'Daily hot meal & mid-day refreshment' },
-      { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', amount: 1205.00, enabled: true, icon: '📚', description: 'KG 1 & 2 official stationery & workbooks' },
-      { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', amount: 50.00, enabled: true, icon: '🪪', description: 'Authorized parent pick-up card' },
-    ],
+    levelCategory: 'kindergarten',
+    subLevelName: 'Kindergarten 1 & 2',
+    baseBill: makeBaseBill(1250.00),
+    optionalBills: makeOptionalBills(1205.00, 'Kindergarten'),
     stationery: 1205.00,
     ucmas: 295.00,
     isBaby: false,
   },
   'Basic One': {
-    baseBill: [
-      { details: 'ADMISSION FEE', amount: 1000.00 },
-      { details: 'TUITION FEE', amount: 1350.00 },
-      { details: 'PTA DUES', amount: 15.00 },
-      { details: 'GNAPS DUES', amount: 20.00 },
-      { details: 'MAINTENANCE FEE', amount: 30.00 },
-      { details: 'FIRST AID LEVI', amount: 50.00 },
-      { details: 'TOILETRIES', amount: 60.00 },
-      { details: 'STUDENT\'S CARD SERVICE', amount: 125.00 },
-    ],
-    optionalBills: [
-      { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', amount: 150.00, enabled: true, icon: '🔥', description: 'Academic motivation & teaching incentive' },
-      { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', amount: 600.00, enabled: true, icon: '🚌', description: 'Daily roundtrip school bus transit route' },
-      { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', amount: 450.00, enabled: true, icon: '🍲', description: 'Daily hot meal & mid-day refreshment' },
-      { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', amount: 1365.00, enabled: true, icon: '📚', description: 'Basic One stationery & exercise books' },
-      { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', amount: 50.00, enabled: true, icon: '🪪', description: 'Authorized parent pick-up card' },
-    ],
+    levelCategory: 'basic_school',
+    subLevelName: 'Grade 1 (Basic 1)',
+    baseBill: makeBaseBill(1350.00),
+    optionalBills: makeOptionalBills(1365.00, 'Grade 1'),
     stationery: 1365.00,
     ucmas: 295.00,
     isBaby: false,
   },
   'Basic 2 & 3': {
-    baseBill: [
-      { details: 'ADMISSION FEE', amount: 1000.00 },
-      { details: 'TUITION FEE', amount: 1350.00 },
-      { details: 'PTA DUES', amount: 15.00 },
-      { details: 'GNAPS DUES', amount: 20.00 },
-      { details: 'MAINTENANCE FEE', amount: 30.00 },
-      { details: 'FIRST AID LEVI', amount: 50.00 },
-      { details: 'TOILETRIES', amount: 60.00 },
-      { details: 'STUDENT\'S CARD SERVICE', amount: 125.00 },
-    ],
-    optionalBills: [
-      { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', amount: 150.00, enabled: true, icon: '🔥', description: 'Academic motivation & teaching incentive' },
-      { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', amount: 600.00, enabled: true, icon: '🚌', description: 'Daily roundtrip school bus transit route' },
-      { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', amount: 450.00, enabled: true, icon: '🍲', description: 'Daily hot meal & mid-day refreshment' },
-      { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', amount: 1115.00, enabled: true, icon: '📚', description: 'Basic 2 & 3 textbooks & stationery' },
-      { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', amount: 50.00, enabled: true, icon: '🪪', description: 'Authorized parent pick-up card' },
-    ],
+    levelCategory: 'basic_school',
+    subLevelName: 'Grade 2 & 3',
+    baseBill: makeBaseBill(1350.00),
+    optionalBills: makeOptionalBills(1115.00, 'Grade 2 & 3'),
     stationery: 1115.00,
     ucmas: 295.00,
     isBaby: false,
   },
   'Upper Primary (Basic 4 - 6)': {
-    baseBill: [
-      { details: 'ADMISSION FEE', amount: 1000.00 },
-      { details: 'TUITION FEE', amount: 1450.00 },
-      { details: 'PTA DUES', amount: 15.00 },
-      { details: 'GNAPS DUES', amount: 20.00 },
-      { details: 'MAINTENANCE FEE', amount: 30.00 },
-      { details: 'FIRST AID LEVI', amount: 50.00 },
-      { details: 'TOILETRIES', amount: 60.00 },
-      { details: 'STUDENT\'S CARD SERVICE', amount: 125.00 },
-    ],
-    optionalBills: [
-      { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', amount: 150.00, enabled: true, icon: '🔥', description: 'Academic motivation & teaching incentive' },
-      { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', amount: 600.00, enabled: true, icon: '🚌', description: 'Daily roundtrip school bus transit route' },
-      { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', amount: 450.00, enabled: true, icon: '🍲', description: 'Daily hot meal & mid-day refreshment' },
-      { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', amount: 1040.00, enabled: true, icon: '📚', description: 'Upper primary textbooks & stationery' },
-      { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', amount: 50.00, enabled: true, icon: '🪪', description: 'Authorized parent pick-up card' },
-    ],
+    levelCategory: 'basic_school',
+    subLevelName: 'Grade 4 - 6',
+    baseBill: makeBaseBill(1450.00),
+    optionalBills: makeOptionalBills(1040.00, 'Upper Primary'),
     stationery: 1040.00,
     scienceSet: 190.00,
     ucmas: 295.00,
     isBaby: false,
   },
   'JHS (Junior High School)': {
-    baseBill: [
-      { details: 'ADMISSION FEE', amount: 1000.00 },
-      { details: 'TUITION FEE', amount: 1800.00 },
-      { details: 'PTA DUES', amount: 15.00 },
-      { details: 'GNAPS DUES', amount: 20.00 },
-      { details: 'MAINTENANCE FEE', amount: 30.00 },
-      { details: 'FIRST AID LEVI', amount: 50.00 },
-      { details: 'TOILETRIES', amount: 60.00 },
-      { details: 'STUDENT\'S CARD SERVICE', amount: 125.00 },
-    ],
-    optionalBills: [
-      { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', amount: 150.00, enabled: true, icon: '🔥', description: 'Academic motivation & teaching incentive' },
-      { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', amount: 600.00, enabled: true, icon: '🚌', description: 'Daily roundtrip school bus transit route' },
-      { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', amount: 450.00, enabled: true, icon: '🍲', description: 'Daily hot meal & mid-day refreshment' },
-      { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', amount: 2090.00, enabled: true, icon: '📚', description: 'JHS textbooks, science lab & stationery pack' },
-      { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', amount: 50.00, enabled: true, icon: '🪪', description: 'Authorized parent pick-up card' },
-    ],
+    levelCategory: 'basic_school',
+    subLevelName: 'Grade 7 - 9 (JHS)',
+    baseBill: makeBaseBill(1800.00),
+    optionalBills: makeOptionalBills(2090.00, 'JHS'),
     stationery: 2090.00,
     isBaby: false,
   },
 };
 
-const UNIFORMS_LIST = [
-  { details: 'OFFICIAL UNIFORM', amount: 250.00 },
-  { details: 'PRINT WEAR', amount: 250.00 },
-  { details: 'LACOSTE POLO', amount: 100.00 },
-  { details: 'HOUSE JERSEY', amount: 100.00 },
-  { details: 'PICK UP CARD', amount: 50.00 },
-];
-
-const STATIONERY_SCHEDULE = [
-  { classLevel: 'CRECHE', amount: 695.00 },
-  { classLevel: 'NURSERY 1', amount: 695.00 },
-  { classLevel: 'NURSERY 2', amount: 1180.00 },
-  { classLevel: 'KINDERGARTEN 1 & 2', amount: 1205.00 },
-  { classLevel: 'BASIC ONE', amount: 1365.00 },
-  { classLevel: 'BASIC 2 & 3', amount: 1115.00 },
-  { classLevel: 'UPPER PRIMARY', amount: 1040.00 },
-  { classLevel: 'JHS', amount: 2090.00 },
+const INITIAL_STATIONERY_SCHEDULE = [
+  { classLevel: 'Creche', category: 'nursery_creche', label: 'Creche', amount: 695.00, itemsCount: 8, notes: 'Drawing pads, jumbo crayons, playdough & stationery kit' },
+  { classLevel: 'Nursery 1', category: 'nursery_creche', label: 'Nursery 1', amount: 695.00, itemsCount: 10, notes: 'Activity books, pencil packs & beginner learning pack' },
+  { classLevel: 'Nursery 2', category: 'nursery_creche', label: 'Nursery 2', amount: 1180.00, itemsCount: 12, notes: 'Early reader workbooks, phonics kit & writing workbooks' },
+  { classLevel: 'Kindergarten 1', category: 'kindergarten', label: 'Kindergarten 1 (KG 1)', amount: 1205.00, itemsCount: 14, notes: 'KG 1 workbooks, numeracy, literacy & creative arts set' },
+  { classLevel: 'Kindergarten 2', category: 'kindergarten', label: 'Kindergarten 2 (KG 2)', amount: 1205.00, itemsCount: 14, notes: 'KG 2 workbooks, science discovery & phonics set' },
+  { classLevel: 'Grade 1', category: 'basic_school', label: 'Grade 1 (Basic 1)', amount: 1365.00, itemsCount: 16, notes: 'Primary 1 core textbooks, exercise books & drawing books' },
+  { classLevel: 'Grade 2', category: 'basic_school', label: 'Grade 2 (Basic 2)', amount: 1115.00, itemsCount: 15, notes: 'Primary 2 core curriculum textbooks & 10-pack exercise books' },
+  { classLevel: 'Grade 3', category: 'basic_school', label: 'Grade 3 (Basic 3)', amount: 1115.00, itemsCount: 15, notes: 'Primary 3 core curriculum textbooks & 10-pack exercise books' },
+  { classLevel: 'Grade 4', category: 'basic_school', label: 'Grade 4 (Basic 4)', amount: 1040.00, itemsCount: 18, notes: 'Upper primary core textbooks & exercise notebooks' },
+  { classLevel: 'Grade 5', category: 'basic_school', label: 'Grade 5 (Basic 5)', amount: 1040.00, itemsCount: 18, notes: 'Upper primary core textbooks & exercise notebooks' },
+  { classLevel: 'Grade 6', category: 'basic_school', label: 'Grade 6 (Basic 6)', amount: 1040.00, itemsCount: 18, notes: 'Primary 6 preparation textbooks & mock assessment packs' },
+  { classLevel: 'Grade 7', category: 'basic_school', label: 'Grade 7 (JHS 1)', amount: 2090.00, itemsCount: 22, notes: 'JHS 1 NaCCA standard textbooks, science lab & maths set' },
+  { classLevel: 'Grade 8', category: 'basic_school', label: 'Grade 8 (JHS 2)', amount: 2090.00, itemsCount: 22, notes: 'JHS 2 NaCCA standard textbooks, science lab & past questions' },
+  { classLevel: 'Grade 9', category: 'basic_school', label: 'Grade 9 (JHS 3)', amount: 2090.00, itemsCount: 24, notes: 'JHS 3 BECE complete textbook suite, revision packs & past questions' },
 ];
 
 export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
@@ -192,16 +281,20 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
   const studentFees = portalData?.studentFees || [];
 
   const [feeSchedule, setFeeSchedule] = useState(INITIAL_FEE_SCHEDULE);
-  const [selectedClass, setSelectedClass] = useState('Creche / Nursery 1');
+  const [stationerySchedule, setStationerySchedule] = useState(INITIAL_STATIONERY_SCHEDULE);
+  const [stationeryFilter, setStationeryFilter] = useState('all'); // 'all' | 'nursery_creche' | 'kindergarten' | 'basic_school'
+  const [editingStationeryClass, setEditingStationeryClass] = useState(null);
+  const [savedStationeryNotice, setSavedStationeryNotice] = useState('');
+
+  // Two-tiered Class Level Selection State
+  const [selectedGradeCategory, setSelectedGradeCategory] = useState('nursery_creche'); // 'nursery_creche' | 'kindergarten' | 'basic_school'
+  const [selectedSubLevel, setSelectedSubLevel] = useState('Creche');
+  
   const [successMsg, setSuccessMsg] = useState('');
 
   // Add Fee Item Modal State
   const [isAddingFeeModal, setIsAddingFeeModal] = useState(false);
   const [newFeeForm, setNewFeeForm] = useState({ details: '', amount: '', isOptional: false });
-
-  // Add Optional Fee Item Modal State
-  const [isAddingOptionalModal, setIsAddingOptionalModal] = useState(false);
-  const [newOptionalForm, setNewOptionalForm] = useState({ details: '', label: '', amount: '', icon: '✨', description: '' });
 
   // Prepare & View Student Bill Modal State
   const [preparingStudentBill, setPreparingStudentBill] = useState(null);
@@ -214,24 +307,133 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
   const [selectedPostingStudent, setSelectedPostingStudent] = useState(null);
   const [postIncludeOptional, setPostIncludeOptional] = useState(true);
 
-  const activeClassData = feeSchedule[selectedClass] || feeSchedule['Creche / Nursery 1'];
+  // Active Category & SubLevels
+  const activeCategoryObj = GRADE_LEVEL_CATEGORIES.find(c => c.id === selectedGradeCategory) || GRADE_LEVEL_CATEGORIES[0];
+  const activeSubLevels = activeCategoryObj.subLevels;
+
+  // Active Class Data Lookup
+  const selectedClassKey = selectedSubLevel || activeSubLevels[0]?.id || 'Creche';
+  const activeClassData = feeSchedule[selectedClassKey] || feeSchedule['Creche'] || { baseBill: [], optionalBills: [] };
+  
   const baseBillItems = activeClassData.baseBill || [];
   const optionalBillItems = activeClassData.optionalBills || [];
 
   const totalBase = baseBillItems.reduce((acc, item) => acc + Number(item.amount || 0), 0);
   const totalOptionalActive = optionalBillItems.filter(o => o.enabled).reduce((acc, item) => acc + Number(item.amount || 0), 0);
-  const uniformsTotal = UNIFORMS_LIST.reduce((acc, u) => acc + u.amount, 0);
+
+  // Handle Category Change (Auto-selects first sub-level in category)
+  const handleCategoryChange = (categoryId) => {
+    setSelectedGradeCategory(categoryId);
+    const cat = GRADE_LEVEL_CATEGORIES.find(c => c.id === categoryId);
+    if (cat && cat.subLevels.length > 0) {
+      setSelectedSubLevel(cat.subLevels[0].id);
+    }
+  };
+
+  // Sync with selected student class level
+  const handleSelectStudentForBill = (student) => {
+    if (!student) {
+      setPreparingStudentBill(null);
+      return;
+    }
+    setPreparingStudentBill(student);
+
+    const sLevel = (student.level || '').toLowerCase();
+    
+    // Auto match category and sub-level
+    if (sLevel.includes('creche')) {
+      setSelectedGradeCategory('nursery_creche');
+      setSelectedSubLevel('Creche');
+    } else if (sLevel.includes('nursery 2')) {
+      setSelectedGradeCategory('nursery_creche');
+      setSelectedSubLevel('Nursery 2');
+    } else if (sLevel.includes('nursery')) {
+      setSelectedGradeCategory('nursery_creche');
+      setSelectedSubLevel('Nursery 1');
+    } else if (sLevel.includes('kg 2') || sLevel.includes('kindergarten 2')) {
+      setSelectedGradeCategory('kindergarten');
+      setSelectedSubLevel('Kindergarten 2');
+    } else if (sLevel.includes('kg') || sLevel.includes('kindergarten')) {
+      setSelectedGradeCategory('kindergarten');
+      setSelectedSubLevel('Kindergarten 1');
+    } else if (sLevel.includes('grade 1') || sLevel.includes('basic 1') || sLevel.includes('primary 1')) {
+      setSelectedGradeCategory('basic_school');
+      setSelectedSubLevel('Grade 1');
+    } else if (sLevel.includes('grade 2') || sLevel.includes('basic 2') || sLevel.includes('primary 2')) {
+      setSelectedGradeCategory('basic_school');
+      setSelectedSubLevel('Grade 2');
+    } else if (sLevel.includes('grade 3') || sLevel.includes('basic 3') || sLevel.includes('primary 3')) {
+      setSelectedGradeCategory('basic_school');
+      setSelectedSubLevel('Grade 3');
+    } else if (sLevel.includes('grade 4') || sLevel.includes('basic 4') || sLevel.includes('primary 4')) {
+      setSelectedGradeCategory('basic_school');
+      setSelectedSubLevel('Grade 4');
+    } else if (sLevel.includes('grade 5') || sLevel.includes('basic 5') || sLevel.includes('primary 5')) {
+      setSelectedGradeCategory('basic_school');
+      setSelectedSubLevel('Grade 5');
+    } else if (sLevel.includes('grade 6') || sLevel.includes('basic 6') || sLevel.includes('primary 6')) {
+      setSelectedGradeCategory('basic_school');
+      setSelectedSubLevel('Grade 6');
+    } else if (sLevel.includes('grade 7') || sLevel.includes('jhs 1')) {
+      setSelectedGradeCategory('basic_school');
+      setSelectedSubLevel('Grade 7');
+    } else if (sLevel.includes('grade 8') || sLevel.includes('jhs 2')) {
+      setSelectedGradeCategory('basic_school');
+      setSelectedSubLevel('Grade 8');
+    } else if (sLevel.includes('grade 9') || sLevel.includes('jhs 3')) {
+      setSelectedGradeCategory('basic_school');
+      setSelectedSubLevel('Grade 9');
+    }
+
+    setSelectedStudentOptionalIds(optionalBillItems.filter(o => o.enabled).map(o => o.id));
+  };
+
+  // Handle Edit Master Stationery Fee per Class
+  const handleUpdateStationeryFee = (targetClassLevel, newAmount) => {
+    const val = parseFloat(newAmount);
+    if (isNaN(val) || val < 0) return;
+
+    // 1. Update stationerySchedule state
+    setStationerySchedule((prev) =>
+      prev.map((item) =>
+        item.classLevel === targetClassLevel ? { ...item, amount: val } : item
+      )
+    );
+
+    // 2. Synchronize with feeSchedule for that sub-level
+    setFeeSchedule((prev) => {
+      const classData = prev[targetClassLevel];
+      if (!classData) return prev;
+
+      const updatedClassData = { ...classData, stationery: val };
+      
+      // Also update opt_stationery in optionalBills
+      if (updatedClassData.optionalBills) {
+        updatedClassData.optionalBills = updatedClassData.optionalBills.map((opt) =>
+          opt.id === 'opt_stationery' ? { ...opt, amount: val } : opt
+        );
+      }
+
+      return {
+        ...prev,
+        [targetClassLevel]: updatedClassData
+      };
+    });
+
+    setSavedStationeryNotice(`✅ Updated Stationery Fee for ${targetClassLevel} to GHS ${val.toFixed(2)}`);
+    setTimeout(() => setSavedStationeryNotice(''), 3500);
+  };
 
   // Toggle Optional Bill in Schedule
   const handleToggleOptionalBill = (optId) => {
     setFeeSchedule((prev) => {
-      const updatedClassData = { ...prev[selectedClass] };
+      const updatedClassData = { ...prev[selectedClassKey] };
       updatedClassData.optionalBills = (updatedClassData.optionalBills || []).map(opt =>
         opt.id === optId ? { ...opt, enabled: !opt.enabled } : opt
       );
       return {
         ...prev,
-        [selectedClass]: updatedClassData
+        [selectedClassKey]: updatedClassData
       };
     });
   };
@@ -241,13 +443,13 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     const amt = parseFloat(newAmount);
     if (isNaN(amt) || amt < 0) return;
     setFeeSchedule((prev) => {
-      const updatedClassData = { ...prev[selectedClass] };
+      const updatedClassData = { ...prev[selectedClassKey] };
       updatedClassData.optionalBills = (updatedClassData.optionalBills || []).map(opt =>
         opt.id === optId ? { ...opt, amount: amt } : opt
       );
       return {
         ...prev,
-        [selectedClass]: updatedClassData
+        [selectedClassKey]: updatedClassData
       };
     });
   };
@@ -255,12 +457,11 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
   // Quick Add Preset Optional Bill
   const handleAddPresetOptionalBill = (preset) => {
     setFeeSchedule((prev) => {
-      const updatedClassData = { ...prev[selectedClass] };
+      const updatedClassData = { ...prev[selectedClassKey] };
       const currentOpts = updatedClassData.optionalBills || [];
       const exists = currentOpts.find(o => o.id === preset.id || o.details.toLowerCase() === preset.details.toLowerCase());
       
       if (exists) {
-        // Enable it if disabled
         updatedClassData.optionalBills = currentOpts.map(o => o.id === exists.id ? { ...o, enabled: true } : o);
       } else {
         updatedClassData.optionalBills = [
@@ -278,17 +479,17 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
       }
       return {
         ...prev,
-        [selectedClass]: updatedClassData
+        [selectedClassKey]: updatedClassData
       };
     });
-    setSuccessMsg(`✅ Added optional bill "${preset.label}" (${preset.details} - GHS ${preset.defaultAmount.toFixed(2)}) to ${selectedClass}.`);
+    setSuccessMsg(`✅ Added optional bill "${preset.label}" (${preset.details} - GHS ${preset.defaultAmount.toFixed(2)}) to ${selectedSubLevel}.`);
     setTimeout(() => setSuccessMsg(''), 4000);
   };
 
   // Handle Post Academic Bill to Student Ledger & Accounts
   const handlePostBillToLedger = (targetStudent = null) => {
     const studentToUse = targetStudent || (postTargetScope === 'student' ? (selectedPostingStudent || preparingStudentBill) : null);
-    const targetName = studentToUse ? studentToUse.fullName : postTargetScope === 'all' ? 'All Active Students (School-wide)' : `All Enrolled Students in ${selectedClass}`;
+    const targetName = studentToUse ? studentToUse.fullName : postTargetScope === 'all' ? 'All Active Students (School-wide)' : `All Enrolled Students in ${selectedSubLevel}`;
 
     // Compute active items
     const optionalItemsToPost = postIncludeOptional
@@ -305,7 +506,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
       portalData.postAcademicBill({
         studentId: studentToUse?.studentId || studentToUse?.id || null,
         studentName: studentToUse?.fullName || null,
-        classLevel: selectedClass,
+        classLevel: `${activeCategoryObj.name} · ${selectedSubLevel}`,
         items: allItemsToPost,
         totalAmount: totalToPost,
         term: 'Term 1 · 2026'
@@ -322,14 +523,14 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
   const handleRemoveFeeItem = (itemIndex) => {
     const itemToRemove = baseBillItems[itemIndex];
     setFeeSchedule((prev) => {
-      const updatedClassData = { ...prev[selectedClass] };
+      const updatedClassData = { ...prev[selectedClassKey] };
       updatedClassData.baseBill = updatedClassData.baseBill.filter((_, idx) => idx !== itemIndex);
       return {
         ...prev,
-        [selectedClass]: updatedClassData,
+        [selectedClassKey]: updatedClassData,
       };
     });
-    setSuccessMsg(`🗑️ Removed fee component "${itemToRemove.details}" from ${selectedClass} bill schedule.`);
+    setSuccessMsg(`🗑️ Removed fee component "${itemToRemove.details}" from ${selectedSubLevel} bill schedule.`);
     setTimeout(() => setSuccessMsg(''), 5000);
   };
 
@@ -352,19 +553,19 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
         description: 'Custom Optional Fee'
       };
       setFeeSchedule((prev) => {
-        const updatedClassData = { ...prev[selectedClass] };
+        const updatedClassData = { ...prev[selectedClassKey] };
         updatedClassData.optionalBills = [...(updatedClassData.optionalBills || []), newOpt];
-        return { ...prev, [selectedClass]: updatedClassData };
+        return { ...prev, [selectedClassKey]: updatedClassData };
       });
-      setSuccessMsg(`✅ Added new optional fee "${newOpt.details}" (GHS ${newOpt.amount.toFixed(2)}) to ${selectedClass}.`);
+      setSuccessMsg(`✅ Added new optional fee "${newOpt.details}" (GHS ${newOpt.amount.toFixed(2)}) to ${selectedSubLevel}.`);
     } else {
       const newItem = { details: newFeeForm.details.trim().toUpperCase(), amount: amountNum };
       setFeeSchedule((prev) => {
-        const updatedClassData = { ...prev[selectedClass] };
+        const updatedClassData = { ...prev[selectedClassKey] };
         updatedClassData.baseBill = [...updatedClassData.baseBill, newItem];
-        return { ...prev, [selectedClass]: updatedClassData };
+        return { ...prev, [selectedClassKey]: updatedClassData };
       });
-      setSuccessMsg(`✅ Added new compulsory fee "${newItem.details}" (GHS ${newItem.amount.toFixed(2)}) to ${selectedClass}.`);
+      setSuccessMsg(`✅ Added new compulsory fee "${newItem.details}" (GHS ${newItem.amount.toFixed(2)}) to ${selectedSubLevel}.`);
     }
 
     setNewFeeForm({ details: '', amount: '', isOptional: false });
@@ -383,7 +584,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     let csv = `REMALJ CAREWELL INSPIRATIONAL SCHOOL - OFFICIAL STUDENT BILL & STATEMENT\n`;
     csv += `Student Name,${student.fullName}\n`;
     csv += `Student ID,${student.studentId}\n`;
-    csv += `Class Level,${student.level}\n`;
+    csv += `Class Level,${activeCategoryObj.name} - ${selectedSubLevel}\n`;
     csv += `Guardian Name,${student.guardianName}\n`;
     csv += `Billing Term,Term 1 · 2026 Academic Year\n\n`;
     csv += `Section 1: Compulsory Fee Components,Amount (GHS)\n`;
@@ -430,6 +631,11 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     };
     reader.readAsDataURL(file);
   };
+
+  // Filtered Stationery Schedule items
+  const filteredStationeryList = stationeryFilter === 'all'
+    ? stationerySchedule
+    : stationerySchedule.filter(s => s.category === stationeryFilter);
 
   // Calculate active student bill totals
   const studentSelectedOpts = preparingStudentBill
@@ -479,45 +685,122 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
         </div>
       </div>
 
-      {/* Class & Student Bill Preparation Bar */}
-      <div className="fee-selector-bar no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <label className="fee-selector-label">
-            <Layers size={16} /> Select Class / Grade Level:
-          </label>
-          <select
-            className="fee-selector-dropdown"
-            value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
-          >
-            {Object.keys(feeSchedule).map((cls) => (
-              <option key={cls} value={cls}>{cls}</option>
-            ))}
-          </select>
+      {/* ── TWO-TIERED CLASS & GRADE LEVEL HIERARCHY SELECTOR BAR ── */}
+      <div className="fee-selector-bar no-print" style={{
+        background: '#ffffff',
+        border: '1.5px solid #0284c7',
+        borderRadius: 12,
+        padding: '16px 20px',
+        boxShadow: '0 4px 15px rgba(2,132,199,0.08)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14
+      }}>
+        {/* Tier 1: Primary Grade / Department Level Selector */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <label style={{ fontSize: 13, fontWeight: 900, color: '#0f3a4b', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6, letterSpacing: '0.03em' }}>
+              <Layers size={18} color="#0284c7" /> 1. Select Grade / Class Level:
+            </label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {GRADE_LEVEL_CATEGORIES.map((cat) => {
+                const isActive = selectedGradeCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => handleCategoryChange(cat.id)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      border: isActive ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                      background: isActive ? '#0284c7' : '#f8fafc',
+                      color: isActive ? '#ffffff' : '#1e293b',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      boxShadow: isActive ? '0 4px 12px rgba(2,132,199,0.25)' : 'none',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <span style={{ fontSize: 15 }}>{cat.icon}</span>
+                    <span>{cat.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Quick Enrolled Student Picker */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#64748b' }}>
+              🧾 Prepare for Student:
+            </span>
+            <select
+              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #0284c7', fontSize: 12.5, fontWeight: 800, color: '#0f3a4b', background: '#fff', cursor: 'pointer' }}
+              onChange={(e) => {
+                const found = onboardedStudents.find(s => s.id === e.target.value);
+                handleSelectStudentForBill(found);
+              }}
+              value={preparingStudentBill?.id || ''}
+            >
+              <option value="">-- Choose Enrolled Student ({onboardedStudents.length}) --</option>
+              {onboardedStudents.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.fullName} ({s.studentId} · {s.level})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-700)' }}>
-            🧾 Prepare Individual Bill for Student:
-          </span>
-          <select
-            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 12.5, fontWeight: 800, background: '#fff', cursor: 'pointer' }}
-            onChange={(e) => {
-              const found = onboardedStudents.find(s => s.id === e.target.value);
-              if (found) {
-                setPreparingStudentBill(found);
-                setSelectedStudentOptionalIds(optionalBillItems.filter(o => o.enabled).map(o => o.id));
-              }
-            }}
-            value={preparingStudentBill?.id || ''}
-          >
-            <option value="">-- Select Enrolled Student --</option>
-            {onboardedStudents.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.fullName} ({s.studentId} · {s.level})
-              </option>
-            ))}
-          </select>
+        {/* Tier 2: Sub-Level Breakdown Selector */}
+        <div style={{
+          background: '#f0f9ff',
+          border: '1px solid #bae6fd',
+          borderRadius: 8,
+          padding: '10px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#0369a1', fontSize: 12, fontWeight: 900, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+            <ChevronRight size={16} /> 2. Sub-Level ({activeCategoryObj.shortName}):
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1 }}>
+            {activeSubLevels.map((sub) => {
+              const isSubActive = selectedSubLevel === sub.id;
+              return (
+                <button
+                  key={sub.id}
+                  type="button"
+                  onClick={() => setSelectedSubLevel(sub.id)}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 6,
+                    border: isSubActive ? '1.5px solid #0369a1' : '1px solid #cbd5e1',
+                    background: isSubActive ? '#0369a1' : '#ffffff',
+                    color: isSubActive ? '#ffffff' : '#334155',
+                    fontSize: 12,
+                    fontWeight: isSubActive ? 900 : 700,
+                    cursor: 'pointer',
+                    boxShadow: isSubActive ? '0 2px 6px rgba(3,105,161,0.2)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {sub.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#0369a1', background: '#ffffff', padding: '4px 10px', borderRadius: 6, border: '1px solid #bae6fd' }}>
+            Active: <strong>{selectedSubLevel}</strong>
+          </div>
         </div>
       </div>
 
@@ -533,7 +816,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Sparkles size={18} color="#0284c7" />
             <h3 style={{ margin: 0, fontSize: 14, fontWeight: 900, color: '#0f3a4b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-              Optional Fee Bills Schedule ({selectedClass})
+              Optional Fee Bills Schedule ({selectedSubLevel})
             </h3>
             <span style={{ fontSize: 11, background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: 12, fontWeight: 800 }}>
               Motivation · Bus · Feeding · Stationery · Pick Up Card
@@ -589,7 +872,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
         {/* Panel 1: Main Compulsory Term Bill */}
         <div className="fee-panel">
           <div className="fee-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2><DollarSign size={18} /> 1. Compulsory Term Bill — {selectedClass}</h2>
+            <h2><DollarSign size={18} /> 1. Compulsory Term Bill — {selectedSubLevel}</h2>
             <button
               onClick={() => { setNewFeeForm(prev => ({ ...prev, isOptional: false })); setIsAddingFeeModal(true); }}
               style={{ padding: '4px 10px', background: '#204d2d', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
@@ -619,7 +902,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                         type="button"
                         onClick={() => handleRemoveFeeItem(i)}
                         style={{ padding: '3px 8px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 800 }}
-                        title={`Remove ${item.details} from ${selectedClass} bill`}
+                        title={`Remove ${item.details} from ${selectedSubLevel} bill`}
                       >
                         <Trash2 size={12} /> Remove
                       </button>
@@ -640,7 +923,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
         <div className="fee-panel">
           <div className="fee-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0284c7' }}>
             <h2 style={{ color: '#fff' }}>
-              <Sparkles size={18} /> 2. Optional Fee Bills Schedule — {selectedClass}
+              <Sparkles size={18} /> 2. Optional Fee Bills Schedule — {selectedSubLevel}
             </h2>
             <button
               onClick={() => { setNewFeeForm(prev => ({ ...prev, isOptional: true })); setIsAddingFeeModal(true); }}
@@ -719,59 +1002,148 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
             </table>
           </div>
         </div>
+      </div>
 
-        {/* Panel 3: Uniforms & Pickup Card Reference */}
-        <div className="fee-panel">
-          <div className="fee-panel-header">
-            <h2><Shirt size={18} /> Uniforms & Pickup Card Reference</h2>
+      {/* ── PANEL 3: MASTER STATIONERY SCHEDULE (EDITABLE PER CLASS) ── */}
+      <div className="fee-panel" style={{ marginTop: 20 }}>
+        <div className="fee-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, background: '#0f3a4b', color: '#ffffff' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <BookOpen size={18} color="#38bdf8" />
+            <h2 style={{ color: '#ffffff', margin: 0, fontSize: 15, fontWeight: 900 }}>
+              Master Stationery Schedule (Editable Per Class & Sub-Level)
+            </h2>
           </div>
-          <div className="fee-panel-body">
-            <table className="fee-table">
-              <thead>
-                <tr>
-                  <th>Details</th>
-                  <th style={{ textAlign: 'right' }}>Amount (GHS)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {UNIFORMS_LIST.map((u, i) => (
-                  <tr key={i}>
-                    <td>{u.details}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{u.amount.toFixed(2)}</td>
-                  </tr>
-                ))}
-                <tr className="fee-table-subtotal">
-                  <td>FULL UNIFORM & CARD SET TOTAL</td>
-                  <td style={{ textAlign: 'right' }}>GHS {uniformsTotal.toFixed(2)}</td>
-                </tr>
-              </tbody>
-            </table>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>Filter Category:</span>
+            {[
+              { id: 'all', label: 'All Classes (14)' },
+              { id: 'nursery_creche', label: '👶 Nursery & Creche' },
+              { id: 'kindergarten', label: '🧒 Kindergarten' },
+              { id: 'basic_school', label: '🎓 Basic (Grades 1-9)' }
+            ].map((f) => {
+              const isAct = stationeryFilter === f.id;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setStationeryFilter(f.id)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 4,
+                    border: 'none',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    background: isAct ? '#0284c7' : '#1e293b',
+                    color: isAct ? '#ffffff' : '#cbd5e1',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Panel 4: Master Stationery Schedule Reference */}
-        <div className="fee-panel">
-          <div className="fee-panel-header">
-            <h2><BookOpen size={18} /> Master Stationery Schedule Reference</h2>
+        {savedStationeryNotice && (
+          <div style={{ background: '#f0fdf4', borderBottom: '1px solid #86efac', padding: '8px 16px', color: '#166534', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Check size={16} /> {savedStationeryNotice}
           </div>
-          <div className="fee-panel-body">
-            <table className="fee-table">
-              <thead>
-                <tr>
-                  <th>Class Level</th>
-                  <th style={{ textAlign: 'right' }}>Amount (GHS)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {STATIONERY_SCHEDULE.map((s, i) => (
-                  <tr key={i} className={selectedClass.toUpperCase().includes(s.classLevel) ? 'fee-row-highlight' : ''}>
-                    <td><strong>{s.classLevel}</strong></td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#0284c7' }}>{s.amount.toFixed(2)}</td>
+        )}
+
+        <div className="fee-panel-body" style={{ overflowX: 'auto' }}>
+          <table className="fee-table">
+            <thead>
+              <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
+                <th style={{ width: 180 }}>Class / Sub-Level</th>
+                <th>Stationery & Learning Aids Package Breakdown</th>
+                <th style={{ width: 100, textAlign: 'center' }}>Package Items</th>
+                <th style={{ width: 180, textAlign: 'right' }}>Official Fee (GHS)</th>
+                <th className="no-print" style={{ width: 110, textAlign: 'center' }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredStationeryList.map((s) => {
+                const isSelectedClass = selectedSubLevel === s.classLevel;
+                return (
+                  <tr
+                    key={s.classLevel}
+                    className={isSelectedClass ? 'fee-row-highlight' : ''}
+                    style={{
+                      background: isSelectedClass ? '#f0f9ff' : undefined,
+                      borderBottom: '1px solid #e2e8f0'
+                    }}
+                  >
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 13 }}>{s.category === 'nursery_creche' ? '👶' : s.category === 'kindergarten' ? '🧒' : '🎓'}</span>
+                        <strong style={{ color: '#0f3a4b', fontSize: 13 }}>{s.label}</strong>
+                        {isSelectedClass && (
+                          <span style={{ fontSize: 9.5, background: '#0284c7', color: '#fff', padding: '1px 5px', borderRadius: 4, fontWeight: 900 }}>
+                            ACTIVE
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ fontSize: 12, color: '#475569' }}>
+                      {s.notes}
+                    </td>
+                    <td style={{ textAlign: 'center', fontWeight: 800, color: '#64748b', fontSize: 12 }}>
+                      {s.itemsCount} items
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b' }}>GHS</span>
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          value={s.amount}
+                          onChange={(e) => handleUpdateStationeryFee(s.classLevel, e.target.value)}
+                          style={{
+                            width: 95,
+                            padding: '5px 8px',
+                            textAlign: 'right',
+                            borderRadius: 6,
+                            border: isSelectedClass ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                            fontWeight: 900,
+                            fontSize: 13,
+                            color: '#0f3a4b',
+                            background: '#ffffff'
+                          }}
+                        />
+                      </div>
+                    </td>
+                    <td className="no-print" style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedSubLevel(s.classLevel);
+                          setSelectedGradeCategory(s.category);
+                          setSavedStationeryNotice(`✅ Synchronized and loaded active bill view for ${s.label}!`);
+                          setTimeout(() => setSavedStationeryNotice(''), 3000);
+                        }}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          border: isSelectedClass ? '1px solid #0284c7' : '1px solid #cbd5e1',
+                          background: isSelectedClass ? '#0284c7' : '#f8fafc',
+                          color: isSelectedClass ? '#ffffff' : '#0f3a4b',
+                          fontSize: 11,
+                          fontWeight: 800,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {isSelectedClass ? 'Active View' : 'Select View'}
+                      </button>
+                    </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -792,14 +1164,14 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--gray-900)' }}>
-                ➕ Add Fee Component ({selectedClass})
+                ➕ Add Fee Component ({selectedSubLevel})
               </h3>
               <button onClick={() => setIsAddingFeeModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                 <X size={18} color="var(--gray-500)" />
               </button>
             </div>
             <p style={{ fontSize: 12, color: 'var(--gray-600)', marginBottom: 20 }}>
-              Add a new fee item to the <strong>{selectedClass}</strong> bill schedule as Compulsory or Optional (e.g. Motivation, Bus, Feeding, Stationery, Pick Up Card).
+              Add a new fee item to the <strong>{selectedSubLevel}</strong> schedule as Compulsory or Optional (e.g. Motivation, Bus, Feeding, Stationery, Pick Up Card).
             </p>
 
             <form onSubmit={handleAddFeeSubmit}>
@@ -1083,7 +1455,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Class Level</div>
-                  <div style={{ fontSize: 14, fontWeight: 900, color: '#0f172a', marginTop: 2 }}>{preparingStudentBill.level}</div>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: '#0f172a', marginTop: 2 }}>{activeCategoryObj.name} · {selectedSubLevel}</div>
 
                   <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginTop: 10 }}>Guardian / Parent</div>
                   <div style={{ fontSize: 13, fontWeight: 800, color: '#334155' }}>{preparingStudentBill.guardianName} ({preparingStudentBill.guardianPhone || '024 111 2222'})</div>
@@ -1093,7 +1465,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
               {/* Fee Line Items Table */}
               <div style={{ marginBottom: 24 }}>
                 <h4 style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Section 1: Compulsory Academic Bill ({preparingStudentBill.level}):
+                  Section 1: Compulsory Academic Bill ({selectedSubLevel}):
                 </h4>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, marginBottom: 16 }}>
                   <thead>
@@ -1225,7 +1597,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
             </div>
 
             <p style={{ fontSize: 13, color: 'var(--gray-600)', marginBottom: 16, lineHeight: 1.5 }}>
-              This action will debit and post the academic bill for <strong>Term 1 · 2026</strong> directly into the student's financial ledger.
+              This action will debit and post the academic bill for <strong>{activeCategoryObj.name} · {selectedSubLevel} (Term 1 · 2026)</strong> directly into student financial records.
             </p>
 
             <div style={{ background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 16 }}>
@@ -1236,7 +1608,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                 onChange={(e) => setPostTargetScope(e.target.value)}
               >
                 <option value="student">🔎 Search & Select Specific Student</option>
-                <option value="class">All Enrolled Students in {selectedClass}</option>
+                <option value="class">All Enrolled Students in {selectedSubLevel}</option>
                 <option value="all">All Active Students (School-wide)</option>
               </select>
 
