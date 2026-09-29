@@ -347,6 +347,12 @@ export const api = {
     });
   },
 
+  deleteStudent: async (studentId) => {
+    return await request(`/students/${studentId}`, {
+      method: 'DELETE',
+    });
+  },
+
   // --- Attendance & SMS Alerts ---
   recordAttendanceScan: async (scanData) => {
     // scanData: { identifier, scanType, busRouteId, sendSms }
@@ -488,6 +494,19 @@ export const api = {
     return await request(`/admissions/applications/${applicationId}/status`, {
       method: 'PATCH',
       body: JSON.stringify(statusData),
+    });
+  },
+
+  updateApplication: async (applicationId, applicationData) => {
+    return await request(`/admissions/applications/${applicationId}`, {
+      method: 'PUT',
+      body: JSON.stringify(applicationData),
+    });
+  },
+
+  deleteApplication: async (applicationId) => {
+    return await request(`/admissions/applications/${applicationId}`, {
+      method: 'DELETE',
     });
   },
 

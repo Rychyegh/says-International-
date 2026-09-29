@@ -198,6 +198,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     updateApplication,
     submitApplication,
     deleteApplication,
+    adminSetUserPassword,
   } = usePortalData();
 
   // Dynamic Levels & Subjects
@@ -2078,13 +2079,31 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       Set up dedicated credentials allowing a Class Teacher to sign in with their assigned Staff ID and 4-digit Security Passcode.
                     </p>
 
-                    <form onSubmit={(e) => {
+                    <form onSubmit={async (e) => {
                       e.preventDefault();
                       if (!ctForm.teacherName || !ctForm.passcode) return;
                       setIssuedCTCredentials(prev => [
                         { id: `ct-${Date.now()}`, ...ctForm, issuedAt: new Date().toLocaleDateString() },
                         ...prev
                       ]);
+                      if (adminSetUserPassword) {
+                        adminSetUserPassword({
+                          identifier: ctForm.staffId || ctForm.teacherName,
+                          staffId: ctForm.staffId,
+                          newPassword: ctForm.passcode,
+                          role: 'teacher',
+                          fullName: ctForm.teacherName,
+                          adminName: 'System Administrator'
+                        });
+                      }
+                      if (ctForm.phone) {
+                        try {
+                          await api.sendSms({
+                            recipientPhone: ctForm.phone,
+                            messageText: `[REMALJ Carewell] Class Teacher Dedicated Credentials Issued:\n• Staff ID: ${ctForm.staffId}\n• Class: ${ctForm.classAssigned}\n• Passcode: ${ctForm.passcode}\n• Portal: Teacher Portal`
+                          });
+                        } catch (err) {}
+                      }
                       setSuccessMsg(`🔑 Dedicated Class Teacher Passcode (${ctForm.passcode}) & Credentials issued to ${ctForm.teacherName} for ${ctForm.classAssigned}! SMS dispatched.`);
                       setIsIssuingCTModal(false);
                       setTimeout(() => setSuccessMsg(''), 7000);
@@ -3374,8 +3393,20 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 <form onSubmit={(e) => {
                   e.preventDefault();
                   if (!newDefaultPassInput.trim()) return;
+                  const targetPass = newDefaultPassInput.trim();
                   if (updateOnboardedStudent) {
-                    updateOnboardedStudent(editingPasswordStudent.id, { defaultPassword: newDefaultPassInput.trim() });
+                    updateOnboardedStudent(editingPasswordStudent.id, { defaultPassword: targetPass });
+                  }
+                  if (adminSetUserPassword) {
+                    adminSetUserPassword({
+                      identifier: editingPasswordStudent.studentId || editingPasswordStudent.id,
+                      email: editingPasswordStudent.studentEmail,
+                      studentId: editingPasswordStudent.studentId,
+                      newPassword: targetPass,
+                      role: 'Student Portal',
+                      fullName: editingPasswordStudent.fullName,
+                      adminName: 'System Administrator'
+                    });
                   }
                   setSuccessMsg(`🔑 Default password updated for ${editingPasswordStudent.fullName}!`);
                   setEditingPasswordStudent(null);

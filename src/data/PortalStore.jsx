@@ -835,10 +835,17 @@ export function PortalDataProvider({ children }) {
       ...current,
       applications: (current.applications || []).map((item) => item.id === id ? { ...item, ...officeData } : item),
     })),
-    deleteApplication: (id) => setData((current) => ({
-      ...current,
-      applications: (current.applications || []).filter((item) => item.id !== id),
-    })),
+    deleteApplication: async (id) => {
+      try {
+        await api.deleteApplication(id);
+      } catch (e) {
+        console.warn('Backend delete application fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        applications: (current.applications || []).filter((item) => item.id !== id),
+      }));
+    },
     addServiceRecord: ({ module, person, detail, status }) => setData((current) => ({
       ...current,
       serviceRecords: [{ id: crypto.randomUUID?.() || String(Date.now()), module, person, detail, status, recordedAt: new Date().toLocaleString() }, ...(current.serviceRecords || [])],
@@ -891,6 +898,10 @@ export function PortalDataProvider({ children }) {
 
       setData((current) => {
         const studentId = `REMALJ-${new Date().getFullYear()}-${String((current.onboardedStudents || []).length + 1).padStart(3, '0')}`;
+        const studentEmail = `${student.fullName.toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`;
+        const defaultPassword = student.defaultPassword || `StuPass#${studentId.replace('REMALJ-', '')}`;
+        const parentPassword = student.parentPassword || 'ParentPass2026!';
+
         const newStudent = {
           id: crypto.randomUUID?.() || String(Date.now()),
           studentId,
@@ -906,9 +917,43 @@ export function PortalDataProvider({ children }) {
           homeAddress: student.homeAddress,
           enrollmentDate: new Date().toISOString().split('T')[0],
           status: 'Active',
-          studentEmail: `${student.fullName.toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`,
-          defaultPassword: student.defaultPassword || `StuPass#${studentId.replace('REMALJ-', '')}`,
+          studentEmail,
+          defaultPassword,
         };
+
+        // Sync credentials into registered_accounts for student and parent
+        try {
+          const raw = localStorage.getItem('registered_accounts');
+          const list = raw ? JSON.parse(raw) : {};
+          list[studentEmail.toLowerCase()] = {
+            id: `usr_${studentId}`,
+            studentId,
+            email: studentEmail,
+            password: defaultPassword,
+            fullName: student.fullName,
+            role: 'student'
+          };
+          list[studentId.toLowerCase()] = {
+            id: `usr_${studentId}`,
+            studentId,
+            email: studentEmail,
+            password: defaultPassword,
+            fullName: student.fullName,
+            role: 'student'
+          };
+          if (student.guardianEmail) {
+            list[student.guardianEmail.toLowerCase()] = {
+              id: `usr_parent_${studentId}`,
+              email: student.guardianEmail,
+              phone: student.guardianPhone,
+              password: parentPassword,
+              fullName: student.guardianName || `Parent of ${student.fullName}`,
+              role: 'parent'
+            };
+          }
+          localStorage.setItem('registered_accounts', JSON.stringify(list));
+        } catch (e) {}
+
         const defaultBilled = student.level.includes('JHS') ? 5200 : student.level.includes('SHS') ? 5800 : 4800;
         const newFee = {
           id: `fee-${newStudent.id}`,
@@ -1038,65 +1083,73 @@ export function PortalDataProvider({ children }) {
       ...current,
       onboardedStudents: (current.onboardedStudents || []).map((s) => (s.id === id || s.studentId === id) ? { ...s, ...updates } : s),
     })),
-    deleteOnboardedStudent: (id) => setData((current) => {
-      const targetStudent = (current.onboardedStudents || []).find((s) => s.id === id || s.studentId === id);
-      const studentId = targetStudent?.studentId || id;
-      const fullName = targetStudent?.fullName;
-      const email = targetStudent?.studentEmail;
-
-      const updatedStudents = (current.onboardedStudents || []).filter(
-        (s) => s.id !== id && s.studentId !== id && (!fullName || s.fullName !== fullName)
-      );
-
-      const updatedFees = (current.studentFees || []).filter(
-        (f) => f.id !== id && f.studentId !== id && (!fullName || f.studentName !== fullName)
-      );
-
-      const updatedFeeAccounts = (current.feeAccounts || []).filter(
-        (a) => a.id !== id && (!fullName || a.child !== fullName)
-      );
-
-      const updatedRegs = (current.semesterRegistrations || []).filter(
-        (r) => r.id !== id && r.studentId !== id && (!fullName || r.studentName !== fullName)
-      );
-
-      const updatedApps = (current.applications || []).filter(
-        (app) => app.id !== id && (!fullName || app.learner !== fullName)
-      );
-
-      const updatedResults = (current.results || []).filter(
-        (res) => res.id !== id && res.studentId !== id && (!fullName || res.studentName !== fullName)
-      );
-
-      const updatedExamRegs = (current.examRegistrations || []).filter(
-        (e) => e.id !== id && e.studentId !== studentId && (!fullName || e.studentName !== fullName)
-      );
-
+    deleteOnboardedStudent: async (id) => {
       try {
-        const raw = localStorage.getItem('registered_accounts');
-        if (raw) {
-          const list = JSON.parse(raw);
-          if (email && list[email.toLowerCase()]) {
-            delete list[email.toLowerCase()];
-          }
-          if (studentId && list[studentId.toLowerCase()]) {
-            delete list[studentId.toLowerCase()];
-          }
-          localStorage.setItem('registered_accounts', JSON.stringify(list));
-        }
-      } catch (e) {}
+        await api.deleteStudent(id);
+      } catch (e) {
+        console.warn('Backend delete student fallback:', e);
+      }
 
-      return {
-        ...current,
-        onboardedStudents: updatedStudents,
-        studentFees: updatedFees,
-        feeAccounts: updatedFeeAccounts,
-        semesterRegistrations: updatedRegs,
-        applications: updatedApps,
-        results: updatedResults,
-        examRegistrations: updatedExamRegs,
-      };
-    }),
+      setData((current) => {
+        const targetStudent = (current.onboardedStudents || []).find((s) => s.id === id || s.studentId === id);
+        const studentId = targetStudent?.studentId || id;
+        const fullName = targetStudent?.fullName;
+        const email = targetStudent?.studentEmail;
+
+        const updatedStudents = (current.onboardedStudents || []).filter(
+          (s) => s.id !== id && s.studentId !== id && (!fullName || s.fullName !== fullName)
+        );
+
+        const updatedFees = (current.studentFees || []).filter(
+          (f) => f.id !== id && f.studentId !== id && (!fullName || f.studentName !== fullName)
+        );
+
+        const updatedFeeAccounts = (current.feeAccounts || []).filter(
+          (a) => a.id !== id && (!fullName || a.child !== fullName)
+        );
+
+        const updatedRegs = (current.semesterRegistrations || []).filter(
+          (r) => r.id !== id && r.studentId !== id && (!fullName || r.studentName !== fullName)
+        );
+
+        const updatedApps = (current.applications || []).filter(
+          (app) => app.id !== id && (!fullName || app.learner !== fullName)
+        );
+
+        const updatedResults = (current.results || []).filter(
+          (res) => res.id !== id && res.studentId !== id && (!fullName || res.studentName !== fullName)
+        );
+
+        const updatedExamRegs = (current.examRegistrations || []).filter(
+          (e) => e.id !== id && e.studentId !== studentId && (!fullName || e.studentName !== fullName)
+        );
+
+        try {
+          const raw = localStorage.getItem('registered_accounts');
+          if (raw) {
+            const list = JSON.parse(raw);
+            if (email && list[email.toLowerCase()]) {
+              delete list[email.toLowerCase()];
+            }
+            if (studentId && list[studentId.toLowerCase()]) {
+              delete list[studentId.toLowerCase()];
+            }
+            localStorage.setItem('registered_accounts', JSON.stringify(list));
+          }
+        } catch (e) {}
+
+        return {
+          ...current,
+          onboardedStudents: updatedStudents,
+          studentFees: updatedFees,
+          feeAccounts: updatedFeeAccounts,
+          semesterRegistrations: updatedRegs,
+          applications: updatedApps,
+          results: updatedResults,
+          examRegistrations: updatedExamRegs,
+        };
+      });
+    },
     // Admissions Edit & Update
     updateStudentAdmission: (id, updates) => setData((current) => ({
       ...current,
@@ -1832,10 +1885,22 @@ export function PortalDataProvider({ children }) {
         paymentVouchers: updated
       };
     }),
-    adminSetUserPassword: ({ identifier, email, studentId, staffId, newPassword, role = 'student', fullName = '', adminName = 'System Administrator' }) => {
+    adminSetUserPassword: async ({ identifier, email, studentId, staffId, newPassword, role = 'student', fullName = '', adminName = 'System Administrator' }) => {
       const targetId = identifier || email || studentId || staffId;
       if (!targetId || !newPassword) return false;
       const cleanId = String(targetId).toLowerCase().trim();
+
+      try {
+        await api.adminSetUserPassword({
+          identifier: cleanId,
+          newPassword,
+          role,
+          fullName,
+          adminName
+        });
+      } catch (e) {
+        console.warn('Backend admin set password API call fallback:', e);
+      }
 
       try {
         const raw = localStorage.getItem('registered_accounts');

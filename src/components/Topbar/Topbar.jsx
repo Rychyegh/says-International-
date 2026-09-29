@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { GraduationCap, Users, BookOpen, LogOut, ShieldCheck, CreditCard, Radio } from 'lucide-react';
-import { usePortalData } from '../../data/PortalStore';
+import { GraduationCap, Users, BookOpen, LogOut, ShieldCheck, CreditCard } from 'lucide-react';
 import { getAuthUser } from '../../services/api';
 import './Topbar.css';
 
@@ -22,8 +21,6 @@ const PORTAL_USER = {
 };
 
 export default function Topbar({ activePortal, isAuthed, onSignOut }) {
-  const portalData = usePortalData();
-  const backendConnected = portalData?.backendConnected;
   const currentInfo = PORTAL_INFO[activePortal] || PORTAL_INFO.admin;
   const defaultUser = PORTAL_USER[activePortal] || PORTAL_USER.admin;
 
@@ -71,18 +68,6 @@ export default function Topbar({ activePortal, isAuthed, onSignOut }) {
 
         {/* Middle section - transparent & hidden on scroll down */}
         <div className="topbar__middle">
-          {/* Live API Endpoint Indicator */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 20,
-            background: backendConnected ? '#f0fdf4' : '#fef2f2',
-            border: `1px solid ${backendConnected ? '#bbf7d0' : '#fecaca'}`,
-            fontSize: 11, fontWeight: 700,
-            color: backendConnected ? '#15803d' : '#b91c1c'
-          }} title="Backend API: https://rcis-backend.onrender.com/api/v1">
-            <Radio size={12} className={backendConnected ? 'animate-pulse' : ''} />
-            <span>API v1 Connected</span>
-          </div>
-
           {/* Current Portal Badge */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px',
