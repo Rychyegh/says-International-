@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   LayoutDashboard, BookOpen, Calendar, ClipboardList,
   Award, MessageSquare, Settings, Zap, Star, Clock, Bus
