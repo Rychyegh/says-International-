@@ -301,7 +301,27 @@ export function PortalDataProvider({ children }) {
             studentEmail: s.studentEmail || s.student_email,
             defaultPassword: s.defaultPassword || s.default_password
           }));
-          setData(current => ({ ...current, onboardedStudents: mapped, backendConnected: true }));
+          setData(current => {
+            const currentList = current.onboardedStudents || [];
+            const mergedMap = new Map();
+            currentList.forEach(s => {
+              const k = (s.studentId || s.id || s.fullName || '').toLowerCase().trim();
+              if (k) mergedMap.set(k, s);
+            });
+            mapped.forEach(s => {
+              const k = (s.studentId || s.id || s.fullName || '').toLowerCase().trim();
+              if (k) {
+                const prev = mergedMap.get(k) || {};
+                mergedMap.set(k, { ...prev, ...s });
+              }
+            });
+            const merged = Array.from(mergedMap.values());
+            return {
+              ...current,
+              onboardedStudents: merged.length > 0 ? merged : mapped,
+              backendConnected: true
+            };
+          });
         }
       } catch (e) { /* silent */ }
 
@@ -332,12 +352,28 @@ export function PortalDataProvider({ children }) {
             paid: f.paidAmount,
             status: f.status
           }));
-          setData(current => ({
-            ...current,
-            studentFees: mapped,
-            feeAccounts: mappedAccounts,
-            backendConnected: true
-          }));
+          setData(current => {
+            const curFees = current.studentFees || [];
+            const feeMap = new Map();
+            curFees.forEach(f => {
+              const k = (f.studentId || f.id || f.studentName || '').toLowerCase().trim();
+              if (k) feeMap.set(k, f);
+            });
+            mapped.forEach(f => {
+              const k = (f.studentId || f.id || f.studentName || '').toLowerCase().trim();
+              if (k) {
+                const prev = feeMap.get(k) || {};
+                feeMap.set(k, { ...prev, ...f });
+              }
+            });
+            const mergedFees = Array.from(feeMap.values());
+            return {
+              ...current,
+              studentFees: mergedFees.length > 0 ? mergedFees : mapped,
+              feeAccounts: mappedAccounts.length > 0 ? mappedAccounts : current.feeAccounts,
+              backendConnected: true
+            };
+          });
         }
       } catch (e) { /* silent */ }
 
@@ -345,7 +381,27 @@ export function PortalDataProvider({ children }) {
       try {
         const staff = await api.getStaff();
         if (Array.isArray(staff)) {
-          setData(current => ({ ...current, teacherDirectory: staff, backendConnected: true }));
+          setData(current => {
+            const curStaff = current.teacherDirectory || [];
+            const staffMap = new Map();
+            curStaff.forEach(s => {
+              const k = (s.staffId || s.id || s.email || s.name || '').toLowerCase().trim();
+              if (k) staffMap.set(k, s);
+            });
+            staff.forEach(s => {
+              const k = (s.staffId || s.id || s.email || s.name || '').toLowerCase().trim();
+              if (k) {
+                const prev = staffMap.get(k) || {};
+                staffMap.set(k, { ...prev, ...s });
+              }
+            });
+            const mergedStaff = Array.from(staffMap.values());
+            return {
+              ...current,
+              teacherDirectory: mergedStaff.length > 0 ? mergedStaff : staff,
+              backendConnected: true
+            };
+          });
         }
       } catch (e) { /* silent */ }
 
@@ -353,7 +409,27 @@ export function PortalDataProvider({ children }) {
       try {
         const bills = await api.getDefinedBills();
         if (Array.isArray(bills)) {
-          setData(current => ({ ...current, definedBills: bills, backendConnected: true }));
+          setData(current => {
+            const curBills = current.definedBills || [];
+            const billMap = new Map();
+            curBills.forEach(b => {
+              const k = (b.id || b.title || b.name || '').toLowerCase().trim();
+              if (k) billMap.set(k, b);
+            });
+            bills.forEach(b => {
+              const k = (b.id || b.title || b.name || '').toLowerCase().trim();
+              if (k) {
+                const prev = billMap.get(k) || {};
+                billMap.set(k, { ...prev, ...b });
+              }
+            });
+            const mergedBills = Array.from(billMap.values());
+            return {
+              ...current,
+              definedBills: mergedBills.length > 0 ? mergedBills : bills,
+              backendConnected: true
+            };
+          });
         }
       } catch (e) { /* silent */ }
 
@@ -378,7 +454,27 @@ export function PortalDataProvider({ children }) {
             editedByHeadmaster: false,
             correctionsLog: []
           }));
-          setData(current => ({ ...current, paymentVouchers: mapped, backendConnected: true }));
+          setData(current => {
+            const curPVs = current.paymentVouchers || [];
+            const pvMap = new Map();
+            curPVs.forEach(p => {
+              const k = (p.pvNo || p.id || '').toLowerCase().trim();
+              if (k) pvMap.set(k, p);
+            });
+            mapped.forEach(p => {
+              const k = (p.pvNo || p.id || '').toLowerCase().trim();
+              if (k) {
+                const prev = pvMap.get(k) || {};
+                pvMap.set(k, { ...prev, ...p });
+              }
+            });
+            const mergedPVs = Array.from(pvMap.values());
+            return {
+              ...current,
+              paymentVouchers: mergedPVs.length > 0 ? mergedPVs : mapped,
+              backendConnected: true
+            };
+          });
         }
       } catch (e) { /* silent */ }
 
@@ -874,15 +970,24 @@ export function PortalDataProvider({ children }) {
       try {
         await api.onboardStudent({
           fullName: student.fullName,
-          dob: student.dob,
-          gender: student.gender,
-          level: student.level,
+          full_name: student.fullName,
+          name: student.fullName,
+          dob: student.dob || '2015-01-01',
+          gender: student.gender || 'Not Specified',
+          level: student.level || 'Grade 1',
+          class_level: student.level || 'Grade 1',
           classSection: student.classSection || 'A',
+          class_section: student.classSection || 'A',
           guardianName: student.guardianName,
+          guardian_name: student.guardianName,
           guardianEmail: student.guardianEmail,
+          guardian_email: student.guardianEmail,
           guardianPhone: student.guardianPhone,
-          homeAddress: student.homeAddress,
-          initialBilledAmount: student.level.includes('JHS') ? 5200 : student.level.includes('SHS') ? 5800 : 4800,
+          guardian_phone: student.guardianPhone,
+          homeAddress: student.homeAddress || 'Bogoso',
+          home_address: student.homeAddress || 'Bogoso',
+          initialBilledAmount: (student.level || '').includes('JHS') ? 5200 : (student.level || '').includes('SHS') ? 5800 : 4800,
+          initial_billed_amount: (student.level || '').includes('JHS') ? 5200 : (student.level || '').includes('SHS') ? 5800 : 4800,
           term: 'Term 1 · 2026'
         });
       } catch (e) {
