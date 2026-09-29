@@ -2196,14 +2196,119 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
                     type="button"
+                    onClick={() => {
+                      setItemDesc('MOTIVATION LEVY');
+                      setSelectedBillAccount('Sundry / Miscellaneous');
+                      setItemFee('150.00');
+                    }}
+                    style={{
+                      padding: '5px 10px',
+                      background: '#e0f2fe',
+                      color: '#0369a1',
+                      border: '1px solid #bae6fd',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🔥 Motivation (GHS 150)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setItemDesc('SCHOOL BUS TRANSPORT');
+                      setSelectedBillAccount('Transport Account');
+                      setItemFee('600.00');
+                    }}
+                    style={{
+                      padding: '5px 10px',
+                      background: '#fef3c7',
+                      color: '#b45309',
+                      border: '1px solid #fde68a',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🚌 Bus (GHS 600)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setItemDesc('DAILY FEEDING & MID-DAY MEAL');
+                      setSelectedBillAccount('Feeding Account');
+                      setItemFee('450.00');
+                    }}
+                    style={{
+                      padding: '5px 10px',
+                      background: '#dcfce7',
+                      color: '#15803d',
+                      border: '1px solid #bbf7d0',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🍲 Feeding (GHS 450)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setItemDesc('STATIONERY & BOOKS SET');
+                      setSelectedBillAccount('Sundry / Miscellaneous');
+                      setItemFee('500.00');
+                    }}
+                    style={{
+                      padding: '5px 10px',
+                      background: '#f3e8ff',
+                      color: '#7e22ce',
+                      border: '1px solid #e9d5ff',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    📚 Stationery (GHS 500)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setItemDesc('PICK UP CARD');
+                      setSelectedBillAccount('Sundry / Miscellaneous');
+                      setItemFee('50.00');
+                    }}
+                    style={{
+                      padding: '5px 10px',
+                      background: '#ffe4e6',
+                      color: '#be123c',
+                      border: '1px solid #fecdd3',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🪪 Pick Up Card (GHS 50)
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={handlePresetAdditionalFees}
                     style={{
-                      padding: '6px 12px',
+                      padding: '5px 10px',
                       background: '#0284c7',
                       color: '#ffffff',
                       border: 'none',
                       borderRadius: 4,
-                      fontSize: 11.5,
+                      fontSize: 11,
                       fontWeight: 800,
                       cursor: 'pointer'
                     }}
@@ -2215,12 +2320,12 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
                     type="button"
                     onClick={handlePresetFineAdjustment}
                     style={{
-                      padding: '6px 12px',
+                      padding: '5px 10px',
                       background: '#475569',
                       color: '#ffffff',
                       border: 'none',
                       borderRadius: 4,
-                      fontSize: 11.5,
+                      fontSize: 11,
                       fontWeight: 800,
                       cursor: 'pointer'
                     }}
@@ -2559,6 +2664,11 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
 }
 
 function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
+  const portalData = usePortalData() || {};
+  const allStudents = (students && students.length > 0) ? students : (portalData.onboardedStudents || []);
+  const allFees = portalData.studentFees || [];
+  const effectiveRecordPayment = recordFeePayment || portalData.recordFeePayment;
+
   // Top Academic Period & Header Controls
   const [years, setYears] = useState(['2023/2024', '2024/2025', '2025/2026', '2026/2027', '2027/2028', '2028/2029', '2029/2030']);
   const [terms, setTerms] = useState(['1st Term', '2nd Term', '3rd Term']);
@@ -2574,14 +2684,27 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
   // Active Tab
   const [activeTab, setActiveTab] = useState('Add Optional & Other Bills to Accounts'); // options: 'Add Optional & Other Bills to Accounts', 'Accept Payments (Receipt Entry)', 'Reprint receipt'
 
-  // Student Details
-  const [studentId, setStudentId] = useState('421270');
-  const [studentName, setStudentName] = useState('NANA ADJOA ASARI SEREBOUR');
-  const [studentClass, setStudentClass] = useState('Basic 4');
-  const [subClass, setSubClass] = useState('B');
+  // Student Details - Default to first enrolled student from portal data
+  const defaultStudent = allStudents[0] || {
+    studentId: 'REMALJ-2026-001',
+    fullName: 'Benjamin Edwards',
+    level: 'Grade 4',
+    classSection: 'Section B',
+    guardianName: 'Mrs. Angela Edwards',
+    guardianPhone: '024 111 2222'
+  };
+
+  const [studentId, setStudentId] = useState(defaultStudent.studentId || 'REMALJ-2026-001');
+  const [studentName, setStudentName] = useState(defaultStudent.fullName || defaultStudent.name || 'Benjamin Edwards');
+  const [studentClass, setStudentClass] = useState(defaultStudent.level || 'Grade 4');
+  const [subClass, setSubClass] = useState(defaultStudent.classSection || 'B');
   const [modeOfAdmission, setModeOfAdmission] = useState('Day');
   const [statusOfEntry, setStatusOfEntry] = useState('Enrolled');
   const [studentIndex, setStudentIndex] = useState(0);
+
+  // Student Search & Autocomplete State
+  const [studentSearchTerm, setStudentSearchTerm] = useState('');
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false);
 
   // Middle Action Bar
   const [billNo, setBillNo] = useState('2100451878');
@@ -2607,11 +2730,11 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
   const [payMode, setPayMode] = useState('Mobile Money');
   const [receivingAccount, setReceivingAccount] = useState('GCB Main Operating Account (55919200085584)');
   const [transactionRef, setTransactionRef] = useState('MM-98471203');
-  const [payerName, setPayerName] = useState('Mr. Serebour (Guardian)');
-  const [payerPhone, setPayerPhone] = useState('024 111 2222');
+  const [payerName, setPayerName] = useState(defaultStudent.guardianName || 'Mrs. Angela Edwards');
+  const [payerPhone, setPayerPhone] = useState(defaultStudent.guardianPhone || '024 111 2222');
   const [payNotes, setPayNotes] = useState('Term 1 School Fee Settlement');
 
-  // Institutional Fees, Dues & Levy Breakdown State (with Plus + & Minus - controls)
+  // Institutional Fees, Dues & Levy Breakdown State
   const [institutionDuesItems, setInstitutionDuesItems] = useState([
     { id: 'due-1', name: 'Tuition Fee / Academic Bill', amount: 1000.00, category: 'Tuition & Academic' },
     { id: 'due-2', name: 'PTA Dues & Association Levy', amount: 15.00, category: 'Association Levy' },
@@ -2666,42 +2789,61 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
 
   // Historical Receipts List
   const [receiptsList, setReceiptsList] = useState([
-    { receiptNo: '47545674', date: '2026-09-09', studentId: '421270', studentName: 'NANA ADJOA ASARI SEREBOUR', amount: 1200.00, mode: 'Mobile Money', refNo: 'MM-98471203', cashier: 'Mrs. Grace Accountant', status: 'Issued' },
-    { receiptNo: '47545610', date: '2026-05-14', studentId: '421270', studentName: 'NANA ADJOA ASARI SEREBOUR', amount: 2500.00, mode: 'Bank Deposit', refNo: 'GCB-8839120', cashier: 'Mrs. Grace Accountant', status: 'Issued' },
+    { receiptNo: '47545674', date: '2026-09-09', studentId: 'REMALJ-2026-001', studentName: 'Benjamin Edwards', amount: 1200.00, mode: 'Mobile Money', refNo: 'MM-98471203', cashier: 'Mrs. Grace Accountant', status: 'Issued' },
+    { receiptNo: '47545610', date: '2026-05-14', studentId: 'REMALJ-2026-002', studentName: 'Adwoa Edwards', amount: 2500.00, mode: 'Bank Deposit', refNo: 'GCB-8839120', cashier: 'Mrs. Grace Accountant', status: 'Issued' },
   ]);
 
   const [noticeBanner, setNoticeBanner] = useState('');
 
+  // Handle Selecting a Student from Roster
+  const handleSelectStudent = (student) => {
+    if (!student) return;
+    const sId = student.studentId || student.id || '';
+    const sName = student.fullName || student.name || '';
+    const sClass = student.level || 'Grade 4';
+    const sSub = student.classSection || 'A';
+
+    const feeMatch = allFees.find(f =>
+      (f.studentId && f.studentId.toLowerCase() === sId.toLowerCase()) ||
+      (f.studentName && f.studentName.toLowerCase() === sName.toLowerCase()) ||
+      (f.id && f.id.toLowerCase() === sId.toLowerCase())
+    );
+
+    const balance = feeMatch ? feeMatch.balance : (student.balance !== undefined ? student.balance : 1200);
+
+    setStudentId(sId);
+    setStudentName(sName);
+    setStudentClass(sClass);
+    setSubClass(sSub);
+    setStatusOfEntry(student.status || 'Enrolled');
+    setPayerName(student.guardianName || `Guardian of ${sName}`);
+    setPayerPhone(student.guardianPhone || '024 111 2222');
+    setCurArrears(Number(balance).toLocaleString(undefined, { minimumFractionDigits: 2 }));
+    setAvlArrears(Number(balance).toLocaleString(undefined, { minimumFractionDigits: 2 }));
+    setStudentSearchTerm('');
+    setShowStudentDropdown(false);
+    setNoticeBanner(`✅ Selected student: ${sName} (${sId}) · Outstanding Balance: GHS ${Number(balance).toLocaleString()}`);
+    setTimeout(() => setNoticeBanner(''), 4000);
+  };
+
   // Search / Lookup Student Handler
   const handleLookupStudent = () => {
-    if (students && students.length > 0) {
-      const match = students.find(s =>
-        (s.studentId || '').toLowerCase().includes(studentId.toLowerCase()) ||
-        (s.fullName || s.name || '').toLowerCase().includes(studentName.toLowerCase())
-      );
-      if (match) {
-        setStudentId(match.studentId || studentId);
-        setStudentName(match.fullName || match.name || studentName);
-        setStudentClass(match.level || studentClass);
-        setSubClass(match.classSection || subClass);
-        const feeRecord = (match.feeAccount || {});
-        const bal = match.balance ?? feeRecord.balance ?? 1200;
-        setCurArrears(Number(bal).toLocaleString(undefined, { minimumFractionDigits: 2 }));
-        setAvlArrears(Number(bal).toLocaleString(undefined, { minimumFractionDigits: 2 }));
-        setNoticeBanner(`Loaded student record: ${match.fullName || match.name} (${match.studentId})`);
-        setTimeout(() => setNoticeBanner(''), 3000);
-        return;
-      }
+    if (!studentName.trim() && !studentId.trim()) {
+      setShowStudentDropdown(true);
+      return;
     }
-    const nextIdx = (studentIndex + 1) % (students.length || 1);
-    setStudentIndex(nextIdx);
-    if (students[nextIdx]) {
-      const s = students[nextIdx];
-      setStudentId(s.studentId || `42127${nextIdx}`);
-      setStudentName(s.fullName || s.name || 'NANA ADJOA ASARI SEREBOUR');
-      setStudentClass(s.level || 'Basic 4');
-      setNoticeBanner(`Loaded student: ${s.fullName || s.name}`);
-      setTimeout(() => setNoticeBanner(''), 3000);
+    const term = (studentName || studentId).toLowerCase().trim();
+    const match = allStudents.find(s =>
+      (s.studentId || '').toLowerCase().includes(term) ||
+      (s.fullName || s.name || '').toLowerCase().includes(term) ||
+      (s.guardianPhone || '').includes(term)
+    );
+    if (match) {
+      handleSelectStudent(match);
+    } else {
+      setShowStudentDropdown(true);
+      setNoticeBanner(`Showing all ${allStudents.length} registered students in dropdown selector.`);
+      setTimeout(() => setNoticeBanner(''), 3500);
     }
   };
 
@@ -2763,9 +2905,11 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
     const newReceiptNo = String(Math.floor(47000000 + Math.random() * 900000));
     setReceiptNo(newReceiptNo);
 
-    if (typeof recordFeePayment === 'function') {
-      recordFeePayment({
+    if (typeof effectiveRecordPayment === 'function') {
+      effectiveRecordPayment({
         id: studentId || studentName,
+        studentId,
+        studentName,
         paidAmount: amountVal,
         paymentMethod: payMode,
         receivingAccount,
@@ -2793,7 +2937,7 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
     setCurArrears(newArrears.toLocaleString(undefined, { minimumFractionDigits: 2 }));
     setAvlArrears(newArrears.toLocaleString(undefined, { minimumFractionDigits: 2 }));
 
-    setNoticeBanner(`✅ Payment of GHS ${amountVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} recorded! Receipt #${newReceiptNo} issued.`);
+    setNoticeBanner(`✅ Payment of GHS ${amountVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} recorded for ${studentName}! Receipt #${newReceiptNo} issued.`);
     setActiveTab('Reprint receipt');
   };
 
@@ -2802,6 +2946,17 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
+
+  const filteredStudentMatches = allStudents.filter(s => {
+    if (!studentSearchTerm.trim()) return true;
+    const term = studentSearchTerm.toLowerCase().trim();
+    return (
+      (s.fullName || s.name || '').toLowerCase().includes(term) ||
+      (s.studentId || '').toLowerCase().includes(term) ||
+      (s.level || '').toLowerCase().includes(term) ||
+      (s.guardianPhone || '').includes(term)
+    );
+  });
 
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a' }}>
@@ -2954,6 +3109,69 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
         })}
       </div>
 
+      {/* ── SEARCH & SELECT ENROLLED STUDENT ROSTER BAR ── */}
+      <div style={{ background: '#e0f2fe', padding: '10px 14px', border: '1px solid #bae6fd', borderTop: 'none', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 260, flex: 1 }}>
+          <label style={{ fontSize: 11, fontWeight: 900, color: '#0369a1', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+            🎯 Select Student:
+          </label>
+          <select
+            value={studentId}
+            onChange={(e) => {
+              const match = allStudents.find(s => (s.studentId || s.id) === e.target.value);
+              if (match) handleSelectStudent(match);
+            }}
+            style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid #0284c7', fontSize: 12, fontWeight: 800, color: '#0f3a4b', background: '#ffffff', cursor: 'pointer' }}
+          >
+            <option value="">-- Click to Choose Student ({allStudents.length} enrolled) --</option>
+            {allStudents.map(s => (
+              <option key={s.id || s.studentId} value={s.studentId || s.id}>
+                {s.fullName || s.name} ({s.studentId} · {s.level} {s.classSection || ''})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ position: 'relative', minWidth: 260, flex: 1 }}>
+          <input
+            type="text"
+            placeholder="🔍 Type student name, ID or phone to search..."
+            value={studentSearchTerm}
+            onChange={(e) => {
+              setStudentSearchTerm(e.target.value);
+              setShowStudentDropdown(true);
+            }}
+            onFocus={() => setShowStudentDropdown(true)}
+            style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #0284c7', fontSize: 12, background: '#ffffff', fontWeight: 600 }}
+          />
+
+          {showStudentDropdown && studentSearchTerm.trim() && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: '#ffffff', border: '1px solid #0284c7', borderRadius: 6, boxShadow: '0 10px 25px rgba(0,0,0,0.15)', maxHeight: 220, overflowY: 'auto' }}>
+              {filteredStudentMatches.length === 0 ? (
+                <div style={{ padding: 10, fontSize: 12, color: '#64748b', textAlign: 'center' }}>No student found matching "{studentSearchTerm}"</div>
+              ) : (
+                filteredStudentMatches.map(s => (
+                  <div
+                    key={s.id || s.studentId}
+                    onClick={() => handleSelectStudent(s)}
+                    style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background 0.15s' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f0f9ff'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = '#ffffff'}
+                  >
+                    <div style={{ fontWeight: 800, fontSize: 13, color: '#0f172a' }}>{s.fullName || s.name}</div>
+                    <div style={{ fontSize: 11, color: '#64748b', display: 'flex', gap: 12, marginTop: 2 }}>
+                      <span>ID: <strong>{s.studentId}</strong></span>
+                      <span>Class: <strong>{s.level}</strong></span>
+                      <span>Guardian: <strong>{s.guardianName || 'Parent'} ({s.guardianPhone || 'N/A'})</strong></span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* ── STUDENT DETAILS & PHOTO SECTION ── */}
       <div style={{
         background: '#ffffff',
@@ -2982,7 +3200,7 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
                 style={{ padding: '5px 10px', background: '#cbd5e1', color: '#0f3a4b', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 900, cursor: 'pointer' }}
                 title="Lookup Student"
               >
-                [...]
+                🔍 Search
               </button>
             </div>
           </div>
@@ -3054,20 +3272,20 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
             width: 72,
             height: 72,
             borderRadius: '50%',
-            background: '#38bdf8',
+            background: '#0284c7',
             display: 'flex',
             alignItems: 'center',
-            justify: 'center',
-            color: '#ffffff',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            justifyContent: 'center',
+            color: '#fff',
+            fontWeight: 900,
+            fontSize: 24,
+            boxShadow: '0 4px 10px rgba(2,132,199,0.3)'
           }}>
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-            </svg>
+            {(studentName || 'S').charAt(0).toUpperCase()}
           </div>
-          <span style={{ fontSize: 10, fontWeight: 800, color: '#64748b', marginTop: 6, textTransform: 'uppercase' }}>
-            Student Photo
-          </span>
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginTop: 6, textAlign: 'center' }}>
+            {studentId || 'ID'}
+          </div>
         </div>
       </div>
 
@@ -3525,6 +3743,44 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
                 Open Optional Bill Dialog Box
               </h4>
               <button onClick={() => setShowOptionalDialog(false)} style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer' }}>✕</button>
+            </div>
+
+            {/* Quick Presets Bar */}
+            <div style={{ marginBottom: 12 }}>
+              <span style={{ fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                Quick Presets:
+              </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {[
+                  { label: '🔥 Motivation', desc: 'MOTIVATION LEVY', fee: '150.00', acc: 'Sundry / Miscellaneous' },
+                  { label: '🚌 Bus', desc: 'SCHOOL BUS TRANSPORT', fee: '600.00', acc: 'Transport Account' },
+                  { label: '🍲 Feeding', desc: 'DAILY FEEDING & MID-DAY MEAL', fee: '450.00', acc: 'Feeding Account' },
+                  { label: '📚 Stationery', desc: 'STATIONERY & BOOKS SET', fee: '500.00', acc: 'Sundry / Miscellaneous' },
+                  { label: '🪪 Pick Up Card', desc: 'PICK UP CARD', fee: '50.00', acc: 'Sundry / Miscellaneous' }
+                ].map((item) => (
+                  <button
+                    key={item.desc}
+                    type="button"
+                    onClick={() => {
+                      setNewOptDesc(item.desc);
+                      setNewOptFee(item.fee);
+                      setNewOptAccount(item.acc);
+                    }}
+                    style={{
+                      padding: '4px 8px',
+                      background: '#e0f2fe',
+                      color: '#0369a1',
+                      border: '1px solid #bae6fd',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {item.label} (GHS {item.fee})
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
@@ -4211,6 +4467,10 @@ function ReceiveOtherPaymentsForm({ setM }) {
 }
 
 function BatchProcessingForm({ setM, students = [], recordFeePayment }) {
+  const portalData = usePortalData() || {};
+  const allStudents = (students && students.length > 0) ? students : (portalData.onboardedStudents || []);
+  const effectiveRecordPayment = recordFeePayment || portalData.recordFeePayment;
+
   // Top Academic Period & Header Controls
   const [years, setYears] = useState(['2023/2024', '2024/2025', '2025/2026', '2026/2027', '2027/2028', '2028/2029', '2029/2030']);
   const [terms, setTerms] = useState(['1st Term', '2nd Term', '3rd Term']);
@@ -4227,11 +4487,18 @@ function BatchProcessingForm({ setM, students = [], recordFeePayment }) {
   const [activeTab, setActiveTab] = useState('Receipt Entry'); // Options: 'Receipt Entry', 'Reprint receipt'
 
   // Student & Transaction Form Fields
+  const defaultStudent = allStudents[0] || {
+    studentId: 'REMALJ-2026-001',
+    fullName: 'Benjamin Edwards',
+    level: 'Grade 4',
+    classSection: 'A'
+  };
+
   const [txnNo, setTxnNo] = useState('BATCH-TXN-2026-8801');
-  const [studentId, setStudentId] = useState('421270');
-  const [studentName, setStudentName] = useState('NANA ADJOA ASARI SEREBOUR');
-  const [studentClass, setStudentClass] = useState('Basic 4');
-  const [subClass, setSubClass] = useState('B');
+  const [studentId, setStudentId] = useState(defaultStudent.studentId || 'REMALJ-2026-001');
+  const [studentName, setStudentName] = useState(defaultStudent.fullName || defaultStudent.name || 'Benjamin Edwards');
+  const [studentClass, setStudentClass] = useState(defaultStudent.level || 'Grade 4');
+  const [subClass, setSubClass] = useState(defaultStudent.classSection || 'A');
   const [modeOfAdmission, setModeOfAdmission] = useState('Day');
   const [statusOfEntry, setStatusOfEntry] = useState('Enrolled');
   const [studentIndex, setStudentIndex] = useState(0);
@@ -4245,12 +4512,12 @@ function BatchProcessingForm({ setM, students = [], recordFeePayment }) {
 
   // Draft Batch Receipt Items List
   const [batchItems, setBatchItems] = useState([
-    { id: '1', txnNo: 'BATCH-TXN-2026-8801', studentId: '421270', studentName: 'NANA ADJOA ASARI SEREBOUR', studentClass: 'Basic 4 (B)', glAccount: 'Tuition & Academic Fees', refBy: 'Student SID', reference: 'BATCH-REF-9941', amount: 1200.00, date: '2025-08-17', description: 'Batch Academic Fee Receipt Entry' }
+    { id: '1', txnNo: 'BATCH-TXN-2026-8801', studentId: defaultStudent.studentId || 'REMALJ-2026-001', studentName: defaultStudent.fullName || defaultStudent.name || 'Benjamin Edwards', studentClass: `${defaultStudent.level || 'Grade 4'} (${defaultStudent.classSection || 'A'})`, glAccount: 'Tuition & Academic Fees', refBy: 'Student SID', reference: 'BATCH-REF-9941', amount: 1200.00, date: '2025-08-17', description: 'Batch Academic Fee Receipt Entry' }
   ]);
 
   // Historical Issued Batch Receipts
   const [issuedBatches, setIssuedBatches] = useState([
-    { batchNo: '121289', date: '2025-08-17', studentId: '421270', studentName: 'NANA ADJOA ASARI SEREBOUR', glAccount: 'Tuition & Academic Fees', reference: 'BATCH-REF-9941', amount: 1200.00, cashier: 'Mrs. Grace Accountant', status: 'Batch Processed' },
+    { batchNo: '121289', date: '2025-08-17', studentId: defaultStudent.studentId || 'REMALJ-2026-001', studentName: defaultStudent.fullName || defaultStudent.name || 'Benjamin Edwards', glAccount: 'Tuition & Academic Fees', reference: 'BATCH-REF-9941', amount: 1200.00, cashier: 'Mrs. Grace Accountant', status: 'Batch Processed' },
     { batchNo: '121250', date: '2025-05-10', studentId: '421200', studentName: 'Benjamin Edwards', glAccount: 'Facility & ICT Account', reference: 'BATCH-REF-8802', amount: 3500.00, cashier: 'Mrs. Grace Accountant', status: 'Batch Processed' }
   ]);
 
@@ -4266,36 +4533,34 @@ function BatchProcessingForm({ setM, students = [], recordFeePayment }) {
     return `${days[d.getDay()]} , ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
   };
 
+  const handleSelectStudent = (s) => {
+    if (!s) return;
+    setStudentId(s.studentId || s.id);
+    setStudentName(s.fullName || s.name);
+    setStudentClass(s.level || 'Grade 1');
+    setSubClass(s.classSection || 'A');
+    const feeBal = s.feeAccount?.balance ?? s.balance ?? 1200;
+    setCurArrears(Number(feeBal).toLocaleString(undefined, { minimumFractionDigits: 2 }));
+    setAvlArrears(Number(feeBal).toLocaleString(undefined, { minimumFractionDigits: 2 }));
+    setBannerNotice(`✅ Loaded Student: ${s.fullName || s.name} (${s.studentId})`);
+    setTimeout(() => setBannerNotice(''), 3000);
+  };
+
   // Lookup Student Handler
   const handleLookupStudent = () => {
-    if (students && students.length > 0) {
-      const match = students.find(s =>
-        (s.studentId || '').toLowerCase().includes(studentId.toLowerCase()) ||
-        (s.fullName || s.name || '').toLowerCase().includes(studentName.toLowerCase())
+    if (allStudents && allStudents.length > 0) {
+      const term = (studentId || studentName).toLowerCase().trim();
+      const match = allStudents.find(s =>
+        (s.studentId || '').toLowerCase().includes(term) ||
+        (s.fullName || s.name || '').toLowerCase().includes(term)
       );
       if (match) {
-        setStudentId(match.studentId || studentId);
-        setStudentName(match.fullName || match.name || studentName);
-        setStudentClass(match.level || studentClass);
-        setSubClass(match.classSection || subClass);
-        const feeRecord = (match.feeAccount || {});
-        const bal = match.balance ?? feeRecord.balance ?? 1200;
-        setCurArrears(Number(bal).toLocaleString(undefined, { minimumFractionDigits: 2 }));
-        setAvlArrears(Number(bal).toLocaleString(undefined, { minimumFractionDigits: 2 }));
-        setBannerNotice(`Loaded student: ${match.fullName || match.name} (${match.studentId})`);
-        setTimeout(() => setBannerNotice(''), 3000);
+        handleSelectStudent(match);
         return;
       }
-    }
-    const nextIdx = (studentIndex + 1) % (students.length || 1);
-    setStudentIndex(nextIdx);
-    if (students[nextIdx]) {
-      const s = students[nextIdx];
-      setStudentId(s.studentId || `42127${nextIdx}`);
-      setStudentName(s.fullName || s.name || 'NANA ADJOA ASARI SEREBOUR');
-      setStudentClass(s.level || 'Basic 4');
-      setBannerNotice(`Loaded student: ${s.fullName || s.name}`);
-      setTimeout(() => setBannerNotice(''), 3000);
+      const nextIdx = (studentIndex + 1) % allStudents.length;
+      setStudentIndex(nextIdx);
+      handleSelectStudent(allStudents[nextIdx]);
     }
   };
 
@@ -11361,7 +11626,7 @@ function renderSpecificContent(link, m, setM, students) {
 
   // Receive Payments Form
   if (link === 'Receive Payments from Students') {
-    return <ReceivePaymentsForm setM={setM} students={students} />;
+    return <ReceivePaymentsForm setM={setM} students={students} recordFeePayment={recordFeePayment} />;
   }
 
   // Receive Other Payments Form
@@ -11371,7 +11636,7 @@ function renderSpecificContent(link, m, setM, students) {
 
   // Batch Processing Form
   if (link === 'Batch Processing') {
-    return <BatchProcessingForm setM={setM} students={students} />;
+    return <BatchProcessingForm setM={setM} students={students} recordFeePayment={recordFeePayment} />;
   }
 
   // Other Accounts Receivables Form

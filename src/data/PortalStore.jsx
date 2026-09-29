@@ -466,8 +466,42 @@ export function PortalDataProvider({ children }) {
   }, [data.onboardedStudents]);
 
   const sortedStudentFees = useMemo(() => {
-    return [...(data.studentFees || [])].sort((a, b) => (a.studentName || '').localeCompare(b.studentName || ''));
-  }, [data.studentFees]);
+    const feeMap = new Map();
+    (data.studentFees || []).forEach((f) => {
+      if (f.studentId) feeMap.set(String(f.studentId).toLowerCase(), f);
+      if (f.studentName) feeMap.set(String(f.studentName).toLowerCase(), f);
+      if (f.id) feeMap.set(String(f.id).toLowerCase(), f);
+    });
+
+    const merged = [...(data.studentFees || [])];
+
+    (data.onboardedStudents || []).forEach((s) => {
+      const keyId = (s.studentId || '').toLowerCase();
+      const keyName = (s.fullName || s.name || '').toLowerCase();
+      if ((keyId && !feeMap.has(keyId)) && (keyName && !feeMap.has(keyName))) {
+        const defaultBilled = (s.level || '').includes('JHS') ? 5200 : (s.level || '').includes('SHS') ? 5800 : 4800;
+        const autoFee = {
+          id: `fee-${s.id || s.studentId}`,
+          studentId: s.studentId || `REMALJ-${s.id}`,
+          studentName: s.fullName || s.name,
+          guardianName: s.guardianName || 'Parent / Guardian',
+          guardianEmail: s.guardianEmail || 'parent@remaljcarewell.edu.gh',
+          term: 'Term 1 · 2026',
+          billedAmount: defaultBilled,
+          paidAmount: 0,
+          balance: defaultBilled,
+          status: 'Not Paid',
+          dueDate: '2026-09-15',
+          paymentDate: null
+        };
+        merged.push(autoFee);
+        if (keyId) feeMap.set(keyId, autoFee);
+        if (keyName) feeMap.set(keyName, autoFee);
+      }
+    });
+
+    return merged.sort((a, b) => (a.studentName || '').localeCompare(b.studentName || ''));
+  }, [data.studentFees, data.onboardedStudents]);
 
   const value = useMemo(() => ({
     ...data,
@@ -1249,22 +1283,30 @@ export function PortalDataProvider({ children }) {
       return { ...current, results: updated };
     }),
     // Payment Recording with Robust Match Logic
-    recordFeePayment: async ({ id, paidAmount, paymentDate, paymentMethod = 'Mobile Money', notes = '', receivingAccount = 'GCB Main Account' }) => {
+    recordFeePayment: async ({ id, studentId, studentName, paidAmount, paymentDate, paymentMethod = 'Mobile Money', notes = '', receivingAccount = 'GCB Main Account' }) => {
+      const lookupId = id || studentId || studentName;
       try {
-        await api.recordFeePayment(id, { paidAmount: Number(paidAmount), paymentMethod, paymentDate, notes });
+        await api.recordFeePayment(lookupId, { paidAmount: Number(paidAmount), paymentMethod, paymentDate, notes });
       } catch (e) {
         console.warn('Backend fee payment fallback:', e);
       }
 
       setData((current) => {
         const addAmount = Number(paidAmount) || 0;
+        const targetClean = String(lookupId || '').toLowerCase().trim();
+        const sNameClean = String(studentName || '').toLowerCase().trim();
+        const sIdClean = String(studentId || '').toLowerCase().trim();
 
         let targetFound = false;
         const updatedFees = (current.studentFees || []).map((fee) => {
-          const isMatch = fee.id === id ||
-            fee.studentId === id ||
-            (fee.studentName && fee.studentName.toLowerCase().includes(String(id).toLowerCase())) ||
-            (id === 'all' || !id);
+          const feeName = (fee.studentName || '').toLowerCase().trim();
+          const feeId = (fee.studentId || '').toLowerCase().trim();
+          const recordId = (fee.id || '').toLowerCase().trim();
+
+          const isMatch = (targetClean && (recordId === targetClean || feeId === targetClean || feeName === targetClean || feeName.includes(targetClean))) ||
+            (sNameClean && (feeName === sNameClean || feeName.includes(sNameClean))) ||
+            (sIdClean && feeId === sIdClean) ||
+            (lookupId === 'all');
 
           if (!isMatch && targetFound) return fee;
           if (isMatch) targetFound = true;
@@ -1285,13 +1327,41 @@ export function PortalDataProvider({ children }) {
           };
         });
 
+        // If no existing fee entry was matched, create a new one so it's tracked
+        if (!targetFound && (studentName || studentId || id)) {
+          const sName = studentName || (id !== 'all' ? id : 'Student');
+          const sId = studentId || `REMALJ-${Date.now().toString().slice(-3)}`;
+          const defaultBilled = 4800;
+          const newPaid = addAmount;
+          const newBalance = Math.max(0, defaultBilled - newPaid);
+          const newFee = {
+            id: `fee-${Date.now()}`,
+            studentId: sId,
+            studentName: sName,
+            guardianName: 'Parent / Guardian',
+            guardianEmail: 'parent@remaljcarewell.edu.gh',
+            term: 'Term 1 · 2026',
+            billedAmount: defaultBilled,
+            paidAmount: newPaid,
+            balance: newBalance,
+            status: newBalance <= 0 ? 'Paid' : 'Balance Due',
+            dueDate: '2026-09-15',
+            paymentDate: paymentDate || new Date().toISOString().split('T')[0],
+            lastPaymentMethod: paymentMethod,
+            lastReceivingAccount: receivingAccount,
+            lastNotes: notes,
+          };
+          updatedFees.unshift(newFee);
+        }
+
         // Also update matching fee account for parent/student portal summaries
-        const targetFee = (current.studentFees || []).find((f) =>
-          f.id === id || f.studentId === id || (f.studentName && f.studentName.toLowerCase().includes(String(id).toLowerCase()))
+        const targetFee = updatedFees.find((f) =>
+          (targetClean && ((f.id || '').toLowerCase() === targetClean || (f.studentId || '').toLowerCase() === targetClean || (f.studentName || '').toLowerCase().includes(targetClean))) ||
+          (sNameClean && (f.studentName || '').toLowerCase().includes(sNameClean))
         );
 
         const updatedFeeAccounts = (current.feeAccounts || []).map((acc) => {
-          const isMatch = targetFee ? acc.child === targetFee.studentName : (acc.child && acc.child.toLowerCase().includes(String(id).toLowerCase()));
+          const isMatch = targetFee ? acc.child === targetFee.studentName : (acc.child && acc.child.toLowerCase().includes(targetClean));
           if (!isMatch) return acc;
           const newPaid = (acc.paid || 0) + addAmount;
           const newBalance = Math.max(0, (acc.billed || 0) - newPaid);

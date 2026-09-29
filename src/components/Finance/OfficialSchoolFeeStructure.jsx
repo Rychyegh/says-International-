@@ -1,8 +1,16 @@
 import React, { useState } from 'react';
-import { Printer, CheckCircle2, DollarSign, BookOpen, Shirt, ShoppingBag, HeartHandshake, Layers, Plus, Trash2, FileText, Send, X, UserCheck, Upload, Camera, User } from 'lucide-react';
+import { Printer, CheckCircle2, DollarSign, BookOpen, Shirt, ShoppingBag, HeartHandshake, Layers, Plus, Trash2, FileText, Send, X, UserCheck, Upload, Camera, User, Bus, Utensils, Award, CreditCard, Sparkles } from 'lucide-react';
 import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
 import { usePortalData } from '../../data/PortalStore';
 import './OfficialSchoolFeeStructure.css';
+
+export const OFFICIAL_OPTIONAL_PRESETS = [
+  { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', defaultAmount: 150.00, icon: '🔥', account: 'Sundry / Miscellaneous', description: 'Academic motivation & teacher incentive levy' },
+  { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', defaultAmount: 600.00, icon: '🚌', account: 'Transport Account', description: 'Daily roundtrip school bus transit route' },
+  { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', defaultAmount: 450.00, icon: '🍲', account: 'Feeding Account', description: 'Daily balanced hot lunch & mid-day refreshment' },
+  { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', defaultAmount: 500.00, icon: '📚', account: 'Sundry / Miscellaneous', description: 'Official textbooks, exercise books & stationery pack' },
+  { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', defaultAmount: 50.00, icon: '🪪', account: 'Sundry / Miscellaneous', description: 'Security authorized parent/guardian pick-up ID card' },
+];
 
 const INITIAL_FEE_SCHEDULE = {
   'Creche / Nursery 1': {
@@ -15,6 +23,13 @@ const INITIAL_FEE_SCHEDULE = {
       { details: 'FIRST AID LEVI', amount: 50.00 },
       { details: 'TOILETRIES', amount: 60.00 },
       { details: 'STUDENT\'S CARD SERVICE', amount: 125.00 },
+    ],
+    optionalBills: [
+      { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', amount: 150.00, enabled: true, icon: '🔥', description: 'Academic motivation & teaching incentive' },
+      { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', amount: 600.00, enabled: true, icon: '🚌', description: 'Daily roundtrip school bus transit route' },
+      { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', amount: 450.00, enabled: true, icon: '🍲', description: 'Daily hot meal & mid-day refreshment' },
+      { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', amount: 695.00, enabled: true, icon: '📚', description: 'Creche / Nursery 1 exercise & stationery set' },
+      { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', amount: 50.00, enabled: true, icon: '🪪', description: 'Authorized parent pick-up card' },
     ],
     stationery: 695.00,
     isBaby: true,
@@ -30,6 +45,13 @@ const INITIAL_FEE_SCHEDULE = {
       { details: 'TOILETRIES', amount: 60.00 },
       { details: 'STUDENT\'S CARD SERVICE', amount: 125.00 },
     ],
+    optionalBills: [
+      { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', amount: 150.00, enabled: true, icon: '🔥', description: 'Academic motivation & teaching incentive' },
+      { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', amount: 600.00, enabled: true, icon: '🚌', description: 'Daily roundtrip school bus transit route' },
+      { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', amount: 450.00, enabled: true, icon: '🍲', description: 'Daily hot meal & mid-day refreshment' },
+      { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', amount: 1180.00, enabled: true, icon: '📚', description: 'Nursery 2 official stationery & books' },
+      { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', amount: 50.00, enabled: true, icon: '🪪', description: 'Authorized parent pick-up card' },
+    ],
     stationery: 1180.00,
     isBaby: true,
   },
@@ -43,6 +65,13 @@ const INITIAL_FEE_SCHEDULE = {
       { details: 'FIRST AID LEVI', amount: 50.00 },
       { details: 'TOILETRIES', amount: 60.00 },
       { details: 'STUDENT\'S CARD SERVICE', amount: 125.00 },
+    ],
+    optionalBills: [
+      { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', amount: 150.00, enabled: true, icon: '🔥', description: 'Academic motivation & teaching incentive' },
+      { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', amount: 600.00, enabled: true, icon: '🚌', description: 'Daily roundtrip school bus transit route' },
+      { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', amount: 450.00, enabled: true, icon: '🍲', description: 'Daily hot meal & mid-day refreshment' },
+      { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', amount: 1205.00, enabled: true, icon: '📚', description: 'KG 1 & 2 official stationery & workbooks' },
+      { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', amount: 50.00, enabled: true, icon: '🪪', description: 'Authorized parent pick-up card' },
     ],
     stationery: 1205.00,
     ucmas: 295.00,
@@ -59,6 +88,13 @@ const INITIAL_FEE_SCHEDULE = {
       { details: 'TOILETRIES', amount: 60.00 },
       { details: 'STUDENT\'S CARD SERVICE', amount: 125.00 },
     ],
+    optionalBills: [
+      { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', amount: 150.00, enabled: true, icon: '🔥', description: 'Academic motivation & teaching incentive' },
+      { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', amount: 600.00, enabled: true, icon: '🚌', description: 'Daily roundtrip school bus transit route' },
+      { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', amount: 450.00, enabled: true, icon: '🍲', description: 'Daily hot meal & mid-day refreshment' },
+      { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', amount: 1365.00, enabled: true, icon: '📚', description: 'Basic One stationery & exercise books' },
+      { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', amount: 50.00, enabled: true, icon: '🪪', description: 'Authorized parent pick-up card' },
+    ],
     stationery: 1365.00,
     ucmas: 295.00,
     isBaby: false,
@@ -73,6 +109,13 @@ const INITIAL_FEE_SCHEDULE = {
       { details: 'FIRST AID LEVI', amount: 50.00 },
       { details: 'TOILETRIES', amount: 60.00 },
       { details: 'STUDENT\'S CARD SERVICE', amount: 125.00 },
+    ],
+    optionalBills: [
+      { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', amount: 150.00, enabled: true, icon: '🔥', description: 'Academic motivation & teaching incentive' },
+      { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', amount: 600.00, enabled: true, icon: '🚌', description: 'Daily roundtrip school bus transit route' },
+      { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', amount: 450.00, enabled: true, icon: '🍲', description: 'Daily hot meal & mid-day refreshment' },
+      { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', amount: 1115.00, enabled: true, icon: '📚', description: 'Basic 2 & 3 textbooks & stationery' },
+      { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', amount: 50.00, enabled: true, icon: '🪪', description: 'Authorized parent pick-up card' },
     ],
     stationery: 1115.00,
     ucmas: 295.00,
@@ -89,6 +132,13 @@ const INITIAL_FEE_SCHEDULE = {
       { details: 'TOILETRIES', amount: 60.00 },
       { details: 'STUDENT\'S CARD SERVICE', amount: 125.00 },
     ],
+    optionalBills: [
+      { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', amount: 150.00, enabled: true, icon: '🔥', description: 'Academic motivation & teaching incentive' },
+      { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', amount: 600.00, enabled: true, icon: '🚌', description: 'Daily roundtrip school bus transit route' },
+      { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', amount: 450.00, enabled: true, icon: '🍲', description: 'Daily hot meal & mid-day refreshment' },
+      { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', amount: 1040.00, enabled: true, icon: '📚', description: 'Upper primary textbooks & stationery' },
+      { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', amount: 50.00, enabled: true, icon: '🪪', description: 'Authorized parent pick-up card' },
+    ],
     stationery: 1040.00,
     scienceSet: 190.00,
     ucmas: 295.00,
@@ -104,6 +154,13 @@ const INITIAL_FEE_SCHEDULE = {
       { details: 'FIRST AID LEVI', amount: 50.00 },
       { details: 'TOILETRIES', amount: 60.00 },
       { details: 'STUDENT\'S CARD SERVICE', amount: 125.00 },
+    ],
+    optionalBills: [
+      { id: 'opt_motivation', details: 'MOTIVATION LEVY', label: 'Motivation', amount: 150.00, enabled: true, icon: '🔥', description: 'Academic motivation & teaching incentive' },
+      { id: 'opt_bus', details: 'SCHOOL BUS TRANSPORT', label: 'Bus Service', amount: 600.00, enabled: true, icon: '🚌', description: 'Daily roundtrip school bus transit route' },
+      { id: 'opt_feeding', details: 'DAILY FEEDING & MID-DAY MEAL', label: 'Feeding / Lunch', amount: 450.00, enabled: true, icon: '🍲', description: 'Daily hot meal & mid-day refreshment' },
+      { id: 'opt_stationery', details: 'STATIONERY & BOOKS SET', label: 'Stationery Set', amount: 2090.00, enabled: true, icon: '📚', description: 'JHS textbooks, science lab & stationery pack' },
+      { id: 'opt_pickup_card', details: 'PICK UP CARD', label: 'Pick Up Card', amount: 50.00, enabled: true, icon: '🪪', description: 'Authorized parent pick-up card' },
     ],
     stationery: 2090.00,
     isBaby: false,
@@ -140,37 +197,120 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
   // Add Fee Item Modal State
   const [isAddingFeeModal, setIsAddingFeeModal] = useState(false);
-  const [newFeeForm, setNewFeeForm] = useState({ details: '', amount: '' });
+  const [newFeeForm, setNewFeeForm] = useState({ details: '', amount: '', isOptional: false });
+
+  // Add Optional Fee Item Modal State
+  const [isAddingOptionalModal, setIsAddingOptionalModal] = useState(false);
+  const [newOptionalForm, setNewOptionalForm] = useState({ details: '', label: '', amount: '', icon: '✨', description: '' });
 
   // Prepare & View Student Bill Modal State
   const [preparingStudentBill, setPreparingStudentBill] = useState(null);
+  const [selectedStudentOptionalIds, setSelectedStudentOptionalIds] = useState(['opt_motivation', 'opt_bus', 'opt_feeding', 'opt_stationery', 'opt_pickup_card']);
 
   // Post Bill Modal State
   const [isPostingModalOpen, setIsPostingModalOpen] = useState(false);
   const [postTargetScope, setPostTargetScope] = useState('student'); // 'student' | 'class' | 'all'
   const [postingStudentSearch, setPostingStudentSearch] = useState('');
   const [selectedPostingStudent, setSelectedPostingStudent] = useState(null);
+  const [postIncludeOptional, setPostIncludeOptional] = useState(true);
 
   const activeClassData = feeSchedule[selectedClass] || feeSchedule['Creche / Nursery 1'];
   const baseBillItems = activeClassData.baseBill || [];
+  const optionalBillItems = activeClassData.optionalBills || [];
+
   const totalBase = baseBillItems.reduce((acc, item) => acc + Number(item.amount || 0), 0);
+  const totalOptionalActive = optionalBillItems.filter(o => o.enabled).reduce((acc, item) => acc + Number(item.amount || 0), 0);
   const uniformsTotal = UNIFORMS_LIST.reduce((acc, u) => acc + u.amount, 0);
+
+  // Toggle Optional Bill in Schedule
+  const handleToggleOptionalBill = (optId) => {
+    setFeeSchedule((prev) => {
+      const updatedClassData = { ...prev[selectedClass] };
+      updatedClassData.optionalBills = (updatedClassData.optionalBills || []).map(opt =>
+        opt.id === optId ? { ...opt, enabled: !opt.enabled } : opt
+      );
+      return {
+        ...prev,
+        [selectedClass]: updatedClassData
+      };
+    });
+  };
+
+  // Update Optional Bill Amount
+  const handleUpdateOptionalBillAmount = (optId, newAmount) => {
+    const amt = parseFloat(newAmount);
+    if (isNaN(amt) || amt < 0) return;
+    setFeeSchedule((prev) => {
+      const updatedClassData = { ...prev[selectedClass] };
+      updatedClassData.optionalBills = (updatedClassData.optionalBills || []).map(opt =>
+        opt.id === optId ? { ...opt, amount: amt } : opt
+      );
+      return {
+        ...prev,
+        [selectedClass]: updatedClassData
+      };
+    });
+  };
+
+  // Quick Add Preset Optional Bill
+  const handleAddPresetOptionalBill = (preset) => {
+    setFeeSchedule((prev) => {
+      const updatedClassData = { ...prev[selectedClass] };
+      const currentOpts = updatedClassData.optionalBills || [];
+      const exists = currentOpts.find(o => o.id === preset.id || o.details.toLowerCase() === preset.details.toLowerCase());
+      
+      if (exists) {
+        // Enable it if disabled
+        updatedClassData.optionalBills = currentOpts.map(o => o.id === exists.id ? { ...o, enabled: true } : o);
+      } else {
+        updatedClassData.optionalBills = [
+          ...currentOpts,
+          {
+            id: preset.id,
+            details: preset.details,
+            label: preset.label,
+            amount: preset.defaultAmount,
+            enabled: true,
+            icon: preset.icon,
+            description: preset.description
+          }
+        ];
+      }
+      return {
+        ...prev,
+        [selectedClass]: updatedClassData
+      };
+    });
+    setSuccessMsg(`✅ Added optional bill "${preset.label}" (${preset.details} - GHS ${preset.defaultAmount.toFixed(2)}) to ${selectedClass}.`);
+    setTimeout(() => setSuccessMsg(''), 4000);
+  };
 
   // Handle Post Academic Bill to Student Ledger & Accounts
   const handlePostBillToLedger = (targetStudent = null) => {
     const studentToUse = targetStudent || (postTargetScope === 'student' ? (selectedPostingStudent || preparingStudentBill) : null);
     const targetName = studentToUse ? studentToUse.fullName : postTargetScope === 'all' ? 'All Active Students (School-wide)' : `All Enrolled Students in ${selectedClass}`;
 
+    // Compute active items
+    const optionalItemsToPost = postIncludeOptional
+      ? (preparingStudentBill
+          ? optionalBillItems.filter(o => selectedStudentOptionalIds.includes(o.id))
+          : optionalBillItems.filter(o => o.enabled)
+        ).map(o => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true }))
+      : [];
+
+    const allItemsToPost = [...baseBillItems, ...optionalItemsToPost];
+    const totalToPost = allItemsToPost.reduce((acc, i) => acc + Number(i.amount || 0), 0);
+
     if (portalData?.postAcademicBill) {
       portalData.postAcademicBill({
         studentId: studentToUse?.studentId || studentToUse?.id || null,
         studentName: studentToUse?.fullName || null,
         classLevel: selectedClass,
-        items: baseBillItems,
-        totalAmount: totalBase,
+        items: allItemsToPost,
+        totalAmount: totalToPost,
         term: 'Term 1 · 2026'
       });
-      setSuccessMsg(`⚡ Successfully posted Academic Bill of GHS ${totalBase.toFixed(2)} to ${targetName}'s ledger account & financial records!`);
+      setSuccessMsg(`⚡ Successfully posted Academic Bill of GHS ${totalToPost.toFixed(2)} (${baseBillItems.length} compulsory + ${optionalItemsToPost.length} optional) to ${targetName}'s ledger account!`);
       setIsPostingModalOpen(false);
       setSelectedPostingStudent(null);
       setPostingStudentSearch('');
@@ -201,26 +341,44 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     const amountNum = parseFloat(newFeeForm.amount);
     if (isNaN(amountNum) || amountNum <= 0) return;
 
-    const newItem = { details: newFeeForm.details.trim().toUpperCase(), amount: amountNum };
-
-    setFeeSchedule((prev) => {
-      const updatedClassData = { ...prev[selectedClass] };
-      updatedClassData.baseBill = [...updatedClassData.baseBill, newItem];
-      return {
-        ...prev,
-        [selectedClass]: updatedClassData,
+    if (newFeeForm.isOptional) {
+      const newOpt = {
+        id: `opt_${Date.now()}`,
+        details: newFeeForm.details.trim().toUpperCase(),
+        label: newFeeForm.details.trim(),
+        amount: amountNum,
+        enabled: true,
+        icon: '✨',
+        description: 'Custom Optional Fee'
       };
-    });
+      setFeeSchedule((prev) => {
+        const updatedClassData = { ...prev[selectedClass] };
+        updatedClassData.optionalBills = [...(updatedClassData.optionalBills || []), newOpt];
+        return { ...prev, [selectedClass]: updatedClassData };
+      });
+      setSuccessMsg(`✅ Added new optional fee "${newOpt.details}" (GHS ${newOpt.amount.toFixed(2)}) to ${selectedClass}.`);
+    } else {
+      const newItem = { details: newFeeForm.details.trim().toUpperCase(), amount: amountNum };
+      setFeeSchedule((prev) => {
+        const updatedClassData = { ...prev[selectedClass] };
+        updatedClassData.baseBill = [...updatedClassData.baseBill, newItem];
+        return { ...prev, [selectedClass]: updatedClassData };
+      });
+      setSuccessMsg(`✅ Added new compulsory fee "${newItem.details}" (GHS ${newItem.amount.toFixed(2)}) to ${selectedClass}.`);
+    }
 
-    setSuccessMsg(`✅ Added new fee component "${newItem.details}" (GHS ${newItem.amount.toFixed(2)}) to ${selectedClass}.`);
-    setNewFeeForm({ details: '', amount: '' });
+    setNewFeeForm({ details: '', amount: '', isOptional: false });
     setIsAddingFeeModal(false);
     setTimeout(() => setSuccessMsg(''), 5000);
   };
 
   // Prepare Printable CSV Export for Student Bill
   const handleExportStudentBillCSV = (student) => {
-    const feeAccount = studentFees.find(f => f.studentId === student.studentId) || { billedAmount: totalBase, paidAmount: totalBase, balance: 0, status: 'Paid' };
+    const studentOptionalItems = optionalBillItems.filter(o => selectedStudentOptionalIds.includes(o.id));
+    const optionalTotal = studentOptionalItems.reduce((acc, o) => acc + o.amount, 0);
+    const grandTotal = totalBase + optionalTotal;
+
+    const feeAccount = studentFees.find(f => f.studentId === student.studentId) || { billedAmount: grandTotal, paidAmount: grandTotal, balance: 0, status: 'Paid' };
     
     let csv = `REMALJ CAREWELL INSPIRATIONAL SCHOOL - OFFICIAL STUDENT BILL & STATEMENT\n`;
     csv += `Student Name,${student.fullName}\n`;
@@ -228,11 +386,19 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     csv += `Class Level,${student.level}\n`;
     csv += `Guardian Name,${student.guardianName}\n`;
     csv += `Billing Term,Term 1 · 2026 Academic Year\n\n`;
-    csv += `Fee Component Details,Amount (GHS)\n`;
+    csv += `Section 1: Compulsory Fee Components,Amount (GHS)\n`;
     baseBillItems.forEach(item => {
       csv += `"${item.details}",${item.amount.toFixed(2)}\n`;
     });
-    csv += `"TOTAL BASE BILL",${totalBase.toFixed(2)}\n\n`;
+    csv += `"COMPULSORY BASE BILL SUBTOTAL",${totalBase.toFixed(2)}\n\n`;
+
+    csv += `Section 2: Optional Fee Components (Motivation, Bus, Feeding, Stationery, Pick Up Card),Amount (GHS)\n`;
+    studentOptionalItems.forEach(item => {
+      csv += `"[OPTIONAL] ${item.details} (${item.label})",${item.amount.toFixed(2)}\n`;
+    });
+    csv += `"OPTIONAL BILLS SUBTOTAL",${optionalTotal.toFixed(2)}\n\n`;
+
+    csv += `"GRAND TOTAL BILL PAYABLE",${grandTotal.toFixed(2)}\n\n`;
     csv += `Financial Summary:\n`;
     csv += `Total Billed,GHS ${feeAccount.billedAmount.toFixed(2)}\n`;
     csv += `Amount Paid,GHS ${feeAccount.paidAmount.toFixed(2)}\n`;
@@ -265,6 +431,13 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     reader.readAsDataURL(file);
   };
 
+  // Calculate active student bill totals
+  const studentSelectedOpts = preparingStudentBill
+    ? optionalBillItems.filter(o => selectedStudentOptionalIds.includes(o.id))
+    : [];
+  const studentOptTotal = studentSelectedOpts.reduce((acc, o) => acc + o.amount, 0);
+  const studentGrandTotal = totalBase + studentOptTotal;
+
   return (
     <div className="fee-structure-container">
       {/* Toast Notification Banner */}
@@ -287,7 +460,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
           <div>
             <h1 className="fee-header-title">REMALJ CAREWELL INSPIRATIONAL SCHOOL</h1>
             <p className="fee-header-sub">P. O. BOX 139, BOGOSO • Email: info@remaljschools.com • Phone: 024 111 2222</p>
-            <div className="fee-header-badge">OFFICIAL SCHOOL FEES & BILL SCHEDULE (ADMIN CONTROL)</div>
+            <div className="fee-header-badge">OFFICIAL SCHOOL FEES & BILL SCHEDULE (ADMIN & ACCOUNTS CONTROL)</div>
           </div>
         </div>
 
@@ -331,7 +504,10 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
             style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 12.5, fontWeight: 800, background: '#fff', cursor: 'pointer' }}
             onChange={(e) => {
               const found = onboardedStudents.find(s => s.id === e.target.value);
-              if (found) setPreparingStudentBill(found);
+              if (found) {
+                setPreparingStudentBill(found);
+                setSelectedStudentOptionalIds(optionalBillItems.filter(o => o.enabled).map(o => o.id));
+              }
             }}
             value={preparingStudentBill?.id || ''}
           >
@@ -345,25 +521,88 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
         </div>
       </div>
 
+      {/* ── OPTIONAL BILLS QUICK-ADD & TOGGLE BAR ── */}
+      <div className="no-print" style={{
+        background: '#f8fafc',
+        border: '1px solid #cbd5e1',
+        borderRadius: 12,
+        padding: '14px 18px',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Sparkles size={18} color="#0284c7" />
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 900, color: '#0f3a4b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              Optional Fee Bills Schedule ({selectedClass})
+            </h3>
+            <span style={{ fontSize: 11, background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: 12, fontWeight: 800 }}>
+              Motivation · Bus · Feeding · Stationery · Pick Up Card
+            </span>
+          </div>
+
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#0369a1' }}>
+            Active Optional Subtotal: <strong>GHS {totalOptionalActive.toFixed(2)}</strong>
+          </div>
+        </div>
+
+        {/* 1-Click Preset Addition Chips */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Quick Presets:</span>
+          {OFFICIAL_OPTIONAL_PRESETS.map((preset) => {
+            const currentItem = optionalBillItems.find(o => o.id === preset.id);
+            const isEnabled = currentItem?.enabled;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => handleAddPresetOptionalBill(preset)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 20,
+                  border: isEnabled ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+                  background: isEnabled ? '#e0f2fe' : '#ffffff',
+                  color: isEnabled ? '#0369a1' : '#334155',
+                  fontSize: 11.5,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s ease'
+                }}
+                title={preset.description}
+              >
+                <span>{preset.icon}</span>
+                <span>{preset.label}</span>
+                <span style={{ opacity: 0.8, fontSize: 11 }}>
+                  (GHS {currentItem ? currentItem.amount.toFixed(2) : preset.defaultAmount.toFixed(2)})
+                </span>
+                {isEnabled ? ' ✓' : ' ＋'}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Grid of Typed Tables */}
       <div className="fee-grid">
-        {/* Panel 1: Main Term Bill with Remove & Add */}
+        {/* Panel 1: Main Compulsory Term Bill */}
         <div className="fee-panel">
           <div className="fee-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2><DollarSign size={18} /> Main Term Bill — {selectedClass}</h2>
+            <h2><DollarSign size={18} /> 1. Compulsory Term Bill — {selectedClass}</h2>
             <button
-              onClick={() => setIsAddingFeeModal(true)}
+              onClick={() => { setNewFeeForm(prev => ({ ...prev, isOptional: false })); setIsAddingFeeModal(true); }}
               style={{ padding: '4px 10px', background: '#204d2d', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
               className="no-print"
             >
-              <Plus size={13} /> Add Fee Item
+              <Plus size={13} /> Add Compulsory Fee
             </button>
           </div>
           <div className="fee-panel-body">
             <table className="fee-table">
               <thead>
                 <tr>
-                  <th>Details & Component</th>
+                  <th>Compulsory Details & Component</th>
                   <th style={{ textAlign: 'right' }}>Amount (GHS)</th>
                   <th className="no-print" style={{ width: 80, textAlign: 'center' }}>Action</th>
                 </tr>
@@ -388,8 +627,8 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                   </tr>
                 ))}
                 <tr className="fee-table-total">
-                  <td>TOTAL BASE BILL ({baseBillItems.length} items)</td>
-                  <td style={{ textAlign: 'right', fontSize: 16 }}>GHS {totalBase.toFixed(2)}</td>
+                  <td>COMPULSORY BASE BILL SUBTOTAL</td>
+                  <td style={{ textAlign: 'right', fontSize: 15 }}>GHS {totalBase.toFixed(2)}</td>
                   <td className="no-print"></td>
                 </tr>
               </tbody>
@@ -397,10 +636,94 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
           </div>
         </div>
 
-        {/* Panel 2: Uniforms & Pickup Card */}
+        {/* Panel 2: Optional Fee Bills Schedule */}
+        <div className="fee-panel">
+          <div className="fee-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0284c7' }}>
+            <h2 style={{ color: '#fff' }}>
+              <Sparkles size={18} /> 2. Optional Fee Bills Schedule — {selectedClass}
+            </h2>
+            <button
+              onClick={() => { setNewFeeForm(prev => ({ ...prev, isOptional: true })); setIsAddingFeeModal(true); }}
+              style={{ padding: '4px 10px', background: '#0369a1', color: '#fff', border: '1px solid #bae6fd', borderRadius: 6, fontWeight: 800, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+              className="no-print"
+            >
+              <Plus size={13} /> Add Custom Optional
+            </button>
+          </div>
+          <div className="fee-panel-body">
+            <table className="fee-table">
+              <thead>
+                <tr>
+                  <th>Optional Bill Component</th>
+                  <th style={{ textAlign: 'right' }}>Amount (GHS)</th>
+                  <th className="no-print" style={{ width: 90, textAlign: 'center' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {optionalBillItems.map((opt) => (
+                  <tr key={opt.id} style={{ background: opt.enabled ? '#f0f9ff' : '#ffffff' }}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 15 }}>{opt.icon || '✨'}</span>
+                        <div>
+                          <strong style={{ color: '#0f3a4b', fontSize: 12.5 }}>{opt.details}</strong>
+                          <div style={{ fontSize: 10.5, color: '#64748b' }}>{opt.description}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <input
+                        type="number"
+                        step="1"
+                        min="0"
+                        value={opt.amount}
+                        onChange={(e) => handleUpdateOptionalBillAmount(opt.id, e.target.value)}
+                        style={{ width: 85, padding: '3px 6px', textAlign: 'right', border: '1px solid #cbd5e1', borderRadius: 4, fontWeight: 800, fontSize: 12, color: '#0f172a' }}
+                        className="no-print"
+                      />
+                      <span className="print-only" style={{ fontWeight: 800 }}>{opt.amount.toFixed(2)}</span>
+                    </td>
+                    <td className="no-print" style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleOptionalBill(opt.id)}
+                        style={{
+                          padding: '3px 10px',
+                          borderRadius: 6,
+                          border: 'none',
+                          fontSize: 11,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          background: opt.enabled ? '#15803d' : '#e2e8f0',
+                          color: opt.enabled ? '#ffffff' : '#64748b'
+                        }}
+                      >
+                        {opt.enabled ? 'Active ✓' : 'Inactive'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                <tr className="fee-table-subtotal">
+                  <td>ACTIVE OPTIONAL BILLS SUBTOTAL</td>
+                  <td style={{ textAlign: 'right', color: '#0284c7' }}>GHS {totalOptionalActive.toFixed(2)}</td>
+                  <td className="no-print"></td>
+                </tr>
+                <tr className="fee-table-total" style={{ background: '#e0f2fe' }}>
+                  <td>TOTAL BILL WITH ALL OPTIONALS</td>
+                  <td style={{ textAlign: 'right', fontSize: 15, color: '#0369a1' }}>
+                    GHS {(totalBase + totalOptionalActive).toFixed(2)}
+                  </td>
+                  <td className="no-print"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Panel 3: Uniforms & Pickup Card Reference */}
         <div className="fee-panel">
           <div className="fee-panel-header">
-            <h2><Shirt size={18} /> Uniforms & Pickup Card</h2>
+            <h2><Shirt size={18} /> Uniforms & Pickup Card Reference</h2>
           </div>
           <div className="fee-panel-body">
             <table className="fee-table">
@@ -426,10 +749,10 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
           </div>
         </div>
 
-        {/* Panel 3: Master Stationery Schedule */}
+        {/* Panel 4: Master Stationery Schedule Reference */}
         <div className="fee-panel">
           <div className="fee-panel-header">
-            <h2><BookOpen size={18} /> Master Stationery Schedule</h2>
+            <h2><BookOpen size={18} /> Master Stationery Schedule Reference</h2>
           </div>
           <div className="fee-panel-body">
             <table className="fee-table">
@@ -446,41 +769,6 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                     <td style={{ textAlign: 'right', fontWeight: 700, color: '#0284c7' }}>{s.amount.toFixed(2)}</td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Panel 4: Others & Learning Aids */}
-        <div className="fee-panel">
-          <div className="fee-panel-header">
-            <h2><ShoppingBag size={18} /> Others & Special Learning Aids</h2>
-          </div>
-          <div className="fee-panel-body">
-            <table className="fee-table">
-              <thead>
-                <tr>
-                  <th>Details (Stationery / Learning)</th>
-                  <th style={{ textAlign: 'right' }}>Amount (GHS)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeClassData.ucmas && (
-                  <tr>
-                    <td>UCMAS (MIND & ARITHMETIC)</td>
-                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{activeClassData.ucmas.toFixed(2)}</td>
-                  </tr>
-                )}
-                {activeClassData.scienceSet && (
-                  <tr>
-                    <td>SCIENCE EXPERIMENT KIT</td>
-                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{activeClassData.scienceSet.toFixed(2)}</td>
-                  </tr>
-                )}
-                <tr>
-                  <td>STATIONERY SET ({selectedClass})</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{activeClassData.stationery.toFixed(2)}</td>
-                </tr>
               </tbody>
             </table>
           </div>
@@ -511,16 +799,40 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
               </button>
             </div>
             <p style={{ fontSize: 12, color: 'var(--gray-600)', marginBottom: 20 }}>
-              Add a new custom fee line item (e.g. ADMISSION FEE, TUITION FEE, LIBRARY LEVY, BUS LEVY) to the {selectedClass} schedule.
+              Add a new fee item to the <strong>{selectedClass}</strong> bill schedule as Compulsory or Optional (e.g. Motivation, Bus, Feeding, Stationery, Pick Up Card).
             </p>
 
             <form onSubmit={handleAddFeeSubmit}>
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label className="form-label">Fee Classification</label>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="feeType"
+                      checked={!newFeeForm.isOptional}
+                      onChange={() => setNewFeeForm(p => ({ ...p, isOptional: false }))}
+                    />
+                    Compulsory Bill
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: '#0284c7', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="feeType"
+                      checked={newFeeForm.isOptional}
+                      onChange={() => setNewFeeForm(p => ({ ...p, isOptional: true }))}
+                    />
+                    Optional Bill (Motivation, Bus, Feeding, etc.)
+                  </label>
+                </div>
+              </div>
+
               <div className="form-group" style={{ marginBottom: 14 }}>
                 <label className="form-label">Fee Component Name / Details</label>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="e.g. ADMISSION FEE 1000.00"
+                  placeholder="e.g. MOTIVATION FEE, BUS SERVICE, FEEDING"
                   value={newFeeForm.details}
                   onChange={(e) => setNewFeeForm(prev => ({ ...prev, details: e.target.value }))}
                   required
@@ -535,7 +847,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                   step="0.01"
                   min="1"
                   className="form-input"
-                  placeholder="e.g. 1000.00"
+                  placeholder="e.g. 150.00"
                   value={newFeeForm.amount}
                   onChange={(e) => setNewFeeForm(prev => ({ ...prev, amount: e.target.value }))}
                   required
@@ -574,7 +886,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
           }}
         >
           <div style={{
-            width: '100%', maxWidth: 760, background: '#fff', borderRadius: 16,
+            width: '100%', maxWidth: 780, background: '#fff', borderRadius: 16,
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden',
             animation: 'fadeUp 0.2s ease-out'
           }}>
@@ -612,6 +924,54 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                 >
                   <X size={20} />
                 </button>
+              </div>
+            </div>
+
+            {/* ── OPTIONAL BILL SELECTION TOGGLES FOR THIS STUDENT ── */}
+            <div className="no-print" style={{
+              background: '#e0f2fe',
+              padding: '12px 24px',
+              borderBottom: '1px solid #bae6fd'
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 900, color: '#0369a1', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Sparkles size={15} /> Select Optional Bills to Include for {preparingStudentBill.fullName}:
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {optionalBillItems.map((opt) => {
+                  const isChecked = selectedStudentOptionalIds.includes(opt.id);
+                  return (
+                    <label
+                      key={opt.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: isChecked ? '#0284c7' : '#ffffff',
+                        color: isChecked ? '#ffffff' : '#334155',
+                        padding: '5px 12px',
+                        borderRadius: 20,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedStudentOptionalIds(prev => [...prev, opt.id]);
+                          } else {
+                            setSelectedStudentOptionalIds(prev => prev.filter(id => id !== opt.id));
+                          }
+                        }}
+                      />
+                      <span>{opt.icon} {opt.label} (GHS {opt.amount.toFixed(2)})</span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
@@ -732,34 +1092,79 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
               {/* Fee Line Items Table */}
               <div style={{ marginBottom: 24 }}>
-                <h4 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Itemized Fee Line Breakdown ({preparingStudentBill.level}):
+                <h4 style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Section 1: Compulsory Academic Bill ({preparingStudentBill.level}):
                 </h4>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, marginBottom: 16 }}>
                   <thead>
                     <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
-                      <th style={{ padding: '10px 14px', color: '#1e293b' }}>Fee Component Details</th>
-                      <th style={{ padding: '10px 14px', textAlign: 'right', color: '#1e293b' }}>Billed Amount (GHS)</th>
+                      <th style={{ padding: '8px 12px', color: '#1e293b' }}>Fee Component Details</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right', color: '#1e293b' }}>Billed Amount (GHS)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {baseBillItems.map((item, idx) => (
                       <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                        <td style={{ padding: '10px 14px', fontWeight: 700, color: '#334155' }}>{item.details}</td>
-                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>{item.amount.toFixed(2)}</td>
+                        <td style={{ padding: '8px 12px', fontWeight: 700, color: '#334155' }}>{item.details}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>{item.amount.toFixed(2)}</td>
                       </tr>
                     ))}
-                    <tr style={{ background: '#f8fafc', fontWeight: 900, borderTop: '2px solid #0f172a' }}>
-                      <td style={{ padding: '12px 14px', color: '#0f172a' }}>TOTAL BASE TERM BILL</td>
-                      <td style={{ padding: '12px 14px', textAlign: 'right', fontSize: 15, color: '#0f172a' }}>GHS {totalBase.toFixed(2)}</td>
+                    <tr style={{ background: '#f8fafc', fontWeight: 900, borderTop: '2px solid #cbd5e1' }}>
+                      <td style={{ padding: '8px 12px', color: '#0f172a' }}>Compulsory Bill Subtotal:</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 13.5, color: '#0f172a' }}>GHS {totalBase.toFixed(2)}</td>
                     </tr>
                   </tbody>
                 </table>
+
+                {/* Section 2: Optional Selected Add-ons */}
+                {studentSelectedOpts.length > 0 && (
+                  <div>
+                    <h4 style={{ fontSize: 13, fontWeight: 800, color: '#0369a1', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Section 2: Optional Bills (Motivation, Bus, Feeding, Stationery, Pick Up Card):
+                    </h4>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, marginBottom: 16 }}>
+                      <thead>
+                        <tr style={{ background: '#e0f2fe', borderBottom: '2px solid #bae6fd', textAlign: 'left' }}>
+                          <th style={{ padding: '8px 12px', color: '#0369a1' }}>Optional Component</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right', color: '#0369a1' }}>Amount (GHS)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {studentSelectedOpts.map((opt) => (
+                          <tr key={opt.id} style={{ borderBottom: '1px solid #e0f2fe' }}>
+                            <td style={{ padding: '8px 12px', fontWeight: 700, color: '#0369a1' }}>
+                              {opt.icon} {opt.details} ({opt.label})
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
+                              {opt.amount.toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                        <tr style={{ background: '#f0f9ff', fontWeight: 900, borderTop: '2px solid #bae6fd' }}>
+                          <td style={{ padding: '8px 12px', color: '#0369a1' }}>Optional Bills Subtotal:</td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 13.5, color: '#0369a1' }}>
+                            GHS {studentOptTotal.toFixed(2)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Grand Total Summary */}
+                <div style={{ background: '#0f172a', color: '#fff', borderRadius: 8, padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontWeight: 900, fontSize: 14, letterSpacing: '0.03em' }}>
+                    GRAND TOTAL TERM BILL PAYABLE:
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: '#38bdf8' }}>
+                    GHS {studentGrandTotal.toFixed(2)}
+                  </div>
+                </div>
               </div>
 
               {/* Financial Status Summary */}
               {(() => {
-                const feeAcc = studentFees.find(f => f.studentId === preparingStudentBill.studentId) || { billedAmount: totalBase, paidAmount: totalBase, balance: 0, status: 'Paid' };
+                const feeAcc = studentFees.find(f => f.studentId === preparingStudentBill.studentId) || { billedAmount: studentGrandTotal, paidAmount: studentGrandTotal, balance: 0, status: 'Paid' };
                 return (
                   <div style={{ background: feeAcc.balance === 0 ? '#f0fdf4' : '#fff1f2', border: `1px solid ${feeAcc.balance === 0 ? '#bbf7d0' : '#fecaca'}`, borderRadius: 12, padding: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
@@ -804,7 +1209,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
           className="no-print"
         >
           <div style={{
-            maxWidth: 520, width: '100%', background: '#fff', borderRadius: 16,
+            maxWidth: 540, width: '100%', background: '#fff', borderRadius: 16,
             padding: 24, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid #e2e8f0'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -820,7 +1225,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
             </div>
 
             <p style={{ fontSize: 13, color: 'var(--gray-600)', marginBottom: 16, lineHeight: 1.5 }}>
-              This action will debit and post the itemized academic bill for <strong>Term 1 · 2026</strong> directly into the student's ledger account and financial records.
+              This action will debit and post the academic bill for <strong>Term 1 · 2026</strong> directly into the student's financial ledger.
             </p>
 
             <div style={{ background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 16 }}>
@@ -929,13 +1334,27 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
               )}
             </div>
 
+            {/* Optional Bills Inclusion Toggle in Posting Modal */}
+            <div style={{ background: '#f0f9ff', padding: 12, borderRadius: 8, border: '1px solid #bae6fd', marginBottom: 16 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 12.5, color: '#0369a1', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={postIncludeOptional}
+                  onChange={(e) => setPostIncludeOptional(e.target.checked)}
+                />
+                <span>Include Active Optional Bills (Motivation, Bus, Feeding, Stationery, Pick Up Card)</span>
+              </label>
+            </div>
+
             <div style={{ background: '#f0fdf4', padding: 14, borderRadius: 10, border: '1px solid #bbf7d0', marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: '#166534' }}>TOTAL BASE BILL TO DEBIT:</span>
-                <span style={{ fontSize: 18, fontWeight: 900, color: '#14532d' }}>GHS {totalBase.toFixed(2)}</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#166534' }}>TOTAL AMOUNT TO POST & DEBIT:</span>
+                <span style={{ fontSize: 18, fontWeight: 900, color: '#14532d' }}>
+                  GHS {(totalBase + (postIncludeOptional ? totalOptionalActive : 0)).toFixed(2)}
+                </span>
               </div>
               <div style={{ fontSize: 11, color: '#15803d', marginTop: 4 }}>
-                {baseBillItems.length} fee components ({baseBillItems.map(i => i.details).slice(0, 3).join(', ')}...)
+                {baseBillItems.length} compulsory components + {postIncludeOptional ? optionalBillItems.filter(o => o.enabled).length : 0} optional components
               </div>
             </div>
 
