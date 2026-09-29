@@ -39,18 +39,29 @@ const CLASS_LEVELS = [
   'Nursery 2',
   'KG 1',
   'KG 2',
-  'Primary 1',
-  'Primary 2',
-  'Primary 3',
-  'Primary 4',
-  'Primary 5',
-  'Primary 6',
-  'JHS 1',
-  'JHS 2',
-  'JHS 3',
-  'SHS 1',
-  'SHS 2',
-  'SHS 3'
+  'Basic 1',
+  'Basic 2',
+  'Basic 3',
+  'Basic 4',
+  'Basic 5',
+  'Basic 6',
+  'Basic 7',
+  'Basic 8',
+  'Basic 9'
+];
+
+const SUB_CLASS_OPTIONS = [
+  'Section A',
+  'Section B',
+  'Section C',
+  'Section D',
+  'Stream A',
+  'Stream B',
+  'Stream C',
+  'Gold Class',
+  'Diamond Class',
+  'Sunflower',
+  'Rose'
 ];
 
 const EXAM_TYPES = [
@@ -91,6 +102,7 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
 
   // Student picker filters
   const [indivClassFilter, setIndivClassFilter] = useState('All');
+  const [indivSubClassFilter, setIndivSubClassFilter] = useState('All');
   const [indivGenderFilter, setIndivGenderFilter] = useState('All');
   const [indivRegFilter, setIndivRegFilter] = useState('All'); // 'All' | 'Not Registered' | 'Registered'
 
@@ -145,6 +157,17 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
       list = list.filter(s => (s.level || '').toLowerCase().trim() === indivClassFilter.toLowerCase().trim());
     }
 
+    // Sub-class / Section filter
+    if (indivSubClassFilter !== 'All') {
+      const subQ = indivSubClassFilter.toLowerCase().trim();
+      const cleanSubQ = subQ.replace('section ', '').replace('stream ', '').trim();
+      list = list.filter(s => {
+        const sec = (s.classSection || s.section || s.subClass || s.sub_class || s.stream || s.class_section || '').toLowerCase().trim();
+        if (!sec) return false;
+        return sec === subQ || sec === cleanSubQ || sec.includes(cleanSubQ) || subQ.includes(sec);
+      });
+    }
+
     // Gender filter
     if (indivGenderFilter !== 'All') {
       list = list.filter(s => (s.gender || '').toLowerCase() === indivGenderFilter.toLowerCase());
@@ -166,7 +189,7 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
       return (a.fullName || a.name || '').localeCompare(b.fullName || b.name || '');
     });
     return list;
-  }, [allStudents, indivSearch, indivSort, indivClassFilter, indivGenderFilter, indivRegFilter, currentRegistrations]);
+  }, [allStudents, indivSearch, indivSort, indivClassFilter, indivSubClassFilter, indivGenderFilter, indivRegFilter, currentRegistrations]);
 
   // Bulk Registration State
   const [bulkClass, setBulkClass] = useState('JHS 3');
@@ -513,6 +536,16 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
                 {CLASS_LEVELS.map(lvl => <option key={lvl} value={lvl}>{lvl}</option>)}
               </select>
 
+              {/* Sub-Class / Section filter */}
+              <select
+                value={indivSubClassFilter}
+                onChange={(e) => setIndivSubClassFilter(e.target.value)}
+                style={{ padding: '9px 10px', background: '#1e293b', border: '1px solid #0284c7', borderRadius: 8, color: '#38bdf8', fontSize: 12, fontWeight: 700 }}
+              >
+                <option value="All">All Sub-Classes</option>
+                {SUB_CLASS_OPTIONS.map(sub => <option key={sub} value={sub}>{sub}</option>)}
+              </select>
+
               {/* Gender filter */}
               <select
                 value={indivGenderFilter}
@@ -547,10 +580,10 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
               </select>
 
               {/* Clear filters */}
-              {(indivClassFilter !== 'All' || indivGenderFilter !== 'All' || indivRegFilter !== 'All' || indivSearch) && (
+              {(indivClassFilter !== 'All' || indivSubClassFilter !== 'All' || indivGenderFilter !== 'All' || indivRegFilter !== 'All' || indivSearch) && (
                 <button
                   type="button"
-                  onClick={() => { setIndivClassFilter('All'); setIndivGenderFilter('All'); setIndivRegFilter('All'); setIndivSearch(''); }}
+                  onClick={() => { setIndivClassFilter('All'); setIndivSubClassFilter('All'); setIndivGenderFilter('All'); setIndivRegFilter('All'); setIndivSearch(''); }}
                   style={{ padding: '9px 12px', background: '#334155', border: 'none', borderRadius: 8, color: '#94a3b8', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
                 >
                   ✕ Clear Filters

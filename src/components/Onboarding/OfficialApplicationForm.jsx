@@ -27,6 +27,8 @@ export function SchoolLogoSVG({ size = 110 }) {
 export const getDefaultForm = () => ({
   // Header / Page 1
   applyingClass: '',
+  classSection: '',
+  subClass: '',
   enrolmentType: 'Day',
   passportPhoto: null,
   surname: '',
@@ -141,6 +143,37 @@ export default function OfficialApplicationForm({
     ...(initialData || {})
   }));
 
+  const SUBCLASS_STORAGE_KEY = 'rcis_custom_subclasses_pool';
+  const DEFAULT_SUB_CLASSES = [
+    '1A', '1B', '1C',
+    '2A', '2B', '2C',
+    '3A', '3B', '3C',
+    '4A', '4B',
+    '5A', '5B',
+    '6A', '6B',
+    '7A', '7B',
+    '8A', '8B',
+    '9A', '9B',
+    'Section A', 'Section B', 'Section C', 'Section D',
+    'Stream A', 'Stream B',
+    'Gold Class', 'Diamond Class',
+    'Sunflower', 'Rose'
+  ];
+
+  const loadSubClasses = () => {
+    try {
+      const raw = localStorage.getItem(SUBCLASS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return [...new Set([...DEFAULT_SUB_CLASSES, ...parsed])];
+        }
+      }
+    } catch (e) {}
+    return DEFAULT_SUB_CLASSES;
+  };
+
+  const [subClassesList, setSubClassesList] = useState(loadSubClasses);
   const [activeTab, setActiveTab] = useState('page1');
   const [successNotice, setSuccessNotice] = useState('');
   const [isEditingMode, setIsEditingMode] = useState(!readOnly);
@@ -386,13 +419,64 @@ export default function OfficialApplicationForm({
 
             <div className="form-line-row">
               <span className="form-line-label">APPLYING FOR CLASS/FORM:</span>
-              <input
+              <select
                 className="form-line-input"
-                value={formData.applyingClass}
+                value={formData.applyingClass || ''}
                 onChange={(e) => handleChange('applyingClass', e.target.value)}
-                placeholder="e.g. Primary 5 / JHS 1 / SHS 1"
                 disabled={readOnly && !isAdmin}
-              />
+                style={{ cursor: 'pointer', background: 'transparent' }}
+              >
+                <option value="">-- Select Class / Form --</option>
+                <option value="Creche">Creche</option>
+                <option value="Nursery 1">Nursery 1</option>
+                <option value="Nursery 2">Nursery 2</option>
+                <option value="KG 1">KG 1</option>
+                <option value="KG 2">KG 2</option>
+                <option value="Basic 1">Basic 1</option>
+                <option value="Basic 2">Basic 2</option>
+                <option value="Basic 3">Basic 3</option>
+                <option value="Basic 4">Basic 4</option>
+                <option value="Basic 5">Basic 5</option>
+                <option value="Basic 6">Basic 6</option>
+                <option value="Basic 7">Basic 7</option>
+                <option value="Basic 8">Basic 8</option>
+                <option value="Basic 9">Basic 9</option>
+              </select>
+            </div>
+
+            <div className="form-line-row">
+              <span className="form-line-label">SUB-CLASS / STREAM / SECTION:</span>
+              <select
+                className="form-line-input"
+                value={formData.classSection || formData.subClass || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '__ADD_NEW__') {
+                    const custom = window.prompt('Enter new custom Sub-Class / Section (e.g. 1A, 1B, 7A, Stream C, Gold):');
+                    if (custom && custom.trim()) {
+                      const cleanCustom = custom.trim();
+                      setSubClassesList(prev => {
+                        const next = [...new Set([...prev, cleanCustom])];
+                        try { localStorage.setItem(SUBCLASS_STORAGE_KEY, JSON.stringify(next)); } catch (err) {}
+                        return next;
+                      });
+                      handleChange('classSection', cleanCustom);
+                      handleChange('subClass', cleanCustom);
+                    }
+                  } else {
+                    handleChange('classSection', val);
+                    handleChange('subClass', val);
+                  }
+                }}
+                disabled={readOnly && !isAdmin}
+                style={{ cursor: 'pointer', background: 'transparent', color: (formData.classSection || formData.subClass) ? 'var(--ics-green-700, #166534)' : 'inherit', fontWeight: (formData.classSection || formData.subClass) ? 'bold' : 'normal' }}
+              >
+                <option value="">-- Select Sub-Class (e.g. 1A, 1B) --</option>
+                {subClassesList.map(sc => (
+                  <option key={sc} value={sc}>{sc}</option>
+                ))}
+                <option value="__ADD_NEW__">➕ Add Custom Sub-Class (e.g. 1A, 1B)...</option>
+              </select>
             </div>
 
             <div className="form-line-row">

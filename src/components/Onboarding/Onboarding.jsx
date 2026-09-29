@@ -24,7 +24,8 @@ export function LearnerOnboarding() {
       guardian: guardianName,
       email: contactEmail,
       phone: contactPhone,
-      level: formData.applyingClass || formData.level || 'JHS 1',
+      level: formData.applyingClass || formData.level || 'Basic 7',
+      classSection: formData.classSection || formData.subClass || '1A',
     };
 
     submitApplication(applicationRecord);

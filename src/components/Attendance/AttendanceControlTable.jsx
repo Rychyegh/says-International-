@@ -725,10 +725,15 @@ export default function AttendanceControlTable() {
                 onChange={(e) => setSelectedLevel(e.target.value)}
               >
                 <option value="All">All Class Levels</option>
-                <option value="Primary">Primary</option>
-                <option value="Grade 4">Grade 4</option>
-                <option value="JHS">JHS</option>
-                <option value="SHS">SHS</option>
+                <option value="Basic 1">Basic 1</option>
+                <option value="Basic 2">Basic 2</option>
+                <option value="Basic 3">Basic 3</option>
+                <option value="Basic 4">Basic 4</option>
+                <option value="Basic 5">Basic 5</option>
+                <option value="Basic 6">Basic 6</option>
+                <option value="Basic 7">Basic 7</option>
+                <option value="Basic 8">Basic 8</option>
+                <option value="Basic 9">Basic 9</option>
               </select>
             </div>
           </div>
@@ -917,10 +922,15 @@ export default function AttendanceControlTable() {
                 style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 12.5, fontWeight: 700, background: '#fff' }}
               >
                 <option value="All">All Class Levels</option>
-                <option value="Grade 4">Grade 4</option>
-                <option value="Primary 5">Primary 5</option>
-                <option value="JHS 3">JHS 3</option>
-                <option value="JHS 2">JHS 2</option>
+                <option value="Basic 1">Basic 1</option>
+                <option value="Basic 2">Basic 2</option>
+                <option value="Basic 3">Basic 3</option>
+                <option value="Basic 4">Basic 4</option>
+                <option value="Basic 5">Basic 5</option>
+                <option value="Basic 6">Basic 6</option>
+                <option value="Basic 7">Basic 7</option>
+                <option value="Basic 8">Basic 8</option>
+                <option value="Basic 9">Basic 9</option>
               </select>
 
               {/* Filter by Status */}

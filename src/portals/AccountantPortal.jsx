@@ -1441,16 +1441,14 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
   const [years, setYears] = useState(['2023/2024', '2024/2025', '2025/2026', '2026/2027', '2027/2028', '2028/2029', '2029/2030']);
   const [terms, setTerms] = useState(['1st Term', '2nd Term', '3rd Term']);
   const [classes, setClasses] = useState([
-    'Nursery 1', 'Nursery 2', 'KG 1', 'KG 2', 'Creche',
-    'Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6',
-    'JHS 1', 'JHS 2', 'JHS 3', 'SHS 1', 'SHS 2', 'SHS 3'
+    'Creche', 'Nursery 1', 'Nursery 2', 'KG 1', 'KG 2',
+    'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6',
+    'Basic 7', 'Basic 8', 'Basic 9'
   ]);
   const [depts, setDepts] = useState([
+    'Creche & Early Childhood',
     'Pre-school',
-    'Primary Department',
-    'Junior High Department (JHS)',
-    'Senior High Department (SHS)',
-    'Creche & Early Childhood'
+    'Basic School (Basic 1 - 9)'
   ]);
   const [subClasses, setSubClasses] = useState([
     'A - Sunflower', 'B - Rose', 'Stream A', 'Stream B', 'Stream C', 'Gold Class', 'Diamond Class'
@@ -12066,9 +12064,8 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
             <label>Applying / Assigned Level</label>
             <select value={applyingLevel} onChange={(e) => update('applyingLevel', e.target.value)}>
               <option>Creche</option><option>Nursery 1</option><option>Nursery 2</option><option>KG 1</option><option>KG 2</option>
-              <option>Primary 1</option><option>Primary 2</option><option>Primary 3</option><option>Primary 4</option><option>Primary 5</option><option>Primary 6</option>
-              <option>JHS 1</option><option>JHS 2</option><option>JHS 3</option>
-              <option>SHS 1</option><option>SHS 2</option><option>SHS 3</option>
+              <option>Basic 1</option><option>Basic 2</option><option>Basic 3</option><option>Basic 4</option><option>Basic 5</option><option>Basic 6</option>
+              <option>Basic 7</option><option>Basic 8</option><option>Basic 9</option>
             </select>
           </div>
         </div>
@@ -12240,9 +12237,8 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
             <label>Select Target Class / Grade</label>
             <select value={selectedClass} onChange={(e) => update('targetClass', e.target.value)}>
               <option>Creche</option><option>Nursery 1</option><option>Nursery 2</option><option>KG 1</option><option>KG 2</option>
-              <option>Primary 1</option><option>Primary 2</option><option>Primary 3</option><option>Primary 4</option><option>Primary 5</option><option>Primary 6</option>
-              <option>Grade 4</option><option>JHS 1</option><option>JHS 2</option><option>JHS 3</option>
-              <option>SHS 1</option><option>SHS 2</option><option>SHS 3</option>
+              <option>Basic 1</option><option>Basic 2</option><option>Basic 3</option><option>Basic 4</option><option>Basic 5</option><option>Basic 6</option>
+              <option>Basic 7</option><option>Basic 8</option><option>Basic 9</option>
               <option>All Classes</option>
             </select>
           </div>
@@ -12744,9 +12740,8 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
             <select value={selectedClass} onChange={(e) => update('classLevel', e.target.value)}>
               <option>All Classes</option>
               <option>Creche</option><option>Nursery 1</option><option>Nursery 2</option><option>KG 1</option><option>KG 2</option>
-              <option>Primary 1</option><option>Primary 2</option><option>Primary 3</option><option>Primary 4</option><option>Primary 5</option><option>Primary 6</option>
-              <option>Grade 4</option><option>JHS 1</option><option>JHS 2</option><option>JHS 3</option>
-              <option>SHS 1</option><option>SHS 2</option><option>SHS 3</option>
+              <option>Basic 1</option><option>Basic 2</option><option>Basic 3</option><option>Basic 4</option><option>Basic 5</option><option>Basic 6</option>
+              <option>Basic 7</option><option>Basic 8</option><option>Basic 9</option>
             </select>
           </div>
           <div className="sims-form-group">

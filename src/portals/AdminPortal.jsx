@@ -38,8 +38,9 @@ const NAV = [
 ];
 
 const LEVEL_OPTIONS = [
-  'Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6',
-  'JHS 1', 'JHS 2', 'JHS 3', 'SHS 1', 'SHS 2', 'SHS 3'
+  'Creche', 'Nursery 1', 'Nursery 2', 'KG 1', 'KG 2',
+  'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6',
+  'Basic 7', 'Basic 8', 'Basic 9'
 ];
 
 export default function AdminPortal({ onSignOut, initialAdminRole }) {
@@ -217,8 +218,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
   // Dynamic Levels & Subjects
   const defaultClassLevels = [
-    'Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6',
-    'JHS 1', 'JHS 2', 'JHS 3', 'SHS 1', 'SHS 2', 'SHS 3'
+    'Creche', 'Nursery 1', 'Nursery 2', 'KG 1', 'KG 2',
+    'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6',
+    'Basic 7', 'Basic 8', 'Basic 9'
   ];
   const LEVEL_OPTIONS = Array.from(new Set([...defaultClassLevels, ...(classLevels || [])]));
 

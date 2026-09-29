@@ -36,19 +36,19 @@ export const GRADE_LEVEL_CATEGORIES = [
   },
   {
     id: 'basic_school',
-    name: 'Basic School (Grades 1 - 9)',
-    shortName: 'Basic (Grade 1 - 9)',
+    name: 'Basic School (Basic 1 - 9)',
+    shortName: 'Basic (Basic 1 - 9)',
     icon: '🎓',
     subLevels: [
-      { id: 'Grade 1', label: 'Grade 1 (Basic 1)', code: 'B1', stationery: 1365.00, ucmas: 295.00 },
-      { id: 'Grade 2', label: 'Grade 2 (Basic 2)', code: 'B2', stationery: 1115.00, ucmas: 295.00 },
-      { id: 'Grade 3', label: 'Grade 3 (Basic 3)', code: 'B3', stationery: 1115.00, ucmas: 295.00 },
-      { id: 'Grade 4', label: 'Grade 4 (Basic 4)', code: 'B4', stationery: 1040.00, scienceSet: 190.00, ucmas: 295.00 },
-      { id: 'Grade 5', label: 'Grade 5 (Basic 5)', code: 'B5', stationery: 1040.00, scienceSet: 190.00, ucmas: 295.00 },
-      { id: 'Grade 6', label: 'Grade 6 (Basic 6)', code: 'B6', stationery: 1040.00, scienceSet: 190.00, ucmas: 295.00 },
-      { id: 'Grade 7', label: 'Grade 7 (JHS 1)', code: 'J1', stationery: 2090.00 },
-      { id: 'Grade 8', label: 'Grade 8 (JHS 2)', code: 'J2', stationery: 2090.00 },
-      { id: 'Grade 9', label: 'Grade 9 (JHS 3)', code: 'J3', stationery: 2090.00 },
+      { id: 'Basic 1', label: 'Basic 1', code: 'B1', stationery: 1365.00, ucmas: 295.00 },
+      { id: 'Basic 2', label: 'Basic 2', code: 'B2', stationery: 1115.00, ucmas: 295.00 },
+      { id: 'Basic 3', label: 'Basic 3', code: 'B3', stationery: 1115.00, ucmas: 295.00 },
+      { id: 'Basic 4', label: 'Basic 4', code: 'B4', stationery: 1040.00, scienceSet: 190.00, ucmas: 295.00 },
+      { id: 'Basic 5', label: 'Basic 5', code: 'B5', stationery: 1040.00, scienceSet: 190.00, ucmas: 295.00 },
+      { id: 'Basic 6', label: 'Basic 6', code: 'B6', stationery: 1040.00, scienceSet: 190.00, ucmas: 295.00 },
+      { id: 'Basic 7', label: 'Basic 7', code: 'B7', stationery: 2090.00 },
+      { id: 'Basic 8', label: 'Basic 8', code: 'B8', stationery: 2090.00 },
+      { id: 'Basic 9', label: 'Basic 9', code: 'B9', stationery: 2090.00 },
     ]
   }
 ];
@@ -302,7 +302,10 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
   // Post Bill Modal State
   const [isPostingModalOpen, setIsPostingModalOpen] = useState(false);
-  const [postTargetScope, setPostTargetScope] = useState('student'); // 'student' | 'class' | 'all'
+  const [postTargetScope, setPostTargetScope] = useState('class'); // 'class_level' | 'class' | 'subclass' | 'all' | 'student'
+  const [selectedPostingCategory, setSelectedPostingCategory] = useState('basic_school');
+  const [selectedPostingClass, setSelectedPostingClass] = useState('Basic 1');
+  const [selectedPostingSubClass, setSelectedPostingSubClass] = useState('1A');
   const [postingStudentSearch, setPostingStudentSearch] = useState('');
   const [selectedPostingStudent, setSelectedPostingStudent] = useState(null);
   const [postIncludeOptional, setPostIncludeOptional] = useState(true);
@@ -488,8 +491,41 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
   // Handle Post Academic Bill to Student Ledger & Accounts
   const handlePostBillToLedger = (targetStudent = null) => {
-    const studentToUse = targetStudent || (postTargetScope === 'student' ? (selectedPostingStudent || preparingStudentBill) : null);
-    const targetName = studentToUse ? studentToUse.fullName : postTargetScope === 'all' ? 'All Active Students (School-wide)' : `All Enrolled Students in ${selectedSubLevel}`;
+    let studentToUse = targetStudent;
+    let scopeLabel = '';
+    let targetStudentsList = [];
+
+    if (postTargetScope === 'student') {
+      studentToUse = selectedPostingStudent || preparingStudentBill;
+      scopeLabel = studentToUse ? studentToUse.fullName : 'Individual Student';
+      if (studentToUse) targetStudentsList = [studentToUse];
+    } else if (postTargetScope === 'class_level') {
+      const catObj = GRADE_LEVEL_CATEGORIES.find(c => c.id === selectedPostingCategory) || activeCategoryObj;
+      scopeLabel = `All Students in ${catObj.name}`;
+      targetStudentsList = (onboardedStudents || []).filter(s => {
+        const sLvl = (s.level || '').toLowerCase().trim();
+        const cId = catObj.id;
+        if (cId === 'nursery_creche') return sLvl.includes('creche') || sLvl.includes('nursery');
+        if (cId === 'kindergarten') return sLvl.includes('kg') || sLvl.includes('kindergarten');
+        if (cId === 'basic_school') return sLvl.includes('basic') || sLvl.includes('primary') || sLvl.includes('jhs') || sLvl.includes('grade');
+        return true;
+      });
+    } else if (postTargetScope === 'class') {
+      scopeLabel = `All Students in Class ${selectedPostingClass}`;
+      targetStudentsList = (onboardedStudents || []).filter(s =>
+        (s.level || '').toLowerCase().trim() === selectedPostingClass.toLowerCase().trim()
+      );
+    } else if (postTargetScope === 'subclass') {
+      scopeLabel = `All Students in Sub-Class / Section ${selectedPostingSubClass}`;
+      const subQ = selectedPostingSubClass.toLowerCase().trim();
+      targetStudentsList = (onboardedStudents || []).filter(s => {
+        const sec = (s.classSection || s.section || s.subClass || s.sub_class || s.stream || '').toLowerCase().trim();
+        return sec === subQ || sec.includes(subQ) || subQ.includes(sec);
+      });
+    } else if (postTargetScope === 'all') {
+      scopeLabel = 'All Active Students (School-wide)';
+      targetStudentsList = onboardedStudents || [];
+    }
 
     // Compute active items
     const optionalItemsToPost = postIncludeOptional
@@ -506,12 +542,14 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
       portalData.postAcademicBill({
         studentId: studentToUse?.studentId || studentToUse?.id || null,
         studentName: studentToUse?.fullName || null,
-        classLevel: `${activeCategoryObj.name} · ${selectedSubLevel}`,
+        targetStudents: targetStudentsList,
+        classLevel: selectedPostingClass || `${activeCategoryObj.name} · ${selectedSubLevel}`,
         items: allItemsToPost,
         totalAmount: totalToPost,
         term: 'Term 1 · 2026'
       });
-      setSuccessMsg(`⚡ Successfully posted Academic Bill of GHS ${totalToPost.toFixed(2)} (${baseBillItems.length} compulsory + ${optionalItemsToPost.length} optional) to ${targetName}'s ledger account!`);
+      const affectedCount = targetStudentsList.length > 0 ? targetStudentsList.length : 1;
+      setSuccessMsg(`⚡ Successfully posted Academic Bill of GHS ${totalToPost.toFixed(2)} (${baseBillItems.length} compulsory + ${optionalItemsToPost.length} optional) to ${scopeLabel} (${affectedCount} student accounts)!`);
       setIsPostingModalOpen(false);
       setSelectedPostingStudent(null);
       setPostingStudentSearch('');
@@ -1600,17 +1638,73 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
               This action will debit and post the academic bill for <strong>{activeCategoryObj.name} · {selectedSubLevel} (Term 1 · 2026)</strong> directly into student financial records.
             </p>
 
-            <div style={{ background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#64748b', marginBottom: 6 }}>TARGET RECIPIENT & SCOPE</div>
+            <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#64748b', marginBottom: 6 }}>SELECT BULK OR INDIVIDUAL POSTING SCOPE</div>
               <select
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700, color: '#0f172a' }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 800, color: '#0f172a', background: '#fff' }}
                 value={postTargetScope}
                 onChange={(e) => setPostTargetScope(e.target.value)}
               >
-                <option value="student">🔎 Search & Select Specific Student</option>
-                <option value="class">All Enrolled Students in {selectedSubLevel}</option>
-                <option value="all">All Active Students (School-wide)</option>
+                <option value="class">📚 Bulk Post to One Specific Class (e.g. {selectedSubLevel})</option>
+                <option value="class_level">🏢 Bulk Post to Entire Class Level / Department (e.g. {activeCategoryObj.name})</option>
+                <option value="subclass">🏷️ Bulk Post to One Specific Sub-Class / Section (e.g. 1A, 1B, Section A)</option>
+                <option value="all">🌍 Bulk Post to All Active Students (School-wide)</option>
+                <option value="student">👤 Post to Individual Student (Single Candidate)</option>
               </select>
+
+              {/* Scope Option 1: Entire Class Level / Department Category */}
+              {postTargetScope === 'class_level' && (
+                <div style={{ marginTop: 12 }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#475569', marginBottom: 4 }}>
+                    Select Class Level / Department Category:
+                  </label>
+                  <select
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #0284c7', fontSize: 13, fontWeight: 700, color: '#0369a1', background: '#fff' }}
+                    value={selectedPostingCategory}
+                    onChange={(e) => setSelectedPostingCategory(e.target.value)}
+                  >
+                    {GRADE_LEVEL_CATEGORIES.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Scope Option 2: One Specific Class */}
+              {postTargetScope === 'class' && (
+                <div style={{ marginTop: 12 }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#475569', marginBottom: 4 }}>
+                    Select Target Class:
+                  </label>
+                  <select
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #0284c7', fontSize: 13, fontWeight: 700, color: '#0369a1', background: '#fff' }}
+                    value={selectedPostingClass}
+                    onChange={(e) => setSelectedPostingClass(e.target.value)}
+                  >
+                    {['Creche', 'Nursery 1', 'Nursery 2', 'KG 1', 'KG 2', 'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6', 'Basic 7', 'Basic 8', 'Basic 9'].map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Scope Option 3: One Specific Sub-Class / Section */}
+              {postTargetScope === 'subclass' && (
+                <div style={{ marginTop: 12 }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#475569', marginBottom: 4 }}>
+                    Select Target Sub-Class / Section:
+                  </label>
+                  <select
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #0284c7', fontSize: 13, fontWeight: 700, color: '#0369a1', background: '#fff' }}
+                    value={selectedPostingSubClass}
+                    onChange={(e) => setSelectedPostingSubClass(e.target.value)}
+                  >
+                    {['1A', '1B', '1C', '2A', '2B', '3A', '3B', '4A', '4B', '5A', '5B', '6A', '6B', '7A', '7B', '8A', '8B', '9A', '9B', 'Section A', 'Section B', 'Section C', 'Section D', 'Stream A', 'Stream B', 'Gold Class', 'Diamond Class', 'Sunflower', 'Rose'].map(sc => (
+                      <option key={sc} value={sc}>{sc}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Student Search Box */}
               {postTargetScope === 'student' && (
