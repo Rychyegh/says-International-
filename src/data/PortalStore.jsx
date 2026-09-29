@@ -77,7 +77,14 @@ export function PortalDataProvider({ children }) {
   const [data, setData] = useState(readData);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        const channel = new BroadcastChannel('rcis_portal_data_sync');
+        channel.postMessage({ type: 'DATA_UPDATE', payload: data });
+        channel.close();
+      }
+    } catch (e) {}
   }, [data]);
 
   useEffect(() => {
@@ -86,10 +93,33 @@ export function PortalDataProvider({ children }) {
 
   useEffect(() => {
     const sync = (event) => {
-      if (event.key === STORAGE_KEY && event.newValue) setData(JSON.parse(event.newValue));
+      if (event.key === STORAGE_KEY && event.newValue) {
+        try {
+          setData(JSON.parse(event.newValue));
+        } catch (e) {}
+      }
     };
     window.addEventListener('storage', sync);
-    return () => window.removeEventListener('storage', sync);
+
+    let channel = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        channel = new BroadcastChannel('rcis_portal_data_sync');
+        channel.onmessage = (event) => {
+          if (event.data && event.data.type === 'DATA_UPDATE' && event.data.payload) {
+            setData(current => ({
+              ...current,
+              ...event.data.payload
+            }));
+          }
+        };
+      }
+    } catch (e) {}
+
+    return () => {
+      window.removeEventListener('storage', sync);
+      if (channel) channel.close();
+    };
   }, []);
 
   // Sync strictly with live backend API endpoints on mount
@@ -378,6 +408,22 @@ export function PortalDataProvider({ children }) {
 
   useEffect(() => {
     refreshBackendData();
+
+    // Auto-refresh when tab/window regains focus
+    const handleFocus = () => {
+      refreshBackendData();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Periodic polling every 8 seconds to synchronize creations from other head admin sessions
+    const pollInterval = setInterval(() => {
+      refreshBackendData();
+    }, 8000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(pollInterval);
+    };
   }, [refreshBackendData]);
 
   const sortedOnboardedStudents = useMemo(() => {
