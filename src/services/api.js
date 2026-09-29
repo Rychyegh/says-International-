@@ -730,9 +730,37 @@ export const api = {
   },
 
   createExamRegistration: async (examData) => {
+    // Map camelCase fields to snake_case for the backend
+    const payload = {
+      // Primary identifiers
+      student_id:    examData.studentId    || examData.student_id,
+      student_name:  examData.studentName  || examData.student_name  || examData.fullName,
+      // Academic context
+      class_level:   examData.classLevel   || examData.class_level   || examData.level,
+      academic_year: examData.academicYear || examData.academic_year,
+      term:          examData.term,
+      exam_type:     examData.examType     || examData.exam_type,
+      // Exam details
+      index_number:  examData.indexNumber  || examData.index_number,
+      exam_center:   examData.examCenter   || examData.exam_center,
+      subjects:      examData.subjects     || [],
+      notes:         examData.notes        || undefined,
+      registered_by: examData.registeredBy || examData.registered_by || 'Academic Head / Admin',
+      status:        examData.status       || 'Registered - Hall Pass Valid',
+      // Also send camelCase in case the backend accepts either
+      studentId:     examData.studentId    || examData.student_id,
+      studentName:   examData.studentName  || examData.student_name,
+      classLevel:    examData.classLevel   || examData.class_level,
+      academicYear:  examData.academicYear || examData.academic_year,
+      examType:      examData.examType     || examData.exam_type,
+      indexNumber:   examData.indexNumber  || examData.index_number,
+      examCenter:    examData.examCenter   || examData.exam_center,
+    };
+    // Remove undefined fields
+    Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
     return await request('/academic/exam-registrations', {
       method: 'POST',
-      body: JSON.stringify(examData),
+      body: JSON.stringify(payload),
     });
   },
 

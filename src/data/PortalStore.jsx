@@ -2074,19 +2074,29 @@ export function PortalDataProvider({ children }) {
     },
     // Examination Candidate Registration Methods
     registerIndividualExam: async (regData) => {
+      let backendId = null;
       try {
-        await api.createExamRegistration(regData);
+        const res = await api.createExamRegistration(regData);
+        backendId = res?.id || res?._id || res?.data?.id || null;
       } catch (e) {
-        console.warn('Backend exam reg fallback:', e);
+        console.warn('[ExamReg] Backend registration failed, saving locally:', e?.message || e);
       }
       setData((current) => {
         const existing = current.examRegistrations || [];
         const newReg = {
-          id: `exam-reg-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          id: backendId || `exam-reg-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           registeredAt: new Date().toISOString().split('T')[0],
           registeredBy: 'Academic Head / Admin',
           status: 'Registered - Hall Pass Valid',
-          ...regData
+          ...regData,
+          // Ensure both naming conventions present for the roster UI
+          studentId:    regData.studentId   || regData.student_id,
+          studentName:  regData.studentName || regData.student_name,
+          classLevel:   regData.classLevel  || regData.class_level,
+          academicYear: regData.academicYear|| regData.academic_year,
+          examType:     regData.examType    || regData.exam_type,
+          indexNumber:  regData.indexNumber || regData.index_number,
+          examCenter:   regData.examCenter  || regData.exam_center,
         };
         return {
           ...current,
@@ -2094,6 +2104,7 @@ export function PortalDataProvider({ children }) {
         };
       });
     },
+
     registerClassExams: async (classRegData) => {
       try {
         if (Array.isArray(classRegData.students)) {

@@ -94,13 +94,38 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
   const [indivGenderFilter, setIndivGenderFilter] = useState('All');
   const [indivRegFilter, setIndivRegFilter] = useState('All'); // 'All' | 'Not Registered' | 'Registered'
 
+  // ── Subject Pool ─────────────────────────────────────────────────────────
+  // Load from localStorage so custom subjects survive page refresh.
+  // Merged with DEFAULT_SUBJECTS so built-ins are always present.
+  const SUBJECTS_STORAGE_KEY = 'rcis_exam_subjects_pool';
 
-  // Shared editable subject pool (both tabs share the same pool)
-  const [allSubjects, setAllSubjects] = useState([...DEFAULT_SUBJECTS]);
+  const loadPersistedSubjects = () => {
+    try {
+      const raw = localStorage.getItem(SUBJECTS_STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (Array.isArray(saved) && saved.length > 0) {
+          // Merge: saved list takes priority; ensure all DEFAULT_SUBJECTS are included
+          const merged = [...new Set([...DEFAULT_SUBJECTS, ...saved])];
+          return merged;
+        }
+      }
+    } catch (e) {}
+    return [...DEFAULT_SUBJECTS];
+  };
+
+  const [allSubjects, setAllSubjects] = useState(loadPersistedSubjects);
   const [newSubjectInput, setNewSubjectInput] = useState('');
 
+  // Persist pool to localStorage whenever it changes
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(SUBJECTS_STORAGE_KEY, JSON.stringify(allSubjects));
+    } catch (e) {}
+  }, [allSubjects]);
+
   // Start with all subjects pre-selected for individual
-  const [selectedSubjects, setSelectedSubjects] = useState([...DEFAULT_SUBJECTS]);
+  const [selectedSubjects, setSelectedSubjects] = useState(loadPersistedSubjects);
 
   const filteredAllStudents = React.useMemo(() => {
     let list = [...(allStudents || [])];
@@ -150,7 +175,7 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
   const [bulkExamType, setBulkExamType] = useState(EXAM_TYPES[0]);
   const [bulkCenter, setBulkCenter] = useState(EXAM_CENTERS[0]);
   // Bulk starts with all subjects pre-selected
-  const [bulkSubjects, setBulkSubjects] = useState([...DEFAULT_SUBJECTS]);
+  const [bulkSubjects, setBulkSubjects] = useState(loadPersistedSubjects);
   const [bulkPrefix, setBulkPrefix] = useState('EXAM-2026-');
   const [selectedBulkStudents, setSelectedBulkStudents] = useState([]);
 
