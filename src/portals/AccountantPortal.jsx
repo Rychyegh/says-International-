@@ -1254,6 +1254,8 @@ function SimsModalRenderer({ modalData, setModalData, onClose, onSubmit, student
   const isPrepareBill = link === 'Prepare Student academic Bill' || link === 'Post Academic Bill Header' || link === 'Post Academic Bill' || link === 'Print Student\'s Academic Bill' || link === 'Print & Post Student\'s Academic Bill' || link === 'Print Individual Student Bill';
   const isReceivePayment = link === 'Receive Payments from Students' || link === 'Issue Other receipts' || link === 'Re-print Commercial Receipt' || link === 'Receive Other Payments' || link === 'Batch Processing' || link.toLowerCase().includes('receivables') || link.toLowerCase().includes('pv') || link.toLowerCase().includes('authorise');
 
+  const portalStore = usePortalData() || {};
+
   return (
     <div className="sims-modal-overlay" onClick={onClose}>
       <div className="sims-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: (isPrepareBill || isReceivePayment) ? 1280 : 960, width: (isPrepareBill || isReceivePayment) ? '96vw' : '94vw', boxSizing: 'border-box', overflowX: 'hidden' }}>
@@ -1269,7 +1271,7 @@ function SimsModalRenderer({ modalData, setModalData, onClose, onSubmit, student
         </div>
 
         <form className="sims-modal-body" onSubmit={onSubmit}>
-          {renderSpecificContent(link, modalData, setModalData, students)}
+          {renderSpecificContent(link, modalData, setModalData, students, portalStore)}
         </form>
       </div>
     </div>
@@ -11563,7 +11565,19 @@ function SimsAuthenticationHeaderBar() {
   );
 }
 
-function renderSpecificContent(link, m, setM, students) {
+function renderSpecificContent(link, m, setM, students, portalStore = {}) {
+  const {
+    recordFeePayment = () => {},
+    applications = [],
+    onboardedStudents = [],
+    updateStudentAdmission = () => {},
+    registerClassSemester = () => {},
+    semesterRegistrations = [],
+    deleteSemesterRegistration = () => {},
+    saveDefinedBill = () => {},
+    definedBills = [],
+    deleteDefinedBill = () => {}
+  } = portalStore;
   // Helper to update state field
   const update = (field, val) => setM((prev) => ({ ...prev, [field]: val }));
 

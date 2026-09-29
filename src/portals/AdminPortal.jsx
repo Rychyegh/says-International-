@@ -15,7 +15,7 @@ import RegisterForExamsForm from '../components/RegisterForExams/RegisterForExam
 import AcademicSettingsManager from '../components/Academic/AcademicSettingsManager';
 import ApprovePVForm from '../components/Finance/ApprovePVForm';
 import UserAccessControl from '../components/AccessControl/UserAccessControl';
-import { getAuthUser } from '../services/api';
+import { api, getAuthUser } from '../services/api';
 
 const ADMIN_BG = '#4a1d6e';
 const ADMIN_LIGHT = '#f3e8ff';

@@ -16,7 +16,8 @@ import {
   Plus,
   ArrowRight,
   ShieldCheck,
-  Sparkles
+  Sparkles,
+  Trash2
 } from 'lucide-react';
 
 const DEFAULT_SUBJECTS = [

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, Phone, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, UserCheck, Phone, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { api, setAuthToken, setAuthUser } from '../../services/api';
 import { usePortalData } from '../../data/PortalStore';

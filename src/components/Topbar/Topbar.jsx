@@ -69,7 +69,7 @@ export default function Topbar({ activePortal, isAuthed, onSignOut }) {
 
         {/* Middle section - Universal Search Bar & Portal Badge */}
         <div className="topbar__middle">
-          <DashboardSearch activePortal={activePortal} />
+          {isAuthed && <DashboardSearch activePortal={activePortal} />}
 
           {/* Current Portal Badge */}
           <div className="topbar__portal-badge" style={{
