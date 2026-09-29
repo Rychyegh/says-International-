@@ -281,8 +281,9 @@ export function PortalDataProvider({ children }) {
 
       // 10. Onboarded Students
       try {
-        const students = await api.getStudents();
-        if (Array.isArray(students)) {
+        const studentsRes = await api.getStudents();
+        const students = Array.isArray(studentsRes) ? studentsRes : (studentsRes?.students || studentsRes?.data || studentsRes?.records || []);
+        if (Array.isArray(students) && students.length > 0) {
           const mapped = students.map(s => ({
             id: s.id,
             studentId: s.studentId || s.student_id_code || s.student_code || s.id,
@@ -327,8 +328,9 @@ export function PortalDataProvider({ children }) {
 
       // 11. Fees
       try {
-        const fees = await api.getFees();
-        if (Array.isArray(fees)) {
+        const feesRes = await api.getFees();
+        const fees = Array.isArray(feesRes) ? feesRes : (feesRes?.fees || feesRes?.data || feesRes?.records || []);
+        if (Array.isArray(fees) && fees.length > 0) {
           const mapped = fees.map(f => ({
             id: f.id,
             studentId: f.studentId || f.student_id || f.student_code,
@@ -379,8 +381,9 @@ export function PortalDataProvider({ children }) {
 
       // 12. Staff & Teacher Directory
       try {
-        const staff = await api.getStaff();
-        if (Array.isArray(staff)) {
+        const staffRes = await api.getStaff();
+        const staff = Array.isArray(staffRes) ? staffRes : (staffRes?.staff || staffRes?.teachers || staffRes?.data || []);
+        if (Array.isArray(staff) && staff.length > 0) {
           setData(current => {
             const curStaff = current.teacherDirectory || [];
             const staffMap = new Map();
@@ -407,8 +410,9 @@ export function PortalDataProvider({ children }) {
 
       // 13. Defined Bills
       try {
-        const bills = await api.getDefinedBills();
-        if (Array.isArray(bills)) {
+        const billsRes = await api.getDefinedBills();
+        const bills = Array.isArray(billsRes) ? billsRes : (billsRes?.bills || billsRes?.definitions || billsRes?.data || []);
+        if (Array.isArray(bills) && bills.length > 0) {
           setData(current => {
             const curBills = current.definedBills || [];
             const billMap = new Map();
@@ -435,8 +439,9 @@ export function PortalDataProvider({ children }) {
 
       // 14. Payment Vouchers
       try {
-        const pvs = await api.getPaymentVouchers();
-        if (Array.isArray(pvs)) {
+        const pvsRes = await api.getPaymentVouchers();
+        const pvs = Array.isArray(pvsRes) ? pvsRes : (pvsRes?.vouchers || pvsRes?.paymentVouchers || pvsRes?.data || []);
+        if (Array.isArray(pvs) && pvs.length > 0) {
           const mapped = pvs.map(p => ({
             id: p.id,
             pvNo: p.pv_number || p.pvNo || `PV-${p.id}`,
