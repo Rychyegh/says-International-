@@ -1,7 +1,24 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { api } from '../services/api';
+import { cloudSync } from '../services/cloudSync';
 
 const STORAGE_KEY = 'remalj-portal-live-data-v3';
+
+function mergeByKey(arrA = [], arrB = [], keyFn) {
+  const map = new Map();
+  (arrA || []).forEach(item => {
+    const k = String(keyFn(item) || '').toLowerCase().trim();
+    if (k) map.set(k, item);
+  });
+  (arrB || []).forEach(item => {
+    const k = String(keyFn(item) || '').toLowerCase().trim();
+    if (k) {
+      const prev = map.get(k) || {};
+      map.set(k, { ...prev, ...item });
+    }
+  });
+  return Array.from(map.values());
+}
 
 const INITIAL_DATA = {
   timetable: [],
@@ -84,6 +101,8 @@ export function PortalDataProvider({ children }) {
         channel.postMessage({ type: 'DATA_UPDATE', payload: data });
         channel.close();
       }
+      // Real-Time Cloud Hub Push
+      cloudSync.pushLatestData(data);
     } catch (e) {}
   }, [data]);
 
@@ -122,9 +141,47 @@ export function PortalDataProvider({ children }) {
     };
   }, []);
 
-  // Sync strictly with live backend API endpoints on mount
+  // Sync strictly with live backend API endpoints and Universal Cloud Sync Hub on mount & intervals
   const refreshBackendData = useCallback(async () => {
     try {
+      // 0. Pull from Universal Cloud Sync Hub (Cross-Device Real-Time Sync)
+      try {
+        const cloudData = await cloudSync.pullLatestData();
+        if (cloudData && typeof cloudData === 'object') {
+          setData(current => {
+            const mergedStudents = mergeByKey(current.onboardedStudents || [], cloudData.onboardedStudents || [], s => s.studentId || s.id || s.fullName);
+            const mergedApps = mergeByKey(current.applications || [], cloudData.applications || [], a => a.id || a.learner);
+            const mergedFees = mergeByKey(current.studentFees || [], cloudData.studentFees || [], f => f.studentId || f.id || f.studentName);
+            const mergedFeeAccounts = mergeByKey(current.feeAccounts || [], cloudData.feeAccounts || [], a => a.id || a.child);
+            const mergedStaff = mergeByKey(current.teacherDirectory || [], cloudData.teacherDirectory || [], s => s.staffId || s.id || s.email || s.name);
+            const mergedBills = mergeByKey(current.definedBills || [], cloudData.definedBills || [], b => b.id || b.title || b.name);
+            const mergedPVs = mergeByKey(current.paymentVouchers || [], cloudData.paymentVouchers || [], p => p.pvNo || p.id);
+            const mergedTimetable = mergeByKey(current.timetable || [], cloudData.timetable || [], t => t.id || `${t.day}-${t.time}-${t.subject}`);
+            const mergedResults = mergeByKey(current.results || [], cloudData.results || [], r => r.id || `${r.studentId}-${r.subject}`);
+            const mergedExamRegs = mergeByKey(current.examRegistrations || [], cloudData.examRegistrations || [], e => e.id || e.studentId || e.indexNumber);
+            const mergedSemRegs = mergeByKey(current.semesterRegistrations || [], cloudData.semesterRegistrations || [], s => s.id || `${s.studentId}-${s.semester}`);
+
+            return {
+              ...current,
+              ...cloudData,
+              onboardedStudents: mergedStudents,
+              applications: mergedApps,
+              studentFees: mergedFees,
+              feeAccounts: mergedFeeAccounts,
+              teacherDirectory: mergedStaff,
+              definedBills: mergedBills,
+              paymentVouchers: mergedPVs,
+              timetable: mergedTimetable,
+              results: mergedResults,
+              examRegistrations: mergedExamRegs,
+              semesterRegistrations: mergedSemRegs,
+              backendConnected: true,
+              isLoadingBackend: false
+            };
+          });
+        }
+      } catch (e) { /* silent */ }
+
       // 1. Bus Routes
       try {
         const routesRes = await api.getBusRoutes();
