@@ -637,52 +637,62 @@ export const api = {
   },
 
   createUserAccount: async (userData) => {
-    // Creates a staff/admin/student account through the admin user management endpoint.
-    // Falls back to /auth/register for non-admin-created roles.
+    // POST /api/v1/users — exact schema from API docs
+    // Fields: email, username, password, full_name, name, role,
+    //         phone_number, phone, card_id, photo_url, is_active, status
+    const fullName = (userData.fullName || userData.full_name || userData.name || '').trim();
+    const email    = (userData.email || '').trim().toLowerCase();
+    const phone    = (userData.phone || userData.phone_number || '').trim();
+    const role     = userData.role || 'teacher';
+
     const payload = {
-      full_name: (userData.fullName || '').trim(),
-      email: (userData.email || '').trim().toLowerCase(),
-      phone_number: (userData.phone || '').trim(),
-      role: userData.role || 'teacher',
-      password: userData.password,
-      staff_id: userData.staffId || undefined,
-      student_id: userData.studentId || undefined,
-      department: userData.department || 'General',
-      assigned_class: userData.assignedClass || undefined,
-      status: userData.status || 'Active',
-      must_change_password: !!userData.mustChangePassword,
+      email,
+      username:     userData.username || email.split('@')[0],
+      password:     userData.password,
+      full_name:    fullName,
+      name:         fullName,
+      role,
+      phone_number: phone,
+      phone,
+      card_id:      userData.cardId   || userData.card_id   || undefined,
+      photo_url:    userData.photoUrl || userData.photo_url || undefined,
+      is_active:    userData.status !== 'Suspended',
+      status:       userData.status || 'Active',
     };
-    // Try admin endpoint first, fall back to /auth/register
-    try {
-      return await request('/users', { method: 'POST', body: JSON.stringify(payload) });
-    } catch {
-      return await request('/auth/register', { method: 'POST', body: JSON.stringify({
-        email: payload.email,
-        password: payload.password,
-        full_name: payload.full_name,
-        fullName: payload.full_name,
-        phone_number: payload.phone_number,
-        phone: payload.phone_number,
-        role: payload.role,
-        portal: payload.role,
-      }) });
-    }
+
+    // Strip undefined fields so the backend validator doesn't reject them
+    Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
+
+    return await request('/users', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 
   updateUserAccount: async (userId, userData) => {
+    const fullName = (userData.fullName || userData.full_name || '').trim();
+    const phone    = (userData.phone || userData.phone_number || '').trim();
+
+    const payload = {
+      email:        (userData.email || '').trim().toLowerCase() || undefined,
+      username:     userData.username || undefined,
+      full_name:    fullName || undefined,
+      name:         fullName || undefined,
+      role:         userData.role || undefined,
+      phone_number: phone || undefined,
+      phone:        phone || undefined,
+      card_id:      userData.cardId   || userData.card_id   || undefined,
+      photo_url:    userData.photoUrl || userData.photo_url || undefined,
+      is_active:    userData.status ? userData.status !== 'Suspended' : undefined,
+      status:       userData.status || undefined,
+    };
+
+    // Strip undefined fields
+    Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
+
     return await request(`/users/${userId}`, {
       method: 'PUT',
-      body: JSON.stringify({
-        full_name: userData.fullName,
-        email: userData.email,
-        phone_number: userData.phone,
-        role: userData.role,
-        status: userData.status,
-        department: userData.department,
-        assigned_class: userData.assignedClass,
-        staff_id: userData.staffId,
-        student_id: userData.studentId,
-      }),
+      body: JSON.stringify(payload),
     });
   },
 
