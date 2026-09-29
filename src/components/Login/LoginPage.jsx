@@ -253,7 +253,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
               severity: 'High'
             });
           }
-          setError('❌ Invalid Class Teacher Security Passcode. Please check the passcode issued by Super Admin (Default Demo: 9988).');
+          setError('❌ Invalid Class Teacher Security Passcode. Please check the passcode issued by Super Admin.');
           return;
         }
       }
@@ -317,7 +317,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
           severity: 'High'
         });
       }
-      setError('❌ Invalid Security PIN. Enter 8888 for Super Admin or 1234 for Sub-Admin.');
+      setError('❌ Invalid Security PIN. Please check your assigned 4-digit Administrator PIN.');
     }
   };
 
@@ -509,40 +509,8 @@ export default function LoginPage({ portal, onLoginSuccess }) {
 
               <h2 className="login-form__title">Admin Security PIN</h2>
               <p className="login-form__subtitle">
-                Enter your 4-digit Administrator Security PIN to verify your authorization level (Super Admin vs Sub-Admin).
+                Enter your 4-digit Administrator Security PIN to verify your authorization level.
               </p>
-
-              {/* Authorized Security PIN Info Card */}
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: 14, marginBottom: 20 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
-                  💡 Authorized Security PIN Options:
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <button
-                    type="button"
-                    onClick={() => { setAdminPin('8888'); setError(''); }}
-                    style={{
-                      padding: '10px 12px', background: '#f3e8ff', border: '1px solid #c084fc', borderRadius: 8,
-                      textAlign: 'left', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 2
-                    }}
-                  >
-                    <span style={{ fontSize: 13, fontWeight: 900, color: '#581c87' }}>👑 Super Admin</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#7e22ce' }}>PIN: 8888 (Unrestricted)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => { setAdminPin('1234'); setError(''); }}
-                    style={{
-                      padding: '10px 12px', background: '#e0f2fe', border: '1px solid #38bdf8', borderRadius: 8,
-                      textAlign: 'left', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 2
-                    }}
-                  >
-                    <span style={{ fontSize: 13, fontWeight: 900, color: '#0369a1' }}>🛡️ Sub-Admin</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#0284c7' }}>PIN: 1234 (Restricted)</span>
-                  </button>
-                </div>
-              </div>
 
               <form onSubmit={handlePinSubmit} noValidate>
                 <div className="form-group">
@@ -974,12 +942,6 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                     
                     <div style={{ fontSize: 12, color: '#15803d', fontWeight: 600, marginBottom: 16, lineHeight: 1.5 }}>
                       Class Teachers (Form Tutors) use their assigned Staff ID and 4-digit Security Passcode issued by Super Admin.
-                    </div>
-
-                    <div style={{ background: '#fff', border: '1px solid #86efac', borderRadius: 8, padding: '10px 12px', marginBottom: 16, fontSize: 11, color: '#14532d' }}>
-                      <strong>💡 Demo Class Teacher Passcode:</strong><br />
-                      • Staff ID: <code>CT-2026-001</code> | Class: Grade 4B<br />
-                      • Security Passcode: <strong>9988</strong>
                     </div>
 
                     <div className="form-group" style={{ marginBottom: 14 }}>
