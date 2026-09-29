@@ -86,47 +86,100 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [backendError, setBackendError] = useState(null);
+
+  // Helper: merge backend user list with local seed
+  const buildUserList = (backendList = [], localMap = {}) => {
+    const combinedMap = new Map();
+    DEFAULT_USERS_SEED.forEach(u => combinedMap.set(u.email.toLowerCase(), u));
+    // Local cache
+    Object.keys(localMap).forEach(key => {
+      const item = localMap[key];
+      if (item && item.email) {
+        const emailKey = item.email.toLowerCase();
+        const prev = combinedMap.get(emailKey) || {};
+        combinedMap.set(emailKey, {
+          id: item.id || prev.id || `usr_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          fullName: item.fullName || item.full_name || item.name || prev.fullName || 'User',
+          email: item.email,
+          phone: item.phone || item.phone_number || item.phoneNumber || prev.phone || '024 000 0000',
+          role: item.role || prev.role || 'student',
+          status: item.status || prev.status || 'Active',
+          staffId: item.staffId || item.staff_id || prev.staffId,
+          studentId: item.studentId || item.student_id || prev.studentId,
+          password: item.password || prev.password || 'Carewell2026!',
+          department: item.department || prev.department || 'General',
+          assignedClass: item.assignedClass || item.assigned_class || prev.assignedClass,
+          createdAt: item.createdAt || item.created_at || prev.createdAt || '2026-01-01',
+          lastLogin: item.lastLogin || item.last_login || prev.lastLogin || 'Never',
+          mustChangePassword: !!item.mustChangePassword,
+        });
+      }
+    });
+    // Backend records override/enrich the map
+    backendList.forEach(item => {
+      if (!item || !item.email) return;
+      const emailKey = item.email.toLowerCase();
+      const prev = combinedMap.get(emailKey) || {};
+      combinedMap.set(emailKey, {
+        id: item.id || item._id || prev.id || `usr_${Date.now()}`,
+        fullName: item.fullName || item.full_name || item.name || prev.fullName || 'User',
+        email: item.email,
+        phone: item.phone || item.phone_number || prev.phone || '024 000 0000',
+        role: item.role || prev.role || 'student',
+        status: item.status || prev.status || 'Active',
+        staffId: item.staffId || item.staff_id || prev.staffId,
+        studentId: item.studentId || item.student_id || prev.studentId,
+        password: prev.password || 'Carewell2026!',
+        department: item.department || prev.department || 'General',
+        assignedClass: item.assignedClass || item.assigned_class || prev.assignedClass,
+        createdAt: item.createdAt || item.created_at || prev.createdAt || '2026-01-01',
+        lastLogin: item.lastLogin || item.last_login || prev.lastLogin || 'Never',
+        mustChangePassword: !!(item.mustChangePassword || item.must_change_password),
+      });
+    });
+    return Array.from(combinedMap.values());
+  };
 
   const [users, setUsers] = useState(() => {
     try {
       const raw = localStorage.getItem('registered_accounts');
       const list = raw ? JSON.parse(raw) : {};
-      
-      const combinedMap = new Map();
-
-      // 1. Seed defaults
-      DEFAULT_USERS_SEED.forEach(u => combinedMap.set(u.email.toLowerCase(), u));
-
-      // 2. Local storage accounts
-      Object.keys(list).forEach(key => {
-        const item = list[key];
-        if (item && item.email) {
-          const emailKey = item.email.toLowerCase();
-          const prev = combinedMap.get(emailKey) || {};
-          combinedMap.set(emailKey, {
-            id: item.id || prev.id || `usr_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-            fullName: item.fullName || item.name || prev.fullName || 'User',
-            email: item.email,
-            phone: item.phone || item.phoneNumber || prev.phone || '024 000 0000',
-            role: item.role || prev.role || 'student',
-            status: item.status || prev.status || 'Active',
-            staffId: item.staffId || prev.staffId || (item.role === 'teacher' ? 'STAFF-2026' : undefined),
-            studentId: item.studentId || prev.studentId,
-            password: item.password || prev.password || 'Carewell2026!',
-            department: item.department || prev.department || 'General',
-            assignedClass: item.assignedClass || prev.assignedClass,
-            createdAt: item.createdAt || prev.createdAt || '2026-01-01',
-            lastLogin: item.lastLogin || prev.lastLogin || 'Recent',
-            mustChangePassword: !!item.mustChangePassword,
-          });
-        }
-      });
-
-      return Array.from(combinedMap.values());
+      return buildUserList([], list);
     } catch {
       return DEFAULT_USERS_SEED;
     }
   });
+
+  // Fetch real users from backend on mount
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoadingUsers(true);
+    api.getUsers()
+      .then(res => {
+        if (cancelled) return;
+        const backendList = Array.isArray(res) ? res : (res?.users || res?.data || []);
+        try {
+          const raw = localStorage.getItem('registered_accounts');
+          const localMap = raw ? JSON.parse(raw) : {};
+          setUsers(buildUserList(backendList, localMap));
+          setBackendError(null);
+        } catch {
+          setUsers(buildUserList(backendList, {}));
+        }
+      })
+      .catch(err => {
+        if (cancelled) return;
+        console.warn('[UAC] Could not fetch users from backend — using local data:', err?.message || err);
+        setBackendError('Backend unavailable — showing cached data.');
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingUsers(false);
+      });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [auditLogs, setAuditLogs] = useState(() => {
     try {
@@ -189,18 +242,17 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     } catch (e) {}
   };
 
-  const persistUsers = (updatedUsers) => {
+  // Persist to local cache only (used after backend confirms a write)
+  const cacheUsers = (updatedUsers) => {
     setUsers(updatedUsers);
     try {
       const raw = localStorage.getItem('registered_accounts');
       const list = raw ? JSON.parse(raw) : {};
-      
       updatedUsers.forEach(u => {
         list[u.email.toLowerCase()] = u;
         if (u.studentId) list[u.studentId.toLowerCase()] = u;
         if (u.staffId) list[u.staffId.toLowerCase()] = u;
       });
-
       localStorage.setItem('registered_accounts', JSON.stringify(list));
       cloudSync.pushLatestData({ registered_accounts: list, usersCount: updatedUsers.length });
     } catch (e) {}
@@ -215,7 +267,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     return res;
   };
 
-  const handleCreateUser = (e) => {
+  const handleCreateUser = async (e) => {
     e.preventDefault();
     if (!createForm.fullName.trim() || !createForm.email.trim()) {
       alert('Please fill out all required fields.');
@@ -229,7 +281,6 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     }
 
     const finalPass = createForm.password.trim() || generateSecurePassword(createForm.role);
-    const generatedId = `usr_${createForm.role}_${Date.now()}`;
     const autoStaffId = createForm.staffId.trim() || (
       createForm.role === 'teacher' ? `CT-2026-${String(users.length + 1).padStart(3, '0')}` :
       createForm.role === 'accountant' ? `ACC-2026-${String(users.length + 1).padStart(3, '0')}` :
@@ -237,7 +288,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     );
 
     const newUser = {
-      id: generatedId,
+      id: `usr_${createForm.role}_${Date.now()}`,
       fullName: createForm.fullName.trim(),
       email: emailKey,
       phone: createForm.phone.trim() || '024 000 0000',
@@ -253,8 +304,18 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       mustChangePassword: createForm.mustChangePassword,
     };
 
+    // Attempt backend create first
+    try {
+      const res = await api.createUserAccount({ ...newUser });
+      if (res && (res.id || res._id)) {
+        newUser.id = res.id || res._id || newUser.id;
+      }
+    } catch (err) {
+      console.warn('[UAC] Backend user create failed, saving locally:', err?.message || err);
+    }
+
     const updated = [newUser, ...users];
-    persistUsers(updated);
+    cacheUsers(updated);
     addAuditLog('Account Created', newUser.email, `Created account for ${newUser.fullName} with role [${newUser.role.toUpperCase()}].`);
 
     setIsCreateModalOpen(false);
@@ -277,21 +338,25 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     });
   };
 
-  const handleUpdateUser = (e) => {
+  const handleUpdateUser = async (e) => {
     e.preventDefault();
     if (!editingUser) return;
 
+    // Attempt backend update first
+    try {
+      await api.updateUserAccount(editingUser.id, editingUser);
+    } catch (err) {
+      console.warn('[UAC] Backend user update failed, saving locally:', err?.message || err);
+    }
+
     const updated = users.map(u => {
       if (u.id === editingUser.id || u.email === editingUser.email) {
-        return {
-          ...u,
-          ...editingUser,
-        };
+        return { ...u, ...editingUser };
       }
       return u;
     });
 
-    persistUsers(updated);
+    cacheUsers(updated);
     addAuditLog('Account Modified', editingUser.email, `Updated profile / role details for ${editingUser.fullName}.`);
     setEditingUser(null);
     triggerToast(`✅ User record for ${editingUser.fullName} updated.`);
@@ -330,7 +395,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       return u;
     });
 
-    persistUsers(updated);
+    cacheUsers(updated);
     addAuditLog('Password Reset', resetPassUser.email, `Password changed by administrator.`);
     
     const targetWithNewPass = { ...resetPassUser, password: newPasswordInput.trim() };
@@ -340,8 +405,16 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     triggerToast(`🔐 Password reset successfully for ${resetPassUser.fullName}!`);
   };
 
-  const handleToggleAccountStatus = (user) => {
+  const handleToggleAccountStatus = async (user) => {
     const newStatus = user.status === 'Active' ? 'Suspended' : 'Active';
+
+    // Attempt backend status toggle first
+    try {
+      await api.toggleUserAccountStatus(user.id, newStatus);
+    } catch (err) {
+      console.warn('[UAC] Backend status toggle failed, saving locally:', err?.message || err);
+    }
+
     const updated = users.map(u => {
       if (u.id === user.id || u.email === user.email) {
         return { ...u, status: newStatus };
@@ -349,12 +422,12 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       return u;
     });
 
-    persistUsers(updated);
+    cacheUsers(updated);
     addAuditLog(newStatus === 'Suspended' ? 'Account Suspended' : 'Account Re-activated', user.email, `Status changed to ${newStatus}.`);
     triggerToast(`Account for ${user.fullName} is now ${newStatus}.`);
   };
 
-  const handleDeleteUser = (user) => {
+  const handleDeleteUser = async (user) => {
     if (user.role === 'admin' && users.filter(u => u.role === 'admin').length <= 1) {
       alert('⚠️ Cannot delete the primary Head Administrator account.');
       return;
@@ -364,8 +437,15 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       return;
     }
 
+    // Attempt backend delete first
+    try {
+      await api.deleteUserAccount(user.id);
+    } catch (err) {
+      console.warn('[UAC] Backend user delete failed, removing locally:', err?.message || err);
+    }
+
     const updated = users.filter(u => u.id !== user.id && u.email !== user.email);
-    persistUsers(updated);
+    cacheUsers(updated);
     addAuditLog('Account Deleted', user.email, `Account permanently revoked.`);
     triggerToast(`🗑️ User account ${user.email} was removed.`);
   };
@@ -402,6 +482,28 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
 
   return (
     <div className="uac-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/* Loading overlay */}
+      {isLoadingUsers && (
+        <div style={{
+          padding: '10px 16px', background: '#eff6ff', border: '1px solid #bfdbfe',
+          color: '#1e40af', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: 13,
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
+          Syncing users from server…
+        </div>
+      )}
+      {/* Backend connectivity warning */}
+      {backendError && !isLoadingUsers && (
+        <div style={{
+          padding: '10px 16px', background: '#fffbeb', border: '1px solid #fcd34d',
+          color: '#92400e', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: 13,
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <AlertTriangle size={14} />
+          {backendError}
+        </div>
+      )}
       {/* Toast Notification */}
       {successToast && (
         <div style={{

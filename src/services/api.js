@@ -630,6 +630,73 @@ export const api = {
     });
   },
 
+  // --- User Access Control (Admin-only user management) ---
+  getUsers: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return await request(`/users${query ? `?${query}` : ''}`);
+  },
+
+  createUserAccount: async (userData) => {
+    // Creates a staff/admin/student account through the admin user management endpoint.
+    // Falls back to /auth/register for non-admin-created roles.
+    const payload = {
+      full_name: (userData.fullName || '').trim(),
+      email: (userData.email || '').trim().toLowerCase(),
+      phone_number: (userData.phone || '').trim(),
+      role: userData.role || 'teacher',
+      password: userData.password,
+      staff_id: userData.staffId || undefined,
+      student_id: userData.studentId || undefined,
+      department: userData.department || 'General',
+      assigned_class: userData.assignedClass || undefined,
+      status: userData.status || 'Active',
+      must_change_password: !!userData.mustChangePassword,
+    };
+    // Try admin endpoint first, fall back to /auth/register
+    try {
+      return await request('/users', { method: 'POST', body: JSON.stringify(payload) });
+    } catch {
+      return await request('/auth/register', { method: 'POST', body: JSON.stringify({
+        email: payload.email,
+        password: payload.password,
+        full_name: payload.full_name,
+        fullName: payload.full_name,
+        phone_number: payload.phone_number,
+        phone: payload.phone_number,
+        role: payload.role,
+        portal: payload.role,
+      }) });
+    }
+  },
+
+  updateUserAccount: async (userId, userData) => {
+    return await request(`/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        full_name: userData.fullName,
+        email: userData.email,
+        phone_number: userData.phone,
+        role: userData.role,
+        status: userData.status,
+        department: userData.department,
+        assigned_class: userData.assignedClass,
+        staff_id: userData.staffId,
+        student_id: userData.studentId,
+      }),
+    });
+  },
+
+  toggleUserAccountStatus: async (userId, newStatus) => {
+    return await request(`/users/${userId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: newStatus }),
+    });
+  },
+
+  deleteUserAccount: async (userId) => {
+    return await request(`/users/${userId}`, { method: 'DELETE' });
+  },
+
   // --- Semester & Exam Registrations ---
   getSemesterRegistrations: async () => {
     return await request('/academic/semester-registrations');
