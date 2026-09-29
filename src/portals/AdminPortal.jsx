@@ -14,7 +14,6 @@ import BulkStudentUpload from '../components/Onboarding/BulkStudentUpload';
 import RegisterForExamsForm from '../components/RegisterForExams/RegisterForExamsForm';
 import AcademicSettingsManager from '../components/Academic/AcademicSettingsManager';
 import ApprovePVForm from '../components/Finance/ApprovePVForm';
-import UserPasswordAuthorizationPanel from '../components/Admin/UserPasswordAuthorizationPanel';
 import { getAuthUser } from '../services/api';
 
 const ADMIN_BG = '#4a1d6e';
@@ -25,7 +24,6 @@ const NAV = [
   { icon: <LayoutDashboard size={15} />, label: 'Dashboard', badge: null },
   { icon: <Settings size={15} />, label: 'Academic Settings', badge: 'Global' },
   { icon: <ShieldAlert size={15} />, label: 'Security & Intrusion Alerts', badge: 'Alerts' },
-  { icon: <ShieldCheck size={15} />, label: 'User Passwords & Authorization', badge: 'Super Admin' },
   { icon: <FileCheck size={15} />, label: 'Pre-Audit & Approve PV', badge: 'Headmaster' },
   { icon: <FileCheck size={15} />, label: 'Register for Exams', badge: 'Exams' },
   { icon: <FileCheck size={15} />, label: 'Transcripts & Results', badge: 'All Classes' },
@@ -1114,13 +1112,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
-
-          {/* ── USER PASSWORDS & AUTHORIZATION VAULT (SYSTEM ADMIN / HEAD ADMIN) ── */}
-          {(activeNav === 'User Passwords & Authorization' || activeNav === 'Student Credentials Vault') && adminRole === 'head_admin' && (
-            <div className="animate-fade-up">
-              <UserPasswordAuthorizationPanel />
             </div>
           )}
 
