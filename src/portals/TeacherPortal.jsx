@@ -68,8 +68,17 @@ export default function TeacherPortal() {
   const onboardedStudents = store?.onboardedStudents || [];
   const teacherDirectory = store?.teacherDirectory || [];
 
+  const authUser = getAuthUser();
+  const isClassTeacher = authUser?.teacherDesignation === 'class_teacher' || authUser?.name?.includes('Class Teacher');
+  const teacherRole = isClassTeacher ? 'class_teacher' : 'subject_teacher';
+  const staffId = isClassTeacher ? (authUser?.staffId || 'CT-2026-001') : (authUser?.staffId || 'STF-2026-003');
+
+  const SUBJECT_RESTRICTED = ['Students', 'Admissions', 'Transport', 'Messages', 'Operations', 'Settings'];
+
   const [activeNav, setActiveNavState] = useState(() => {
-    return localStorage.getItem('says_teacher_active_nav') || 'Dashboard';
+    const saved = localStorage.getItem('says_teacher_active_nav') || 'Dashboard';
+    if (!isClassTeacher && SUBJECT_RESTRICTED.includes(saved)) return 'Dashboard';
+    return saved;
   });
 
   const setActiveNav = (nav) => {
@@ -80,20 +89,25 @@ export default function TeacherPortal() {
   };
 
   useEffect(() => {
+    if (!isClassTeacher && SUBJECT_RESTRICTED.includes(activeNav)) {
+      setActiveNav('Dashboard');
+    }
+  }, [isClassTeacher, activeNav]);
+
+  useEffect(() => {
     const handleNavEvent = (e) => {
       if (e.detail?.portal === 'teacher' && e.detail?.nav) {
-        setActiveNav(e.detail.nav);
+        if (!isClassTeacher && SUBJECT_RESTRICTED.includes(e.detail.nav)) {
+          setActiveNav('Dashboard');
+        } else {
+          setActiveNav(e.detail.nav);
+        }
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     };
     window.addEventListener('says_navigate', handleNavEvent);
     return () => window.removeEventListener('says_navigate', handleNavEvent);
-  }, []);
-
-  const authUser = getAuthUser();
-  const isClassTeacher = authUser?.teacherDesignation === 'class_teacher' || authUser?.name?.includes('Class Teacher');
-  const teacherRole = isClassTeacher ? 'class_teacher' : 'subject_teacher';
-  const staffId = isClassTeacher ? (authUser?.staffId || 'CT-2026-001') : (authUser?.staffId || 'STF-2026-003');
+  }, [isClassTeacher]);
 
   const displayStudents = onboardedStudents.length > 0 ? onboardedStudents.map(s => ({
     name: s.fullName,
@@ -134,7 +148,9 @@ export default function TeacherPortal() {
             </div>
           </div>
           <span className="sidebar-section-label">Navigation</span>
-          {NAV.slice(0, 8).map((item) => (
+          {NAV.slice(0, 9)
+            .filter((item) => isClassTeacher || !['Students', 'Admissions'].includes(item.label))
+            .map((item) => (
             <button key={item.label} className={`sidebar-item${activeNav === item.label ? ' active' : ''}`}
               style={activeNav === item.label ? { background: TEACHER_GREEN } : {}}
               onClick={() => setActiveNav(item.label)}>
@@ -149,37 +165,47 @@ export default function TeacherPortal() {
             <span className="sidebar-item__icon"><Users size={15}/></span>
             Contacts
           </button>
-          <span className="sidebar-section-label">Transport</span>
-          <button className={`sidebar-item${activeNav === 'Transport' ? ' active' : ''}`}
-            style={activeNav === 'Transport' ? { background: TEACHER_GREEN } : {}}
-            onClick={() => setActiveNav('Transport')}>
-            <span className="sidebar-item__icon"><Bus size={15}/></span>
-            Transport
-          </button>
-          <span className="sidebar-section-label">Analytics</span>
-          {NAV.slice(9, 11).map((item) => (
-            <button key={item.label} className={`sidebar-item${activeNav === item.label ? ' active' : ''}`}
-              style={activeNav === item.label ? { background: TEACHER_GREEN } : {}}
-              onClick={() => setActiveNav(item.label)}>
-              <span className="sidebar-item__icon">{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
-          <span className="sidebar-section-label">Campus control</span>
-          <button className={`sidebar-item${activeNav === 'Operations' ? ' active' : ''}`}
-            style={activeNav === 'Operations' ? { background: TEACHER_GREEN } : {}}
-            onClick={() => setActiveNav('Operations')}>
-            <span className="sidebar-item__icon"><ClipboardCheck size={15}/></span>
-            Operations & Governance
-          </button>
-          <span className="sidebar-section-label">System</span>
-          <button className={`sidebar-item${activeNav === 'Settings' ? ' active' : ''}`} style={activeNav === 'Settings' ? { background: TEACHER_GREEN } : {}} onClick={() => setActiveNav('Settings')}><span className="sidebar-item__icon"><Settings size={15}/></span>Settings</button>
+
+          {/* Transport, Messages, Operations & Settings only for Class Teachers */}
+          {isClassTeacher && (
+            <>
+              <span className="sidebar-section-label">Transport</span>
+              <button className={`sidebar-item${activeNav === 'Transport' ? ' active' : ''}`}
+                style={activeNav === 'Transport' ? { background: TEACHER_GREEN } : {}}
+                onClick={() => setActiveNav('Transport')}>
+                <span className="sidebar-item__icon"><Bus size={15}/></span>
+                Transport
+              </button>
+              <span className="sidebar-section-label">Analytics</span>
+              <button className={`sidebar-item${activeNav === 'Messages' ? ' active' : ''}`}
+                style={activeNav === 'Messages' ? { background: TEACHER_GREEN } : {}}
+                onClick={() => setActiveNav('Messages')}>
+                <span className="sidebar-item__icon"><MessageSquare size={15}/></span>
+                Messages
+                <span className="sidebar-item__badge" style={{ background: TEACHER_GREEN, color: '#fff' }}>12</span>
+              </button>
+              <span className="sidebar-section-label">Campus control</span>
+              <button className={`sidebar-item${activeNav === 'Operations' ? ' active' : ''}`}
+                style={activeNav === 'Operations' ? { background: TEACHER_GREEN } : {}}
+                onClick={() => setActiveNav('Operations')}>
+                <span className="sidebar-item__icon"><ClipboardCheck size={15}/></span>
+                Operations & Governance
+              </button>
+              <span className="sidebar-section-label">System</span>
+              <button className={`sidebar-item${activeNav === 'Settings' ? ' active' : ''}`} 
+                style={activeNav === 'Settings' ? { background: TEACHER_GREEN } : {}} 
+                onClick={() => setActiveNav('Settings')}>
+                <span className="sidebar-item__icon"><Settings size={15}/></span>
+                Settings
+              </button>
+            </>
+          )}
         </aside>
 
         {/* Main content */}
         <main className="portal__content">
           {/* ── TRANSPORT VIEW ── */}
-          {activeNav === 'Transport' && (
+          {activeNav === 'Transport' && isClassTeacher && (
             <div className="animate-fade-up">
               <div className="page-header">
                 <p className="page-header__eyebrow" style={{ color: TEACHER_ACCENT }}>
@@ -360,43 +386,20 @@ export default function TeacherPortal() {
               <LecturerGrades />
             </div>
           )}
-          {activeNav === 'Messages' && <TeacherMessages />}
-          {activeNav === 'Students' && (
+          {activeNav === 'Messages' && isClassTeacher && <TeacherMessages />}
+          {activeNav === 'Students' && isClassTeacher && (
             <div className="animate-fade-up">
-              {teacherRole === 'class_teacher' ? (
-                <AttendanceControlTable />
-              ) : (
-                <div style={{
-                  padding: '40px 24px', background: '#fff', borderRadius: 'var(--radius-lg)',
-                  boxShadow: 'var(--shadow-sm)', border: '2px solid #fecaca', textAlign: 'center',
-                  maxWidth: 680, margin: '20px auto'
-                }}>
-                  <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
-                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: '#991b1b', marginBottom: 8 }}>
-                    Attendance Marking Access Restricted
-                  </h2>
-                  <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.6, marginBottom: 16 }}>
-                    According to REMALJ Carewell institutional policy, <strong>only assigned Class Teachers (Form Tutors)</strong> are authorized to record and modify official daily attendance for their designated class section.
-                  </p>
-                  <div style={{ background: '#fef2f2', padding: '14px 18px', borderRadius: 8, border: '1px solid #fca5a5', display: 'inline-block', textAlign: 'left', fontSize: 12, color: '#7f1d1d' }}>
-                    <div><strong>Staff ID:</strong> <code>{staffId}</code></div>
-                    <div><strong>Your Designation Role:</strong> Subject Teacher (Non-Class Teacher)</div>
-                    <div style={{ marginTop: 6, fontWeight: 700, color: '#b91c1c' }}>
-                      To record daily attendance, switch staff role in the sidebar or request authorization from the Class Teacher (Grade 4B Form Master) or Head Administrator.
-                    </div>
-                  </div>
-                </div>
-              )}
+              <AttendanceControlTable />
             </div>
           )}
           {activeNav === 'Exam Registration' && <ExamRegistration />}
-          {activeNav === 'Admissions' && <AdmissionsRegister />}
+          {activeNav === 'Admissions' && isClassTeacher && <AdmissionsRegister />}
           {activeNav === 'Assignments' && <StaffAssignments />}
           {activeNav === 'Academic Calendar' && <StaffCalendar />}
           {activeNav === 'Contacts' && <ContactDirectory />}
           {activeNav === 'Reports' && <TeacherReports />}
-          {activeNav === 'Operations' && <OperationsCentre />}
-          {activeNav === 'Settings' && <PortalSettings portal="teacher" />}
+          {activeNav === 'Operations' && isClassTeacher && <OperationsCentre />}
+          {activeNav === 'Settings' && isClassTeacher && <PortalSettings portal="teacher" />}
 
           {/* ── OTHER VIEWS placeholder ── */}
           {!['Dashboard', 'Transport', 'Score Sheet [Entry]', 'Students', 'Exam Registration', 'Admissions', 'Assignments', 'Schedule', 'Academic Calendar', 'Grades', 'Messages', 'Contacts', 'Reports', 'Operations', 'Settings'].includes(activeNav) && (

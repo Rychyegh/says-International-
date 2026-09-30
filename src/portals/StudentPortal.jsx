@@ -61,13 +61,6 @@ const DEADLINES = [
   { title: 'Eco-Sustainability Project', date: 'Oct 27', time: '02:30 PM', type: 'Presentation', color: '#c89a3a' },
 ];
 
-const QUICK = [
-  { icon: '📚', label: 'e-Library'  },
-  { icon: '💳', label: 'Fees'       },
-  { icon: '📨', label: 'Requests'   },
-  { icon: '💬', label: 'Support'    },
-];
-
 const TIMETABLE = [
   { day: 'Mon', classes: ['Math 8AM', 'English 10AM', 'ICT 2PM'] },
   { day: 'Tue', classes: ['Science 8AM', 'Soc. Studies 11AM'] },
@@ -337,33 +330,6 @@ export default function StudentPortal() {
                         </div>
                       ))}
                       <button style={{ width: '100%', padding: '8px', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 700, color: STUDENT_ACCENT, background: 'none', cursor: 'pointer' }}>View All Deadlines</button>
-                    </div>
-                  </div>
-
-                  {/* REMALJ Carewell school news card */}
-                  <div style={{ background: '#1e4028', borderRadius: 'var(--radius-lg)', padding: '18px', color: '#fff' }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em', color: '#6ee89a', marginBottom: 8 }}>Institutional</div>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, lineHeight: 1.3, marginBottom: 8 }}>Founder's Day Celebration 2024</h3>
-                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,.65)', lineHeight: 1.6, marginBottom: 14 }}>
-                      Join us this Friday as we celebrate the spirit of excellence at REMALJ Carewell Inspirational School. Families and staff are welcome.
-                    </p>
-                    <button style={{ fontSize: 12, color: '#6ee89a', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}>Read Article →</button>
-                  </div>
-
-                  {/* Quick resources */}
-                  <div className="panel">
-                    <div className="panel__header"><h2 className="panel__title">Quick Resources</h2></div>
-                    <div className="panel__body">
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                        {QUICK.map((q) => (
-                          <button key={q.label} style={{ padding: '16px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-200)', background: 'var(--gray-50)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, transition: 'all 150ms' }}
-                            onMouseEnter={e => { e.currentTarget.style.borderColor = STUDENT_BG; e.currentTarget.style.background = STUDENT_LIGHT; }}
-                            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--gray-200)'; e.currentTarget.style.background = 'var(--gray-50)'; }}>
-                            <span style={{ fontSize: 22 }}>{q.icon}</span>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-700)' }}>{q.label}</span>
-                          </button>
-                        ))}
-                      </div>
                     </div>
                   </div>
                 </div>
