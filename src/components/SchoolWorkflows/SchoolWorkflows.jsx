@@ -46,10 +46,65 @@ export function StudentMessagesAssignments() {
   return <div className="workflow animate-fade-up"><div className="page-header"><h1 className="page-header__title">Assignments & messages</h1><p className="page-header__subtitle">Published work from lecturers and a direct, logged connection to staff.</p></div><div className="workflow-grid"><section className="panel"><div className="panel__header"><h2 className="panel__title">My published assignments</h2></div><div className="workflow-list">{assignments.filter((a) => /SH2/.test(a.audience)).map((a) => <article key={a.id}><strong>{a.title}</strong><span>{a.audience} · Due {date(a.due)}</span><p>{a.instructions}</p><small>{a.author}</small></article>)}</div></section><section className="panel workflow-form"><div className="panel__header"><h2 className="panel__title"><MessageSquare size={16}/> Message staff</h2></div><form className="panel__body" onSubmit={submit}><label>Message to Mr. Samuel Amponsah<textarea rows="5" required value={body} onChange={(e) => setBody(e.target.value)} placeholder="Ask your lecturer or share an update…"/></label><button className="workflow-button" type="submit"><Send size={15}/> Send to staff</button>{notice && <p className="workflow-success"><CheckCircle2 size={15}/>{notice}</p>}</form><div className="workflow-list">{staffMessages.map((m) => <article key={m.id}><strong>{m.subject}</strong><span>{m.from} · {m.sentAt}</span><p>{m.body}</p></article>)}</div></section></div></div>;
 }
 
-export function PortalSettings({ portal }) {
-  const { profiles, theme, updateProfile, setTheme } = usePortalData(); const profile = profiles[portal]; const [name, setName] = useState(profile.name); const [photo, setPhoto] = useState(profile.photo); const [notice, setNotice] = useState('');
-  const submit = (e) => { e.preventDefault(); updateProfile(portal, { name, photo }); setNotice('Profile saved on this device.'); };
-  return <div className="workflow animate-fade-up"><div className="page-header"><h1 className="page-header__title">Settings</h1><p className="page-header__subtitle">Manage your profile details and preferred interface appearance.</p></div><div className="workflow-grid"><form className="panel workflow-form" onSubmit={submit}><div className="panel__header"><h2 className="panel__title"><UserRound size={16}/> Profile</h2></div><div className="panel__body"><div className="profile-preview">{photo ? <img src={photo} alt="Profile preview"/> : <span>{name.charAt(0)}</span>}</div><label>Display name<input value={name} onChange={(e) => setName(e.target.value)} required/></label><label>Profile image<input type="file" accept="image/*" onChange={(e) => { const file=e.target.files?.[0]; if (!file) return; const reader=new FileReader(); reader.onload=()=>setPhoto(reader.result); reader.readAsDataURL(file); }}/></label><button className="workflow-button" type="submit">Save profile</button>{notice && <p className="workflow-success"><CheckCircle2 size={15}/>{notice}</p>}</div></form><section className="panel"><div className="panel__header"><h2 className="panel__title"><Settings size={16}/> Appearance</h2></div><div className="panel__body theme-options"><p>Choose the display mode used across all portals on this device.</p><button onClick={() => setTheme('light')} className={theme === 'light' ? 'theme-choice active' : 'theme-choice'}>☀ Light mode</button><button onClick={() => setTheme('dark')} className={theme === 'dark' ? 'theme-choice active' : 'theme-choice'}>◐ Dark mode</button></div></section></div></div>;
+export function PortalSettings({ portal = 'admin' }) {
+  const { profiles = {}, theme, updateProfile, setTheme } = usePortalData();
+  const profile = (profiles && profiles[portal]) || (profiles && profiles.admin) || { name: 'Administrator', photo: '' };
+  const [name, setName] = useState(profile?.name || 'Administrator');
+  const [photo, setPhoto] = useState(profile?.photo || '');
+  const [notice, setNotice] = useState('');
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (updateProfile) updateProfile(portal, { name, photo });
+    setNotice('Profile saved on this device.');
+  };
+
+  return (
+    <div className="workflow animate-fade-up">
+      <div className="page-header">
+        <h1 className="page-header__title">Settings</h1>
+        <p className="page-header__subtitle">Manage your profile details and preferred interface appearance.</p>
+      </div>
+      <div className="workflow-grid">
+        <form className="panel workflow-form" onSubmit={submit}>
+          <div className="panel__header">
+            <h2 className="panel__title"><UserRound size={16}/> Profile</h2>
+          </div>
+          <div className="panel__body">
+            <div className="profile-preview">
+              {photo ? <img src={photo} alt="Profile preview"/> : <span>{(name || 'A').charAt(0)}</span>}
+            </div>
+            <label>
+              Display name
+              <input value={name} onChange={(e) => setName(e.target.value)} required/>
+            </label>
+            <label>
+              Profile image
+              <input type="file" accept="image/*" onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => setPhoto(reader.result);
+                reader.readAsDataURL(file);
+              }}/>
+            </label>
+            <button className="workflow-button" type="submit">Save profile</button>
+            {notice && <p className="workflow-success"><CheckCircle2 size={15}/>{notice}</p>}
+          </div>
+        </form>
+        <section className="panel">
+          <div className="panel__header">
+            <h2 className="panel__title"><Settings size={16}/> Appearance</h2>
+          </div>
+          <div className="panel__body theme-options">
+            <p>Choose the display mode used across all portals on this device.</p>
+            <button onClick={() => setTheme('light')} className={theme === 'light' ? 'theme-choice active' : 'theme-choice'}>☀ Light mode</button>
+            <button onClick={() => setTheme('dark')} className={theme === 'dark' ? 'theme-choice active' : 'theme-choice'}>◐ Dark mode</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
 }
 
 function CalendarList({ items }) { return <div className="calendar-list">{items.map((item) => <div key={item.id}><span className="calendar-type">{item.type}</span><strong>{item.title}</strong><small>{date(item.start)}{item.end && item.end !== item.start ? ` - ${date(item.end)}` : ''}</small></div>)}</div>; }
