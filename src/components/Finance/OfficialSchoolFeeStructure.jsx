@@ -62,6 +62,19 @@ export const GRADE_LEVEL_CATEGORIES = [
   }
 ];
 
+export const SINGLE_STUDENT_BASIC_SUBLEVELS = [
+  { id: 'Basic 1', label: 'Basic 1', code: 'B1', stationery: 1365.00, ucmas: 295.00 },
+  { id: 'Basic 2', label: 'Basic 2', code: 'B2', stationery: 1115.00, ucmas: 295.00 },
+  { id: 'Basic 3', label: 'Basic 3', code: 'B3', stationery: 1115.00, ucmas: 295.00 },
+  { id: 'Basic 4', label: 'Basic 4', code: 'B4', stationery: 1040.00, scienceSet: 190.00, ucmas: 295.00 },
+  { id: 'Basic 5', label: 'Basic 5', code: 'B5', stationery: 1040.00, scienceSet: 190.00, ucmas: 295.00 },
+  { id: 'Basic 6', label: 'Basic 6', code: 'B6', stationery: 1040.00, scienceSet: 190.00, ucmas: 295.00 },
+  { id: 'Basic 7', label: 'Basic 7', code: 'B7', stationery: 2090.00 },
+  { id: 'Basic 8', label: 'Basic 8', code: 'B8', stationery: 2090.00 },
+  { id: 'Basic 9', label: 'Basic 9', code: 'B9', stationery: 2090.00 },
+];
+
+
 const makeBaseBill = (tuition, admission = 1000.00) => [
   { details: 'ADMISSION FEE', amount: admission },
   { details: 'TUITION FEE', amount: tuition },
@@ -128,7 +141,7 @@ const INITIAL_FEE_SCHEDULE = {
     isBaby: false,
   },
 
-  // --- BASIC SCHOOL SUB-LEVELS (BASIC 1A TO 9B) ---
+  // --- BASIC SCHOOL SUB-LEVELS (BASIC 1 TO 9 & A/B) ---
   'Basic 1': {
     levelCategory: 'basic_school',
     subLevelName: 'Basic 1',
@@ -138,6 +151,79 @@ const INITIAL_FEE_SCHEDULE = {
     ucmas: 295.00,
     isBaby: false,
   },
+  'Basic 2': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Basic 2',
+    baseBill: makeBaseBill(1350.00),
+    optionalBills: makeOptionalBills(1115.00, 'Basic 2'),
+    stationery: 1115.00,
+    ucmas: 295.00,
+    isBaby: false,
+  },
+  'Basic 3': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Basic 3',
+    baseBill: makeBaseBill(1350.00),
+    optionalBills: makeOptionalBills(1115.00, 'Basic 3'),
+    stationery: 1115.00,
+    ucmas: 295.00,
+    isBaby: false,
+  },
+  'Basic 4': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Basic 4',
+    baseBill: makeBaseBill(1450.00),
+    optionalBills: makeOptionalBills(1040.00, 'Basic 4'),
+    stationery: 1040.00,
+    scienceSet: 190.00,
+    ucmas: 295.00,
+    isBaby: false,
+  },
+  'Basic 5': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Basic 5',
+    baseBill: makeBaseBill(1450.00),
+    optionalBills: makeOptionalBills(1040.00, 'Basic 5'),
+    stationery: 1040.00,
+    scienceSet: 190.00,
+    ucmas: 295.00,
+    isBaby: false,
+  },
+  'Basic 6': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Basic 6',
+    baseBill: makeBaseBill(1450.00),
+    optionalBills: makeOptionalBills(1040.00, 'Basic 6'),
+    stationery: 1040.00,
+    scienceSet: 190.00,
+    ucmas: 295.00,
+    isBaby: false,
+  },
+  'Basic 7': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Basic 7',
+    baseBill: makeBaseBill(1800.00),
+    optionalBills: makeOptionalBills(2090.00, 'Basic 7'),
+    stationery: 2090.00,
+    isBaby: false,
+  },
+  'Basic 8': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Basic 8',
+    baseBill: makeBaseBill(1800.00),
+    optionalBills: makeOptionalBills(2090.00, 'Basic 8'),
+    stationery: 2090.00,
+    isBaby: false,
+  },
+  'Basic 9': {
+    levelCategory: 'basic_school',
+    subLevelName: 'Basic 9',
+    baseBill: makeBaseBill(1800.00),
+    optionalBills: makeOptionalBills(2090.00, 'Basic 9'),
+    stationery: 2090.00,
+    isBaby: false,
+  },
+
   'Basic 1A': {
     levelCategory: 'basic_school',
     subLevelName: 'Basic 1A',
@@ -476,7 +562,27 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
       console.error('Failed to save fee schedule to localStorage:', e);
     }
   }, [feeSchedule]);
-  const [stationerySchedule, setStationerySchedule] = useState(INITIAL_STATIONERY_SCHEDULE);
+  const [stationerySchedule, setStationerySchedule] = useState(() => {
+    try {
+      const saved = localStorage.getItem('master_stationery_schedule');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load stationery schedule from localStorage:', e);
+    }
+    return INITIAL_STATIONERY_SCHEDULE;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('master_stationery_schedule', JSON.stringify(stationerySchedule));
+    } catch (e) {
+      console.error('Failed to save stationery schedule to localStorage:', e);
+    }
+  }, [stationerySchedule]);
+
   const [stationeryFilter, setStationeryFilter] = useState('all'); // 'all' | 'nursery_creche' | 'kindergarten' | 'basic_school'
   const [editingStationeryClass, setEditingStationeryClass] = useState(null);
   const [savedStationeryNotice, setSavedStationeryNotice] = useState('');
@@ -543,11 +649,29 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
   // Active Category & SubLevels
   const activeCategoryObj = GRADE_LEVEL_CATEGORIES.find(c => c.id === selectedGradeCategory) || GRADE_LEVEL_CATEGORIES[0];
-  const activeSubLevels = activeCategoryObj.subLevels;
+  const activeSubLevels = useMemo(() => {
+    if (activeBillingView === 'single_student' && selectedGradeCategory === 'basic_school') {
+      return SINGLE_STUDENT_BASIC_SUBLEVELS;
+    }
+    return activeCategoryObj.subLevels;
+  }, [activeBillingView, selectedGradeCategory, activeCategoryObj]);
 
   // Active Class Data Lookup
   const selectedClassKey = selectedSubLevel || activeSubLevels[0]?.id || 'Creche';
-  const activeClassData = feeSchedule[selectedClassKey] || feeSchedule[selectedClassKey.replace(/[AB]$/, '')] || feeSchedule['Creche'] || { baseBill: [], optionalBills: [] };
+  const baseClassKey = (selectedClassKey || '').replace(/\s*[AB]$/i, '');
+  const activeSubLevelDisplay = (activeBillingView === 'single_student' && selectedGradeCategory === 'basic_school')
+    ? baseClassKey || 'Basic 1'
+    : selectedClassKey;
+
+  const activeClassData = feeSchedule[selectedClassKey] 
+    || feeSchedule[baseClassKey] 
+    || feeSchedule[`${baseClassKey}A`] 
+    || feeSchedule[baseClassKey.replace(/Basic\s*/i, 'Grade ')]
+    || INITIAL_FEE_SCHEDULE[selectedClassKey]
+    || INITIAL_FEE_SCHEDULE[baseClassKey]
+    || feeSchedule['Creche'] 
+    || { baseBill: [], optionalBills: [] };
+
   
   // Filter students to strictly match the selected class level (Requirement 1)
   const studentsForSelectedClass = (onboardedStudents || []).filter(student => {
@@ -626,6 +750,26 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
       return name.includes(q) || id.includes(q) || sec.includes(q);
     });
   }, [studentsForSelectedClass, classStudentSearch]);
+
+  // Single Bill Student options: strictly filtered to selected class
+  const singleBillStudents = useMemo(() => {
+    const list = [...(studentsForSelectedClass || [])];
+    if (preparingStudentBill && !list.some(s => (s.id && s.id === preparingStudentBill.id) || (s.studentId && s.studentId === preparingStudentBill.studentId))) {
+      list.unshift(preparingStudentBill);
+    }
+    return list;
+  }, [studentsForSelectedClass, preparingStudentBill]);
+
+  // Sync sub-level format when switching between billing views
+  useEffect(() => {
+    if (selectedGradeCategory === 'basic_school') {
+      if (activeBillingView === 'single_student') {
+        if (/Basic\s*[1-9][AB]$/i.test(selectedSubLevel)) {
+          setSelectedSubLevel(prev => prev.replace(/\s*[AB]$/i, ''));
+        }
+      }
+    }
+  }, [activeBillingView, selectedGradeCategory, selectedSubLevel]);
 
   const handleRemoveStudentFromClassBill = (studentId) => {
     setExcludedStudentIds(prev => prev.includes(studentId) ? prev : [...prev, studentId]);
@@ -735,7 +879,36 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
   };
 
   const baseBillItems = activeClassData.baseBill || [];
-  const optionalBillItems = activeClassData.optionalBills || [];
+  const optionalBillItems = useMemo(() => {
+    const raw = activeClassData.optionalBills || [];
+    // Match current class in stationerySchedule
+    const matchedStationery = stationerySchedule.find(s => {
+      if (s.classLevel === selectedSubLevel || s.label === selectedSubLevel) return true;
+      const numMatch = (selectedSubLevel || '').match(/(?:Basic|Grade)\s*([1-9])/i);
+      const sMatch = (s.classLevel || '').match(/(?:Basic|Grade)\s*([1-9])/i);
+      if (numMatch && sMatch && numMatch[1] === sMatch[1]) return true;
+      if ((selectedSubLevel || '').toLowerCase().includes('kindergarten 1') && s.classLevel.toLowerCase().includes('kindergarten 1')) return true;
+      if ((selectedSubLevel || '').toLowerCase().includes('kindergarten 2') && s.classLevel.toLowerCase().includes('kindergarten 2')) return true;
+      if ((selectedSubLevel || '').toLowerCase().includes('creche') && s.classLevel.toLowerCase().includes('creche')) return true;
+      if ((selectedSubLevel || '').toLowerCase().includes('nursery 1') && s.classLevel.toLowerCase().includes('nursery 1')) return true;
+      if ((selectedSubLevel || '').toLowerCase().includes('nursery 2') && s.classLevel.toLowerCase().includes('nursery 2')) return true;
+      return false;
+    });
+
+    return raw.map(opt => {
+      if (opt.id === 'opt_stationery' && matchedStationery) {
+        const countStr = matchedStationery.itemsCount ? ` (${matchedStationery.itemsCount} items)` : '';
+        return {
+          ...opt,
+          amount: typeof matchedStationery.amount === 'number' ? matchedStationery.amount : opt.amount,
+          description: matchedStationery.notes ? `${matchedStationery.notes}${countStr}` : opt.description,
+          notes: matchedStationery.notes,
+          itemsCount: matchedStationery.itemsCount
+        };
+      }
+      return opt;
+    });
+  }, [activeClassData, selectedSubLevel, stationerySchedule]);
 
   const totalBase = baseBillItems.reduce((acc, item) => acc + Number(item.amount || 0), 0);
   const totalOptionalActive = optionalBillItems.filter(o => o.enabled).reduce((acc, item) => acc + Number(item.amount || 0), 0);
@@ -743,9 +916,16 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
   // Handle Category Change (Auto-selects first sub-level in category)
   const handleCategoryChange = (categoryId) => {
     setSelectedGradeCategory(categoryId);
-    const cat = GRADE_LEVEL_CATEGORIES.find(c => c.id === categoryId);
-    if (cat && cat.subLevels.length > 0) {
-      setSelectedSubLevel(cat.subLevels[0].id);
+    if (activeBillingView === 'single_student' && categoryId === 'basic_school') {
+      setSelectedSubLevel('Basic 1');
+    } else {
+      const cat = GRADE_LEVEL_CATEGORIES.find(c => c.id === categoryId);
+      if (cat && cat.subLevels.length > 0) {
+        setSelectedSubLevel(cat.subLevels[0].id);
+      }
+    }
+    if (preparingStudentBill) {
+      setPreparingStudentBill(null);
     }
   };
 
@@ -757,7 +937,8 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     }
     setPreparingStudentBill(student);
 
-    const sLevel = (student.level || '').toLowerCase();
+    const sLevel = (student.level || student.classLevel || '').toLowerCase();
+    const isSingle = activeBillingView === 'single_student';
     
     // Auto match category and sub-level
     if (sLevel.includes('creche')) {
@@ -775,72 +956,135 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     } else if (sLevel.includes('kg') || sLevel.includes('kindergarten')) {
       setSelectedGradeCategory('kindergarten');
       setSelectedSubLevel('Kindergarten 1');
-    } else if (sLevel.includes('grade 1') || sLevel.includes('basic 1') || sLevel.includes('primary 1')) {
+    } else if (sLevel.includes('grade 1') || sLevel.includes('basic 1') || sLevel.includes('primary 1') || sLevel.includes('b1')) {
       setSelectedGradeCategory('basic_school');
-      setSelectedSubLevel('Grade 1');
-    } else if (sLevel.includes('grade 2') || sLevel.includes('basic 2') || sLevel.includes('primary 2')) {
+      setSelectedSubLevel(isSingle ? 'Basic 1' : (sLevel.includes('1b') ? 'Basic 1B' : 'Basic 1A'));
+    } else if (sLevel.includes('grade 2') || sLevel.includes('basic 2') || sLevel.includes('primary 2') || sLevel.includes('b2')) {
       setSelectedGradeCategory('basic_school');
-      setSelectedSubLevel('Grade 2');
-    } else if (sLevel.includes('grade 3') || sLevel.includes('basic 3') || sLevel.includes('primary 3')) {
+      setSelectedSubLevel(isSingle ? 'Basic 2' : (sLevel.includes('2b') ? 'Basic 2B' : 'Basic 2A'));
+    } else if (sLevel.includes('grade 3') || sLevel.includes('basic 3') || sLevel.includes('primary 3') || sLevel.includes('b3')) {
       setSelectedGradeCategory('basic_school');
-      setSelectedSubLevel('Grade 3');
-    } else if (sLevel.includes('grade 4') || sLevel.includes('basic 4') || sLevel.includes('primary 4')) {
+      setSelectedSubLevel(isSingle ? 'Basic 3' : (sLevel.includes('3b') ? 'Basic 3B' : 'Basic 3A'));
+    } else if (sLevel.includes('grade 4') || sLevel.includes('basic 4') || sLevel.includes('primary 4') || sLevel.includes('b4')) {
       setSelectedGradeCategory('basic_school');
-      setSelectedSubLevel('Grade 4');
-    } else if (sLevel.includes('grade 5') || sLevel.includes('basic 5') || sLevel.includes('primary 5')) {
+      setSelectedSubLevel(isSingle ? 'Basic 4' : (sLevel.includes('4b') ? 'Basic 4B' : 'Basic 4A'));
+    } else if (sLevel.includes('grade 5') || sLevel.includes('basic 5') || sLevel.includes('primary 5') || sLevel.includes('b5')) {
       setSelectedGradeCategory('basic_school');
-      setSelectedSubLevel('Grade 5');
-    } else if (sLevel.includes('grade 6') || sLevel.includes('basic 6') || sLevel.includes('primary 6')) {
+      setSelectedSubLevel(isSingle ? 'Basic 5' : (sLevel.includes('5b') ? 'Basic 5B' : 'Basic 5A'));
+    } else if (sLevel.includes('grade 6') || sLevel.includes('basic 6') || sLevel.includes('primary 6') || sLevel.includes('b6')) {
       setSelectedGradeCategory('basic_school');
-      setSelectedSubLevel('Grade 6');
-    } else if (sLevel.includes('grade 7') || sLevel.includes('jhs 1')) {
+      setSelectedSubLevel(isSingle ? 'Basic 6' : (sLevel.includes('6b') ? 'Basic 6B' : 'Basic 6A'));
+    } else if (sLevel.includes('grade 7') || sLevel.includes('jhs 1') || sLevel.includes('basic 7') || sLevel.includes('b7')) {
       setSelectedGradeCategory('basic_school');
-      setSelectedSubLevel('Grade 7');
-    } else if (sLevel.includes('grade 8') || sLevel.includes('jhs 2')) {
+      setSelectedSubLevel(isSingle ? 'Basic 7' : (sLevel.includes('7b') ? 'Basic 7B' : 'Basic 7A'));
+    } else if (sLevel.includes('grade 8') || sLevel.includes('jhs 2') || sLevel.includes('basic 8') || sLevel.includes('b8')) {
       setSelectedGradeCategory('basic_school');
-      setSelectedSubLevel('Grade 8');
-    } else if (sLevel.includes('grade 9') || sLevel.includes('jhs 3')) {
+      setSelectedSubLevel(isSingle ? 'Basic 8' : (sLevel.includes('8b') ? 'Basic 8B' : 'Basic 8A'));
+    } else if (sLevel.includes('grade 9') || sLevel.includes('jhs 3') || sLevel.includes('basic 9') || sLevel.includes('b9')) {
       setSelectedGradeCategory('basic_school');
-      setSelectedSubLevel('Grade 9');
+      setSelectedSubLevel(isSingle ? 'Basic 9' : (sLevel.includes('9b') ? 'Basic 9B' : 'Basic 9A'));
     }
 
     setSelectedStudentOptionalIds(optionalBillItems.filter(o => o.enabled).map(o => o.id));
   };
 
-  // Handle Edit Master Stationery Fee per Class
-  const handleUpdateStationeryFee = (targetClassLevel, newAmount) => {
-    const val = parseFloat(newAmount);
-    if (isNaN(val) || val < 0) return;
-
+  // Handle Edit Master Stationery Schedule fields (Fee, Items Count, Breakdown Notes)
+  const handleUpdateStationeryField = (targetClassLevel, field, value) => {
     // 1. Update stationerySchedule state
     setStationerySchedule((prev) =>
-      prev.map((item) =>
-        item.classLevel === targetClassLevel ? { ...item, amount: val } : item
-      )
+      prev.map((item) => {
+        if (item.classLevel === targetClassLevel) {
+          if (field === 'amount') {
+            const val = parseFloat(value);
+            return { ...item, amount: isNaN(val) ? 0 : val };
+          }
+          if (field === 'itemsCount') {
+            const val = parseInt(value, 10);
+            return { ...item, itemsCount: isNaN(val) ? 0 : val };
+          }
+          if (field === 'notes') {
+            return { ...item, notes: value };
+          }
+        }
+        return item;
+      })
     );
 
-    // 2. Synchronize with feeSchedule for that sub-level
+    // 2. Identify all corresponding class keys in feeSchedule
+    const matchingKeys = [targetClassLevel];
+    const gradeMatch = targetClassLevel.match(/(?:Grade|Basic)\s*([1-9])/i);
+    if (gradeMatch) {
+      const num = gradeMatch[1];
+      matchingKeys.push(`Basic ${num}`, `Basic ${num}A`, `Basic ${num}B`, `Grade ${num}`);
+      if (num === '7') matchingKeys.push('Grade 7 (JHS 1)', 'JHS 1');
+      if (num === '8') matchingKeys.push('Grade 8 (JHS 2)', 'JHS 2');
+      if (num === '9') matchingKeys.push('Grade 9 (JHS 3)', 'JHS 3');
+    }
+    if (targetClassLevel.toLowerCase().includes('kindergarten 1')) {
+      matchingKeys.push('Kindergarten 1', 'Kindergarten 1 (KG 1)', 'KG 1');
+    }
+    if (targetClassLevel.toLowerCase().includes('kindergarten 2')) {
+      matchingKeys.push('Kindergarten 2', 'Kindergarten 2 (KG 2)', 'KG 2');
+    }
+    if (targetClassLevel.toLowerCase().includes('creche')) {
+      matchingKeys.push('Creche', 'Creche / Nursery 1');
+    }
+    if (targetClassLevel.toLowerCase().includes('nursery 1')) {
+      matchingKeys.push('Nursery 1', 'Creche / Nursery 1');
+    }
+    if (targetClassLevel.toLowerCase().includes('nursery 2')) {
+      matchingKeys.push('Nursery 2');
+    }
+
+    // 3. Synchronize with feeSchedule for those class keys
     setFeeSchedule((prev) => {
-      const classData = prev[targetClassLevel];
-      if (!classData) return prev;
+      let updatedPrev = { ...prev };
+      matchingKeys.forEach((key) => {
+        const classData = updatedPrev[key];
+        if (classData) {
+          const updatedClassData = { ...classData };
+          if (field === 'amount') {
+            const val = parseFloat(value);
+            updatedClassData.stationery = isNaN(val) ? 0 : val;
+          } else if (field === 'itemsCount') {
+            updatedClassData.stationeryItemsCount = parseInt(value, 10) || 0;
+          } else if (field === 'notes') {
+            updatedClassData.stationeryNotes = value;
+          }
 
-      const updatedClassData = { ...classData, stationery: val };
-      
-      // Also update opt_stationery in optionalBills
-      if (updatedClassData.optionalBills) {
-        updatedClassData.optionalBills = updatedClassData.optionalBills.map((opt) =>
-          opt.id === 'opt_stationery' ? { ...opt, amount: val } : opt
-        );
-      }
+          // Also update opt_stationery in optionalBills
+          if (updatedClassData.optionalBills) {
+            updatedClassData.optionalBills = updatedClassData.optionalBills.map((opt) => {
+              if (opt.id === 'opt_stationery') {
+                const newOpt = { ...opt };
+                if (field === 'amount') {
+                  const val = parseFloat(value);
+                  newOpt.amount = isNaN(val) ? 0 : val;
+                } else if (field === 'notes') {
+                  newOpt.description = value;
+                  newOpt.notes = value;
+                } else if (field === 'itemsCount') {
+                  newOpt.itemsCount = parseInt(value, 10) || 0;
+                }
+                return newOpt;
+              }
+              return opt;
+            });
+          }
 
-      return {
-        ...prev,
-        [targetClassLevel]: updatedClassData
-      };
+          updatedPrev[key] = updatedClassData;
+        }
+      });
+      return updatedPrev;
     });
 
-    setSavedStationeryNotice(`✅ Updated Stationery Fee for ${targetClassLevel} to GHS ${val.toFixed(2)}`);
-    setTimeout(() => setSavedStationeryNotice(''), 3500);
+    const fieldLabel = field === 'amount' ? 'Fee' : field === 'itemsCount' ? 'Items Count' : 'Package Breakdown';
+    setSavedStationeryNotice(`✅ Updated ${fieldLabel} for ${targetClassLevel}`);
+    setTimeout(() => setSavedStationeryNotice(''), 3000);
+  };
+
+  const handleUpdateStationeryFee = (targetClassLevel, newAmount) => {
+    handleUpdateStationeryField(targetClassLevel, 'amount', newAmount);
   };
 
   // Toggle Optional Bill in Schedule
@@ -1331,18 +1575,18 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
             <select
               style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #0284c7', fontSize: 12.5, fontWeight: 800, color: '#0f3a4b', background: '#fff', cursor: 'pointer' }}
               onChange={(e) => {
-                const found = studentsForSelectedClass.find(s => s.id === e.target.value);
+                const found = singleBillStudents.find(s => (s.id === e.target.value || s.studentId === e.target.value));
                 handleSelectStudentForBill(found);
               }}
-              value={preparingStudentBill?.id || ''}
+              value={preparingStudentBill?.id || preparingStudentBill?.studentId || ''}
             >
               <option value="">
                 {studentsForSelectedClass.length > 0
-                  ? `-- Choose Enrolled Student in ${selectedSubLevel} (${studentsForSelectedClass.length}) --`
-                  : `-- No Students Enrolled in ${selectedSubLevel} (0) --`}
+                  ? `-- Choose Enrolled Student in ${activeSubLevelDisplay} (${studentsForSelectedClass.length}) --`
+                  : `-- No Students Enrolled in ${activeSubLevelDisplay} (0) --`}
               </option>
-              {studentsForSelectedClass.map((s) => (
-                <option key={s.id} value={s.id}>
+              {singleBillStudents.map((s) => (
+                <option key={s.id || s.studentId} value={s.id || s.studentId}>
                   {getStudentFullName(s)} ({s.studentId} · {s.level})
                 </option>
               ))}
@@ -1366,12 +1610,21 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1 }}>
             {activeSubLevels.map((sub) => {
-              const isSubActive = selectedSubLevel === sub.id;
+              const isSubActive = selectedSubLevel === sub.id || (activeBillingView === 'single_student' && selectedSubLevel.replace(/\s*[AB]$/i, '') === sub.id);
               return (
                 <button
                   key={sub.id}
                   type="button"
-                  onClick={() => setSelectedSubLevel(sub.id)}
+                  onClick={() => {
+                    setSelectedSubLevel(sub.id);
+                    if (activeBillingView === 'single_student' && preparingStudentBill) {
+                      const sLevel = (preparingStudentBill.level || preparingStudentBill.classLevel || '').toLowerCase().replace(/\s+/g, '');
+                      const targetClean = sub.id.toLowerCase().replace(/\s+/g, '');
+                      if (!sLevel.includes(targetClean)) {
+                        setPreparingStudentBill(null);
+                      }
+                    }
+                  }}
                   style={{
                     padding: '6px 14px',
                     borderRadius: 6,
@@ -1392,7 +1645,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
           </div>
 
           <div style={{ fontSize: 12, fontWeight: 800, color: '#0369a1', background: '#ffffff', padding: '4px 10px', borderRadius: 6, border: '1px solid #bae6fd' }}>
-            Active: <strong>{selectedSubLevel}</strong>
+            Active: <strong>{activeSubLevelDisplay}</strong>
           </div>
         </div>
       </div>
@@ -1407,7 +1660,12 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
       }}>
         <button
           type="button"
-          onClick={() => setActiveBillingView('entire_class')}
+          onClick={() => {
+            setActiveBillingView('entire_class');
+            if (selectedGradeCategory === 'basic_school' && /^Basic\s*[1-9]$/i.test(selectedSubLevel)) {
+              setSelectedSubLevel(prev => `${prev}A`);
+            }
+          }}
           style={{
             flex: '1 1 240px',
             padding: '12px 18px',
@@ -1432,7 +1690,12 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
         <button
           type="button"
-          onClick={() => setActiveBillingView('single_student')}
+          onClick={() => {
+            setActiveBillingView('single_student');
+            if (selectedGradeCategory === 'basic_school' && /Basic\s*[1-9][AB]$/i.test(selectedSubLevel)) {
+              setSelectedSubLevel(prev => prev.replace(/\s*[AB]$/i, ''));
+            }
+          }}
           style={{
             flex: '1 1 240px',
             padding: '12px 18px',
@@ -1878,16 +2141,21 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <select
+                id="single-bill-student-dropdown"
                 style={{ padding: '8px 12px', borderRadius: 8, border: '1.5px solid #16a34a', fontSize: 13, fontWeight: 800, color: '#14532d', background: '#fff', cursor: 'pointer', minWidth: 260 }}
-                value={preparingStudentBill?.id || ''}
+                value={preparingStudentBill?.id || preparingStudentBill?.studentId || ''}
                 onChange={(e) => {
-                  const s = (onboardedStudents || []).find(stu => stu.id === e.target.value);
+                  const s = singleBillStudents.find(stu => (stu.id === e.target.value || stu.studentId === e.target.value));
                   handleSelectStudentForBill(s);
                 }}
               >
-                <option value="">-- Choose Student to Bill ({onboardedStudents.length} Available) --</option>
-                {onboardedStudents.map((s) => (
-                  <option key={s.id} value={s.id}>
+                <option value="">
+                  {studentsForSelectedClass.length > 0
+                    ? `-- Choose Student to Bill in ${activeSubLevelDisplay} (${studentsForSelectedClass.length} Available) --`
+                    : `-- No Students Enrolled in ${activeSubLevelDisplay} (0) --`}
+                </option>
+                {singleBillStudents.map((s) => (
+                  <option key={s.id || s.studentId} value={s.id || s.studentId}>
                     {getStudentFullName(s)} ({s.studentId} · {s.level})
                   </option>
                 ))}
@@ -2108,7 +2376,10 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                       <tbody>
                         {optionalBillItems.filter(o => selectedStudentOptionalIds.includes(o.id)).map((opt) => (
                           <tr key={opt.id} style={{ borderBottom: '1px solid #f0f9ff' }}>
-                            <td style={{ padding: '7px 12px', fontWeight: 600, color: '#0369a1' }}>{opt.icon} {opt.details}</td>
+                            <td style={{ padding: '7px 12px', fontWeight: 600, color: '#0369a1' }}>
+                              <div>{opt.icon} {opt.details}</div>
+                              {opt.description && <div style={{ fontSize: 11, color: '#64748b', fontWeight: 500, marginTop: 2 }}>{opt.description}</div>}
+                            </td>
                             <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700 }}>{Number(opt.amount || 0).toFixed(2)}</td>
                           </tr>
                         ))}
@@ -2170,7 +2441,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                 No Student Selected for Individual Bill
               </h3>
               <p style={{ fontSize: 13, color: '#64748b', maxWidth: 460, margin: '0 auto 20px auto' }}>
-                Please select a candidate from the dropdown above, or click on any of the enrolled students in <strong>{selectedSubLevel}</strong> below to prepare their individual bill.
+                Please select a candidate from the dropdown above, or click on any of the enrolled students in <strong>{activeSubLevelDisplay}</strong> below to prepare their individual bill.
               </p>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, maxWidth: 900, margin: '0 auto', textAlign: 'left' }}>
@@ -2201,6 +2472,11 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                     </div>
                   </div>
                 ))}
+                {studentsForSelectedClass.length === 0 && (
+                  <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, fontWeight: 700, gridColumn: '1 / -1', padding: '24px 0' }}>
+                    No students currently enrolled in {activeSubLevelDisplay}.
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2534,23 +2810,61 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                         )}
                       </div>
                     </td>
-                    <td style={{ fontSize: 12, color: '#475569' }}>
-                      {s.notes}
+                    <td style={{ fontSize: 12, color: '#475569', minWidth: 280 }}>
+                      <textarea
+                        rows={2}
+                        value={s.notes || ''}
+                        onChange={(e) => handleUpdateStationeryField(s.classLevel, 'notes', e.target.value)}
+                        placeholder="Package breakdown details..."
+                        style={{
+                          width: '100%',
+                          padding: '6px 10px',
+                          borderRadius: 6,
+                          border: isSelectedClass ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+                          fontSize: 12,
+                          lineHeight: '1.4',
+                          fontWeight: 500,
+                          color: '#1e293b',
+                          background: '#ffffff',
+                          resize: 'vertical',
+                          fontFamily: 'inherit',
+                          boxSizing: 'border-box'
+                        }}
+                      />
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: 800, color: '#64748b', fontSize: 12 }}>
-                      {s.itemsCount} items
+                    <td style={{ textAlign: 'center', minWidth: 110 }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                        <input
+                          type="number"
+                          min="0"
+                          value={s.itemsCount ?? ''}
+                          onChange={(e) => handleUpdateStationeryField(s.classLevel, 'itemsCount', e.target.value)}
+                          style={{
+                            width: 56,
+                            padding: '5px 6px',
+                            textAlign: 'center',
+                            borderRadius: 6,
+                            border: isSelectedClass ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+                            fontWeight: 800,
+                            fontSize: 12.5,
+                            color: '#0f3a4b',
+                            background: '#ffffff'
+                          }}
+                        />
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>items</span>
+                      </div>
                     </td>
-                    <td style={{ textAlign: 'right' }}>
+                    <td style={{ textAlign: 'right', minWidth: 130 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
                         <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b' }}>GHS</span>
                         <input
                           type="number"
                           step="1"
                           min="0"
-                          value={s.amount}
-                          onChange={(e) => handleUpdateStationeryFee(s.classLevel, e.target.value)}
+                          value={s.amount ?? ''}
+                          onChange={(e) => handleUpdateStationeryField(s.classLevel, 'amount', e.target.value)}
                           style={{
-                            width: 95,
+                            width: 90,
                             padding: '5px 8px',
                             textAlign: 'right',
                             borderRadius: 6,
@@ -2567,7 +2881,10 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                       <button
                         type="button"
                         onClick={() => {
-                          setSelectedSubLevel(s.classLevel);
+                          const targetSub = (activeBillingView === 'single_student' && s.category === 'basic_school')
+                            ? (s.classLevel.match(/\d+/) ? `Basic ${s.classLevel.match(/\d+/)[0]}` : s.classLevel)
+                            : s.classLevel;
+                          setSelectedSubLevel(targetSub);
                           setSelectedGradeCategory(s.category);
                           setSavedStationeryNotice(`✅ Synchronized and loaded active bill view for ${s.label}!`);
                           setTimeout(() => setSavedStationeryNotice(''), 3000);
@@ -3029,7 +3346,8 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                         {studentSelectedOpts.map((opt) => (
                           <tr key={opt.id} style={{ borderBottom: '1px solid #e0f2fe' }}>
                             <td style={{ padding: '8px 12px', fontWeight: 700, color: '#0369a1' }}>
-                              {opt.icon} {opt.details} ({opt.label})
+                              <div>{opt.icon} {opt.details} ({opt.label})</div>
+                              {opt.description && <div style={{ fontSize: 11, color: '#64748b', fontWeight: 500, marginTop: 2 }}>{opt.description}</div>}
                             </td>
                             <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
                               {opt.amount.toFixed(2)}
