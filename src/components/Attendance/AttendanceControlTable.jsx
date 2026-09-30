@@ -1395,6 +1395,8 @@ export default function AttendanceControlTable() {
               </div>
             </div>
           </div>
+        </div>
+      )}
       {/* ── DIRECT CUSTOM SMS MODAL ── */}
       {directSmsModalStudent && (
         <div style={{
