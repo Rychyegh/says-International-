@@ -258,8 +258,22 @@ export const DEFAULT_TEACHER_DIRECTORY = [
   }
 ];
 
+export const DEFAULT_TIMETABLE = [
+  { id: 'tt-1', day: 'Monday', time: '08:00 AM', subject: 'Pure Mathematics', room: 'Room 402', lecturer: 'Prof. Mensah' },
+  { id: 'tt-2', day: 'Wednesday', time: '08:00 AM', subject: 'Literature in English', room: 'Auditorium B', lecturer: 'Dr. Anane' },
+  { id: 'tt-3', day: 'Tuesday', time: '10:30 AM', subject: 'Physics Lab', room: 'Science Block 1', lecturer: 'Mr. Boateng' },
+  { id: 'tt-4', day: 'Monday', time: '01:00 PM', subject: 'ICT Project', room: 'Lab 2', lecturer: 'Ms. Mensah' },
+  { id: 'tt-5', day: 'Tuesday', time: '01:00 PM', subject: 'English Essay', room: 'Room 204', lecturer: 'Mrs. Adjei' },
+  { id: 'tt-6', day: 'Wednesday', time: '01:00 PM', subject: 'Mathematics', room: 'Room 402', lecturer: 'Prof. Mensah' },
+  { id: 'tt-7', day: 'Thursday', time: '08:00 AM', subject: 'Integrated Science', room: 'Science Block 1', lecturer: 'Mr. Boateng' },
+  { id: 'tt-8', day: 'Thursday', time: '01:00 PM', subject: 'ICT Project', room: 'Lab 2', lecturer: 'Ms. Mensah' },
+  { id: 'tt-9', day: 'Friday', time: '08:00 AM', subject: 'Pure Mathematics', room: 'Room 402', lecturer: 'Prof. Mensah' },
+  { id: 'tt-10', day: 'Friday', time: '10:30 AM', subject: 'Social Studies', room: 'Room 204', lecturer: 'Mrs. Adjei' },
+  { id: 'tt-11', day: 'Friday', time: '01:00 PM', subject: 'English Essay', room: 'Auditorium B', lecturer: 'Dr. Anane' },
+];
+
 const INITIAL_DATA = {
-  timetable: [],
+  timetable: DEFAULT_TIMETABLE,
   results: [],
   courses: [],
   reportRequests: [],
@@ -324,6 +338,7 @@ function readData() {
       teacherDirectory: Array.isArray(parsed.teacherDirectory) && parsed.teacherDirectory.length > 0 ? parsed.teacherDirectory : DEFAULT_TEACHER_DIRECTORY,
       classLevels: Array.isArray(parsed.classLevels) && parsed.classLevels.length > 0 ? parsed.classLevels : DEFAULT_CLASS_LEVELS,
       subjects: Array.isArray(parsed.subjects) && parsed.subjects.length > 0 ? parsed.subjects : DEFAULT_SUBJECTS,
+      timetable: Array.isArray(parsed.timetable) && parsed.timetable.length > 0 ? parsed.timetable : DEFAULT_TIMETABLE,
       profiles: {
         ...INITIAL_DATA.profiles,
         ...(parsed.profiles || {})

@@ -29,10 +29,31 @@ const STATS = [
   { label: 'Credits This Term', value: '18',   trend: 'Active',            up: true,  icon: '⭐', bg: '#dbeafe',      ic: '#1e3a8a'    },
 ];
 
-const SCHEDULE = [
-  { time: '08:00 AM', mon: { sub: 'Pure Mathematics', room: 'Room 402',    teacher: 'Prof. Mensah' }, tue: null,                                          wed: { sub: 'Literature in English', room: 'Auditorium B', teacher: 'Dr. Anane' } },
-  { time: '10:30 AM', mon: null,                                            tue: { sub: 'Physics Lab', room: 'Science Block 1', teacher: 'Mr. Boateng' },  wed: null },
-  { time: '01:00 PM', mon: { sub: 'ICT Project',     room: 'Lab 2',         teacher: 'Ms. Mensah'   }, tue: { sub: 'English Essay',  room: 'Room 204',    teacher: 'Mrs. Adjei' }, wed: { sub: 'Mathematics', room: 'Room 402', teacher: 'Prof. Mensah' } },
+const FULL_SCHEDULE = [
+  {
+    time: '08:00 AM',
+    Monday: { sub: 'Pure Mathematics', room: 'Room 402', teacher: 'Prof. Mensah' },
+    Tuesday: null,
+    Wednesday: { sub: 'Literature in English', room: 'Auditorium B', teacher: 'Dr. Anane' },
+    Thursday: { sub: 'Integrated Science', room: 'Science Block 1', teacher: 'Mr. Boateng' },
+    Friday: { sub: 'Pure Mathematics', room: 'Room 402', teacher: 'Prof. Mensah' },
+  },
+  {
+    time: '10:30 AM',
+    Monday: null,
+    Tuesday: { sub: 'Physics Lab', room: 'Science Block 1', teacher: 'Mr. Boateng' },
+    Wednesday: null,
+    Thursday: { sub: 'Social Studies', room: 'Room 204', teacher: 'Mrs. Adjei' },
+    Friday: { sub: 'French Language', room: 'Room 301', teacher: 'Mme. Koffi' },
+  },
+  {
+    time: '01:00 PM',
+    Monday: { sub: 'ICT Project', room: 'Lab 2', teacher: 'Ms. Mensah' },
+    Tuesday: { sub: 'English Essay', room: 'Room 204', teacher: 'Mrs. Adjei' },
+    Wednesday: { sub: 'Mathematics', room: 'Room 402', teacher: 'Prof. Mensah' },
+    Thursday: { sub: 'ICT Project', room: 'Lab 2', teacher: 'Ms. Mensah' },
+    Friday: { sub: 'English Essay', room: 'Auditorium B', teacher: 'Dr. Anane' },
+  },
 ];
 
 const DEADLINES = [
@@ -65,6 +86,7 @@ const ASSIGNMENTS = [
 const STATUS_C = { 'Pending': 'status-pill--warn', 'In Progress': 'status-pill--info', 'Overdue': 'status-pill--danger', 'Submitted': 'status-pill--success' };
 
 export default function StudentPortal() {
+  const [schedulePage, setSchedulePage] = useState(0); // 0: Mon - Wed, 1: Thu - Fri
   const [activeNav, setActiveNavState] = useState(() => {
     const saved = localStorage.getItem('says_student_active_nav');
     const validTabs = ['My Dashboard', 'Assignments', 'My Grades', 'Timetable', 'e-Library', 'My Bus'];
@@ -194,31 +216,72 @@ export default function StudentPortal() {
                 {/* Left: schedule + assignments */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {/* Weekly Schedule */}
-                  <div className="panel">
-                    <div className="panel__header">
+                  <div className="panel" style={{ overflow: 'hidden' }}>
+                    <div className="panel__header" style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <h2 className="panel__title">Weekly Schedule</h2>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button style={{ width: 28, height: 28, borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray-200)', background: 'var(--gray-50)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>‹</button>
-                        <button style={{ width: 28, height: 28, borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray-200)', background: 'var(--gray-50)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>›</button>
+                        <button 
+                          style={{ width: 28, height: 28, borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray-200)', background: schedulePage === 0 ? STUDENT_LIGHT : 'var(--gray-50)', color: schedulePage === 0 ? STUDENT_BG : 'var(--gray-600)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}
+                          onClick={() => setSchedulePage(0)}
+                          title="Monday – Wednesday"
+                        >
+                          ‹
+                        </button>
+                        <button 
+                          style={{ width: 28, height: 28, borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray-200)', background: schedulePage === 1 ? STUDENT_LIGHT : 'var(--gray-50)', color: schedulePage === 1 ? STUDENT_BG : 'var(--gray-600)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}
+                          onClick={() => setSchedulePage(1)}
+                          title="Thursday – Friday"
+                        >
+                          ›
+                        </button>
                       </div>
                     </div>
-                    <div style={{ overflowX: 'auto' }}>
-                      <table className="data-table">
-                        <thead><tr><th>TIME</th><th>MONDAY</th><th>TUESDAY</th><th>WEDNESDAY</th></tr></thead>
+                    <div className="schedule-table-wrap">
+                      <table className="schedule-matrix-table">
+                        <thead>
+                          <tr>
+                            <th style={{ width: 120 }}>TIME</th>
+                            {schedulePage === 0 ? (
+                              <>
+                                <th>MONDAY</th>
+                                <th>TUESDAY</th>
+                                <th>WEDNESDAY</th>
+                              </>
+                            ) : (
+                              <>
+                                <th>THURSDAY</th>
+                                <th>FRIDAY</th>
+                              </>
+                            )}
+                          </tr>
+                        </thead>
                         <tbody>
-                          {SCHEDULE.map((row) => (
+                          {FULL_SCHEDULE.map((row) => (
                             <tr key={row.time}>
-                              <td style={{ fontWeight: 700, color: 'var(--gray-500)', whiteSpace: 'nowrap', fontSize: 12 }}>{row.time}</td>
-                              {[row.mon, row.tue, row.wed].map((c, ci) => (
-                                <td key={ci}>
-                                  {c ? (
-                                    <div style={{ padding: '8px 10px', background: `${STUDENT_BG}15`, borderLeft: `3px solid ${STUDENT_BG}`, borderRadius: '0 var(--radius-sm) var(--radius-sm) 0' }}>
-                                      <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--gray-900)' }}>{c.sub}</div>
-                                      <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>{c.room} • {c.teacher}</div>
-                                    </div>
-                                  ) : <span style={{ color: 'var(--gray-300)', fontSize: 18 }}>—</span>}
-                                </td>
-                              ))}
+                              <td className="time-col">{row.time}</td>
+                              {schedulePage === 0 ? (
+                                [row.Monday, row.Tuesday, row.Wednesday].map((c, ci) => (
+                                  <td key={ci}>
+                                    {c ? (
+                                      <div className="schedule-class-card">
+                                        <div className="schedule-class-card__title">{c.sub}</div>
+                                        <div className="schedule-class-card__subtitle">{c.room} • {c.teacher}</div>
+                                      </div>
+                                    ) : <span className="schedule-empty-dash">—</span>}
+                                  </td>
+                                ))
+                              ) : (
+                                [row.Thursday, row.Friday].map((c, ci) => (
+                                  <td key={ci}>
+                                    {c ? (
+                                      <div className="schedule-class-card">
+                                        <div className="schedule-class-card__title">{c.sub}</div>
+                                        <div className="schedule-class-card__subtitle">{c.room} • {c.teacher}</div>
+                                      </div>
+                                    ) : <span className="schedule-empty-dash">—</span>}
+                                  </td>
+                                ))
+                              )}
                             </tr>
                           ))}
                         </tbody>

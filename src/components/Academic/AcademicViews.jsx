@@ -136,13 +136,148 @@ export function LecturerGrades() {
   );
 }
 
+export const DEFAULT_SCHEDULE_ROWS = [
+  {
+    time: '08:00 AM',
+    Monday: { subject: 'Pure Mathematics', room: 'Room 402', teacher: 'Prof. Mensah' },
+    Tuesday: null,
+    Wednesday: { subject: 'Literature in English', room: 'Auditorium B', teacher: 'Dr. Anane' },
+    Thursday: { subject: 'Integrated Science', room: 'Science Block 1', teacher: 'Mr. Boateng' },
+    Friday: { subject: 'Pure Mathematics', room: 'Room 402', teacher: 'Prof. Mensah' },
+  },
+  {
+    time: '10:30 AM',
+    Monday: null,
+    Tuesday: { subject: 'Physics Lab', room: 'Science Block 1', teacher: 'Mr. Boateng' },
+    Wednesday: null,
+    Thursday: { subject: 'Social Studies', room: 'Room 204', teacher: 'Mrs. Adjei' },
+    Friday: { subject: 'French Language', room: 'Room 301', teacher: 'Mme. Koffi' },
+  },
+  {
+    time: '01:00 PM',
+    Monday: { subject: 'ICT Project', room: 'Lab 2', teacher: 'Ms. Mensah' },
+    Tuesday: { subject: 'English Essay', room: 'Room 204', teacher: 'Mrs. Adjei' },
+    Wednesday: { subject: 'Mathematics', room: 'Room 402', teacher: 'Prof. Mensah' },
+    Thursday: { subject: 'ICT Project', room: 'Lab 2', teacher: 'Ms. Mensah' },
+    Friday: { subject: 'English Essay', room: 'Auditorium B', teacher: 'Dr. Anane' },
+  },
+];
+
 export function StudentTimetable() {
   const { timetable } = usePortalData();
-  const grouped = useMemo(() => DAYS.map((day) => ({ day, entries: timetable.filter((item) => item.day === day) })), [timetable]);
+  const [dayView, setDayView] = useState('Mon - Wed'); // 'Mon - Wed' | 'Thu - Fri' | 'Full Week'
+
+  // Map custom timetable entries if added via portal store
+  const scheduleRows = useMemo(() => {
+    return DEFAULT_SCHEDULE_ROWS.map((row) => {
+      const updatedRow = { ...row };
+      ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].forEach((day) => {
+        const found = (timetable || []).find((t) => t.day === day && t.time === row.time);
+        if (found) {
+          updatedRow[day] = {
+            subject: found.subject,
+            room: found.room || 'Main Hall',
+            teacher: found.lecturer || 'Faculty Staff',
+          };
+        }
+      });
+      return updatedRow;
+    });
+  }, [timetable]);
+
+  const activeDays = useMemo(() => {
+    if (dayView === 'Thu - Fri') return ['Thursday', 'Friday'];
+    if (dayView === 'Full Week') return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    return ['Monday', 'Tuesday', 'Wednesday'];
+  }, [dayView]);
+
   return (
     <div className="academic-view animate-fade-up">
-      <div className="page-header"><h1 className="page-header__title">My timetable</h1><p className="page-header__subtitle">Updates from your lecturers appear here automatically.</p></div>
-      <div className="timetable-grid">{grouped.map(({ day, entries }) => <section className="panel timetable-day" key={day}><div className="panel__header"><h2 className="panel__title">{day}</h2></div><div className="panel__body">{entries.length ? entries.map((item) => <div className="student-class" key={item.id}><strong>{item.time}</strong><span>{item.subject}</span><small>{item.room} · {item.lecturer}</small></div>) : <p className="empty-state">No classes scheduled.</p>}</div></section>)}</div>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <p className="page-header__eyebrow" style={{ color: '#c8703a' }}>
+            <span style={{ background: '#fff1e8', padding: '2px 10px', borderRadius: 99, border: '1px solid #e8c4a8' }}>
+              Academic Schedule — Senior High II
+            </span>
+          </p>
+          <h1 className="page-header__title">My Timetable 📅</h1>
+          <p className="page-header__subtitle">
+            Daily scheduled lectures, classroom locations, and subject instructors.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button 
+            className="academic-button" 
+            style={{ background: '#5e2d0e', color: '#fff', fontSize: 12, padding: '7px 14px', borderRadius: 6 }}
+            onClick={() => window.print()}
+          >
+            🖨️ Print Timetable
+          </button>
+        </div>
+      </div>
+
+      <div className="schedule-matrix-panel">
+        <div className="schedule-matrix-header">
+          <h2 className="schedule-matrix-title">
+            <span>Weekly Class Schedule</span>
+          </h2>
+          <div className="schedule-matrix-controls">
+            <button 
+              className={`schedule-tab-btn ${dayView === 'Mon - Wed' ? 'active' : ''}`}
+              onClick={() => setDayView('Mon - Wed')}
+            >
+              Monday – Wednesday
+            </button>
+            <button 
+              className={`schedule-tab-btn ${dayView === 'Thu - Fri' ? 'active' : ''}`}
+              onClick={() => setDayView('Thu - Fri')}
+            >
+              Thursday – Friday
+            </button>
+            <button 
+              className={`schedule-tab-btn ${dayView === 'Full Week' ? 'active' : ''}`}
+              onClick={() => setDayView('Full Week')}
+            >
+              All Days (Mon – Fri)
+            </button>
+          </div>
+        </div>
+
+        <div className="schedule-table-wrap">
+          <table className="schedule-matrix-table">
+            <thead>
+              <tr>
+                <th style={{ width: 120 }}>TIME</th>
+                {activeDays.map((day) => (
+                  <th key={day}>{day.toUpperCase()}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {scheduleRows.map((row) => (
+                <tr key={row.time}>
+                  <td className="time-col">{row.time}</td>
+                  {activeDays.map((day) => {
+                    const c = row[day];
+                    return (
+                      <td key={day}>
+                        {c ? (
+                          <div className="schedule-class-card">
+                            <div className="schedule-class-card__title">{c.subject}</div>
+                            <div className="schedule-class-card__subtitle">{c.room} • {c.teacher}</div>
+                          </div>
+                        ) : (
+                          <span className="schedule-empty-dash">—</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

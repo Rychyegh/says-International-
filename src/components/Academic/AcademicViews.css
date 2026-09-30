@@ -27,3 +27,165 @@
   .academic-view .panel { overflow-x: auto; }
   .academic-view .data-table { min-width: 620px; }
 }
+
+/* ── Schedule Matrix Table (Pixel-perfect match to screenshot) ── */
+.schedule-matrix-panel {
+  background: var(--white, #ffffff);
+  border-radius: var(--radius-lg, 12px);
+  border: 1px solid var(--gray-200, #e2e8f0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.schedule-matrix-header {
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.schedule-matrix-title {
+  font-family: var(--font-display, inherit);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--gray-900, #0f172a);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schedule-matrix-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schedule-tab-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.schedule-tab-btn:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.schedule-tab-btn.active {
+  background: #5e2d0e;
+  border-color: #5e2d0e;
+  color: #ffffff;
+}
+
+.schedule-arrow-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  transition: all 120ms ease;
+}
+
+.schedule-arrow-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.schedule-table-wrap {
+  overflow-x: auto;
+  width: 100%;
+  background: #ffffff;
+}
+
+.schedule-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 650px;
+}
+
+.schedule-matrix-table th {
+  padding: 16px 20px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.schedule-matrix-table td {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f8fafc;
+  vertical-align: middle;
+}
+
+.schedule-matrix-table tr:last-child td {
+  border-bottom: none;
+}
+
+.schedule-matrix-table .time-col {
+  font-weight: 700;
+  font-size: 12.5px;
+  color: #475569;
+  white-space: nowrap;
+  width: 120px;
+}
+
+.schedule-class-card {
+  padding: 10px 14px;
+  background: #f6eee8;
+  border-left: 3.5px solid #6b3314;
+  border-radius: 0 6px 6px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5px;
+  min-width: 170px;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.schedule-class-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(107, 51, 20, 0.08);
+}
+
+.schedule-class-card__title {
+  font-weight: 700;
+  font-size: 13px;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.schedule-class-card__subtitle {
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.schedule-empty-dash {
+  color: #cbd5e1;
+  font-size: 18px;
+  font-weight: 300;
+  padding-left: 4px;
+  user-select: none;
+}
