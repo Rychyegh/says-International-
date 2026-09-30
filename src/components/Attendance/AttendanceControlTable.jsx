@@ -1395,6 +1395,80 @@ export default function AttendanceControlTable() {
               </div>
             </div>
           </div>
+      {/* ── DIRECT CUSTOM SMS MODAL ── */}
+      {directSmsModalStudent && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', zIndex: 1100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+        }}>
+          <div style={{
+            background: '#fff', width: '100%', maxWidth: 500, borderRadius: 14,
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden', border: '1px solid var(--gray-300)'
+          }} className="animate-fade-up">
+            <div style={{ background: '#0284c7', padding: '16px 20px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Send size={18} />
+                <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>Send Quick SMS Notice</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDirectSmsModalStudent(null)}
+                style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', width: 28, height: 28, borderRadius: 14, cursor: 'pointer', fontWeight: 800 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSendDirectSmsSubmit} style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray-700)', marginBottom: 4 }}>Student & Guardian</label>
+                <div style={{ padding: '8px 12px', background: 'var(--gray-100)', borderRadius: 6, fontSize: 13, fontWeight: 700 }}>
+                  {directSmsModalStudent.fullName} ({directSmsModalStudent.studentId || directSmsModalStudent.id}) &bull; Guardian: {directSmsModalStudent.guardianName || 'Parent'}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray-700)', marginBottom: 4 }}>Recipient Phone Number</label>
+                <input
+                  type="text"
+                  value={customPhones[directSmsModalStudent.studentId || directSmsModalStudent.id] || directSmsModalStudent.guardianPhone || '0541769621'}
+                  onChange={(e) => setCustomPhones(prev => ({ ...prev, [directSmsModalStudent.studentId || directSmsModalStudent.id]: e.target.value }))}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13 }}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray-700)', marginBottom: 4 }}>SMS Message Text</label>
+                <textarea
+                  rows="4"
+                  value={directSmsText}
+                  onChange={(e) => setDirectSmsText(e.target.value)}
+                  placeholder="Type instant SMS message to guardian..."
+                  style={{ width: '100%', padding: '10px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, resize: 'vertical' }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setDirectSmsModalStudent(null)}
+                  style={{ padding: '8px 16px', background: 'var(--gray-200)', color: 'var(--gray-700)', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSendingDirectSms || !directSmsText.trim()}
+                  style={{ padding: '8px 18px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Send size={14} /> {isSendingDirectSms ? 'Sending...' : 'Send SMS Now'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
