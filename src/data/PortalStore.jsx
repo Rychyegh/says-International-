@@ -197,7 +197,10 @@ function readData() {
       academicSettings: {
         ...INITIAL_DATA.academicSettings,
         ...(parsed.academicSettings || {})
-      }
+      },
+      // Always ensure these arrays exist even in old localStorage snapshots
+      pvNotifications: Array.isArray(parsed.pvNotifications) ? parsed.pvNotifications : [],
+      paymentVouchers: Array.isArray(parsed.paymentVouchers) ? parsed.paymentVouchers : [],
     };
   } catch {
     return INITIAL_DATA;
@@ -2312,7 +2315,7 @@ export function PortalDataProvider({ children }) {
     },
     // Alias so SubmitPVRequest can call createPaymentVoucher too
     createPaymentVoucher: async (pvData) => {
-      // Delegates to addPaymentVoucher (same logic)
+      // 1. Try to persist to backend
       try {
         await api.createPaymentVoucher({
           pv_number: pvData.pvNo,
@@ -2323,16 +2326,25 @@ export function PortalDataProvider({ children }) {
           description: pvData.description,
           quantity: Number(pvData.qty) || 1,
           unit_cost: Number(pvData.cost || pvData.costPerItem) || 0,
-          total_amount: (Number(pvData.qty) || 1) * (Number(pvData.cost || pvData.costPerItem) || 0),
-          date_prepared: pvData.datePrepared
+          total_amount: Number(pvData.grandTotal || pvData.total || pvData.cost) || 0,
+          date_prepared: pvData.datePrepared,
+          items: pvData.items || [],
+          academic_year: pvData.academicYear,
+          academic_term: pvData.academicTerm,
+          status: 'Pending Audit',
+          submitted_by: pvData.submittedBy || 'Sub-Admin',
         });
+        console.log('[PV] Saved to backend ✅', pvData.pvNo);
       } catch (e) {
-        console.warn('Backend PV create fallback:', e);
+        console.warn('[PV] Backend offline — saving locally:', e.message);
       }
+
+      // 2. Always update local state + create notification
       setData((current) => {
         const existing = current.paymentVouchers || [];
         const existingNotifs = current.pvNotifications || [];
         const pvNo = pvData.pvNo || `PV-2026-${String(existing.length + 100).padStart(3, '0')}`;
+        const grandTotal = Number(pvData.grandTotal || pvData.total || pvData.cost) || 0;
         const newPV = {
           id: `pv-${Date.now()}`,
           pvNo,
@@ -2342,29 +2354,47 @@ export function PortalDataProvider({ children }) {
           description: pvData.description || 'Expenditure Voucher',
           qty: Number(pvData.qty) || 1,
           cost: Number(pvData.cost || pvData.costPerItem) || 0,
-          total: (Number(pvData.qty) || 1) * (Number(pvData.cost || pvData.costPerItem) || 0),
+          total: grandTotal,
+          grandTotal,
           datePrepared: pvData.datePrepared || new Date().toISOString().split('T')[0],
           valuedDate: pvData.valuedDate || new Date().toISOString().split('T')[0],
-          auditRemarks: pvData.auditRemarks || 'Created in system.',
+          auditRemarks: pvData.auditRemarks || 'Submitted by Sub-Admin. Pending pre-audit approval.',
           status: pvData.status || 'Pending Audit',
           editedByHeadmaster: false,
           correctionsLog: [],
           items: pvData.items || [],
-          grandTotal: pvData.grandTotal || 0,
           academicYear: pvData.academicYear,
           academicTerm: pvData.academicTerm,
-          submittedBy: pvData.submittedBy || 'Sub-Admin',
+          submittedBy: pvData.submittedBy || 'Sub-Admin / Accounts Officer',
         };
         const newNotif = {
           id: `notif-pv-${Date.now()}`,
           pvNo,
           provider: newPV.provider,
-          grandTotal: newPV.grandTotal || newPV.total,
+          grandTotal,
           description: newPV.description,
           submittedBy: newPV.submittedBy,
           submittedAt: new Date().toLocaleString(),
           read: false,
         };
+        console.log('[PV] Notification queued for Head Admin 🔔', newNotif);
+
+        // 3. Broadcast to other tabs via BroadcastChannel
+        try {
+          if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+            const ch = new BroadcastChannel('rcis_portal_data_sync');
+            ch.postMessage({ type: 'PV_SUBMITTED', pvNo, notif: newNotif });
+            ch.close();
+          }
+        } catch (_) {}
+
+        // 4. Also fire a window event for same-tab AdminPortal to react
+        try {
+          window.dispatchEvent(new CustomEvent('rcis_pv_submitted', {
+            detail: { pvNo, notif: newNotif }
+          }));
+        } catch (_) {}
+
         return {
           ...current,
           paymentVouchers: [newPV, ...existing],
@@ -2372,6 +2402,7 @@ export function PortalDataProvider({ children }) {
         };
       });
     },
+
     // Notification management
     markAllPVNotificationsRead: () => setData((current) => ({
       ...current,
