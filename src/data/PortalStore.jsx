@@ -641,23 +641,27 @@ export function PortalDataProvider({ children }) {
     }
   }, []);
 
+  const [lastAutoRefreshedAt, setLastAutoRefreshedAt] = useState(() => new Date().toLocaleTimeString());
+
   useEffect(() => {
     refreshBackendData();
 
     // Auto-refresh when tab/window regains focus
     const handleFocus = () => {
       refreshBackendData();
+      setLastAutoRefreshedAt(new Date().toLocaleTimeString());
     };
     window.addEventListener('focus', handleFocus);
 
-    // Periodic polling every 8 seconds to synchronize creations from other head admin sessions
-    const pollInterval = setInterval(() => {
+    // Background auto-refresh every 1 minute (60,000ms)
+    const minuteAutoRefreshInterval = setInterval(() => {
       refreshBackendData();
-    }, 8000);
+      setLastAutoRefreshedAt(new Date().toLocaleTimeString());
+    }, 60000);
 
     return () => {
       window.removeEventListener('focus', handleFocus);
-      clearInterval(pollInterval);
+      clearInterval(minuteAutoRefreshInterval);
     };
   }, [refreshBackendData]);
 
@@ -679,6 +683,7 @@ export function PortalDataProvider({ children }) {
     onboardedStudents: sortedOnboardedStudents,
     studentFees: sortedStudentFees,
     refreshBackendData,
+    lastAutoRefreshedAt,
     saveTimetableEntry: async (entry) => {
       try {
         await api.createTimetableEntry(entry);

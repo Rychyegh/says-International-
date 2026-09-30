@@ -1149,7 +1149,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           {/* ── STUDENT ROSTER ── */}
           {activeNav === 'Student Roster' && (
             <div className="animate-fade-up">
-              <AttendanceControlTable />
               <div className="page-header">
                 <h1 className="page-header__title">Student Roster Database</h1>
                 <p className="page-header__subtitle">Manage registered learners, edit student profiles, or delete records.</p>
