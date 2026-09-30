@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   ShieldCheck, UserPlus, Users, Key, Lock, Unlock, RefreshCw, Search,
   Filter, CheckCircle2, AlertTriangle, Trash2, Edit3, Eye, EyeOff,
@@ -14,10 +14,83 @@ const ROLES = [
   { value: 'sub_admin', label: 'Sub-Administrator', badgeColor: '#0369a1', bg: '#e0f2fe', desc: 'Operational student roster and academic task handling' },
   { value: 'accountant', label: 'Finance & Accounts', badgeColor: '#166534', bg: '#dcfce7', desc: 'Billing, fee collection, payment vouchers, and ledger' },
   { value: 'teacher', label: 'Teaching Staff', badgeColor: '#b45309', bg: '#fef3c7', desc: 'Class roster, lesson planning, grades, and attendance' },
+  { value: 'class_teacher', label: 'Class Teacher', badgeColor: '#166534', bg: '#dcfce7', desc: 'Form tutor with class leadership, passcode verification, and class portal access' },
   { value: 'student', label: 'Student Learner', badgeColor: '#4338ca', bg: '#e0e7ff', desc: 'Assignments, timetable, report cards, and digital ID' },
   { value: 'parent', label: 'Parent / Guardian', badgeColor: '#be185d', bg: '#fce7f3', desc: 'Child progress, tuition fees, bus tracking, and messaging' },
   { value: 'security_driver', label: 'Transport / Security', badgeColor: '#374151', bg: '#f3f4f6', desc: 'Bus routing, RFID gate scans, and safety logging' },
 ];
+
+function RoleSelect({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef(null);
+  const [menuStyle, setMenuStyle] = useState(null);
+  const selected = ROLES.find((role) => role.value === value) || ROLES[0];
+
+  const openMenu = () => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const itemHeight = 36;
+    const menuHeight = ROLES.length * itemHeight + 8;
+    const top = Math.max(8, rect.top - menuHeight - 6);
+    setMenuStyle({
+      position: 'fixed',
+      left: rect.left,
+      width: rect.width,
+      top,
+      zIndex: 10050,
+      background: '#fff',
+      border: '1px solid #d1d5db',
+      borderRadius: 8,
+      boxShadow: '0 12px 28px rgba(15, 23, 42, 0.18)',
+      padding: 4,
+    });
+    setOpen(true);
+  };
+
+  return (
+    <div>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => (open ? setOpen(false) : openMenu())}
+        style={{
+          width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border-color)', fontSize: 13, background: '#fff',
+          fontWeight: 700, textAlign: 'left', cursor: 'pointer'
+        }}
+      >
+        {selected.label}
+      </button>
+      {open && menuStyle && (
+        <>
+          <button
+            type="button"
+            aria-label="Close role list"
+            onClick={() => setOpen(false)}
+            style={{ position: 'fixed', inset: 0, background: 'transparent', border: 'none', zIndex: 10040, cursor: 'default' }}
+          />
+          <div style={menuStyle}>
+            {ROLES.map((role) => (
+              <button
+                key={role.value}
+                type="button"
+                onClick={() => { onChange(role.value); setOpen(false); }}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px',
+                  border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                  background: role.value === value ? '#f3e8ff' : '#fff',
+                  color: role.value === value ? '#4a1d6e' : '#111827'
+                }}
+              >
+                {role.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 const DEFAULT_USERS_SEED = [
   {
@@ -282,7 +355,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
 
     const finalPass = createForm.password.trim() || generateSecurePassword(createForm.role);
     const autoStaffId = createForm.staffId.trim() || (
-      createForm.role === 'teacher' ? `CT-2026-${String(users.length + 1).padStart(3, '0')}` :
+      (createForm.role === 'teacher' || createForm.role === 'class_teacher') ? `CT-2026-${String(users.length + 1).padStart(3, '0')}` :
       createForm.role === 'accountant' ? `ACC-2026-${String(users.length + 1).padStart(3, '0')}` :
       createForm.role === 'admin' ? `ADM-2026-${String(users.length + 1).padStart(3, '0')}` : undefined
     );
@@ -1095,6 +1168,27 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
             </div>
 
             <form onSubmit={handleCreateUser} style={{ padding: 24, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Assigned User Role *</label>
+                  <RoleSelect
+                    value={createForm.role}
+                    onChange={(role) => setCreateForm(prev => ({ ...prev, role }))}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Staff / Student ID</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. CT-2026-005"
+                    value={createForm.staffId}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, staffId: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13 }}
+                  />
+                </div>
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Full Legal Name *</label>
                 <input
@@ -1127,32 +1221,6 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                     placeholder="024 123 4567"
                     value={createForm.phone}
                     onChange={(e) => setCreateForm(prev => ({ ...prev, phone: e.target.value }))}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13 }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Assigned User Role *</label>
-                  <select
-                    value={createForm.role}
-                    onChange={(e) => setCreateForm(prev => ({ ...prev, role: e.target.value }))}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13, background: '#fff', fontWeight: 700 }}
-                  >
-                    {ROLES.map(r => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Staff / Student ID</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. CT-2026-005"
-                    value={createForm.staffId}
-                    onChange={(e) => setCreateForm(prev => ({ ...prev, staffId: e.target.value }))}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13 }}
                   />
                 </div>
@@ -1358,15 +1426,10 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Role Assignment</label>
-                  <select
+                  <RoleSelect
                     value={editingUser.role}
-                    onChange={(e) => setEditingUser(prev => ({ ...prev, role: e.target.value }))}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13, background: '#fff', fontWeight: 700 }}
-                  >
-                    {ROLES.map(r => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
-                  </select>
+                    onChange={(role) => setEditingUser(prev => ({ ...prev, role }))}
+                  />
                 </div>
 
                 <div>

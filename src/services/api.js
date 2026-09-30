@@ -1109,6 +1109,7 @@ export const api = {
     const email    = (userData.email || '').trim().toLowerCase();
     const phone    = (userData.phone || userData.phone_number || '').trim();
     const role     = userData.role || 'teacher';
+    const isClassTeacher = role === 'class_teacher';
 
     const payload = {
       email,
@@ -1116,7 +1117,10 @@ export const api = {
       password:     userData.password,
       full_name:    fullName,
       name:         fullName,
-      role,
+      role:         isClassTeacher ? 'teacher' : role,
+      teacher_designation: isClassTeacher ? 'class_teacher' : undefined,
+      is_class_teacher: isClassTeacher ? true : undefined,
+      class_assigned: isClassTeacher ? (userData.assignedClass || userData.classAssigned || userData.class_assigned) : undefined,
       phone_number: phone,
       phone,
       card_id:      userData.cardId   || userData.card_id   || undefined,
@@ -1138,12 +1142,16 @@ export const api = {
     const fullName = (userData.fullName || userData.full_name || '').trim();
     const phone    = (userData.phone || userData.phone_number || '').trim();
 
+    const isClassTeacher = userData.role === 'class_teacher';
     const payload = {
       email:        (userData.email || '').trim().toLowerCase() || undefined,
       username:     userData.username || undefined,
       full_name:    fullName || undefined,
       name:         fullName || undefined,
-      role:         userData.role || undefined,
+      role:         isClassTeacher ? 'teacher' : (userData.role || undefined),
+      teacher_designation: isClassTeacher ? 'class_teacher' : undefined,
+      is_class_teacher: isClassTeacher ? true : undefined,
+      class_assigned: isClassTeacher ? (userData.assignedClass || userData.classAssigned || userData.class_assigned) : undefined,
       phone_number: phone || undefined,
       phone:        phone || undefined,
       card_id:      userData.cardId   || userData.card_id   || undefined,
