@@ -110,6 +110,9 @@ class PaymentVoucher(Base):
     pre_audited_by = Column(String(255), nullable=True)
     approved_by = Column(String(255), nullable=True)
     prepared_by = Column(String(255), nullable=True)
+    items = Column(JSON, nullable=True)
+    academic_year = Column(String(50), nullable=True)
+    academic_term = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class Application(Base):
