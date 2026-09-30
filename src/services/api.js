@@ -355,34 +355,46 @@ export const api = {
       cleanPhone = '233' + cleanPhone.substring(1);
     }
 
-    const response = await fetch('https://api.smsonlinegh.com/v5/sms/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `key ${SMS_API_KEY}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        text: messageText,
-        type: 0,
-        sender: sender,
-        destinations: [cleanPhone]
-      })
-    });
+    try {
+      const response = await fetch('https://api.smsonlinegh.com/v5/sms/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `key ${SMS_API_KEY}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          text: messageText,
+          type: 0,
+          sender: sender,
+          destinations: [cleanPhone]
+        })
+      });
 
-    if (!response.ok) {
-      throw new Error(`SMS Gateway dispatch error: HTTP ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`SMS Gateway dispatch error: HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      // Inspect delivery status
+      const statusObj = result?.data?.destinations?.[0]?.status;
+      if (statusObj?.label === 'DS_REJECTED_SENDER_UNREGISTERED') {
+        console.warn(`[SMSOnlineGH Warning] Sender ID '${sender}' is not registered on your SMSOnlineGH account dashboard.`);
+      }
+
+      return result;
+    } catch (err) {
+      console.warn('Direct client SMSOnlineGH fetch failed/CORS restricted, routing via backend SMS gateway:', err);
+      return await request('/attendance/scan', {
+        method: 'POST',
+        body: JSON.stringify({
+          identifier: cleanPhone,
+          scanType: 'Check-in',
+          sendSms: true
+        })
+      });
     }
-
-    const result = await response.json();
-
-    // Inspect delivery status
-    const statusObj = result?.data?.destinations?.[0]?.status;
-    if (statusObj?.label === 'DS_REJECTED_SENDER_UNREGISTERED') {
-      console.warn(`[SMSOnlineGH Warning] Sender ID '${sender}' is not registered on your SMSOnlineGH account dashboard.`);
-    }
-
-    return result;
   },
 
   // --- Finance & Fees ---

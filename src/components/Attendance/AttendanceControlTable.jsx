@@ -180,7 +180,7 @@ export default function AttendanceControlTable() {
       const backendPromise = api.recordAttendanceScan({
         identifier: sId,
         scanType: scanLabel === 'Check Out' ? 'Check-out' : 'Check-in',
-        sendSms: false
+        sendSms: true
       }).catch(() => {});
 
       await Promise.all([smsPromise, backendPromise]);
@@ -336,7 +336,7 @@ export default function AttendanceControlTable() {
       const backendPromise = api.recordAttendanceScan({
         identifier: student.studentId || student.id,
         scanType: newStatus === 'Present' ? 'Check-in' : 'Absence',
-        sendSms: false
+        sendSms: true
       }).catch(() => {});
 
       const [smsRes] = await Promise.all([smsPromise, backendPromise]);
