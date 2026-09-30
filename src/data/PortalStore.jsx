@@ -855,6 +855,8 @@ export function PortalDataProvider({ children }) {
     };
   }, [refreshBackendData]);
 
+  const lastAutoRefreshedAtRef = useRef(new Date().toLocaleTimeString());
+
   const sortedOnboardedStudents = useMemo(() => {
     return deduplicateStudents(data.onboardedStudents || []).sort((a, b) => (a.fullName || a.name || '').localeCompare(b.fullName || b.name || ''));
   }, [data.onboardedStudents]);
@@ -873,7 +875,7 @@ export function PortalDataProvider({ children }) {
     onboardedStudents: sortedOnboardedStudents,
     studentFees: sortedStudentFees,
     refreshBackendData,
-    lastAutoRefreshedAt,
+    lastAutoRefreshedAt: lastAutoRefreshedAtRef.current,
     saveTimetableEntry: async (entry) => {
       try {
         await api.createTimetableEntry(entry);
