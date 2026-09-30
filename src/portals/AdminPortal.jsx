@@ -24,18 +24,18 @@ const ADMIN_ACCENT = '#7c3ac8';
 
 const NAV = [
   { icon: <LayoutDashboard size={15} />, label: 'Dashboard', badge: null },
-  { icon: <ShieldCheck size={15} />, label: 'User Access Control (UAC)', badge: 'Admin' },
+  { icon: <FileText size={15} />, label: 'Applications & Forms', badge: null },
+  { icon: <Users size={15} />, label: 'Student Roster', badge: null },
+  { icon: <School size={15} />, label: 'Classes & Staff', badge: null },
+  { icon: <CreditCard size={15} />, label: 'Card Issuance & Smart Identity', badge: 'NFC' },
+  { icon: <Radio size={15} />, label: 'Attendance & SMS Control', badge: 'Live' },
   { icon: <Settings size={15} />, label: 'Academic Settings', badge: 'Global' },
-  { icon: <ShieldAlert size={15} />, label: 'Security & Intrusion Alerts', badge: 'Alerts' },
-  { icon: <FileCheck size={15} />, label: 'Pre-Audit & Approve PV', badge: 'Headmaster' },
   { icon: <FileCheck size={15} />, label: 'Register for Exams', badge: 'Exams' },
   { icon: <FileCheck size={15} />, label: 'Transcripts & Results', badge: 'All Classes' },
-  { icon: <Radio size={15} />, label: 'Attendance & SMS Control', badge: 'Live' },
-  { icon: <CreditCard size={15} />, label: 'Card Issuance & Smart Identity', badge: 'NFC' },
   { icon: <CreditCard size={15} />, label: 'Official Fee Schedule', badge: 'Bill' },
-  { icon: <Users size={15} />, label: 'Student Roster', badge: null },
-  { icon: <FileText size={15} />, label: 'Applications & Forms', badge: null },
-  { icon: <School size={15} />, label: 'Classes & Staff', badge: null },
+  { icon: <ShieldCheck size={15} />, label: 'User Access Control (UAC)', badge: 'Admin' },
+  { icon: <FileCheck size={15} />, label: 'Pre-Audit & Approve PV', badge: 'Headmaster' },
+  { icon: <ShieldAlert size={15} />, label: 'Security & Intrusion Alerts', badge: 'Alerts' },
 ];
 
 const LEVEL_OPTIONS = [

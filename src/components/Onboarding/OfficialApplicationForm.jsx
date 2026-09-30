@@ -6,6 +6,44 @@ import {
 import { usePortalData } from '../../data/PortalStore';
 import './OfficialApplicationForm.css';
 
+export const CLASS_SUBCLASS_MAP = {
+  'Creche': ['Creche'],
+  'Nursery 1': ['Nursery 1A', 'Nursery 1B'],
+  'Nursery 2': ['Nursery 2A', 'Nursery 2B'],
+  'Kindergarten 1': ['Kindergarten 1A', 'Kindergarten 1B'],
+  'Kindergarten 2': ['Kindergarten 2A', 'Kindergarten 2B'],
+  'KG 1': ['Kindergarten 1A', 'Kindergarten 1B'],
+  'KG 2': ['Kindergarten 2A', 'Kindergarten 2B'],
+  'Basic 1': ['Basic 1A', 'Basic 1B'],
+  'Basic 2': ['Basic 2A', 'Basic 2B'],
+  'Basic 3': ['Basic 3A', 'Basic 3B'],
+  'Basic 4': ['Basic 4A', 'Basic 4B'],
+  'Basic 5': ['Basic 5A', 'Basic 5B'],
+  'Basic 6': ['Basic 6A', 'Basic 6B'],
+  'Basic 7': ['Basic 7A', 'Basic 7B'],
+  'Basic 8': ['Basic 8A', 'Basic 8B'],
+  'Basic 9': ['Basic 9A', 'Basic 9B']
+};
+
+export function getMappedSubClasses(selectedClass) {
+  if (!selectedClass) return [];
+  if (CLASS_SUBCLASS_MAP[selectedClass]) {
+    return CLASS_SUBCLASS_MAP[selectedClass];
+  }
+  const norm = selectedClass.toLowerCase().trim();
+  if (norm.includes('creche')) return ['Creche'];
+  if (norm.includes('nursery 1')) return ['Nursery 1A', 'Nursery 1B'];
+  if (norm.includes('nursery 2')) return ['Nursery 2A', 'Nursery 2B'];
+  if (norm.includes('kg 1') || norm.includes('kindergarten 1')) return ['Kindergarten 1A', 'Kindergarten 1B'];
+  if (norm.includes('kg 2') || norm.includes('kindergarten 2')) return ['Kindergarten 2A', 'Kindergarten 2B'];
+  for (let i = 1; i <= 9; i++) {
+    if (norm.includes(`basic ${i}`) || norm.includes(`class ${i}`) || norm.includes(`jhs ${i}`)) {
+      return [`Basic ${i}A`, `Basic ${i}B`];
+    }
+  }
+  return [`${selectedClass}A`, `${selectedClass}B`];
+}
+
 // Official Crest Emblem Logo for REMALJ Carewell Inspirational School
 export function SchoolLogoSVG({ size = 110 }) {
   return (
@@ -422,7 +460,18 @@ export default function OfficialApplicationForm({
               <select
                 className="form-line-input"
                 value={formData.applyingClass || ''}
-                onChange={(e) => handleChange('applyingClass', e.target.value)}
+                onChange={(e) => {
+                  const selectedClass = e.target.value;
+                  handleChange('applyingClass', selectedClass);
+                  const availableSubClasses = getMappedSubClasses(selectedClass);
+                  if (availableSubClasses.length > 0) {
+                    handleChange('classSection', availableSubClasses[0]);
+                    handleChange('subClass', availableSubClasses[0]);
+                  } else {
+                    handleChange('classSection', '');
+                    handleChange('subClass', '');
+                  }
+                }}
                 disabled={readOnly && !isAdmin}
                 style={{ cursor: 'pointer', background: 'transparent' }}
               >
@@ -430,8 +479,8 @@ export default function OfficialApplicationForm({
                 <option value="Creche">Creche</option>
                 <option value="Nursery 1">Nursery 1</option>
                 <option value="Nursery 2">Nursery 2</option>
-                <option value="KG 1">KG 1</option>
-                <option value="KG 2">KG 2</option>
+                <option value="Kindergarten 1">Kindergarten 1</option>
+                <option value="Kindergarten 2">Kindergarten 2</option>
                 <option value="Basic 1">Basic 1</option>
                 <option value="Basic 2">Basic 2</option>
                 <option value="Basic 3">Basic 3</option>
@@ -452,14 +501,9 @@ export default function OfficialApplicationForm({
                 onChange={(e) => {
                   const val = e.target.value;
                   if (val === '__ADD_NEW__') {
-                    const custom = window.prompt('Enter new custom Sub-Class / Section (e.g. 1A, 1B, 7A, Stream C, Gold):');
+                    const custom = window.prompt(`Enter new custom Sub-Class for ${formData.applyingClass || 'class'} (e.g. 1A, 1B, 7A):`);
                     if (custom && custom.trim()) {
                       const cleanCustom = custom.trim();
-                      setSubClassesList(prev => {
-                        const next = [...new Set([...prev, cleanCustom])];
-                        try { localStorage.setItem(SUBCLASS_STORAGE_KEY, JSON.stringify(next)); } catch (err) {}
-                        return next;
-                      });
                       handleChange('classSection', cleanCustom);
                       handleChange('subClass', cleanCustom);
                     }
@@ -468,14 +512,23 @@ export default function OfficialApplicationForm({
                     handleChange('subClass', val);
                   }
                 }}
-                disabled={readOnly && !isAdmin}
+                disabled={(readOnly && !isAdmin) || !formData.applyingClass}
                 style={{ cursor: 'pointer', background: 'transparent', color: (formData.classSection || formData.subClass) ? 'var(--ics-green-700, #166534)' : 'inherit', fontWeight: (formData.classSection || formData.subClass) ? 'bold' : 'normal' }}
               >
-                <option value="">-- Select Sub-Class (e.g. 1A, 1B) --</option>
-                {subClassesList.map(sc => (
-                  <option key={sc} value={sc}>{sc}</option>
-                ))}
-                <option value="__ADD_NEW__">➕ Add Custom Sub-Class (e.g. 1A, 1B)...</option>
+                {!formData.applyingClass ? (
+                  <option value="">-- Select Class / Form First --</option>
+                ) : (
+                  <>
+                    <option value="">-- Select Sub-Class --</option>
+                    {getMappedSubClasses(formData.applyingClass).map(sc => (
+                      <option key={sc} value={sc}>{sc}</option>
+                    ))}
+                    {formData.classSection && !getMappedSubClasses(formData.applyingClass).includes(formData.classSection) && (
+                      <option value={formData.classSection}>{formData.classSection}</option>
+                    )}
+                    <option value="__ADD_NEW__">➕ Add Custom Sub-Class...</option>
+                  </>
+                )}
               </select>
             </div>
 
