@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Edit3, Save, Search, AlertCircle, FileCheck, RefreshCw, Filter, ArrowRight, ShieldCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle2, Edit3, Save, Search, AlertCircle, FileCheck, RefreshCw, Filter, ArrowRight, ShieldCheck, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
+import { api } from '../../services/api';
 
 export default function ApprovePVForm({ setM = () => {} }) {
   const portalData = usePortalData();
@@ -195,17 +196,132 @@ export default function ApprovePVForm({ setM = () => {} }) {
     setIsParticularsOpen(true);
   };
 
-  // Search PV Action
-  const handleSearchPV = () => {
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Search PV Action by PV Number or Requisition Number across local queue, store & backend
+  const handleSearchPV = async (customQuery) => {
     setIsParticularsOpen(true);
-    const match = pvQueue.find(p => p.pvNo?.toLowerCase().includes(pvNo.toLowerCase()));
-    if (match) {
-      populateFormWithVoucher(match);
-      setBannerNotice(`🔍 Loaded PV record #${match.pvNo}. Ready for pre-audit verification and approval.`);
-    } else {
-      setBannerNotice(`🔍 Searching PV Records database for #${pvNo}...`);
+    const rawQuery = typeof customQuery === 'string' ? customQuery : (pvNo || itemRequisitionNo || '');
+    const query = String(rawQuery).trim().toLowerCase();
+
+    if (!query) {
+      setBannerNotice('⚠️ Please enter a PV Number or Requisition Number to search.');
+      setTimeout(() => setBannerNotice(''), 4000);
+      return;
     }
-    setTimeout(() => setBannerNotice(''), 4000);
+
+    setIsSearching(true);
+    setBannerNotice(`🔍 Searching PV Records & Database for "${rawQuery.trim()}"...`);
+
+    // Helper matcher function
+    const matchesVoucher = (v) => {
+      if (!v) return false;
+      const vPvNo = String(v.pvNo || v.pv_number || v.id || '').toLowerCase().trim();
+      const vReq = String(v.requisitionNo || v.itemRequisitionNo || v.requisition_no || v.reqNo || '').toLowerCase().trim();
+      const vDesc = String(v.description || '').toLowerCase();
+      const vProv = String(v.provider || v.payee_name || '').toLowerCase();
+
+      // Direct exact or substring matches
+      if (vPvNo && (vPvNo.includes(query) || query.includes(vPvNo))) return true;
+      if (vReq && (vReq.includes(query) || query.includes(vReq))) return true;
+
+      // Alphanumeric clean match (stripping "PV-", "REQ-", spaces, hyphens)
+      const cleanQ = query.replace(/[^a-z0-9]/g, '');
+      const cleanPv = vPvNo.replace(/[^a-z0-9]/g, '');
+      const cleanReq = vReq.replace(/[^a-z0-9]/g, '');
+      if (cleanQ.length >= 3) {
+        if (cleanPv && (cleanPv.includes(cleanQ) || cleanQ.includes(cleanPv))) return true;
+        if (cleanReq && (cleanReq.includes(cleanQ) || cleanQ.includes(cleanReq))) return true;
+      }
+
+      return false;
+    };
+
+    try {
+      // 1. Check local pvQueue
+      let match = pvQueue.find(matchesVoucher);
+
+      // 2. Check portal store payment vouchers
+      if (!match && storeVouchers && storeVouchers.length > 0) {
+        match = storeVouchers.find(matchesVoucher);
+      }
+
+      // 3. Check localStorage official_pv_queue
+      if (!match) {
+        try {
+          const saved = JSON.parse(localStorage.getItem('official_pv_queue') || '[]');
+          if (Array.isArray(saved)) {
+            match = saved.find(matchesVoucher);
+          }
+        } catch (_) {}
+      }
+
+      // 4. Query backend directly by PV identifier / number
+      if (!match) {
+        try {
+          const backendMatch = await api.getPaymentVoucherById(rawQuery.trim());
+          if (backendMatch && (backendMatch.id || backendMatch.pv_number || backendMatch.pvNo)) {
+            match = {
+              id: backendMatch.id || `pv-${Date.now()}`,
+              pvNo: backendMatch.pv_number || backendMatch.pvNo || rawQuery.trim(),
+              requisitionNo: backendMatch.requisition_no || backendMatch.requisitionNo || '',
+              provider: backendMatch.payee_name || backendMatch.provider || 'Vendor',
+              providerId: backendMatch.payee_id || backendMatch.providerId || '',
+              description: backendMatch.description || '',
+              qty: Number(backendMatch.quantity || backendMatch.qty) || 1,
+              cost: Number(backendMatch.unit_cost || backendMatch.cost) || 0,
+              total: Number(backendMatch.total_amount || backendMatch.total) || 0,
+              datePrepared: backendMatch.date_prepared || backendMatch.datePrepared || new Date().toISOString().split('T')[0],
+              valuedDate: backendMatch.date_prepared || backendMatch.valuedDate || new Date().toISOString().split('T')[0],
+              auditRemarks: backendMatch.auditRemarks || backendMatch.pre_audited_by || 'Verified in backend records',
+              status: backendMatch.status === 'PRE_AUDITED' ? 'Pre-Audited & Approved' : (backendMatch.status || 'Pending approval'),
+            };
+          }
+        } catch (_) {}
+      }
+
+      // 5. Query all vouchers from backend to search within live database
+      if (!match) {
+        try {
+          const freshPVs = await api.getPaymentVouchers();
+          if (Array.isArray(freshPVs)) {
+            const mappedFresh = freshPVs.map(p => ({
+              id: p.id || p.pv_number || `pv-${Date.now()}`,
+              pvNo: p.pv_number || p.pvNo || p.id,
+              requisitionNo: p.requisition_no || p.requisitionNo || '',
+              provider: p.payee_name || p.provider || 'Vendor',
+              providerId: p.payee_id || p.providerId || '',
+              description: p.description || '',
+              qty: Number(p.quantity || p.qty) || 1,
+              cost: Number(p.unit_cost || p.cost) || 0,
+              total: Number(p.total_amount || p.total) || 0,
+              datePrepared: p.date_prepared || p.datePrepared || new Date().toISOString().split('T')[0],
+              valuedDate: p.date_prepared || p.valuedDate || new Date().toISOString().split('T')[0],
+              auditRemarks: p.auditRemarks || p.pre_audited_by || 'Fetched from backend database',
+              status: p.status === 'PRE_AUDITED' ? 'Pre-Audited & Approved' : (p.status || 'Pending approval')
+            }));
+            match = mappedFresh.find(matchesVoucher);
+          }
+        } catch (_) {}
+      }
+
+      if (match) {
+        // Ensure match is in pvQueue
+        setPvQueue(prev => {
+          const exists = prev.some(x => (x.pvNo && x.pvNo === match.pvNo) || (x.id && x.id === match.id));
+          return exists ? prev : [match, ...prev];
+        });
+        populateFormWithVoucher(match);
+        setBannerNotice(`🔍 ✅ Found & loaded PV #${match.pvNo || match.id} (Requisition: ${match.requisitionNo || 'N/A'}). Ready for pre-audit verification and approval.`);
+      } else {
+        setBannerNotice(`⚠️ No payment voucher record found matching "${rawQuery.trim()}". Please verify the PV number or Requisition number.`);
+      }
+    } catch (err) {
+      setBannerNotice(`⚠️ Search error: ${err.message || 'Failed to search voucher database'}`);
+    } finally {
+      setIsSearching(false);
+      setTimeout(() => setBannerNotice(''), 6000);
+    }
   };
 
   // Save / Correct Voucher Details Prior to Approval
@@ -410,17 +526,25 @@ export default function ApprovePVForm({ setM = () => {} }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', marginBottom: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
-              onClick={handleSearchPV}
-              style={{ padding: '4px 12px', background: '#0f3a4b', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 800, fontSize: 11, cursor: 'pointer' }}
+              onClick={() => handleSearchPV(searchFilter || pvNo || itemRequisitionNo)}
+              disabled={isSearching}
+              style={{ padding: '4px 12px', background: '#0f3a4b', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 800, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
             >
+              {isSearching ? <Loader2 size={12} className="animate-spin" /> : null}
               Search PV Records &gt;&gt;
             </button>
             <input
               type="text"
-              placeholder="Filter PV records..."
+              placeholder="Filter / Search PV records..."
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              style={{ width: 180, padding: '3px 8px', borderRadius: 4, border: '1px solid #94a3b8', fontSize: 11, background: '#fff' }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSearchPV(searchFilter);
+                }
+              }}
+              style={{ width: 190, padding: '3px 8px', borderRadius: 4, border: '1px solid #94a3b8', fontSize: 11, background: '#fff' }}
             />
           </div>
           <span style={{ fontSize: 11, fontWeight: 800, color: '#0f3a4b' }}>
@@ -561,45 +685,69 @@ export default function ApprovePVForm({ setM = () => {} }) {
             border: '1px solid #cbd5e1',
             borderTop: 'none',
             display: 'grid',
-            gridTemplateColumns: '1.4fr 1fr',
+            gridTemplateColumns: '1.3fr 1.3fr',
             gap: 16,
             alignItems: 'center'
           }}>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 4 }}>
-                PV N/o Search & Selection
+                PV N/o Search &amp; Selection
               </label>
               <div style={{ display: 'flex', gap: 6 }}>
                 <input
                   type="text"
                   value={pvNo}
                   onChange={(e) => setPvNo(e.target.value)}
-                  placeholder="Enter PV N/o (e.g. PV-2026-088)..."
-                  style={{ width: 160, padding: '6px 10px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 800, background: '#fff' }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSearchPV(pvNo);
+                    }
+                  }}
+                  placeholder="Enter PV N/o (e.g. PV-2026-088, 51250897)..."
+                  style={{ flex: 1, minWidth: 140, padding: '6px 10px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 800, background: '#fff' }}
                 />
-            <button
-              type="button"
-              onClick={handleSearchPV}
-              style={{ padding: '6px 14px', background: '#0f3a4b', color: '#fff', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            >
-              <Search size={13} /> Recall PV Details
-            </button>
-          </div>
-        </div>
+                <button
+                  type="button"
+                  onClick={() => handleSearchPV(pvNo)}
+                  disabled={isSearching}
+                  style={{ padding: '6px 14px', background: '#0f3a4b', color: '#fff', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+                >
+                  {isSearching ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />} Recall PV Details
+                </button>
+              </div>
+            </div>
 
-        <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 4 }}>
-            Item Requisition #
-          </label>
-          <input
-            type="text"
-            value={itemRequisitionNo}
-            onChange={(e) => setItemRequisitionNo(e.target.value)}
-            placeholder="Requisition N/o..."
-            style={{ width: '100%', padding: '6px 10px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff', fontWeight: 700 }}
-          />
-        </div>
-      </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 4 }}>
+                Item Requisition #
+              </label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="text"
+                  value={itemRequisitionNo}
+                  onChange={(e) => setItemRequisitionNo(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSearchPV(itemRequisitionNo);
+                    }
+                  }}
+                  placeholder="Requisition N/o (e.g. REQ-2026-901)..."
+                  style={{ flex: 1, padding: '6px 10px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff', fontWeight: 700 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSearchPV(itemRequisitionNo)}
+                  disabled={isSearching}
+                  title="Search PV matching this Requisition Number"
+                  style={{ padding: '6px 12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}
+                >
+                  {isSearching ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />} Search Req #
+                </button>
+              </div>
+            </div>
+          </div>
 
       {/* Banner Notification Bar */}
       {bannerNotice && (

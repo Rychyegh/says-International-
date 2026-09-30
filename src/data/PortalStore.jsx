@@ -248,6 +248,18 @@ export function PortalDataProvider({ children }) {
               ...current,
               ...event.data.payload
             }));
+          } else if (event.data && event.data.type === 'PV_SUBMITTED') {
+            const { notif } = event.data;
+            if (notif) {
+              setData(current => {
+                const existing = current.pvNotifications || [];
+                if (existing.some(n => n.id === notif.id || (notif.pvNo && n.pvNo === notif.pvNo))) return current;
+                return {
+                  ...current,
+                  pvNotifications: [notif, ...existing]
+                };
+              });
+            }
           }
         };
       }
@@ -274,6 +286,7 @@ export function PortalDataProvider({ children }) {
             const mergedStaff = mergeByKey(current.teacherDirectory || [], cloudData.teacherDirectory || [], s => s.staffId || s.id || s.email || s.name);
             const mergedBills = mergeByKey(current.definedBills || [], cloudData.definedBills || [], b => b.id || b.title || b.name);
             const mergedPVs = mergeByKey(current.paymentVouchers || [], cloudData.paymentVouchers || [], p => p.pvNo || p.id);
+            const mergedNotifs = mergeByKey(current.pvNotifications || [], cloudData.pvNotifications || [], n => n.id || n.pvNo);
             const mergedTimetable = mergeByKey(current.timetable || [], cloudData.timetable || [], t => t.id || `${t.day}-${t.time}-${t.subject}`);
             const mergedResults = mergeByKey(current.results || [], cloudData.results || [], r => r.id || `${r.studentId}-${r.subject}`);
             const mergedExamRegs = mergeByKey(current.examRegistrations || [], cloudData.examRegistrations || [], e => e.id || e.studentId || e.indexNumber);
@@ -289,6 +302,7 @@ export function PortalDataProvider({ children }) {
               teacherDirectory: mergedStaff,
               definedBills: mergedBills,
               paymentVouchers: mergedPVs,
+              pvNotifications: mergedNotifs,
               timetable: mergedTimetable,
               results: mergedResults,
               examRegistrations: mergedExamRegs,
@@ -625,9 +639,35 @@ export function PortalDataProvider({ children }) {
               }
             });
             const mergedPVs = Array.from(pvMap.values());
+            const finalPVs = mergedPVs.length > 0 ? mergedPVs : mapped;
+
+            // Synthesize unread notifications for any pending vouchers loaded from backend
+            const existingNotifMap = new Map((current.pvNotifications || []).map(n => [String(n.pvNo || '').toLowerCase().trim(), n]));
+            const pendingPVs = finalPVs.filter(p => {
+              const s = (p.status || '').toLowerCase().trim();
+              return s.includes('pending') || s === 'draft' || !s;
+            });
+            const newSynthesized = [];
+            pendingPVs.forEach(p => {
+              const key = String(p.pvNo || p.id || '').toLowerCase().trim();
+              if (key && !existingNotifMap.has(key)) {
+                newSynthesized.push({
+                  id: `notif-${key}-${Date.now()}`,
+                  pvNo: p.pvNo || p.id,
+                  provider: p.provider || p.payee_name || 'Vendor',
+                  grandTotal: p.grandTotal || p.total || p.cost || 0,
+                  description: p.description || 'Expenditure Voucher',
+                  submittedBy: p.submittedBy || 'Sub-Admin',
+                  submittedAt: p.datePrepared || new Date().toLocaleString(),
+                  read: false,
+                });
+              }
+            });
+
             return {
               ...current,
-              paymentVouchers: mergedPVs.length > 0 ? mergedPVs : mapped,
+              paymentVouchers: finalPVs,
+              pvNotifications: newSynthesized.length > 0 ? [...newSynthesized, ...(current.pvNotifications || [])] : (current.pvNotifications || []),
               backendConnected: true
             };
           });
@@ -2509,9 +2549,15 @@ export function PortalDataProvider({ children }) {
           }
           return p;
         });
+        const updatedNotifs = (current.pvNotifications || []).map(n =>
+          (n.pvNo && String(n.pvNo).toLowerCase() === String(pvNo).toLowerCase())
+            ? { ...n, read: true, status: statusText }
+            : n
+        );
         return {
           ...current,
-          paymentVouchers: updated
+          paymentVouchers: updated,
+          pvNotifications: updatedNotifs
         };
       });
     },

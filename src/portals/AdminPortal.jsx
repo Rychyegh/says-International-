@@ -4,7 +4,7 @@ import {
   TrendingUp, School, CreditCard, Search, Trash2, Edit,
   CheckCircle2, X, Save, ShieldCheck, ShieldAlert, AlertTriangle, Mail, Phone, MapPin,
   Printer, Download, Eye, EyeOff, Copy, Plus, FileCheck, UserCheck, Radio,
-  ArrowUpDown, ArrowUp, ArrowDown
+  ArrowUpDown, ArrowUp, ArrowDown, ArrowRight, BellRing
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import { usePortalData } from '../data/PortalStore';
@@ -217,11 +217,38 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     submitApplication,
     deleteApplication,
     adminSetUserPassword,
+    paymentVouchers,
     pvNotifications,
     markAllPVNotificationsRead,
     clearPVNotifications,
     markPVNotificationRead,
   } = usePortalData();
+
+  // PV Approval Notifications & Pending Voucher Queue Detection
+  const pendingPVs = useMemo(() => {
+    return (paymentVouchers || []).filter(p => {
+      const s = (p.status || '').toLowerCase().trim();
+      return s.includes('pending') || s === 'draft' || !s;
+    });
+  }, [paymentVouchers]);
+
+  const pendingPVCount = useMemo(() => {
+    const fromNotifs = (pvNotifications || []).filter(n => !n.read).length;
+    return Math.max(fromNotifs, pendingPVs.length);
+  }, [pvNotifications, pendingPVs]);
+
+  const [livePVAlert, setLivePVAlert] = useState(null);
+  useEffect(() => {
+    const handlePVSubmitted = (e) => {
+      const detail = e.detail;
+      if (detail && detail.notif) {
+        setLivePVAlert(detail.notif);
+        setTimeout(() => setLivePVAlert(null), 12000);
+      }
+    };
+    window.addEventListener('rcis_pv_submitted', handlePVSubmitted);
+    return () => window.removeEventListener('rcis_pv_submitted', handlePVSubmitted);
+  }, []);
 
   // Dynamic Levels & Subjects
   const defaultClassLevels = [
@@ -662,13 +689,118 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
               }}
             >
               <span className="sidebar-item__icon">{item.icon}</span>
-              {item.label}
+              <span style={{ flex: 1, textAlign: 'left' }}>{item.label}</span>
+              {item.label === 'Pre-Audit & Approve PV' && pendingPVCount > 0 ? (
+                <span style={{
+                  background: '#dc2626', color: '#fff', fontSize: 10, fontWeight: 900,
+                  borderRadius: 99, padding: '1px 7px', marginLeft: 6, lineHeight: 1.4,
+                  boxShadow: '0 1px 4px rgba(220,38,38,0.4)'
+                }}>
+                  {pendingPVCount}
+                </span>
+              ) : item.badge ? (
+                <span className="sidebar-item__badge" style={{ fontSize: 9, opacity: 0.85 }}>{item.badge}</span>
+              ) : null}
             </button>
           ))}
         </aside>
 
         {/* Main Content */}
         <main className="portal__content">
+          {/* Live PV Submission Toast Alert */}
+          {livePVAlert && adminRole !== 'sub_admin' && (
+            <div style={{
+              padding: '14px 18px',
+              background: 'linear-gradient(135deg, #4a1d6e, #7c3ac8)',
+              color: '#fff',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: 16,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              boxShadow: '0 8px 24px rgba(74,29,110,0.3)',
+              animation: 'pvNotifSlideIn 0.3s ease-out'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ background: '#fff', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <BellRing size={18} color="#7c3ac8" />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 13 }}>
+                    ⚡ New PV Submitted for Approval: #{livePVAlert.pvNo}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#e9d5ff', marginTop: 2 }}>
+                    {livePVAlert.provider} · GHS {Number(livePVAlert.grandTotal || 0).toLocaleString('en-GH', { minimumFractionDigits: 2 })} · Submitted by {livePVAlert.submittedBy || 'Sub-Admin'}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={() => {
+                    setActiveNav('Pre-Audit & Approve PV');
+                    setLivePVAlert(null);
+                  }}
+                  style={{
+                    background: '#fff', color: '#4a1d6e', border: 'none', borderRadius: 6,
+                    padding: '7px 14px', fontWeight: 800, fontSize: 12, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 4
+                  }}
+                >
+                  Review Voucher <ArrowRight size={13} />
+                </button>
+                <button
+                  onClick={() => setLivePVAlert(null)}
+                  style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Persistent Action Required PV Banner for Headmaster */}
+          {pendingPVCount > 0 && adminRole !== 'sub_admin' && activeNav !== 'Pre-Audit & Approve PV' && (
+            <div style={{
+              background: '#fdf4ff',
+              border: '1.5px solid #d8b4fe',
+              borderRadius: 'var(--radius-md)',
+              padding: '13px 18px',
+              marginBottom: 16,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              boxShadow: '0 2px 8px rgba(124, 58, 200, 0.08)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 8,
+                  background: '#7c3ac8', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', flexShrink: 0
+                }}>
+                  <BellRing size={18} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: '#4a1d6e' }}>
+                    Action Required: {pendingPVCount} Payment Voucher{pendingPVCount > 1 ? 's' : ''} Awaiting Pre-Audit & Approval
+                  </div>
+                  <div style={{ fontSize: 11, color: '#7c3ac8', marginTop: 1 }}>
+                    Sub-Admin has submitted expenditure requests ready for Headmaster verification, correction, and sign-off.
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveNav('Pre-Audit & Approve PV')}
+                style={{
+                  background: '#7c3ac8', color: '#fff', border: 'none', borderRadius: 7,
+                  padding: '8px 16px', fontWeight: 800, fontSize: 12, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6
+                }}
+              >
+                Go to Approval Desk <ArrowRight size={13} />
+              </button>
+            </div>
+          )}
+
           {adminRole === 'sub_admin' && (
             <div style={{
               padding: '10px 16px', background: '#e0f2fe', border: '1px solid #7dd3fc', color: '#0369a1',

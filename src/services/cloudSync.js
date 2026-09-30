@@ -15,7 +15,8 @@ function createDataSignature(data) {
   const stuSig = (data.onboardedStudents || []).map(s => `${s.id}_${s.fullName}_${s.level}_${s.updatedAt}`).join('|');
   const feeSig = (data.studentFees || []).map(f => `${f.id}_${f.amountPaid}_${f.status}_${f.updatedAt}`).join('|');
   const pvSig = (data.paymentVouchers || []).map(p => `${p.id}_${p.status}_${p.updatedAt}`).join('|');
-  return `${appsSig}#${stuSig}#${feeSig}#${pvSig}`;
+  const notifSig = (data.pvNotifications || []).map(n => `${n.id}_${n.read}`).join('|');
+  return `${appsSig}#${stuSig}#${feeSig}#${pvSig}#${notifSig}`;
 }
 
 export const cloudSync = {
@@ -54,6 +55,7 @@ export const cloudSync = {
           teacherDirectory: data.teacherDirectory || [],
           definedBills: data.definedBills || [],
           paymentVouchers: data.paymentVouchers || [],
+          pvNotifications: data.pvNotifications || [],
           timetable: data.timetable || [],
           results: data.results || [],
           examRegistrations: data.examRegistrations || [],

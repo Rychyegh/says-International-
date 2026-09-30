@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   FileText, Plus, Search, RotateCcw, Printer, Trash2, Edit, CheckCircle2,
-  AlertCircle, ChevronRight, X, Building2, User, Phone, Mail, MapPin, Sparkles, DollarSign
+  AlertCircle, ChevronRight, X, Building2, User, Phone, Mail, MapPin, Sparkles, DollarSign,
+  Clock, XCircle, RefreshCw
 } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
+import { api } from '../../services/api';
 import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
 
 export default function SubmitPVRequest({ setM = () => {} }) {
@@ -85,6 +87,82 @@ export default function SubmitPVRequest({ setM = () => {} }) {
 
   // Grand Total of PV Draft Items
   const pvGrandTotal = pvItems.reduce((acc, item) => acc + (item.totalAmount || 0), 0);
+
+  // Status Tracker State & Helpers for Sub-Admin
+  const [statusFilter, setStatusFilter] = useState('All'); // 'All' | 'Pending' | 'Approved' | 'Declined'
+  const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
+
+  const handleRefreshStatus = async () => {
+    setIsRefreshingStatus(true);
+    try {
+      if (api.getPaymentVouchers) {
+        await api.getPaymentVouchers();
+      }
+      setSuccessNotice('🔄 Synchronized latest PV approval statuses from server.');
+      setTimeout(() => setSuccessNotice(''), 3500);
+    } catch (e) {
+      console.warn('Status refresh warning:', e);
+    } finally {
+      setIsRefreshingStatus(false);
+    }
+  };
+
+  const renderPvStatusBadge = (status, remarks) => {
+    const s = (status || '').toLowerCase();
+    if (s.includes('approv') || s.includes('validat')) {
+      return (
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          padding: '3px 9px', borderRadius: 99, fontSize: 11, fontWeight: 800,
+          background: '#dcfce7', color: '#166534', border: '1px solid #86efac'
+        }} title={remarks ? `Headmaster remarks: ${remarks}` : 'Approved by Headmaster'}>
+          <CheckCircle2 size={12} color="#16a34a" /> Approved
+        </span>
+      );
+    }
+    if (s.includes('declin') || s.includes('reject')) {
+      return (
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          padding: '3px 9px', borderRadius: 99, fontSize: 11, fontWeight: 800,
+          background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5'
+        }} title={remarks ? `Decline reason: ${remarks}` : 'Declined by Headmaster'}>
+          <XCircle size={12} color="#dc2626" /> Declined
+        </span>
+      );
+    }
+    if (s.includes('disburs') || s.includes('paid')) {
+      return (
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          padding: '3px 9px', borderRadius: 99, fontSize: 11, fontWeight: 800,
+          background: '#f3e8ff', color: '#6b21a8', border: '1px solid #d8b4fe'
+        }}>
+          <DollarSign size={12} color="#7c3aed" /> Disbursed
+        </span>
+      );
+    }
+    if (s.includes('cancel')) {
+      return (
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          padding: '3px 9px', borderRadius: 99, fontSize: 11, fontWeight: 800,
+          background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1'
+        }}>
+          Cancelled
+        </span>
+      );
+    }
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4,
+        padding: '3px 9px', borderRadius: 99, fontSize: 11, fontWeight: 800,
+        background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d'
+      }} title="Awaiting Headmaster Pre-Audit Review">
+        <Clock size={12} color="#d97706" /> Pending Pre-Audit
+      </span>
+    );
+  };
 
   // Synchronize Provider ID when Provider dropdown changes
   const handleProviderSelectChange = (name) => {
@@ -975,6 +1053,134 @@ export default function SubmitPVRequest({ setM = () => {} }) {
               </tbody>
             </table>
           </div>
+
+          {/* ── SUBMITTED PVS & HEADMASTER APPROVAL STATUS TRACKER ── */}
+          {(() => {
+            const filteredPVs = storePaymentVouchers.filter(p => {
+              const s = (p.status || '').toLowerCase();
+              if (statusFilter === 'Pending') return s.includes('pending') || s.includes('draft');
+              if (statusFilter === 'Approved') return s.includes('approv') || s.includes('validat');
+              if (statusFilter === 'Declined') return s.includes('declin') || s.includes('reject') || s.includes('cancel');
+              return true;
+            });
+            const pendingCount = storePaymentVouchers.filter(p => (p.status || '').toLowerCase().includes('pending')).length;
+            const approvedCount = storePaymentVouchers.filter(p => (p.status || '').toLowerCase().includes('approv') || (p.status || '').toLowerCase().includes('validat')).length;
+            const declinedCount = storePaymentVouchers.filter(p => (p.status || '').toLowerCase().includes('declin') || (p.status || '').toLowerCase().includes('reject')).length;
+
+            return (
+              <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, padding: 16, marginTop: 16, boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <h3 style={{ fontSize: 13.5, fontWeight: 900, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>📑</span> Submitted Payment Vouchers &amp; Approval Status Tracker ({filteredPVs.length})
+                    </h3>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                      Track whether vouchers submitted by Sub-Admin have been approved, declined, or pre-audited by Headmaster.
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {[
+                      { key: 'All', label: `All (${storePaymentVouchers.length})` },
+                      { key: 'Pending', label: `⏳ Pending (${pendingCount})` },
+                      { key: 'Approved', label: `✅ Approved (${approvedCount})` },
+                      { key: 'Declined', label: `❌ Declined (${declinedCount})` },
+                    ].map(tab => (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setStatusFilter(tab.key)}
+                        style={{
+                          padding: '4px 9px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 800,
+                          border: 'none',
+                          cursor: 'pointer',
+                          background: statusFilter === tab.key ? '#0284c7' : '#f1f5f9',
+                          color: statusFilter === tab.key ? '#fff' : '#475569'
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={handleRefreshStatus}
+                      disabled={isRefreshingStatus}
+                      style={{
+                        padding: '4px 9px',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        border: '1px solid #cbd5e1',
+                        background: '#f8fafc',
+                        color: '#0f172a',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}
+                      title="Fetch live approval statuses from backend"
+                    >
+                      <RefreshCw size={11} className={isRefreshingStatus ? 'animate-spin' : ''} />
+                      {isRefreshingStatus ? '...' : 'Refresh'}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ maxHeight: 260, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
+                        <th style={{ padding: '7px 9px', textAlign: 'left' }}>PV #</th>
+                        <th style={{ padding: '7px 9px', textAlign: 'left' }}>Date</th>
+                        <th style={{ padding: '7px 9px', textAlign: 'left' }}>Payee / Description</th>
+                        <th style={{ padding: '7px 9px', textAlign: 'right' }}>Amount (GHS)</th>
+                        <th style={{ padding: '7px 9px', textAlign: 'center' }}>Approval Status</th>
+                        <th style={{ padding: '7px 9px', textAlign: 'left' }}>Headmaster Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPVs.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" style={{ padding: 20, textAlign: 'center', color: '#64748b' }}>
+                            No payment vouchers found in this category.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredPVs.map((pv, idx) => (
+                          <tr key={pv.id || idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
+                            <td style={{ padding: '7px 9px', fontWeight: 900, color: '#991b1b' }}>{pv.pvNo}</td>
+                            <td style={{ padding: '7px 9px', color: '#64748b' }}>{pv.datePrepared || '—'}</td>
+                            <td style={{ padding: '7px 9px' }}>
+                              <div style={{ fontWeight: 800, color: '#0f172a' }}>{pv.provider}</div>
+                              <div style={{ fontSize: 10.5, color: '#64748b' }}>{pv.description}</div>
+                            </td>
+                            <td style={{ padding: '7px 9px', textAlign: 'right', fontWeight: 900, color: '#0369a1' }}>
+                              {(pv.total || pv.cost || pv.grandTotal || 0).toFixed(2)}
+                            </td>
+                            <td style={{ padding: '7px 9px', textAlign: 'center' }}>
+                              {renderPvStatusBadge(pv.status, pv.auditRemarks)}
+                            </td>
+                            <td style={{ padding: '7px 9px', fontSize: 11, color: pv.auditRemarks ? '#0f172a' : '#94a3b8' }}>
+                              {pv.auditRemarks || 'Pending review...'}
+                              {pv.approvedBy && (
+                                <div style={{ fontSize: 10, color: '#0284c7', marginTop: 1, fontWeight: 700 }}>
+                                  By: {pv.approvedBy} {pv.approvedAt ? `(${pv.approvedAt})` : ''}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Right Column: Floating Service Providers Side Window / Manager */}
@@ -1180,9 +1386,11 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                 <thead>
                   <tr style={{ background: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
                     <th style={{ padding: '8px 10px', textAlign: 'left' }}>PV #</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Provider</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Description</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Date</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Provider / Particulars</th>
                     <th style={{ padding: '8px 10px', textAlign: 'right' }}>Amount (GHS)</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'center' }}>Approval Status</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Headmaster Remarks</th>
                     <th style={{ padding: '8px 10px', textAlign: 'center' }}>Action</th>
                   </tr>
                 </thead>
@@ -1191,10 +1399,11 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                     !searchQuery ||
                     p.pvNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     p.provider?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    p.description?.toLowerCase().includes(searchQuery.toLowerCase())
+                    p.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    p.status?.toLowerCase().includes(searchQuery.toLowerCase())
                   ).length === 0 ? (
                     <tr>
-                      <td colSpan="5" style={{ padding: 20, textAlign: 'center', color: '#64748b' }}>
+                      <td colSpan="7" style={{ padding: 20, textAlign: 'center', color: '#64748b' }}>
                         No matching PV records found.
                       </td>
                     </tr>
@@ -1203,13 +1412,30 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                       !searchQuery ||
                       p.pvNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                       p.provider?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      p.description?.toLowerCase().includes(searchQuery.toLowerCase())
+                      p.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      p.status?.toLowerCase().includes(searchQuery.toLowerCase())
                     ).map(p => (
                       <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                         <td style={{ padding: '8px 10px', fontWeight: 800, color: '#991b1b' }}>{p.pvNo}</td>
-                        <td style={{ padding: '8px 10px', fontWeight: 700 }}>{p.provider}</td>
-                        <td style={{ padding: '8px 10px', color: '#475569' }}>{p.description}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800 }}>{(p.total || p.cost || 0).toFixed(2)}</td>
+                        <td style={{ padding: '8px 10px', color: '#64748b', fontSize: 11 }}>{p.datePrepared || '—'}</td>
+                        <td style={{ padding: '8px 10px' }}>
+                          <div style={{ fontWeight: 800, color: '#0f172a' }}>{p.provider}</div>
+                          <div style={{ fontSize: 11, color: '#475569' }}>{p.description}</div>
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#0369a1' }}>
+                          {(p.total || p.cost || p.grandTotal || 0).toFixed(2)}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                          {renderPvStatusBadge(p.status, p.auditRemarks)}
+                        </td>
+                        <td style={{ padding: '8px 10px', fontSize: 11, color: p.auditRemarks ? '#0f172a' : '#94a3b8' }}>
+                          {p.auditRemarks || 'Pending review...'}
+                          {p.approvedBy && (
+                            <div style={{ fontSize: 10, color: '#0284c7', marginTop: 1, fontWeight: 700 }}>
+                              By: {p.approvedBy}
+                            </div>
+                          )}
+                        </td>
                         <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                           <button
                             onClick={() => {

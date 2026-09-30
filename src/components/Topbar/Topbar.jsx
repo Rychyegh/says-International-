@@ -33,29 +33,39 @@ export default function Topbar({ activePortal, isAuthed, onSignOut }) {
     : defaultUser.role;
   const userInitial = (userName.charAt(0) || 'U').toUpperCase();
 
-  // PV Notification Bell — admin portal head_admin only
+  // PV Notification Bell — shown on admin portal
   const portalData = usePortalData();
-  const pvNotifications = portalData?.pvNotifications || [];
+  const storedNotifs = portalData?.pvNotifications || [];
   const markAllPVNotificationsRead = portalData?.markAllPVNotificationsRead;
   const clearPVNotifications = portalData?.clearPVNotifications;
   const markPVNotificationRead = portalData?.markPVNotificationRead;
 
-  // Reactive adminRole — listens to localStorage changes across tabs/logins
-  const [adminRole, setAdminRoleState] = useState(
-    () => localStorage.getItem('says_admin_role') || 'head_admin'
-  );
-  useEffect(() => {
-    const onStorage = () => {
-      setAdminRoleState(localStorage.getItem('says_admin_role') || 'head_admin');
-    };
-    window.addEventListener('storage', onStorage);
-    // Also re-read immediately every time isAuthed changes (login)
-    onStorage();
-    return () => window.removeEventListener('storage', onStorage);
-  }, [isAuthed]);
+  // Synthesize notifications for any pending vouchers not yet in storedNotifs
+  const pendingVouchers = (portalData?.paymentVouchers || []).filter(p => {
+    const s = (p.status || '').toLowerCase().trim();
+    return s.includes('pending') || s === 'draft' || !s;
+  });
+  const notifPvNos = new Set(storedNotifs.map(n => String(n.pvNo || '').toLowerCase().trim()));
+  const missingPendingNotifs = pendingVouchers
+    .filter(p => {
+      const k = String(p.pvNo || p.id || '').toLowerCase().trim();
+      return k && !notifPvNos.has(k);
+    })
+    .map(p => ({
+      id: `live-${p.pvNo || p.id}`,
+      pvNo: p.pvNo || p.id,
+      provider: p.provider || p.payee_name || 'Vendor',
+      grandTotal: p.grandTotal || p.total || p.cost || 0,
+      description: p.description || 'Expenditure Voucher',
+      submittedBy: p.submittedBy || 'Sub-Admin',
+      submittedAt: p.datePrepared || 'Pending Review',
+      read: false
+    }));
 
-  // Show bell only for head_admin on admin portal when authenticated
-  const showBell = activePortal === 'admin' && isAuthed && adminRole === 'head_admin';
+  const pvNotifications = [...storedNotifs, ...missingPendingNotifs];
+
+  // Show bell on admin portal when authenticated
+  const showBell = activePortal === 'admin' && isAuthed;
   const unreadCount = pvNotifications.filter(n => !n.read).length;
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const notifPanelRef = useRef(null);
