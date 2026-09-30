@@ -11,6 +11,7 @@ import RegisterForExamsForm from '../components/RegisterForExams/RegisterForExam
 import AcademicSettingsManager from '../components/Academic/AcademicSettingsManager';
 import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
 import ApprovePVForm from '../components/Finance/ApprovePVForm';
+import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
 import { getAuthUser } from '../services/api';
 
 const ACCOUNT_BG = '#0f3a4b';
@@ -1027,6 +1028,13 @@ export default function AccountantPortal({ onSignOut }) {
           {activeNav === 'Authorise Bills/Accounts Receivables' && (
             <div style={{ background: '#ffffff', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', padding: 12 }}>
               <AuthoriseBillsReceivablesForm setM={() => {}} students={onboardedStudents || []} />
+            </div>
+          )}
+
+          {/* ── SUBMIT PV REQUEST VIEW ── */}
+          {(activeNav === 'Submit PV Request' || activeNav === 'Prepare Bills Payables') && (
+            <div style={{ background: '#ffffff', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', padding: 12 }}>
+              <SubmitPVRequest setM={() => {}} />
             </div>
           )}
 

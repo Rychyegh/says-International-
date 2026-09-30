@@ -974,7 +974,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                   { name: 'Security Intrusion Alerts & IP Ban Execution', roles: ['admin'] },
                   { name: 'Student Onboarding & Official Admission Approval', roles: ['admin', 'sub_admin'] },
                   { name: 'Digital NFC Card Issuance & Smart Badging', roles: ['admin', 'sub_admin'] },
-                  { name: 'Exam Registration & BECE Index Assignment', roles: ['admin', 'sub_admin', 'teacher'] },
+                  { name: 'Exam Registration & BECE Index Assignment', roles: ['admin', 'teacher'] },
                   { name: 'Fee Schedule Invoicing & Ledger Entry Creation', roles: ['admin', 'accountant'] },
                   { name: 'Class Assessment, Test Weights & Report Cards', roles: ['admin', 'sub_admin', 'teacher'] },
                   { name: 'Daily Attendance Roll Call & Gate Scans', roles: ['admin', 'sub_admin', 'teacher', 'security_driver'] },

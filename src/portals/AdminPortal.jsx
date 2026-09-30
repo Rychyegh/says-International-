@@ -15,6 +15,7 @@ import BulkStudentUpload from '../components/Onboarding/BulkStudentUpload';
 import RegisterForExamsForm from '../components/RegisterForExams/RegisterForExamsForm';
 import AcademicSettingsManager from '../components/Academic/AcademicSettingsManager';
 import ApprovePVForm from '../components/Finance/ApprovePVForm';
+import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
 import UserAccessControl from '../components/AccessControl/UserAccessControl';
 import { api, getAuthUser } from '../services/api';
 
@@ -29,6 +30,7 @@ const NAV = [
   { icon: <School size={15} />, label: 'Classes & Staff', badge: null },
   { icon: <CreditCard size={15} />, label: 'Card Issuance & Smart Identity', badge: 'NFC' },
   { icon: <Radio size={15} />, label: 'Attendance & SMS Control', badge: 'Live' },
+  { icon: <FileText size={15} />, label: 'Submit PV Request', badge: 'PV Req' },
   { icon: <Settings size={15} />, label: 'Academic Settings', badge: 'Global' },
   { icon: <FileCheck size={15} />, label: 'Register for Exams', badge: 'Exams' },
   { icon: <FileCheck size={15} />, label: 'Transcripts & Results', badge: 'All Classes' },
@@ -627,7 +629,21 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             </div>
           </div>
           <span className="sidebar-section-label">Management</span>
-          {NAV.filter(item => !(adminRole === 'sub_admin' && (item.label === 'Transcripts & Results' || item.label === 'Student Credentials Vault' || item.label === 'Security & Intrusion Alerts'))).map((item) => (
+          {NAV.filter(item => {
+            if (adminRole === 'sub_admin') {
+              const restrictedForSubAdmin = [
+                'Register for Exams',
+                'Academic Settings',
+                'Pre-Audit & Approve PV',
+                'User Access Control (UAC)',
+                'Transcripts & Results',
+                'Student Credentials Vault',
+                'Security & Intrusion Alerts'
+              ];
+              return !restrictedForSubAdmin.includes(item.label);
+            }
+            return true;
+          }).map((item) => (
             <button
               key={item.label}
               className={`sidebar-item${activeNav === item.label || (activeNav === 'Applications' && item.label.includes('Applications')) ? ' active' : ''}`}
@@ -654,9 +670,35 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <ShieldCheck size={16} />
-                <span><strong>Sub-Admin Restricted Access Mode:</strong> Sensitive system governance, fee structural overrides, and staff deletion are restricted to Head of Admin.</span>
+                <span><strong>Sub-Admin Restricted Access Mode:</strong> System governance, academic settings, exam registration, UAC, and financial PV approval are restricted to Head Admin.</span>
               </div>
               <span style={{ fontSize: 10, background: '#0284c7', color: '#fff', padding: '2px 8px', borderRadius: 99, fontWeight: 800 }}>SUB-ADMIN</span>
+            </div>
+          )}
+
+          {adminRole === 'sub_admin' && [
+            'Register for Exams',
+            'Academic Settings',
+            'Pre-Audit & Approve PV',
+            'User Access Control (UAC)',
+            'Transcripts & Results',
+            'Student Credentials Vault',
+            'Security & Intrusion Alerts'
+          ].includes(activeNav) && (
+            <div style={{ padding: 40, textAlign: 'center', background: '#fff', borderRadius: 16, margin: '20px 0', border: '1px solid #fed7aa', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+              <ShieldAlert size={48} color="#c2410c" style={{ marginBottom: 12 }} />
+              <h3 style={{ fontSize: 20, fontWeight: 900, color: '#9a3412', marginBottom: 8 }}>
+                🔒 Access Restricted — Sub-Admin Role
+              </h3>
+              <p style={{ fontSize: 13, color: '#475569', maxWidth: 520, margin: '0 auto 20px', lineHeight: 1.6 }}>
+                The <strong>"{activeNav}"</strong> module is restricted to <strong>Head Admin</strong> users only. Sub-Admin accounts do not have permission to view or modify this section.
+              </p>
+              <button
+                onClick={() => setActiveNav('Dashboard')}
+                style={{ padding: '10px 22px', background: '#4a1d6e', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, cursor: 'pointer' }}
+              >
+                Return to Dashboard
+              </button>
             </div>
           )}
 
@@ -1997,6 +2039,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </table>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ── SUBMIT PV REQUEST (PREPARE BILLS PAYABLES) ── */}
+          {(activeNav === 'Submit PV Request' || activeNav === 'Prepare Bills Payables') && (
+            <div className="animate-fade-up">
+              <SubmitPVRequest setM={() => {}} />
             </div>
           )}
 

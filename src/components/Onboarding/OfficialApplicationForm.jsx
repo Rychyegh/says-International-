@@ -146,6 +146,7 @@ export const getDefaultForm = () => ({
   parentsGhanaCard: '',
   childHealthInsuranceCard: '',
   gpsAddress: '',
+  childEatsFromSchool: 'Yes', // 'Yes' | 'No'
 
   // Office Use Only
   officeExamEnglishMark: '',
@@ -1194,6 +1195,31 @@ export default function OfficialApplicationForm({
             <div className="form-line-row">
               <span className="form-line-label">GPS ADDRESS:</span>
               <input className="form-line-input" value={formData.gpsAddress} onChange={(e) => handleChange('gpsAddress', e.target.value)} placeholder="e.g. WS-123-4567" disabled={readOnly && !isAdmin} />
+            </div>
+            <div className="form-line-row" style={{ minHeight: 38, alignItems: 'center', marginTop: 8, flexWrap: 'wrap', gap: 12 }}>
+              <span className="form-line-label" style={{ fontWeight: 800 }}>WILL THE CHILD EAT FROM SCHOOL (MID-DAY MEAL / FEEDING PROGRAMME)?:</span>
+              <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13, cursor: 'pointer', color: '#0f172a' }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.childEatsFromSchool === 'Yes'}
+                    onChange={(e) => handleChange('childEatsFromSchool', e.target.checked ? 'Yes' : 'No')}
+                    disabled={readOnly && !isAdmin}
+                    style={{ width: 17, height: 17, accentColor: '#15803d', cursor: 'pointer' }}
+                  />
+                  ☑️ Yes (Subscribed to Daily Feeding)
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13, cursor: 'pointer', color: '#64748b' }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.childEatsFromSchool === 'No'}
+                    onChange={(e) => handleChange('childEatsFromSchool', e.target.checked ? 'No' : 'Yes')}
+                    disabled={readOnly && !isAdmin}
+                    style={{ width: 17, height: 17, accentColor: '#dc2626', cursor: 'pointer' }}
+                  />
+                  ☐ No (Brings Pack / Home Lunch)
+                </label>
+              </div>
             </div>
 
             <div className="document-page-num">4</div>

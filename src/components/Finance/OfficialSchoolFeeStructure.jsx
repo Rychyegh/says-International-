@@ -460,7 +460,22 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
   const onboardedStudents = portalData?.onboardedStudents || [];
   const studentFees = portalData?.studentFees || [];
 
-  const [feeSchedule, setFeeSchedule] = useState(INITIAL_FEE_SCHEDULE);
+  const [feeSchedule, setFeeSchedule] = useState(() => {
+    try {
+      const saved = localStorage.getItem('official_fee_schedule');
+      return saved ? JSON.parse(saved) : INITIAL_FEE_SCHEDULE;
+    } catch (e) {
+      return INITIAL_FEE_SCHEDULE;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('official_fee_schedule', JSON.stringify(feeSchedule));
+    } catch (e) {
+      console.error('Failed to save fee schedule to localStorage:', e);
+    }
+  }, [feeSchedule]);
   const [stationerySchedule, setStationerySchedule] = useState(INITIAL_STATIONERY_SCHEDULE);
   const [stationeryFilter, setStationeryFilter] = useState('all'); // 'all' | 'nursery_creche' | 'kindergarten' | 'basic_school'
   const [editingStationeryClass, setEditingStationeryClass] = useState(null);
@@ -472,9 +487,12 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
   
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Add Fee Item Modal State
+  // Add & Edit Fee Item Modal State
   const [isAddingFeeModal, setIsAddingFeeModal] = useState(false);
   const [newFeeForm, setNewFeeForm] = useState({ details: '', amount: '', isOptional: false });
+  const [isEditingFeeModal, setIsEditingFeeModal] = useState(false);
+  const [editingFeeTarget, setEditingFeeTarget] = useState(null); // { type: 'compulsory' | 'optional', index: number | null, id: string | null }
+  const [editingFeeForm, setEditingFeeForm] = useState({ details: '', amount: '' });
 
   // Prepare & View Student Bill Modal State
   const [preparingStudentBill, setPreparingStudentBill] = useState(null);
@@ -737,7 +755,26 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     }
   };
 
-  // Handle Remove Fee Component Item
+  // Handle Inline Update Compulsory Bill Amount
+  const handleUpdateCompulsoryBillAmount = (itemIndex, newAmount) => {
+    const val = parseFloat(newAmount);
+    if (isNaN(val) || val < 0) return;
+
+    setFeeSchedule((prev) => {
+      const updatedClassData = { ...prev[selectedClassKey] };
+      const newBaseBill = [...(updatedClassData.baseBill || [])];
+      if (newBaseBill[itemIndex]) {
+        newBaseBill[itemIndex] = { ...newBaseBill[itemIndex], amount: val };
+      }
+      updatedClassData.baseBill = newBaseBill;
+      return {
+        ...prev,
+        [selectedClassKey]: updatedClassData,
+      };
+    });
+  };
+
+  // Handle Remove Compulsory Fee Component Item
   const handleRemoveFeeItem = (itemIndex) => {
     const itemToRemove = baseBillItems[itemIndex];
     setFeeSchedule((prev) => {
@@ -749,6 +786,81 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
       };
     });
     setSuccessMsg(`🗑️ Removed fee component "${itemToRemove.details}" from ${selectedSubLevel} bill schedule.`);
+    setTimeout(() => setSuccessMsg(''), 5000);
+  };
+
+  // Handle Remove Optional Fee Component Item
+  const handleRemoveOptionalFeeItem = (optId) => {
+    const itemToRemove = optionalBillItems.find(o => o.id === optId);
+    setFeeSchedule((prev) => {
+      const updatedClassData = { ...prev[selectedClassKey] };
+      updatedClassData.optionalBills = (updatedClassData.optionalBills || []).filter(o => o.id !== optId);
+      return {
+        ...prev,
+        [selectedClassKey]: updatedClassData,
+      };
+    });
+    if (itemToRemove) {
+      setSuccessMsg(`🗑️ Removed optional fee "${itemToRemove.details}" from ${selectedSubLevel} bill schedule.`);
+      setTimeout(() => setSuccessMsg(''), 5000);
+    }
+  };
+
+  // Open Edit Modal for Compulsory Fee Item
+  const handleOpenEditCompulsoryModal = (index, item) => {
+    setEditingFeeTarget({ type: 'compulsory', index, id: null });
+    setEditingFeeForm({ details: item.details, amount: item.amount.toString() });
+    setIsEditingFeeModal(true);
+  };
+
+  // Open Edit Modal for Optional Fee Item
+  const handleOpenEditOptionalModal = (opt) => {
+    setEditingFeeTarget({ type: 'optional', index: null, id: opt.id });
+    setEditingFeeForm({ details: opt.details, amount: opt.amount.toString() });
+    setIsEditingFeeModal(true);
+  };
+
+  // Handle Save Edit Fee Component Submit
+  const handleSaveEditFeeSubmit = (e) => {
+    e.preventDefault();
+    if (!editingFeeTarget || !editingFeeForm.details.trim() || !editingFeeForm.amount) return;
+
+    const amountNum = parseFloat(editingFeeForm.amount);
+    if (isNaN(amountNum) || amountNum <= 0) return;
+
+    const updatedDetails = editingFeeForm.details.trim().toUpperCase();
+
+    if (editingFeeTarget.type === 'compulsory') {
+      setFeeSchedule((prev) => {
+        const updatedClassData = { ...prev[selectedClassKey] };
+        const newBaseBill = [...(updatedClassData.baseBill || [])];
+        if (editingFeeTarget.index !== null && newBaseBill[editingFeeTarget.index]) {
+          newBaseBill[editingFeeTarget.index] = {
+            ...newBaseBill[editingFeeTarget.index],
+            details: updatedDetails,
+            amount: amountNum
+          };
+        }
+        updatedClassData.baseBill = newBaseBill;
+        return { ...prev, [selectedClassKey]: updatedClassData };
+      });
+      setSuccessMsg(`✏️ Updated compulsory fee "${updatedDetails}" (GHS ${amountNum.toFixed(2)}) for ${selectedSubLevel}.`);
+    } else if (editingFeeTarget.type === 'optional') {
+      setFeeSchedule((prev) => {
+        const updatedClassData = { ...prev[selectedClassKey] };
+        const newOptional = (updatedClassData.optionalBills || []).map((opt) =>
+          opt.id === editingFeeTarget.id
+            ? { ...opt, details: updatedDetails, label: editingFeeForm.details.trim(), amount: amountNum }
+            : opt
+        );
+        updatedClassData.optionalBills = newOptional;
+        return { ...prev, [selectedClassKey]: updatedClassData };
+      });
+      setSuccessMsg(`✏️ Updated optional fee "${updatedDetails}" (GHS ${amountNum.toFixed(2)}) for ${selectedSubLevel}.`);
+    }
+
+    setIsEditingFeeModal(false);
+    setEditingFeeTarget(null);
     setTimeout(() => setSuccessMsg(''), 5000);
   };
 
@@ -1105,25 +1217,44 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                 <tr>
                   <th>Compulsory Details & Component</th>
                   <th style={{ textAlign: 'right' }}>Amount (GHS)</th>
-                  <th className="no-print" style={{ width: 80, textAlign: 'center' }}>Action</th>
+                  <th className="no-print" style={{ width: 145, textAlign: 'center' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {baseBillItems.map((item, i) => (
                   <tr key={i}>
                     <td style={{ fontWeight: 700, color: 'var(--gray-800)' }}>{item.details}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
-                      {item.amount.toFixed(2)}
+                    <td style={{ textAlign: 'right' }}>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={item.amount}
+                        onChange={(e) => handleUpdateCompulsoryBillAmount(i, e.target.value)}
+                        style={{ width: 90, padding: '3px 6px', textAlign: 'right', border: '1px solid #cbd5e1', borderRadius: 4, fontWeight: 800, fontSize: 12, color: '#0f172a' }}
+                        className="no-print"
+                      />
+                      <span className="print-only" style={{ fontWeight: 800 }}>{item.amount.toFixed(2)}</span>
                     </td>
                     <td className="no-print" style={{ textAlign: 'center' }}>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFeeItem(i)}
-                        style={{ padding: '3px 8px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 800 }}
-                        title={`Remove ${item.details} from ${selectedSubLevel} bill`}
-                      >
-                        <Trash2 size={12} /> Remove
-                      </button>
+                      <div style={{ display: 'flex', gap: 4, justifyContent: 'center', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditCompulsoryModal(i, item)}
+                          style={{ padding: '3px 8px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                          title={`Edit ${item.details}`}
+                        >
+                          <Edit3 size={12} /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFeeItem(i)}
+                          style={{ padding: '3px 8px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                          title={`Remove ${item.details} from ${selectedSubLevel} bill`}
+                        >
+                          <Trash2 size={12} /> Remove
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1157,7 +1288,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                 <tr>
                   <th>Optional Bill Component</th>
                   <th style={{ textAlign: 'right' }}>Amount (GHS)</th>
-                  <th className="no-print" style={{ width: 90, textAlign: 'center' }}>Status</th>
+                  <th className="no-print" style={{ width: 220, textAlign: 'center' }}>Action / Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -1185,22 +1316,41 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                       <span className="print-only" style={{ fontWeight: 800 }}>{opt.amount.toFixed(2)}</span>
                     </td>
                     <td className="no-print" style={{ textAlign: 'center' }}>
-                      <button
-                        type="button"
-                        onClick={() => handleToggleOptionalBill(opt.id)}
-                        style={{
-                          padding: '3px 10px',
-                          borderRadius: 6,
-                          border: 'none',
-                          fontSize: 11,
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          background: opt.enabled ? '#15803d' : '#e2e8f0',
-                          color: opt.enabled ? '#ffffff' : '#64748b'
-                        }}
-                      >
-                        {opt.enabled ? 'Active ✓' : 'Inactive'}
-                      </button>
+                      <div style={{ display: 'flex', gap: 4, justifyContent: 'center', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleOptionalBill(opt.id)}
+                          style={{
+                            padding: '3px 7px',
+                            borderRadius: 4,
+                            border: 'none',
+                            fontSize: 11,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            background: opt.enabled ? '#15803d' : '#94a3b8',
+                            color: '#ffffff'
+                          }}
+                          title={opt.enabled ? 'Click to disable' : 'Click to enable'}
+                        >
+                          {opt.enabled ? 'Active ✓' : 'Inactive'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditOptionalModal(opt)}
+                          style={{ padding: '3px 7px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                          title={`Edit ${opt.details}`}
+                        >
+                          <Edit3 size={12} /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveOptionalFeeItem(opt.id)}
+                          style={{ padding: '3px 7px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                          title={`Remove ${opt.details} from ${selectedSubLevel} bill`}
+                        >
+                          <Trash2 size={12} /> Remove
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1457,6 +1607,81 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                   style={{ flex: 1, padding: 11, borderRadius: 8, border: 'none', background: '#204d2d', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
                 >
                   ➕ Add Fee Line Item
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Fee Component Modal */}
+      {isEditingFeeModal && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setIsEditingFeeModal(false); }}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(15,23,42,0.65)', backdropFilter: 'blur(4px)',
+            zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '85px 16px 40px', overflowY: 'auto'
+          }}
+          className="no-print"
+        >
+          <div style={{
+            maxWidth: 480, width: '100%', background: '#fff', borderRadius: 16,
+            padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', border: '1px solid #e2e8f0'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--gray-900)' }}>
+                ✏️ Edit {editingFeeTarget?.type === 'optional' ? 'Optional' : 'Compulsory'} Fee Component ({selectedSubLevel})
+              </h3>
+              <button onClick={() => setIsEditingFeeModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <X size={18} color="var(--gray-500)" />
+              </button>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--gray-600)', marginBottom: 20 }}>
+              Modify the fee component details and amount for <strong>{selectedSubLevel}</strong> bill schedule.
+            </p>
+
+            <form onSubmit={handleSaveEditFeeSubmit}>
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label className="form-label">Fee Component Name / Details</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. ADMISSION FEE, TUITION FEE, MOTIVATION LEVY"
+                  value={editingFeeForm.details}
+                  onChange={(e) => setEditingFeeForm(prev => ({ ...prev, details: e.target.value }))}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <label className="form-label">Amount (GHS)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  className="form-input"
+                  placeholder="e.g. 1000.00"
+                  value={editingFeeForm.amount}
+                  onChange={(e) => setEditingFeeForm(prev => ({ ...prev, amount: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingFeeModal(false)}
+                  style={{ flex: 1, padding: 11, borderRadius: 8, border: '1px solid var(--gray-300)', background: '#fff', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{ flex: 1, padding: 11, borderRadius: 8, border: 'none', background: '#0284c7', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+                >
+                  💾 Save Changes
                 </button>
               </div>
             </form>
