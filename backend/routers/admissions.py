@@ -17,8 +17,20 @@ async def get_applications(db: AsyncSession = Depends(get_db)):
     query = select(Application).order_by(Application.submitted_at.desc())
     res = await db.execute(query)
     apps = res.scalars().all()
-    return [
-        {
+    result = []
+    for a in apps:
+        f_data = a.form_data or {}
+        app_cls = f_data.get("applyingClass") or f_data.get("applying_level") or a.applying_level
+        sec_cls = f_data.get("classSection") or f_data.get("subClass") or f_data.get("class_section") or f_data.get("officeFormAssigned")
+        
+        if app_cls and not sec_cls:
+            import re
+            m = re.match(r'^(Creche|Nursery \d|Kindergarten \d|KG \d|Basic \d|JHS \d)\s*([A-Z0-9]+)$', str(app_cls).strip(), re.I)
+            if m:
+                sec_cls = str(app_cls).strip()
+                app_cls = m.group(1)
+
+        obj = {
             "id": a.id,
             "learner": a.learner_name,
             "learner_name": a.learner_name,
@@ -28,15 +40,19 @@ async def get_applications(db: AsyncSession = Depends(get_db)):
             "contact_email": a.contact_email,
             "phone": a.contact_phone,
             "contact_phone": a.contact_phone,
-            "level": a.applying_level,
-            "applying_level": a.applying_level,
+            "level": app_cls,
+            "applying_level": app_cls,
+            "applyingClass": app_cls,
+            "classSection": sec_cls,
+            "subClass": sec_cls,
             "status": a.status,
             "office_use_notes": a.office_use_notes,
             "submittedAt": a.submitted_at.strftime('%d %b %Y, %H:%M') if a.submitted_at else "Today",
-            "formData": a.form_data or {}
+            "formData": f_data,
+            **f_data
         }
-        for a in apps
-    ]
+        result.append(obj)
+    return result
 
 @router.post("")
 async def submit_application(req: ApplicationCreateRequest, db: AsyncSession = Depends(get_db)):

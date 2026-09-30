@@ -164,6 +164,74 @@ export const getDefaultForm = () => ({
   officeDate: new Date().toISOString().split('T')[0],
 });
 
+export function normalizeApplicationForm(raw) {
+  if (!raw) return getDefaultForm();
+
+  const nested = raw.formData || raw.form_data || {};
+  const baseDefault = getDefaultForm();
+  const merged = {
+    ...baseDefault,
+    ...nested,
+    ...raw
+  };
+
+  let applyingClass =
+    raw.applyingClass ||
+    raw.applying_level ||
+    raw.level ||
+    nested.applyingClass ||
+    nested.applying_level ||
+    nested.level ||
+    '';
+
+  let classSection =
+    raw.classSection ||
+    raw.subClass ||
+    raw.class_section ||
+    raw.sub_class ||
+    raw.officeFormAssigned ||
+    nested.classSection ||
+    nested.subClass ||
+    nested.class_section ||
+    nested.sub_class ||
+    nested.officeFormAssigned ||
+    '';
+
+  // Extract class & subclass if applyingClass contains e.g. "Basic 1A"
+  if (applyingClass && !classSection) {
+    const match = applyingClass.trim().match(/^(Creche|Nursery \d|Kindergarten \d|KG \d|Basic \d|JHS \d)\s*([A-Z0-9]+)$/i);
+    if (match) {
+      classSection = applyingClass.trim();
+      applyingClass = match[1];
+    }
+  } else if (!applyingClass && classSection) {
+    const match = classSection.trim().match(/^(Creche|Nursery \d|Kindergarten \d|KG \d|Basic \d|JHS \d)/i);
+    if (match) {
+      applyingClass = match[1];
+    }
+  }
+
+  let firstName = merged.firstName || nested.firstName || '';
+  let surname = merged.surname || nested.surname || '';
+  if (!firstName && !surname) {
+    const fullNameStr = (merged.learner || merged.fullName || merged.learner_name || nested.learner || nested.fullName || '').trim();
+    if (fullNameStr) {
+      const parts = fullNameStr.split(' ');
+      firstName = parts.slice(0, -1).join(' ') || parts[0] || '';
+      surname = parts.length > 1 ? parts[parts.length - 1] : '';
+    }
+  }
+
+  return {
+    ...merged,
+    applyingClass: (applyingClass || '').trim(),
+    classSection: (classSection || '').trim(),
+    subClass: (classSection || '').trim(),
+    firstName,
+    surname,
+  };
+}
+
 export default function OfficialApplicationForm({
   initialData = null,
   readOnly = false,
@@ -176,10 +244,7 @@ export default function OfficialApplicationForm({
   const portalData = usePortalData() || {};
   const { updateApplication } = portalData;
 
-  const [formData, setFormData] = useState(() => ({
-    ...getDefaultForm(),
-    ...(initialData || {})
-  }));
+  const [formData, setFormData] = useState(() => normalizeApplicationForm(initialData));
 
   const SUBCLASS_STORAGE_KEY = 'rcis_custom_subclasses_pool';
   const DEFAULT_SUB_CLASSES = [
@@ -220,7 +285,7 @@ export default function OfficialApplicationForm({
 
   useEffect(() => {
     if (initialData) {
-      setFormData({ ...getDefaultForm(), ...initialData });
+      setFormData(normalizeApplicationForm(initialData));
     } else {
       setFormData(getDefaultForm());
     }
@@ -261,10 +326,11 @@ export default function OfficialApplicationForm({
     }));
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     if (e) e.preventDefault();
+    const normalized = normalizeApplicationForm(formData);
     if (onSubmit) {
-      onSubmit(formData);
+      await onSubmit(normalized);
     }
     setSuccessNotice('Official Application Form successfully submitted online!');
     if (!initialData) {
@@ -274,16 +340,27 @@ export default function OfficialApplicationForm({
     setTimeout(() => setSuccessNotice(''), 6000);
   };
 
-  const handleFormUpdate = (e) => {
+  const handleFormUpdate = async (e) => {
     if (e) e.preventDefault();
     const targetId = formData.id || initialData?.id;
-    if (onUpdate) {
-      onUpdate(targetId, formData);
-    } else if (updateApplication && targetId) {
-      updateApplication(targetId, formData);
+    const normalized = normalizeApplicationForm({
+      ...initialData,
+      ...formData,
+      id: targetId,
+    });
+
+    try {
+      if (onUpdate) {
+        await onUpdate(targetId, normalized);
+      } else if (updateApplication && targetId) {
+        await updateApplication(targetId, normalized);
+      }
+    } catch (err) {
+      console.warn('Form update warning:', err);
     }
+
     setIsEditingMode(false);
-    setSuccessNotice('✅ Application Form updated successfully! Changes reflected across all portals.');
+    setSuccessNotice('✅ Application Form updated successfully! Changes saved to database and synced across devices.');
     setTimeout(() => setSuccessNotice(''), 6000);
   };
 

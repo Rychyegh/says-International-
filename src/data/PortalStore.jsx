@@ -960,7 +960,8 @@ export function PortalDataProvider({ children }) {
         const guardianName = updatedForm.fatherName || updatedForm.motherName || updatedForm.guardian || updatedForm.guardianName || existingApp.guardian;
         const contactEmail = updatedForm.fatherEmail || updatedForm.email || updatedForm.guardianEmail || existingApp.email;
         const contactPhone = updatedForm.fatherPhone || updatedForm.motherPhone || updatedForm.phone || updatedForm.guardianPhone || existingApp.phone;
-        const applyingLevel = updatedForm.applyingClass || updatedForm.level || existingApp.level || 'JHS 1';
+        const applyingLevel = updatedForm.applyingClass || updatedForm.level || existingApp.level || 'Basic 1';
+        const classSection = updatedForm.classSection || updatedForm.subClass || updatedForm.class_section || existingApp.classSection || '';
 
         const updatedApplicationRecord = {
           ...existingApp,
@@ -970,6 +971,16 @@ export function PortalDataProvider({ children }) {
           email: contactEmail,
           phone: contactPhone,
           level: applyingLevel,
+          applyingClass: applyingLevel,
+          classSection: classSection,
+          subClass: classSection,
+          formData: {
+            ...(existingApp.formData || {}),
+            ...updatedForm,
+            applyingClass: applyingLevel,
+            classSection: classSection,
+            subClass: classSection,
+          },
           updatedAt: new Date().toLocaleString(),
         };
 
