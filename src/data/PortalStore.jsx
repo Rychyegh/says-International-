@@ -2351,25 +2351,24 @@ export function PortalDataProvider({ children }) {
         ...updates,
         ...(updates.classAssigned ? { classAssigned: formatClassToBasic(updates.classAssigned) } : {})
       };
-      try {
-        await api.updateStaff(id, sanitizedUpdates);
-      } catch (e) {
-        console.warn('Backend staff update fallback:', e);
-      }
+      await api.updateStaff(id, sanitizedUpdates);
       setData((current) => ({
         ...current,
         teacherDirectory: (current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY).map((t) => (t.id === id || t.staffId === id) ? { ...t, ...sanitizedUpdates } : t)
       }));
     },
     offboardStaffMember: async (id) => {
-      try {
-        await api.updateStaff(id, { status: 'Offboarded', is_active: false });
-      } catch (e) {
-        console.warn('Backend staff offboard fallback:', e);
-      }
+      await api.offboardStaff(id);
       setData((current) => ({
         ...current,
         teacherDirectory: (current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY).map((t) => (t.id === id || t.staffId === id) ? { ...t, status: 'Offboarded' } : t)
+      }));
+    },
+    reactivateStaffMember: async (id) => {
+      await api.reactivateStaff(id);
+      setData((current) => ({
+        ...current,
+        teacherDirectory: (current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY).map((t) => (t.id === id || t.staffId === id) ? { ...t, status: 'Active' } : t)
       }));
     },
     deleteStaffMember: async (id) => {

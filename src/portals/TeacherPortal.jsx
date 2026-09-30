@@ -69,7 +69,7 @@ export default function TeacherPortal() {
   const teacherDirectory = store?.teacherDirectory || [];
 
   const authUser = getAuthUser();
-  const isClassTeacher = authUser?.teacherDesignation === 'class_teacher' || authUser?.name?.includes('Class Teacher');
+  const isClassTeacher = authUser?.teacherDesignation === 'class_teacher' || authUser?.teacher_designation === 'class_teacher';
   const teacherRole = isClassTeacher ? 'class_teacher' : 'subject_teacher';
   const staffId = isClassTeacher ? (authUser?.staffId || 'CT-2026-001') : (authUser?.staffId || 'STF-2026-003');
 

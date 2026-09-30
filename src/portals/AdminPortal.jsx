@@ -119,31 +119,34 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [printingCredentialSlip, setPrintingCredentialSlip] = useState(null);
   const [credentialSearchQuery, setCredentialSearchQuery] = useState('');
 
-  // Class Teacher Dedicated Passcode Credentials State
-  const [issuedCTCredentials, setIssuedCTCredentials] = useState(() => {
-    try {
-      const saved = localStorage.getItem('says_issued_ct_credentials');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return [
-      { id: 'ct-1', teacherName: 'Mr. Samuel Amponsah', classAssigned: 'Basic 4', staffId: 'CT-2026-001', passcode: '9988', phone: '024 900 1100', issuedAt: '2026-09-01' },
-      { id: 'ct-2', teacherName: 'Prof. Kwabena Mensah', classAssigned: 'Basic 7', staffId: 'CT-2026-002', passcode: '7744', phone: '024 900 1101', issuedAt: '2026-09-01' },
-    ];
-  });
+  // Class Teacher Dedicated Passcode Credentials State (loaded from the backend)
+  const [issuedCTCredentials, setIssuedCTCredentials] = useState([]);
+  const [ctCredentialsError, setCtCredentialsError] = useState('');
+  const [isIssuingCT, setIsIssuingCT] = useState(false);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('says_issued_ct_credentials', JSON.stringify(issuedCTCredentials));
-    } catch (e) {}
-  }, [issuedCTCredentials]);
+    if (adminRole !== 'head_admin') return undefined;
+    let cancelled = false;
+    api.listClassTeacherCredentials()
+      .then((list) => {
+        if (!cancelled) {
+          setIssuedCTCredentials(list);
+          setCtCredentialsError('');
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setCtCredentialsError(err.message || 'Could not load class teacher credentials.');
+      });
+    return () => { cancelled = true; };
+  }, [adminRole]);
 
   const [isIssuingCTModal, setIsIssuingCTModal] = useState(false);
   const [ctForm, setCtForm] = useState({
-    teacherName: 'Mr. Samuel Amponsah',
+    teacherName: '',
     classAssigned: 'Basic 4',
-    staffId: 'CT-2026-003',
-    passcode: '9988',
-    phone: '024 900 1100'
+    staffId: '',
+    passcode: '',
+    phone: ''
   });
 
   const getStudentTranscriptData = (student) => {
@@ -239,6 +242,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     addStaffMember,
     updateStaffMember,
     offboardStaffMember,
+    reactivateStaffMember,
     deleteStaffMember,
     addClassLevel,
     addSubject,
@@ -430,37 +434,54 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   };
   const handleOnboardStaffSubmit = handleAddStaffSubmit;
 
-  const handleUpdateStaffSubmit = (e) => {
+  const [staffActionError, setStaffActionError] = useState('');
+  const [staffActionLoading, setStaffActionLoading] = useState(false);
+
+  const handleUpdateStaffSubmit = async (e) => {
     e.preventDefault();
     if (!editingStaff || !editingStaff.name) return;
 
-    if (updateStaffMember) {
-      updateStaffMember(editingStaff.id || editingStaff.staffId, editingStaff);
+    setStaffActionLoading(true);
+    setStaffActionError('');
+    try {
+      await updateStaffMember(editingStaff.id || editingStaff.staffId, editingStaff);
+      setSuccessMsg(`Staff member ${editingStaff.name} details updated.`);
+      setEditingStaff(null);
+      setTimeout(() => setSuccessMsg(''), 5000);
+    } catch (err) {
+      setStaffActionError(err.message || 'Could not update staff details.');
+    } finally {
+      setStaffActionLoading(false);
     }
-
-    setSuccessMsg(`✅ Staff member ${editingStaff.name} details updated successfully!`);
-    setEditingStaff(null);
-    setTimeout(() => setSuccessMsg(''), 5000);
   };
 
-  const handleOffboardStaffConfirm = () => {
+  const handleOffboardStaffConfirm = async () => {
     if (!offboardingStaff) return;
 
-    if (offboardStaffMember) {
-      offboardStaffMember(offboardingStaff.id || offboardingStaff.staffId);
+    setStaffActionLoading(true);
+    setStaffActionError('');
+    try {
+      await offboardStaffMember(offboardingStaff.id || offboardingStaff.staffId);
+      setSuccessMsg(`Staff member ${offboardingStaff.name} offboarded. Portal access is inactive.`);
+      setOffboardingStaff(null);
+      setTimeout(() => setSuccessMsg(''), 5000);
+    } catch (err) {
+      setStaffActionError(err.message || 'Could not offboard this staff member.');
+    } finally {
+      setStaffActionLoading(false);
     }
-
-    setSuccessMsg(`🚫 Staff member ${offboardingStaff.name} offboarded successfully. Access set to inactive.`);
-    setOffboardingStaff(null);
-    setTimeout(() => setSuccessMsg(''), 5000);
   };
 
-  const handleReactivateStaff = (staff) => {
-    if (updateStaffMember) {
-      updateStaffMember(staff.id || staff.staffId, { status: 'Active' });
+  const handleReactivateStaff = async (staff) => {
+    setStaffActionError('');
+    try {
+      await reactivateStaffMember(staff.id || staff.staffId);
+      setSuccessMsg(`Reactivated staff member ${staff.name}.`);
+      setTimeout(() => setSuccessMsg(''), 5000);
+    } catch (err) {
+      setSuccessMsg(err.message || 'Could not reactivate this staff member.');
+      setTimeout(() => setSuccessMsg(''), 5000);
     }
-    setSuccessMsg(`⚡ Reactivated staff member ${staff.name}! Active status restored.`);
-    setTimeout(() => setSuccessMsg(''), 5000);
   };
 
   const [adminOnboardTab, setAdminOnboardTab] = useState('single');
@@ -2470,6 +2491,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </div>
 
                   {/* Issued Class Teacher Credentials Register */}
+                  {ctCredentialsError && (
+                    <p style={{ fontSize: 12, color: '#991b1b', fontWeight: 700, margin: '0 0 10px' }}>{ctCredentialsError}</p>
+                  )}
                   <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e9d5ff', overflow: 'hidden' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                       <thead>
@@ -2482,8 +2506,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {issuedCTCredentials.map((ct) => (
-                          <tr key={ct.id} style={{ borderBottom: '1px solid #f3e8ff' }}>
+                        {issuedCTCredentials.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} style={{ padding: '16px 14px', color: '#6b21a8', fontWeight: 700 }}>
+                              No class teacher credentials issued yet.
+                            </td>
+                          </tr>
+                        ) : issuedCTCredentials.map((ct) => (
+                          <tr key={ct.id || ct.staffId} style={{ borderBottom: '1px solid #f3e8ff' }}>
                             <td style={{ padding: '10px 14px', fontWeight: 800, color: '#1e1b4b' }}>{ct.teacherName}</td>
                             <td style={{ padding: '10px 14px', fontWeight: 700, color: '#2563eb' }}>{ct.classAssigned}</td>
                             <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 800, color: '#581c87' }}>{ct.staffId}</td>
@@ -2493,7 +2523,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                               </span>
                             </td>
                             <td style={{ padding: '10px 14px' }}>
-                              <span className="status-pill status-pill--success" style={{ fontSize: 11 }}>📱 SMS Credentials Sent</span>
+                              <span className={`status-pill ${ct.smsStatus === 'failed' ? 'status-pill--warn' : 'status-pill--success'}`} style={{ fontSize: 11 }}>
+                                {ct.smsStatus === 'failed' ? 'SMS failed' : ct.smsStatus === 'not_sent' ? 'Issued' : '📱 SMS Credentials Sent'}
+                              </span>
                             </td>
                           </tr>
                         ))}
@@ -2526,32 +2558,23 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
                     <form onSubmit={async (e) => {
                       e.preventDefault();
-                      if (!ctForm.teacherName || !ctForm.passcode) return;
-                      setIssuedCTCredentials(prev => [
-                        { id: `ct-${Date.now()}`, ...ctForm, issuedAt: new Date().toLocaleDateString() },
-                        ...prev
-                      ]);
-                      if (adminSetUserPassword) {
-                        adminSetUserPassword({
-                          identifier: ctForm.staffId || ctForm.teacherName,
-                          staffId: ctForm.staffId,
-                          newPassword: ctForm.passcode,
-                          role: 'teacher',
-                          fullName: ctForm.teacherName,
-                          adminName: 'System Administrator'
-                        });
+                      if (!ctForm.teacherName || !ctForm.staffId || !ctForm.passcode) return;
+                      setIsIssuingCT(true);
+                      setCtCredentialsError('');
+                      try {
+                        const created = await api.issueClassTeacherCredential(ctForm);
+                        setIssuedCTCredentials((prev) => [
+                          created,
+                          ...prev.filter((item) => item.staffId !== created.staffId),
+                        ]);
+                        setSuccessMsg(`Dedicated Class Teacher passcode issued to ${ctForm.teacherName} for ${ctForm.classAssigned}.`);
+                        setIsIssuingCTModal(false);
+                        setTimeout(() => setSuccessMsg(''), 7000);
+                      } catch (err) {
+                        setCtCredentialsError(err.message || 'Could not issue class teacher credentials.');
+                      } finally {
+                        setIsIssuingCT(false);
                       }
-                      if (ctForm.phone) {
-                        try {
-                          await api.sendSms({
-                            recipientPhone: ctForm.phone,
-                            messageText: `[REMALJ Carewell] Class Teacher Dedicated Credentials Issued:\n• Staff ID: ${ctForm.staffId}\n• Class: ${ctForm.classAssigned}\n• Passcode: ${ctForm.passcode}\n• Portal: Teacher Portal`
-                          });
-                        } catch (err) {}
-                      }
-                      setSuccessMsg(`🔑 Dedicated Class Teacher Passcode (${ctForm.passcode}) & Credentials issued to ${ctForm.teacherName} for ${ctForm.classAssigned}! SMS dispatched.`);
-                      setIsIssuingCTModal(false);
-                      setTimeout(() => setSuccessMsg(''), 7000);
                     }}>
                       <div className="form-group" style={{ marginBottom: 14 }}>
                         <label className="form-label">Teacher Name</label>
@@ -2591,6 +2614,17 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         />
                       </div>
 
+                      <div className="form-group" style={{ marginBottom: 14 }}>
+                        <label className="form-label">Phone (for SMS)</label>
+                        <input
+                          type="tel"
+                          className="form-input"
+                          value={ctForm.phone}
+                          onChange={(e) => setCtForm(prev => ({ ...prev, phone: e.target.value }))}
+                          placeholder="e.g. 0249001100"
+                        />
+                      </div>
+
                       <div className="form-group" style={{ marginBottom: 20 }}>
                         <label className="form-label">4-Digit Security Passcode</label>
                         <input
@@ -2605,6 +2639,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         />
                       </div>
 
+                      {ctCredentialsError && (
+                        <p style={{ fontSize: 12, color: '#991b1b', fontWeight: 700, margin: '0 0 10px' }}>{ctCredentialsError}</p>
+                      )}
                       <div style={{ display: 'flex', gap: 12 }}>
                         <button
                           type="button"
@@ -2615,9 +2652,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         </button>
                         <button
                           type="submit"
+                          disabled={isIssuingCT}
                           style={{ flex: 1, padding: 11, borderRadius: 8, border: 'none', background: '#581c87', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
                         >
-                          🔑 Issue & Dispatch SMS
+                          {isIssuingCT ? 'Issuing…' : '🔑 Issue & Dispatch SMS'}
                         </button>
                       </div>
                     </form>
@@ -3057,18 +3095,22 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
                     <button
                       type="button"
-                      onClick={() => setEditingStaff(null)}
+                      onClick={() => { setEditingStaff(null); setStaffActionError(''); }}
                       style={{ flex: 1, padding: 10, border: '1px solid var(--gray-300)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 700 }}
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
+                      disabled={staffActionLoading}
                       style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: ADMIN_BG, color: '#fff', fontWeight: 800, cursor: 'pointer' }}
                     >
-                      💾 Save Staff Changes
+                      {staffActionLoading ? 'Saving…' : '💾 Save Staff Changes'}
                     </button>
                   </div>
+                  {staffActionError && (
+                    <p style={{ fontSize: 12, color: '#991b1b', fontWeight: 700, margin: '8px 0 0' }}>{staffActionError}</p>
+                  )}
                 </form>
               </div>
             </div>
@@ -3103,7 +3145,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   <div style={{ display: 'flex', gap: 10 }}>
                     <button
                       type="button"
-                      onClick={() => setOffboardingStaff(null)}
+                      onClick={() => { setOffboardingStaff(null); setStaffActionError(''); }}
                       style={{ flex: 1, padding: 10, border: '1px solid var(--gray-300)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 700 }}
                     >
                       Cancel
@@ -3111,11 +3153,15 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     <button
                       type="button"
                       onClick={handleOffboardStaffConfirm}
+                      disabled={staffActionLoading}
                       style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: '#dc2626', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
                     >
-                      🚫 Offboard Staff Member
+                      {staffActionLoading ? 'Offboarding…' : '🚫 Offboard Staff Member'}
                     </button>
                   </div>
+                  {staffActionError && (
+                    <p style={{ fontSize: 12, color: '#991b1b', fontWeight: 700, margin: '10px 0 0' }}>{staffActionError}</p>
+                  )}
                 </div>
               </div>
             </div>

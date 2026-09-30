@@ -1,8 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, UserCheck, Phone, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, Phone, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
 import { api, setAuthToken, setAuthUser, getAuthUser } from '../../services/api';
 import { usePortalData } from '../../data/PortalStore';
 import './Login.css';
+
+function isClassTeacherAccount(user) {
+  if (!user) return false;
+  const designation = String(
+    user.teacherDesignation || user.teacher_designation || user.designation || ''
+  ).toLowerCase().replace(/\s+/g, '_');
+  if (designation === 'class_teacher' || designation.includes('class_teacher')) return true;
+  if (user.isClassTeacher === true || user.is_class_teacher === true) return true;
+  if (user.requiresClassTeacherPasscode === true || user.requires_class_teacher_passcode === true) return true;
+  return String(user.role || '').toLowerCase() === 'class_teacher';
+}
 
 const PORTAL_CONFIG = {
   teacher: {
@@ -126,6 +137,11 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   const [pinStep, setPinStep] = useState(false);
   const [adminPin, setAdminPin] = useState('');
 
+  // Class teacher passcode is a second step, only after email and password succeed
+  const [classTeacherStep, setClassTeacherStep] = useState(false);
+  const [classPasscode, setClassPasscode] = useState('');
+  const [pendingClassTeacher, setPendingClassTeacher] = useState(null);
+
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const scanTimerRef = useRef(null);
@@ -208,6 +224,10 @@ export default function LoginPage({ portal, onLoginSuccess }) {
         const result = await api.login({ email, password, portal });
         if (result.token) setAuthToken(result.token);
         const userObj = result.user || { email, role: portal };
+        if (portal === 'teacher') {
+          await finishTeacherLogin(userObj);
+          return;
+        }
         setAuthUser({
           ...userObj,
           fullName: userObj.fullName || userObj.full_name || userObj.name || email,
@@ -224,37 +244,6 @@ export default function LoginPage({ portal, onLoginSuccess }) {
           name: userObj.fullName || userObj.name || `Student ${cardId}`,
           role: userObj.role || portal,
         });
-      } else if (loginMethod === 'class_teacher') {
-        if (!cardId.trim()) { setError('Please enter your Class Teacher Staff ID or Assigned Class.'); setLoading(false); return; }
-        if (!password.trim()) { setError('Please enter your Dedicated Class Security Passcode.'); setLoading(false); return; }
-
-        if (password.trim() === '9988' || password.trim() === 'CT-PASS-8844' || password.trim().length >= 4) {
-          setAuthToken('ct-token-2026');
-          setAuthUser({
-            fullName: 'Mr. Samuel Amponsah (Class Teacher)',
-            name: 'Mr. Samuel Amponsah',
-            role: 'teacher',
-            teacherDesignation: 'class_teacher',
-            classAssigned: 'Grade 4 Section B',
-            staffId: cardId.trim() || 'CT-2026-001'
-          });
-          setLoading(false);
-          setSuccess(true);
-          setTimeout(() => onLoginSuccess('class_teacher'), 900);
-          return;
-        } else {
-          setLoading(false);
-          if (addSecurityAlert) {
-            addSecurityAlert({
-              portal: 'teacher',
-              targetAccount: cardId || 'Class Teacher',
-              reason: 'Invalid Class Teacher Security Passcode entered',
-              severity: 'High'
-            });
-          }
-          setError('❌ Invalid Class Teacher Security Passcode. Please check the passcode issued by Super Admin.');
-          return;
-        }
       }
       setLoading(false);
 
@@ -277,6 +266,99 @@ export default function LoginPage({ portal, onLoginSuccess }) {
         });
       }
       setError(err.message || 'Authentication failed. Please check your credentials and try again.');
+    }
+  };
+
+  const finishTeacherLogin = async (userObj) => {
+    const fullName = userObj.fullName || userObj.full_name || userObj.name || email;
+    let classTeacher = isClassTeacherAccount(userObj);
+    let staffId = userObj.staffId || userObj.staff_id || '';
+    let classAssigned = userObj.classAssigned || userObj.class_assigned || '';
+
+    if (!classTeacher) {
+      try {
+        const status = await api.getClassTeacherStatus();
+        if (status && (status.is_class_teacher === true || status.isClassTeacher === true)) {
+          classTeacher = true;
+          staffId = status.staff_id || status.staffId || staffId;
+          classAssigned = status.class_assigned || status.classAssigned || classAssigned;
+        }
+      } catch {
+        classTeacher = false;
+      }
+    }
+
+    if (classTeacher) {
+      setAuthUser({
+        ...userObj,
+        fullName,
+        name: fullName,
+        role: 'teacher',
+        teacherDesignation: 'subject_teacher',
+        staffId,
+        classAssigned,
+      });
+      setPendingClassTeacher({ staffId, classAssigned, fullName });
+      setClassPasscode('');
+      setClassTeacherStep(true);
+      setLoading(false);
+      setError('');
+      return;
+    }
+
+    setAuthUser({
+      ...userObj,
+      fullName,
+      name: fullName,
+      role: 'teacher',
+      teacherDesignation: 'subject_teacher',
+      classAssigned: '',
+    });
+    setLoading(false);
+    setSuccess(true);
+    setTimeout(() => onLoginSuccess(), 900);
+  };
+
+  const handleClassTeacherPasscode = async (e) => {
+    e.preventDefault();
+    setError('');
+    const passcode = classPasscode.trim();
+    if (!passcode) {
+      setError('Please enter the class teacher passcode issued by the administrator.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await api.verifyClassTeacherPasscode({
+        staffId: pendingClassTeacher?.staffId,
+        passcode,
+      });
+      const userObj = result?.user || getAuthUser() || {};
+      const fullName = userObj.fullName || userObj.full_name || userObj.name || pendingClassTeacher?.fullName || email;
+      setAuthUser({
+        ...userObj,
+        fullName,
+        name: fullName,
+        role: 'teacher',
+        teacherDesignation: 'class_teacher',
+        classAssigned: userObj.classAssigned || userObj.class_assigned || pendingClassTeacher?.classAssigned || '',
+        staffId: userObj.staffId || userObj.staff_id || pendingClassTeacher?.staffId || '',
+      });
+      setLoading(false);
+      setSuccess(true);
+      setTimeout(() => onLoginSuccess(), 900);
+    } catch (err) {
+      setLoading(false);
+      if (addSecurityAlert) {
+        addSecurityAlert({
+          portal: 'teacher',
+          targetAccount: email || pendingClassTeacher?.staffId || 'Class Teacher',
+          reason: err.message || 'Invalid class teacher passcode',
+          severity: 'High',
+        });
+      }
+      setError(err.message || 'Invalid class teacher passcode. Please check the passcode issued by Super Admin.');
     }
   };
 
@@ -556,6 +638,62 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                   style={{ background: cfg.accentBg }}
                 >
                   {loading ? 'Verifying Authorization PIN…' : 'Verify PIN & Complete Sign In'}
+                </button>
+              </form>
+            </div>
+          ) : classTeacherStep ? (
+            <div className="animate-fade-up">
+              <button
+                type="button"
+                onClick={() => { setClassTeacherStep(false); setClassPasscode(''); setError(''); }}
+                className="form-forgot"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 20 }}
+              >
+                <ArrowLeft size={15} /> Back to Sign In
+              </button>
+
+              <div className="login-form__portal-badge" style={{ background: '#edf8f0', color: '#166534' }}>
+                <span>🔑</span> Class Teacher Verification
+              </div>
+
+              <h2 className="login-form__title">Enter your passcode</h2>
+              <p className="login-form__subtitle">
+                Your email and password were accepted. Enter the class teacher passcode issued by the administrator to open the class teacher portal.
+              </p>
+
+              <form onSubmit={handleClassTeacherPasscode} noValidate>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="class-teacher-passcode">Class teacher passcode</label>
+                  <div className="form-input-wrap">
+                    <Lock size={16} className="form-input-icon" />
+                    <input
+                      id="class-teacher-passcode"
+                      type={showPass ? 'text' : 'password'}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      className="form-input"
+                      placeholder="Enter passcode"
+                      value={classPasscode}
+                      onChange={(e) => setClassPasscode(e.target.value.replace(/\D/g, ''))}
+                      autoFocus
+                      style={{ letterSpacing: '0.35em', fontSize: 20, fontWeight: 900, textAlign: 'center' }}
+                    />
+                    <button type="button" className="form-input-action" onClick={() => setShowPass(!showPass)} aria-label={showPass ? 'Hide passcode' : 'Show passcode'}>
+                      {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {error && <div className="form-error" style={{ marginBottom: 16 }}>⚠ {error}</div>}
+
+                <button
+                  type="submit"
+                  className={`login-submit${loading ? ' login-submit--loading' : ''}`}
+                  disabled={loading}
+                  style={{ background: '#204d2d' }}
+                >
+                  {loading ? 'Verifying passcode…' : 'Verify passcode'}
                 </button>
               </form>
             </div>
@@ -841,29 +979,6 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                 <span>{cfg.icon}</span> {cfg.label}
               </div>
 
-              {portal === 'teacher' && (
-                <div className="login-methods" role="tablist" aria-label="Staff Sign-in method" style={{ marginBottom: 20 }}>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={loginMethod === 'password'}
-                    className={`login-method${loginMethod === 'password' ? ' login-method--active' : ''}`}
-                    onClick={() => chooseLoginMethod('password')}
-                  >
-                    <Mail size={14} /> Standard Staff Login
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={loginMethod === 'class_teacher'}
-                    className={`login-method${loginMethod === 'class_teacher' ? ' login-method--active' : ''}`}
-                    onClick={() => chooseLoginMethod('class_teacher')}
-                  >
-                    <ShieldCheck size={14} /> Class Teacher Passcode
-                  </button>
-                </div>
-              )}
-
               {cfg.isStudent && (
                 <div className="login-methods" role="tablist" aria-label="Sign-in method">
                   <button
@@ -963,54 +1078,6 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                       </div>
                     </div>
                     <div className="card-access__security"><ShieldCheck size={15} /> Card details are securely verified before access is granted.</div>
-                  </div>
-                ) : loginMethod === 'class_teacher' ? (
-                  <div className="card-access animate-fade-up" style={{ padding: '20px 18px', background: '#edf8f0', border: '1px solid #bbf7d0', borderRadius: 12, marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, fontWeight: 900, color: '#166534', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span>🔑</span> Class Teacher Dedicated Passcode Sign-In
-                    </div>
-                    
-                    <div style={{ fontSize: 12, color: '#15803d', fontWeight: 600, marginBottom: 16, lineHeight: 1.5 }}>
-                      Class Teachers (Form Tutors) use their assigned Staff ID and 4-digit Security Passcode issued by Super Admin.
-                    </div>
-
-                    <div className="form-group" style={{ marginBottom: 14 }}>
-                      <label className="form-label" htmlFor="ct-staff-id" style={{ color: '#14532d' }}>Class Teacher Staff ID / Assigned Class</label>
-                      <div className="form-input-wrap">
-                        <UserCheck size={16} className="form-input-icon" />
-                        <input
-                          id="ct-staff-id"
-                          type="text"
-                          className="form-input"
-                          placeholder="e.g. CT-2026-001 or Grade 4"
-                          value={cardId}
-                          onChange={(e) => setCardId(e.target.value)}
-                          autoFocus
-                        />
-                      </div>
-                    </div>
-
-                    <div className="form-group" style={{ marginBottom: 4 }}>
-                      <label className="form-label" htmlFor="ct-passcode" style={{ color: '#14532d' }}>Dedicated Security Passcode</label>
-                      <div className="form-input-wrap">
-                        <Lock size={16} className="form-input-icon" />
-                        <input
-                          id="ct-passcode"
-                          type={showPass ? 'text' : 'password'}
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          maxLength={6}
-                          className="form-input"
-                          placeholder="Enter Passcode (e.g. 9988)"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          style={{ letterSpacing: '0.2em', fontWeight: 900 }}
-                        />
-                        <button type="button" className="form-input-action" onClick={() => setShowPass(!showPass)}>
-                          {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
-                      </div>
-                    </div>
                   </div>
                 ) : null}
 

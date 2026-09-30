@@ -94,6 +94,39 @@ async function request(endpoint, options = {}) {
   }
 }
 
+function mapClassTeacherCredential(item) {
+  if (!item || typeof item !== 'object') return null;
+  return {
+    id: item.id || item.staffId || item.staff_id,
+    teacherName: item.teacherName || item.teacher_name || '',
+    classAssigned: item.classAssigned || item.class_assigned || '',
+    staffId: item.staffId || item.staff_id || '',
+    passcode: item.passcode || '',
+    phone: item.phone || item.phoneNumber || item.phone_number || '',
+    issuedAt: item.issuedAt || item.issued_at || '',
+    smsStatus: item.smsStatus || item.sms_status || '',
+  };
+}
+
+function staffProfilePayload(staffData = {}) {
+  const name = staffData.name || staffData.full_name || staffData.fullName;
+  const staffCode = staffData.staffId || staffData.staff_code || staffData.staff_id;
+  const role = staffData.role || staffData.designation;
+  const subject = staffData.subject || staffData.department;
+  const classAssigned = staffData.classAssigned || staffData.class_assigned;
+  const phone = staffData.phone || staffData.phone_number;
+  const email = staffData.email;
+  const payload = {};
+  if (name) payload.full_name = name;
+  if (staffCode) payload.staff_code = staffCode;
+  if (role) payload.designation = role;
+  if (subject) payload.department = subject;
+  if (classAssigned) payload.class_assigned = classAssigned;
+  if (phone) payload.phone = phone;
+  if (email) payload.email = email;
+  return payload;
+}
+
 function saveRegisteredAccount(acc) {
   try {
     const raw = localStorage.getItem('registered_accounts');
@@ -269,6 +302,77 @@ export const api = {
     } catch (err) {}
 
     return res || { success: true, message: `System Administrator successfully updated password for user account [${cleanId}].` };
+  },
+
+  // Class teacher credentials (Super Admin issue + class-teacher sign-in)
+  listClassTeacherCredentials: async () => {
+    const res = await request('/auth/class-teachers');
+    const list = Array.isArray(res)
+      ? res
+      : (res?.credentials || res?.class_teachers || res?.data || res?.items || []);
+    return list.map(mapClassTeacherCredential).filter(Boolean);
+  },
+
+  issueClassTeacherCredential: async (data) => {
+    const teacherName = data.teacherName || data.teacher_name;
+    const classAssigned = data.classAssigned || data.class_assigned;
+    const staffId = data.staffId || data.staff_id;
+    const phone = data.phone || data.phone_number || '';
+    const res = await request('/auth/class-teachers', {
+      method: 'POST',
+      body: JSON.stringify({
+        teacher_name: teacherName,
+        class_assigned: classAssigned,
+        staff_id: staffId,
+        passcode: data.passcode,
+        phone,
+        send_sms: Boolean(phone),
+      }),
+    });
+    const record = res?.credential || res?.class_teacher || res;
+    const mapped = mapClassTeacherCredential(record);
+    if (mapped?.staffId) return mapped;
+    return {
+      id: record?.id || staffId,
+      teacherName,
+      classAssigned,
+      staffId,
+      passcode: data.passcode,
+      phone,
+      issuedAt: new Date().toISOString(),
+      smsStatus: phone ? 'sent' : 'not_sent',
+    };
+  },
+
+  loginClassTeacher: async ({ staffId, passcode }) => {
+    const res = await request('/auth/class-teacher/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        staff_id: staffId,
+        passcode,
+        portal: 'teacher',
+      }),
+    });
+    if (res && res.token) setAuthToken(res.token);
+    if (res && res.user) setAuthUser(res.user);
+    return res;
+  },
+
+  getClassTeacherStatus: async () => {
+    return await request('/auth/class-teacher/me');
+  },
+
+  verifyClassTeacherPasscode: async ({ staffId, passcode }) => {
+    const res = await request('/auth/class-teacher/verify', {
+      method: 'POST',
+      body: JSON.stringify({
+        staff_id: staffId || undefined,
+        passcode,
+      }),
+    });
+    if (res && res.token) setAuthToken(res.token);
+    if (res && res.user) setAuthUser(res.user);
+    return res;
   },
 
   // --- Health Check ---
@@ -656,7 +760,21 @@ export const api = {
   updateStaff: async (id, staffData) => {
     return await request(`/staff/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(staffData),
+      body: JSON.stringify(staffProfilePayload(staffData)),
+    });
+  },
+
+  offboardStaff: async (id) => {
+    return await request(`/staff/${id}/offboard`, {
+      method: 'POST',
+      body: JSON.stringify({ status: 'Offboarded', is_active: false }),
+    });
+  },
+
+  reactivateStaff: async (id) => {
+    return await request(`/staff/${id}/reactivate`, {
+      method: 'POST',
+      body: JSON.stringify({ status: 'Active', is_active: true }),
     });
   },
 
