@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ShieldCheck, UserPlus, Users, Key, Lock, Unlock, RefreshCw, Search,
   Filter, CheckCircle2, AlertTriangle, Trash2, Edit3, Eye, EyeOff,
@@ -274,6 +275,15 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
   const [showPasswordMap, setShowPasswordMap] = useState({});
   const [successToast, setSuccessToast] = useState('');
   const [copiedId, setCopiedId] = useState(null);
+
+  useEffect(() => {
+    if (!isCreateModalOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isCreateModalOpen]);
 
   // New User Form State
   const [createForm, setCreateForm] = useState({
@@ -1145,15 +1155,40 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       )}
 
       {/* MODAL 1: CREATE USER MODAL */}
-      {isCreateModalOpen && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
-        }}>
-          <div style={{
-            background: '#fff', width: '100%', maxWidth: 580, borderRadius: 'var(--radius-lg)',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden', maxHeight: '90vh', display: 'flex', flexDirection: 'column'
-          }}>
+      {isCreateModalOpen && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            zIndex: 10000,
+            background: 'rgba(15, 23, 42, 0.55)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            boxSizing: 'border-box',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff',
+              width: 'min(580px, 100%)',
+              maxHeight: 'min(90vh, 860px)',
+              margin: 'auto',
+              borderRadius: 'var(--radius-lg)',
+              boxShadow: '0 24px 48px rgba(15, 23, 42, 0.28)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
             <div style={{
               padding: '20px 24px', background: 'linear-gradient(135deg, #4a1d6e, #7c3ac8)', color: '#fff',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center'
@@ -1167,7 +1202,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
               </button>
             </div>
 
-            <form onSubmit={handleCreateUser} style={{ padding: 24, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <form onSubmit={handleCreateUser} style={{ padding: 24, overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Assigned User Role *</label>
@@ -1301,7 +1336,8 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL 2: RESET PASSWORD MODAL */}
