@@ -3,7 +3,8 @@ import {
   LayoutDashboard, Users, UserPlus, FileText, Settings,
   TrendingUp, School, CreditCard, Search, Trash2, Edit,
   CheckCircle2, X, Save, ShieldCheck, ShieldAlert, AlertTriangle, Mail, Phone, MapPin,
-  Printer, Download, Eye, EyeOff, Copy, Plus, FileCheck, UserCheck, Radio
+  Printer, Download, Eye, EyeOff, Copy, Plus, FileCheck, UserCheck, Radio,
+  ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import { usePortalData } from '../data/PortalStore';
@@ -527,12 +528,39 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     }
   };
 
-  const filteredStudents = (onboardedStudents || []).filter((s) =>
-    s.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.level.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.guardianName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const [studentSortCol, setStudentSortCol] = useState('fullName');
+  const [studentSortDir, setStudentSortDir] = useState('asc');
+
+  const handleStudentSort = (colKey) => {
+    if (studentSortCol === colKey) {
+      setStudentSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setStudentSortCol(colKey);
+      setStudentSortDir('asc');
+    }
+  };
+
+  const renderStudentSortIcon = (colKey) => {
+    if (studentSortCol !== colKey) return <ArrowUpDown size={11} style={{ opacity: 0.35, marginLeft: 4 }} />;
+    return studentSortDir === 'asc' ? <ArrowUp size={12} style={{ color: ADMIN_BG, marginLeft: 4 }} /> : <ArrowDown size={12} style={{ color: ADMIN_BG, marginLeft: 4 }} />;
+  };
+
+  const filteredStudents = useMemo(() => {
+    return (onboardedStudents || [])
+      .filter((s) =>
+        s.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.level.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.guardianName.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+      .sort((a, b) => {
+        let valA = (a[studentSortCol] || '').toString().toLowerCase();
+        let valB = (b[studentSortCol] || '').toString().toLowerCase();
+        if (valA < valB) return studentSortDir === 'asc' ? -1 : 1;
+        if (valA > valB) return studentSortDir === 'asc' ? 1 : -1;
+        return 0;
+      });
+  }, [onboardedStudents, searchQuery, studentSortCol, studentSortDir]);
 
   const filteredApplications = (applications || []).filter((a) => {
     const name = a.learner || `${a.firstName || ''} ${a.surname || ''}`;
@@ -1169,12 +1197,36 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Student ID</th>
-                      <th>Full Name</th>
-                      <th>Level / Section</th>
-                      <th>Guardian Details</th>
-                      <th>School Email</th>
-                      <th>Status</th>
+                      <th onClick={() => handleStudentSort('studentId')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          Student ID {renderStudentSortIcon('studentId')}
+                        </div>
+                      </th>
+                      <th onClick={() => handleStudentSort('fullName')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          Full Name {renderStudentSortIcon('fullName')}
+                        </div>
+                      </th>
+                      <th onClick={() => handleStudentSort('level')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          Level / Section {renderStudentSortIcon('level')}
+                        </div>
+                      </th>
+                      <th onClick={() => handleStudentSort('guardianName')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          Guardian Details {renderStudentSortIcon('guardianName')}
+                        </div>
+                      </th>
+                      <th onClick={() => handleStudentSort('studentEmail')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          School Email {renderStudentSortIcon('studentEmail')}
+                        </div>
+                      </th>
+                      <th onClick={() => handleStudentSort('status')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          Status {renderStudentSortIcon('status')}
+                        </div>
+                      </th>
                       <th>Actions</th>
                     </tr>
                   </thead>

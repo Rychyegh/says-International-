@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   CheckCircle2, XCircle, Send, Radio, Search, ShieldCheck, Phone, Check,
   CreditCard, Cpu, Sparkles, Filter, Calendar, FileText, Download, Printer,
-  Eye, RefreshCw, Layers, UserCheck, AlertTriangle
+  Eye, RefreshCw, Layers, UserCheck, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
 import { api } from '../../services/api';
@@ -377,35 +377,85 @@ export default function AttendanceControlTable() {
     }
   };
 
+  // Sort states
+  const [tableSortCol, setTableSortCol] = useState('fullName');
+  const [tableSortDir, setTableSortDir] = useState('asc');
+  const [logSortCol, setLogSortCol] = useState('date');
+  const [logSortDir, setLogSortDir] = useState('desc');
+
+  const handleTableSort = (colKey) => {
+    if (tableSortCol === colKey) {
+      setTableSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setTableSortCol(colKey);
+      setTableSortDir('asc');
+    }
+  };
+
+  const handleLogSort = (colKey) => {
+    if (logSortCol === colKey) {
+      setLogSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setLogSortCol(colKey);
+      setLogSortDir('asc');
+    }
+  };
+
+  const renderSortIcon = (colKey) => {
+    if (tableSortCol !== colKey) return <ArrowUpDown size={11} style={{ opacity: 0.35, marginLeft: 4 }} />;
+    return tableSortDir === 'asc' ? <ArrowUp size={12} style={{ color: 'var(--ics-green-700)', marginLeft: 4 }} /> : <ArrowDown size={12} style={{ color: 'var(--ics-green-700)', marginLeft: 4 }} />;
+  };
+
+  const renderLogSortIcon = (colKey) => {
+    if (logSortCol !== colKey) return <ArrowUpDown size={11} style={{ opacity: 0.35, marginLeft: 4 }} />;
+    return logSortDir === 'asc' ? <ArrowUp size={12} style={{ color: 'var(--ics-green-700)', marginLeft: 4 }} /> : <ArrowDown size={12} style={{ color: 'var(--ics-green-700)', marginLeft: 4 }} />;
+  };
+
   // Filtered lists for Live Roll Call View
-  const filteredStudents = studentsList.filter(s => {
-    const matchesSearch = (s.fullName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (s.studentId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (s.rfidCardCode || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (s.guardianName || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesLevel = selectedLevel === 'All' || (s.level || '').includes(selectedLevel);
-    return matchesSearch && matchesLevel;
-  });
+  const filteredStudents = studentsList
+    .filter(s => {
+      const matchesSearch = (s.fullName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (s.studentId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (s.rfidCardCode || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (s.guardianName || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesLevel = selectedLevel === 'All' || (s.level || '').includes(selectedLevel);
+      return matchesSearch && matchesLevel;
+    })
+    .sort((a, b) => {
+      let valA = (a[tableSortCol] || '').toString().toLowerCase();
+      let valB = (b[tableSortCol] || '').toString().toLowerCase();
+      if (valA < valB) return tableSortDir === 'asc' ? -1 : 1;
+      if (valA > valB) return tableSortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
 
   // Filtered records for Attendance History Register Logs
-  const filteredAttendanceLogs = attendanceLogs.filter(log => {
-    const matchesSearch = (log.studentId || '').toLowerCase().includes(logSearchQuery.toLowerCase()) ||
-                          (log.studentName || '').toLowerCase().includes(logSearchQuery.toLowerCase()) ||
-                          (log.guardianName || '').toLowerCase().includes(logSearchQuery.toLowerCase()) ||
-                          (log.phone || '').toLowerCase().includes(logSearchQuery.toLowerCase());
+  const filteredAttendanceLogs = attendanceLogs
+    .filter(log => {
+      const matchesSearch = (log.studentId || '').toLowerCase().includes(logSearchQuery.toLowerCase()) ||
+                            (log.studentName || '').toLowerCase().includes(logSearchQuery.toLowerCase()) ||
+                            (log.guardianName || '').toLowerCase().includes(logSearchQuery.toLowerCase()) ||
+                            (log.phone || '').toLowerCase().includes(logSearchQuery.toLowerCase());
 
-    const matchesLevel = logLevelFilter === 'All' || (log.level || '').toLowerCase().includes(logLevelFilter.toLowerCase());
-    const matchesStatus = logStatusFilter === 'All' ||
-                          (logStatusFilter === 'CardScanned' && (log.method === 'RFID Card Reader' || log.status.includes('Check') || log.status === 'CardScanned')) ||
-                          log.status.toLowerCase() === logStatusFilter.toLowerCase();
-    
-    const todayStr = new Date().toISOString().split('T')[0];
-    const matchesDate = logDateFilter === 'All' ||
-                        (logDateFilter === 'Today' && log.date === todayStr) ||
-                        (logDateFilter === 'Yesterday' && log.date !== todayStr);
+      const matchesLevel = logLevelFilter === 'All' || (log.level || '').toLowerCase().includes(logLevelFilter.toLowerCase());
+      const matchesStatus = logStatusFilter === 'All' ||
+                            (logStatusFilter === 'CardScanned' && (log.method === 'RFID Card Reader' || log.status.includes('Check') || log.status === 'CardScanned')) ||
+                            log.status.toLowerCase() === logStatusFilter.toLowerCase();
+      
+      const todayStr = new Date().toISOString().split('T')[0];
+      const matchesDate = logDateFilter === 'All' ||
+                          (logDateFilter === 'Today' && log.date === todayStr) ||
+                          (logDateFilter === 'Yesterday' && log.date !== todayStr);
 
-    return matchesSearch && matchesLevel && matchesStatus && matchesDate;
-  });
+      return matchesSearch && matchesLevel && matchesStatus && matchesDate;
+    })
+    .sort((a, b) => {
+      let valA = (a[logSortCol] || '').toString().toLowerCase();
+      let valB = (b[logSortCol] || '').toString().toLowerCase();
+      if (valA < valB) return logSortDir === 'asc' ? -1 : 1;
+      if (valA > valB) return logSortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
 
   // Statistics calculation
   const totalLogsCount = filteredAttendanceLogs.length;
@@ -743,11 +793,31 @@ export default function AttendanceControlTable() {
             <table className="attendance-table">
               <thead>
                 <tr>
-                  <th>Student Code</th>
-                  <th>Student Name</th>
-                  <th>Class Level</th>
-                  <th>Guardian Contact</th>
-                  <th>Scan Status</th>
+                  <th onClick={() => handleTableSort('studentId')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Student Code {renderSortIcon('studentId')}
+                    </div>
+                  </th>
+                  <th onClick={() => handleTableSort('fullName')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Student Name {renderSortIcon('fullName')}
+                    </div>
+                  </th>
+                  <th onClick={() => handleTableSort('level')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Class Level {renderSortIcon('level')}
+                    </div>
+                  </th>
+                  <th onClick={() => handleTableSort('guardianName')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Guardian Contact {renderSortIcon('guardianName')}
+                    </div>
+                  </th>
+                  <th onClick={() => handleTableSort('status')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Scan Status {renderSortIcon('status')}
+                    </div>
+                  </th>
                   <th>Attendance & SMS Control Actions</th>
                 </tr>
               </thead>
@@ -985,12 +1055,36 @@ export default function AttendanceControlTable() {
             <table className="attendance-table">
               <thead>
                 <tr>
-                  <th>Date & Time</th>
-                  <th>Student ID</th>
-                  <th>Student Name</th>
-                  <th>Class Level</th>
-                  <th>Scan Method</th>
-                  <th>Status</th>
+                  <th onClick={() => handleLogSort('date')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Date & Time {renderLogSortIcon('date')}
+                    </div>
+                  </th>
+                  <th onClick={() => handleLogSort('studentId')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Student ID {renderLogSortIcon('studentId')}
+                    </div>
+                  </th>
+                  <th onClick={() => handleLogSort('studentName')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Student Name {renderLogSortIcon('studentName')}
+                    </div>
+                  </th>
+                  <th onClick={() => handleLogSort('level')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Class Level {renderLogSortIcon('level')}
+                    </div>
+                  </th>
+                  <th onClick={() => handleLogSort('method')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Scan Method {renderLogSortIcon('method')}
+                    </div>
+                  </th>
+                  <th onClick={() => handleLogSort('status')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Status {renderLogSortIcon('status')}
+                    </div>
+                  </th>
                   <th>Guardian & SMS Status</th>
                   <th>Action</th>
                 </tr>

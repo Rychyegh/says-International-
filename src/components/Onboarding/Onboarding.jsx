@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { CheckCircle2, FileText, Eye, Edit3, Search, Filter, ArrowUpDown, X, Trash2 } from 'lucide-react';
+import { CheckCircle2, FileText, Eye, Edit3, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, Trash2 } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
 import OfficialApplicationForm from './OfficialApplicationForm';
 import BulkStudentUpload from './BulkStudentUpload';
@@ -109,7 +109,19 @@ export function AdmissionsRegister() {
   const [classFilter, setClassFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [enrolmentFilter, setEnrolmentFilter] = useState('All');
-  const [sortBy, setSortBy] = useState('newest');
+  
+  // Sort Column & Direction state
+  const [sortColumn, setSortColumn] = useState('submittedAt');
+  const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
+
+  const handleHeaderSort = (columnKey) => {
+    if (sortColumn === columnKey) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(columnKey);
+      setSortDirection('asc');
+    }
+  };
 
   const filteredApplications = useMemo(() => {
     return applications
@@ -130,19 +142,50 @@ export function AdmissionsRegister() {
         return matchesSearch && matchesClass && matchesStatus && matchesEnrolment;
       })
       .sort((a, b) => {
-        if (sortBy === 'newest') return new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0);
-        if (sortBy === 'oldest') return new Date(a.submittedAt || 0) - new Date(b.submittedAt || 0);
-        if (sortBy === 'name-asc') return (a.learner || `${a.firstName} ${a.surname}`).localeCompare(b.learner || `${b.firstName} ${b.surname}`);
-        if (sortBy === 'name-desc') return (b.learner || `${b.firstName} ${b.surname}`).localeCompare(a.learner || `${a.firstName} ${a.surname}`);
-        if (sortBy === 'class-asc') return (a.level || a.applyingClass || '').localeCompare(b.level || b.applyingClass || '');
+        let valA = '';
+        let valB = '';
+
+        if (sortColumn === 'learner') {
+          valA = (a.learner || `${a.firstName || ''} ${a.surname || ''}`).toLowerCase();
+          valB = (b.learner || `${b.firstName || ''} ${b.surname || ''}`).toLowerCase();
+        } else if (sortColumn === 'class') {
+          valA = (a.level || a.applyingClass || '').toLowerCase();
+          valB = (b.level || b.applyingClass || '').toLowerCase();
+        } else if (sortColumn === 'guardian') {
+          valA = (a.guardian || a.fatherName || a.motherName || '').toLowerCase();
+          valB = (b.guardian || b.fatherName || b.motherName || '').toLowerCase();
+        } else if (sortColumn === 'enrolment') {
+          valA = (a.residenceType || a.enrolmentType || 'Day').toLowerCase();
+          valB = (b.residenceType || b.enrolmentType || 'Day').toLowerCase();
+        } else if (sortColumn === 'status') {
+          valA = (a.status || 'Submitted').toLowerCase();
+          valB = (b.status || 'Submitted').toLowerCase();
+        } else if (sortColumn === 'submittedAt') {
+          valA = new Date(a.submittedAt || 0).getTime();
+          valB = new Date(b.submittedAt || 0).getTime();
+        }
+
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
         return 0;
       });
-  }, [applications, searchTerm, classFilter, statusFilter, enrolmentFilter, sortBy]);
+  }, [applications, searchTerm, classFilter, statusFilter, enrolmentFilter, sortColumn, sortDirection]);
 
   const uniqueClasses = useMemo(() => {
     const set = new Set(applications.map(a => a.level || a.applyingClass).filter(Boolean));
     return ['All', ...Array.from(set)];
   }, [applications]);
+
+  const renderSortIcon = (columnKey) => {
+    if (sortColumn !== columnKey) {
+      return <ArrowUpDown size={12} style={{ opacity: 0.35, marginLeft: 4 }} />;
+    }
+    return sortDirection === 'asc' ? (
+      <ArrowUp size={13} style={{ color: '#166534', marginLeft: 4 }} />
+    ) : (
+      <ArrowDown size={13} style={{ color: '#166534', marginLeft: 4 }} />
+    );
+  };
 
   return (
     <div className="onboarding animate-fade-up">
@@ -266,21 +309,28 @@ export function AdmissionsRegister() {
               </select>
             </div>
 
-            {/* Sort Options */}
+            {/* Quick Sort Order Switcher */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
-              <ArrowUpDown size={14} style={{ color: '#64748b' }} />
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Sort:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#fff' }}
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Order:</span>
+              <button
+                onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '6px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #cbd5e1',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: '#1e293b'
+                }}
               >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-                <option value="name-asc">Name (A → Z)</option>
-                <option value="name-desc">Name (Z → A)</option>
-                <option value="class-asc">Class / Form</option>
-              </select>
+                {sortDirection === 'asc' ? <ArrowUp size={14} color="#166534" /> : <ArrowDown size={14} color="#166534" />}
+                {sortDirection === 'asc' ? 'Ascending (A-Z)' : 'Descending (Z-A)'}
+              </button>
             </div>
           </div>
 
@@ -289,15 +339,55 @@ export function AdmissionsRegister() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ padding: '12px 14px', color: '#64748b', fontWeight: 800, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' }}>LEARNER NAME</th>
-                  <th style={{ padding: '12px 14px', color: '#64748b', fontWeight: 800, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' }}>CLASS/FORM</th>
-                  <th style={{ padding: '12px 14px', color: '#64748b', fontWeight: 800, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' }}>GUARDIAN DETAILS</th>
-                  <th style={{ padding: '12px 14px', color: '#64748b', fontWeight: 800, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' }}>ENROLMENT TYPE</th>
-                  <th style={{ padding: '12px 14px', color: '#64748b', fontWeight: 800, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' }}>STATUS</th>
-                  <th style={{ padding: '12px 14px', color: '#64748b', fontWeight: 800, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' }}>OFFICE EVALUATION</th>
-                  <th style={{ padding: '12px 14px', color: '#64748b', fontWeight: 800, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', textAlign: 'center' }}>ACTIONS</th>
+                  <th
+                    onClick={() => handleHeaderSort('learner')}
+                    style={{ padding: '12px 14px', color: sortColumn === 'learner' ? '#0f172a' : '#64748b', fontWeight: 800, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      LEARNER NAME {renderSortIcon('learner')}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleHeaderSort('class')}
+                    style={{ padding: '12px 14px', color: sortColumn === 'class' ? '#0f172a' : '#64748b', fontWeight: 800, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      CLASS/FORM {renderSortIcon('class')}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleHeaderSort('guardian')}
+                    style={{ padding: '12px 14px', color: sortColumn === 'guardian' ? '#0f172a' : '#64748b', fontWeight: 800, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      GUARDIAN DETAILS {renderSortIcon('guardian')}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleHeaderSort('enrolment')}
+                    style={{ padding: '12px 14px', color: sortColumn === 'enrolment' ? '#0f172a' : '#64748b', fontWeight: 800, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      ENROLMENT TYPE {renderSortIcon('enrolment')}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleHeaderSort('status')}
+                    style={{ padding: '12px 14px', color: sortColumn === 'status' ? '#0f172a' : '#64748b', fontWeight: 800, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      STATUS {renderSortIcon('status')}
+                    </div>
+                  </th>
+                  <th style={{ padding: '12px 14px', color: '#64748b', fontWeight: 800, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                    OFFICE EVALUATION
+                  </th>
+                  <th style={{ padding: '12px 14px', color: '#64748b', fontWeight: 800, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', textAlign: 'center' }}>
+                    ACTIONS
+                  </th>
                 </tr>
               </thead>
+
               <tbody>
                 {filteredApplications.length === 0 ? (
                   <tr>
