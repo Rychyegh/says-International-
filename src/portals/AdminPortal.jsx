@@ -2414,18 +2414,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   >
                     <School size={16} /> 🏫 ➕ Add New Class
                   </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsAddingStaff(true)}
-                    style={{
-                      padding: '10px 18px', borderRadius: 8, background: ADMIN_BG, color: '#fff',
-                      border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(74, 29, 110, 0.25)'
-                    }}
-                  >
-                    <UserPlus size={16} /> ➕ Onboard New Staff Member
-                  </button>
                 </div>
               </div>
 
