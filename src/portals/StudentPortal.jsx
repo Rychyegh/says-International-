@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  LayoutDashboard, BookOpen, Calendar, ClipboardList,
-  Award, MessageSquare, Settings, Zap, Star, Clock, Bus
+  LayoutDashboard, Calendar, ClipboardList,
+  Award, Zap, Clock, Bus
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import '../components/BusTracker/BusTracker.css';
 import BusTracker from '../components/BusTracker/BusTracker';
-import { CourseRegistration, StudentResults, StudentTimetable } from '../components/Academic/AcademicViews';
-import { PortalSettings, StudentMessagesAssignments } from '../components/SchoolWorkflows/SchoolWorkflows';
+import { StudentResults, StudentTimetable } from '../components/Academic/AcademicViews';
+import { StudentMessagesAssignments } from '../components/SchoolWorkflows/SchoolWorkflows';
 import { getAuthUser } from '../services/api';
 
 const STUDENT_BG    = '#5e2d0e';
@@ -16,15 +16,10 @@ const STUDENT_ACCENT= '#c8703a';
 
 const NAV = [
   { icon: <LayoutDashboard size={15}/>, label: 'My Dashboard', badge: null },
-  { icon: <BookOpen size={15}/>,        label: 'Subjects',     badge: null },
   { icon: <ClipboardList size={15}/>,   label: 'Assignments',  badge: '5'  },
   { icon: <Award size={15}/>,           label: 'My Grades',    badge: null },
   { icon: <Calendar size={15}/>,        label: 'Timetable',    badge: null },
   { icon: <Zap size={15}/>,             label: 'e-Library',    badge: null },
-  { icon: <Bus size={15}/>,             label: 'My Bus',       badge: null },
-  { icon: <MessageSquare size={15}/>,   label: 'Messages',     badge: '3'  },
-  { icon: <Star size={15}/>,            label: 'Achievements', badge: null },
-  { icon: <Settings size={15}/>,        label: 'Settings',     badge: null },
 ];
 
 const STATS = [
@@ -52,13 +47,6 @@ const QUICK = [
   { icon: '💬', label: 'Support'    },
 ];
 
-const ACHIEVEMENTS = [
-  { icon: '🥇', title: 'Top of Class',       desc: 'Mathematics – Term 1' },
-  { icon: '🔥', title: 'Perfect Attendance', desc: 'March 2024'            },
-  { icon: '📖', title: 'Bookworm',           desc: 'Read 10+ books'        },
-  { icon: '💡', title: 'Science Star',       desc: 'Best Lab Report'       },
-];
-
 const TIMETABLE = [
   { day: 'Mon', classes: ['Math 8AM', 'English 10AM', 'ICT 2PM'] },
   { day: 'Tue', classes: ['Science 8AM', 'Soc. Studies 11AM'] },
@@ -78,7 +66,9 @@ const STATUS_C = { 'Pending': 'status-pill--warn', 'In Progress': 'status-pill--
 
 export default function StudentPortal() {
   const [activeNav, setActiveNavState] = useState(() => {
-    return localStorage.getItem('says_student_active_nav') || 'My Dashboard';
+    const saved = localStorage.getItem('says_student_active_nav');
+    const validTabs = ['My Dashboard', 'Assignments', 'My Grades', 'Timetable', 'e-Library', 'My Bus'];
+    return (saved && validTabs.includes(saved)) ? saved : 'My Dashboard';
   });
 
   const setActiveNav = (nav) => {
@@ -109,7 +99,7 @@ export default function StudentPortal() {
             <div style={{ fontSize: 11, color: '#8a5e3a', marginTop: 2 }}>{getAuthUser()?.fullName || getAuthUser()?.name || 'Kwame Edwards'} — Senior High II</div>
           </div>
           <span className="sidebar-section-label">My Space</span>
-          {NAV.slice(0, 6).map((item) => (
+          {NAV.map((item) => (
             <button key={item.label}
               className={`sidebar-item${activeNav === item.label ? ' active' : ''}`}
               style={activeNav === item.label ? { background: STUDENT_BG } : {}}
@@ -126,18 +116,6 @@ export default function StudentPortal() {
             <span className="sidebar-item__icon"><Bus size={15}/></span>
             My Bus
           </button>
-          <span className="sidebar-section-label">More</span>
-          {NAV.slice(7, 10).map((item) => (
-            <button key={item.label}
-              className={`sidebar-item${activeNav === item.label ? ' active' : ''}`}
-              style={activeNav === item.label ? { background: STUDENT_BG } : {}}
-              onClick={() => setActiveNav(item.label)}>
-              <span className="sidebar-item__icon">{item.icon}</span>
-              {item.label}
-              {item.badge && <span className="sidebar-item__badge" style={{ background: STUDENT_BG, color: '#fff' }}>{item.badge}</span>}
-            </button>
-          ))}
-
         </aside>
 
         {/* Main */}
@@ -325,20 +303,6 @@ export default function StudentPortal() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Achievements */}
-                  <div className="panel">
-                    <div className="panel__header"><h2 className="panel__title">🏅 Recent Achievements</h2></div>
-                    <div className="panel__body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                      {ACHIEVEMENTS.map((a) => (
-                        <div key={a.title} style={{ padding: '12px 10px', borderRadius: 'var(--radius-md)', background: 'var(--gray-50)', border: '1px solid var(--gray-100)', textAlign: 'center' }}>
-                          <div style={{ fontSize: 26, marginBottom: 5 }}>{a.icon}</div>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-900)', marginBottom: 2 }}>{a.title}</div>
-                          <div style={{ fontSize: 10, color: 'var(--gray-400)' }}>{a.desc}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               </div>
             </>
@@ -346,12 +310,10 @@ export default function StudentPortal() {
 
           {activeNav === 'Timetable' && <StudentTimetable />}
           {activeNav === 'My Grades' && <StudentResults />}
-          {activeNav === 'Subjects' && <CourseRegistration />}
-          {(activeNav === 'Assignments' || activeNav === 'Messages') && <StudentMessagesAssignments />}
-          {activeNav === 'Settings' && <PortalSettings portal="student" />}
+          {activeNav === 'Assignments' && <StudentMessagesAssignments showMessages={false} />}
 
           {/* Other nav placeholders */}
-          {!['My Dashboard', 'My Bus', 'Timetable', 'My Grades', 'Subjects', 'Assignments', 'Messages', 'Settings'].includes(activeNav) && (
+          {!['My Dashboard', 'My Bus', 'Timetable', 'My Grades', 'Assignments'].includes(activeNav) && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 12 }}>
               <div style={{ fontSize: 48 }}>🚧</div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--gray-700)' }}>{activeNav} — Coming Soon</h2>

@@ -1566,32 +1566,6 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
               })}
             </div>
           </div>
-
-          {/* Quick Enrolled Student Picker */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: '#64748b' }}>
-              🧾 Prepare for Student:
-            </span>
-            <select
-              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #0284c7', fontSize: 12.5, fontWeight: 800, color: '#0f3a4b', background: '#fff', cursor: 'pointer' }}
-              onChange={(e) => {
-                const found = singleBillStudents.find(s => (s.id === e.target.value || s.studentId === e.target.value));
-                handleSelectStudentForBill(found);
-              }}
-              value={preparingStudentBill?.id || preparingStudentBill?.studentId || ''}
-            >
-              <option value="">
-                {studentsForSelectedClass.length > 0
-                  ? `-- Choose Enrolled Student in ${activeSubLevelDisplay} (${studentsForSelectedClass.length}) --`
-                  : `-- No Students Enrolled in ${activeSubLevelDisplay} (0) --`}
-              </option>
-              {singleBillStudents.map((s) => (
-                <option key={s.id || s.studentId} value={s.id || s.studentId}>
-                  {getStudentFullName(s)} ({s.studentId} · {s.level})
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
         {/* Tier 2: Sub-Level Breakdown Selector */}

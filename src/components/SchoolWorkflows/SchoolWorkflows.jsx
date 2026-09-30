@@ -40,10 +40,67 @@ export function ParentFees({ childName = 'Benjamin Edwards' }) {
   return <div className="workflow animate-fade-up"><div className="page-header"><h1 className="page-header__title">Fees & account statement</h1><p className="page-header__subtitle">This account is maintained by the school accounts team. Real-time payment status and accountant reminders are shown for {childName}.</p></div><div className="workflow-grid"><section className="panel"><div className="panel__header"><h2 className="panel__title">{childName} · REMALJ Carewell Inspirational School</h2><span className={`status-pill ${balance > 0 ? 'status-pill--warn' : 'status-pill--success'}`}>{status}</span></div><div className="panel__body fee-summary"><div><span>Term billed</span><strong>GHS {billed.toLocaleString()}</strong></div><div><span>Payments received</span><strong style={{ color: '#16a34a' }}>GHS {paid.toLocaleString()}</strong></div><div><span>Outstanding balance</span><strong className={balance > 0 ? 'fee-balance' : ''}>GHS {balance.toLocaleString()}</strong></div><p>Account source: School Finance & Accounts Office · {feeRecord.term || 'Term 1 · 2026'}. Contact Accounts for receipts, corrections or payment arrangements.</p></div></section><section className="panel"><div className="panel__header"><h2 className="panel__title"><MessageSquare size={16}/> Accountant & Fee Notices</h2></div><div className="workflow-list">{reminders.length ? reminders.map((m) => <article key={m.id}><strong>{m.subject}</strong><span>{m.from} ({m.senderRole || 'Accounts'}) · {m.sentAt}</span><p style={{ whiteSpace: 'pre-line' }}>{m.body}</p></article>) : <p className="workflow-empty">No fee reminders or notices have been sent for this account.</p>}</div></section></div></div>;
 }
 
-export function StudentMessagesAssignments() {
-  const { messages, assignments, sendMessage } = usePortalData(); const [body, setBody] = useState(''); const [notice, setNotice] = useState(''); const staffMessages = messages.filter((m) => m.to === 'Students' || m.recipient === 'Kwame Edwards');
-  const submit = (e) => { e.preventDefault(); if (!body.trim()) return; sendMessage({ from: 'Kwame Edwards', senderRole: 'Student', to: 'Staff', recipient: 'Mr. Samuel Amponsah', subject: 'Student message', body: body.trim() }); setBody(''); setNotice('Your message has been delivered to the Staff Portal inbox.'); };
-  return <div className="workflow animate-fade-up"><div className="page-header"><h1 className="page-header__title">Assignments & messages</h1><p className="page-header__subtitle">Published work from lecturers and a direct, logged connection to staff.</p></div><div className="workflow-grid"><section className="panel"><div className="panel__header"><h2 className="panel__title">My published assignments</h2></div><div className="workflow-list">{assignments.filter((a) => /SH2/.test(a.audience)).map((a) => <article key={a.id}><strong>{a.title}</strong><span>{a.audience} · Due {date(a.due)}</span><p>{a.instructions}</p><small>{a.author}</small></article>)}</div></section><section className="panel workflow-form"><div className="panel__header"><h2 className="panel__title"><MessageSquare size={16}/> Message staff</h2></div><form className="panel__body" onSubmit={submit}><label>Message to Mr. Samuel Amponsah<textarea rows="5" required value={body} onChange={(e) => setBody(e.target.value)} placeholder="Ask your lecturer or share an update…"/></label><button className="workflow-button" type="submit"><Send size={15}/> Send to staff</button>{notice && <p className="workflow-success"><CheckCircle2 size={15}/>{notice}</p>}</form><div className="workflow-list">{staffMessages.map((m) => <article key={m.id}><strong>{m.subject}</strong><span>{m.from} · {m.sentAt}</span><p>{m.body}</p></article>)}</div></section></div></div>;
+export function StudentMessagesAssignments({ showMessages = false }) {
+  const { messages, assignments, sendMessage } = usePortalData();
+  const [body, setBody] = useState('');
+  const [notice, setNotice] = useState('');
+  const staffMessages = messages.filter((m) => m.to === 'Students' || m.recipient === 'Kwame Edwards');
+  const submit = (e) => {
+    e.preventDefault();
+    if (!body.trim()) return;
+    sendMessage({ from: 'Kwame Edwards', senderRole: 'Student', to: 'Staff', recipient: 'Mr. Samuel Amponsah', subject: 'Student message', body: body.trim() });
+    setBody('');
+    setNotice('Your message has been delivered to the Staff Portal inbox.');
+  };
+  return (
+    <div className="workflow animate-fade-up">
+      <div className="page-header">
+        <h1 className="page-header__title">{showMessages ? 'Assignments & messages' : 'My Assignments'}</h1>
+        <p className="page-header__subtitle">{showMessages ? 'Published work from lecturers and a direct, logged connection to staff.' : 'Published coursework, term papers, and assignments from your teachers.'}</p>
+      </div>
+      <div className={showMessages ? "workflow-grid" : "workflow-single"}>
+        <section className="panel" style={!showMessages ? { width: '100%' } : {}}>
+          <div className="panel__header">
+            <h2 className="panel__title">My published assignments</h2>
+          </div>
+          <div className="workflow-list">
+            {assignments.filter((a) => /SH2/.test(a.audience)).map((a) => (
+              <article key={a.id}>
+                <strong>{a.title}</strong>
+                <span>{a.audience} · Due {date(a.due)}</span>
+                <p>{a.instructions}</p>
+                <small>{a.author}</small>
+              </article>
+            ))}
+          </div>
+        </section>
+        {showMessages && (
+          <section className="panel workflow-form">
+            <div className="panel__header">
+              <h2 className="panel__title"><MessageSquare size={16}/> Message staff</h2>
+            </div>
+            <form className="panel__body" onSubmit={submit}>
+              <label>
+                Message to Mr. Samuel Amponsah
+                <textarea rows="5" required value={body} onChange={(e) => setBody(e.target.value)} placeholder="Ask your lecturer or share an update…"/>
+              </label>
+              <button className="workflow-button" type="submit"><Send size={15}/> Send to staff</button>
+              {notice && <p className="workflow-success"><CheckCircle2 size={15}/>{notice}</p>}
+            </form>
+            <div className="workflow-list">
+              {staffMessages.map((m) => (
+                <article key={m.id}>
+                  <strong>{m.subject}</strong>
+                  <span>{m.from} · {m.sentAt}</span>
+                  <p>{m.body}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function PortalSettings({ portal = 'admin' }) {
