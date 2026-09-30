@@ -160,6 +160,7 @@ const INITIAL_DATA = {
   semesterRegistrations: [],
   examRegistrations: [],
   paymentVouchers: [],
+  pvNotifications: [],
   ledgerLogs: [],
   academicSettings: {
     academicYear: '2025/2026',
@@ -2267,9 +2268,11 @@ export function PortalDataProvider({ children }) {
       }
       setData((current) => {
         const existing = current.paymentVouchers || [];
+        const existingNotifs = current.pvNotifications || [];
+        const pvNo = pvData.pvNo || `PV-2026-${String(existing.length + 100).padStart(3, '0')}`;
         const newPV = {
           id: `pv-${Date.now()}`,
-          pvNo: pvData.pvNo || `PV-2026-${String(existing.length + 100).padStart(3, '0')}`,
+          pvNo,
           requisitionNo: pvData.requisitionNo || `REQ-${Math.floor(10000 + Math.random() * 90000)}`,
           provider: pvData.provider || 'General Vendor',
           providerId: pvData.providerId || 'VEN-001',
@@ -2282,14 +2285,106 @@ export function PortalDataProvider({ children }) {
           auditRemarks: pvData.auditRemarks || 'Created in system.',
           status: pvData.status || 'Pending Audit',
           editedByHeadmaster: false,
-          correctionsLog: []
+          correctionsLog: [],
+          items: pvData.items || [],
+          grandTotal: pvData.grandTotal || 0,
+          academicYear: pvData.academicYear,
+          academicTerm: pvData.academicTerm,
+          submittedBy: pvData.submittedBy || 'Sub-Admin',
+        };
+        // Push a head-admin notification
+        const newNotif = {
+          id: `notif-pv-${Date.now()}`,
+          pvNo,
+          provider: newPV.provider,
+          grandTotal: newPV.grandTotal || newPV.total,
+          description: newPV.description,
+          submittedBy: newPV.submittedBy,
+          submittedAt: new Date().toLocaleString(),
+          read: false,
         };
         return {
           ...current,
-          paymentVouchers: [newPV, ...existing]
+          paymentVouchers: [newPV, ...existing],
+          pvNotifications: [newNotif, ...existingNotifs],
         };
       });
     },
+    // Alias so SubmitPVRequest can call createPaymentVoucher too
+    createPaymentVoucher: async (pvData) => {
+      // Delegates to addPaymentVoucher (same logic)
+      try {
+        await api.createPaymentVoucher({
+          pv_number: pvData.pvNo,
+          requisition_no: pvData.requisitionNo,
+          payee_name: pvData.provider,
+          payee_id: pvData.providerId,
+          department: pvData.department || 'Administration',
+          description: pvData.description,
+          quantity: Number(pvData.qty) || 1,
+          unit_cost: Number(pvData.cost || pvData.costPerItem) || 0,
+          total_amount: (Number(pvData.qty) || 1) * (Number(pvData.cost || pvData.costPerItem) || 0),
+          date_prepared: pvData.datePrepared
+        });
+      } catch (e) {
+        console.warn('Backend PV create fallback:', e);
+      }
+      setData((current) => {
+        const existing = current.paymentVouchers || [];
+        const existingNotifs = current.pvNotifications || [];
+        const pvNo = pvData.pvNo || `PV-2026-${String(existing.length + 100).padStart(3, '0')}`;
+        const newPV = {
+          id: `pv-${Date.now()}`,
+          pvNo,
+          requisitionNo: pvData.requisitionNo || `REQ-${Math.floor(10000 + Math.random() * 90000)}`,
+          provider: pvData.provider || 'General Vendor',
+          providerId: pvData.providerId || 'VEN-001',
+          description: pvData.description || 'Expenditure Voucher',
+          qty: Number(pvData.qty) || 1,
+          cost: Number(pvData.cost || pvData.costPerItem) || 0,
+          total: (Number(pvData.qty) || 1) * (Number(pvData.cost || pvData.costPerItem) || 0),
+          datePrepared: pvData.datePrepared || new Date().toISOString().split('T')[0],
+          valuedDate: pvData.valuedDate || new Date().toISOString().split('T')[0],
+          auditRemarks: pvData.auditRemarks || 'Created in system.',
+          status: pvData.status || 'Pending Audit',
+          editedByHeadmaster: false,
+          correctionsLog: [],
+          items: pvData.items || [],
+          grandTotal: pvData.grandTotal || 0,
+          academicYear: pvData.academicYear,
+          academicTerm: pvData.academicTerm,
+          submittedBy: pvData.submittedBy || 'Sub-Admin',
+        };
+        const newNotif = {
+          id: `notif-pv-${Date.now()}`,
+          pvNo,
+          provider: newPV.provider,
+          grandTotal: newPV.grandTotal || newPV.total,
+          description: newPV.description,
+          submittedBy: newPV.submittedBy,
+          submittedAt: new Date().toLocaleString(),
+          read: false,
+        };
+        return {
+          ...current,
+          paymentVouchers: [newPV, ...existing],
+          pvNotifications: [newNotif, ...existingNotifs],
+        };
+      });
+    },
+    // Notification management
+    markAllPVNotificationsRead: () => setData((current) => ({
+      ...current,
+      pvNotifications: (current.pvNotifications || []).map(n => ({ ...n, read: true }))
+    })),
+    clearPVNotifications: () => setData((current) => ({
+      ...current,
+      pvNotifications: []
+    })),
+    markPVNotificationRead: (id) => setData((current) => ({
+      ...current,
+      pvNotifications: (current.pvNotifications || []).map(n => n.id === id ? { ...n, read: true } : n)
+    })),
     updatePaymentVoucher: (pvNo, updatedFields, editorRole = 'Headmaster / Pre-Auditor') => setData((current) => {
       const existing = current.paymentVouchers || [];
       const updated = existing.map(p => {

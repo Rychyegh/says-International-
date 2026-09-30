@@ -4,7 +4,7 @@ import {
   TrendingUp, School, CreditCard, Search, Trash2, Edit,
   CheckCircle2, X, Save, ShieldCheck, ShieldAlert, AlertTriangle, Mail, Phone, MapPin,
   Printer, Download, Eye, EyeOff, Copy, Plus, FileCheck, UserCheck, Radio,
-  ArrowUpDown, ArrowUp, ArrowDown
+  ArrowUpDown, ArrowUp, ArrowDown, Bell, BellRing, CheckCheck
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import { usePortalData } from '../data/PortalStore';
@@ -89,6 +89,22 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [adminRole, setAdminRole] = useState(initialAdminRole || 'head_admin'); // 'head_admin' | 'sub_admin'
   const [declineResultModal, setDeclineResultModal] = useState(null);
   const [declineInputNote, setDeclineInputNote] = useState('');
+
+  // PV Notification Panel State
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const notifPanelRef = useRef(null);
+
+  // Close panel when clicking outside
+  useEffect(() => {
+    if (!showNotifPanel) return;
+    const handleClickOutside = (e) => {
+      if (notifPanelRef.current && !notifPanelRef.current.contains(e.target)) {
+        setShowNotifPanel(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showNotifPanel]);
 
   // Student Credentials Vault State
   const [viewingCredentialStudent, setViewingCredentialStudent] = useState(null);
@@ -217,6 +233,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     submitApplication,
     deleteApplication,
     adminSetUserPassword,
+    pvNotifications,
+    markAllPVNotificationsRead,
+    clearPVNotifications,
+    markPVNotificationRead,
   } = usePortalData();
 
   // Dynamic Levels & Subjects
@@ -617,9 +637,185 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           <div style={{ margin: '0 0 16px', padding: '14px', background: ADMIN_LIGHT, borderRadius: 'var(--radius-md)', borderLeft: `4px solid ${ADMIN_BG}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontWeight: 800, fontSize: 13, color: ADMIN_BG }}>Admin Portal</div>
-              <span style={{ fontSize: 10, fontWeight: 900, padding: '3px 8px', borderRadius: 4, background: adminRole === 'head_admin' ? '#4a1d6e' : '#0284c7', color: '#fff' }}>
-                {adminRole === 'head_admin' ? '👑 HEAD ADMIN' : '🛡️ SUB ADMIN'}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {adminRole === 'head_admin' && (() => {
+                  const unreadCount = (pvNotifications || []).filter(n => !n.read).length;
+                  return (
+                    <div ref={notifPanelRef} style={{ position: 'relative' }}>
+                      <button
+                        id="pv-notif-bell"
+                        onClick={() => {
+                          setShowNotifPanel(v => !v);
+                        }}
+                        title={unreadCount > 0 ? `${unreadCount} unread PV notification${unreadCount > 1 ? 's' : ''}` : 'PV Notifications'}
+                        style={{
+                          position: 'relative', background: unreadCount > 0 ? '#7c3ac8' : '#e9d5ff',
+                          border: 'none', borderRadius: 8, width: 30, height: 30,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'pointer', transition: 'all 0.2s',
+                          boxShadow: unreadCount > 0 ? '0 0 0 3px rgba(124,58,200,0.25)' : 'none',
+                          animation: unreadCount > 0 ? 'pvBellPulse 1.5s ease-in-out infinite' : 'none'
+                        }}
+                      >
+                        {unreadCount > 0
+                          ? <BellRing size={14} color="#fff" />
+                          : <Bell size={14} color="#7c3ac8" />}
+                        {unreadCount > 0 && (
+                          <span style={{
+                            position: 'absolute', top: -5, right: -5,
+                            background: '#dc2626', color: '#fff',
+                            fontSize: 9, fontWeight: 900, borderRadius: '50%',
+                            minWidth: 16, height: 16, display: 'flex',
+                            alignItems: 'center', justifyContent: 'center',
+                            padding: '0 3px', border: '1.5px solid #fff',
+                            lineHeight: 1
+                          }}>
+                            {unreadCount > 9 ? '9+' : unreadCount}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Notification Panel Dropdown */}
+                      {showNotifPanel && (
+                        <div style={{
+                          position: 'absolute', top: '110%', right: 0,
+                          width: 320, maxHeight: 420, overflowY: 'auto',
+                          background: '#fff', borderRadius: 14,
+                          boxShadow: '0 12px 40px rgba(74,29,110,0.18), 0 2px 8px rgba(0,0,0,0.1)',
+                          border: '1px solid #e9d5ff', zIndex: 9999,
+                          animation: 'pvNotifSlideIn 0.22s cubic-bezier(.4,0,.2,1)'
+                        }}>
+                          {/* Panel Header */}
+                          <div style={{
+                            padding: '12px 14px 10px',
+                            background: 'linear-gradient(135deg,#4a1d6e,#7c3ac8)',
+                            borderRadius: '14px 14px 0 0',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                              <BellRing size={14} color="#fff" />
+                              <span style={{ color: '#fff', fontWeight: 800, fontSize: 12 }}>PV Submission Alerts</span>
+                              {(pvNotifications || []).filter(n => !n.read).length > 0 && (
+                                <span style={{ background: '#dc2626', color: '#fff', fontSize: 9, fontWeight: 900, borderRadius: 99, padding: '1px 6px' }}>
+                                  {(pvNotifications || []).filter(n => !n.read).length} NEW
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              {(pvNotifications || []).some(n => !n.read) && (
+                                <button
+                                  onClick={() => { markAllPVNotificationsRead && markAllPVNotificationsRead(); }}
+                                  title="Mark all as read"
+                                  style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 6, padding: '3px 7px', cursor: 'pointer', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}
+                                >
+                                  <CheckCheck size={11} /> All Read
+                                </button>
+                              )}
+                              {(pvNotifications || []).length > 0 && (
+                                <button
+                                  onClick={() => { clearPVNotifications && clearPVNotifications(); }}
+                                  title="Clear all"
+                                  style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 6, padding: '3px 7px', cursor: 'pointer', color: '#fca5a5', fontSize: 10, fontWeight: 700 }}
+                                >
+                                  Clear
+                                </button>
+                              )}
+                              <button
+                                onClick={() => setShowNotifPanel(false)}
+                                style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 6, padding: '3px 6px', cursor: 'pointer', color: '#fff' }}
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Notification Items */}
+                          {(pvNotifications || []).length === 0 ? (
+                            <div style={{ padding: '28px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>
+                              <Bell size={28} color="#c4b5fd" style={{ marginBottom: 8 }} />
+                              <div style={{ fontWeight: 700, color: '#6b21a8', marginBottom: 4 }}>No notifications yet</div>
+                              <div>PV submission alerts will appear here when Sub-Admin sends for approval.</div>
+                            </div>
+                          ) : (
+                            <div>
+                              {(pvNotifications || []).map((notif, idx) => (
+                                <div
+                                  key={notif.id}
+                                  onClick={() => {
+                                    markPVNotificationRead && markPVNotificationRead(notif.id);
+                                    setShowNotifPanel(false);
+                                    setActiveNav('Pre-Audit & Approve PV');
+                                  }}
+                                  style={{
+                                    padding: '10px 14px',
+                                    borderBottom: idx < (pvNotifications || []).length - 1 ? '1px solid #f3e8ff' : 'none',
+                                    background: notif.read ? '#fff' : '#faf5ff',
+                                    cursor: 'pointer',
+                                    transition: 'background 0.15s',
+                                    display: 'flex', gap: 10, alignItems: 'flex-start'
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.background = '#f3e8ff'}
+                                  onMouseLeave={e => e.currentTarget.style.background = notif.read ? '#fff' : '#faf5ff'}
+                                >
+                                  <div style={{
+                                    width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                                    background: notif.read ? '#e9d5ff' : 'linear-gradient(135deg,#7c3ac8,#4a1d6e)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                  }}>
+                                    <FileText size={14} color={notif.read ? '#7c3ac8' : '#fff'} />
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
+                                      <span style={{ fontWeight: 800, fontSize: 11, color: '#4a1d6e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        PV #{notif.pvNo}
+                                      </span>
+                                      {!notif.read && (
+                                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#dc2626', flexShrink: 0 }} />
+                                      )}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#374151', marginTop: 1, fontWeight: 600 }}>
+                                      {notif.provider} — {notif.description}
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
+                                      <span style={{ fontSize: 10, color: '#7c3ac8', fontWeight: 700 }}>
+                                        GHS {(Number(notif.grandTotal) || 0).toLocaleString('en-GH', { minimumFractionDigits: 2 })}
+                                      </span>
+                                      <span style={{ fontSize: 10, color: '#94a3b8' }}>{notif.submittedAt}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Footer action */}
+                          {(pvNotifications || []).length > 0 && (
+                            <div style={{ padding: '10px 14px', borderTop: '1px solid #f3e8ff', background: '#faf5ff', borderRadius: '0 0 14px 14px' }}>
+                              <button
+                                onClick={() => {
+                                  markAllPVNotificationsRead && markAllPVNotificationsRead();
+                                  setShowNotifPanel(false);
+                                  setActiveNav('Pre-Audit & Approve PV');
+                                }}
+                                style={{
+                                  width: '100%', padding: '8px', background: 'linear-gradient(135deg,#4a1d6e,#7c3ac8)',
+                                  color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 11,
+                                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                                }}
+                              >
+                                <FileCheck size={12} /> Open Pre-Audit & Approve PV Desk
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+                <span style={{ fontSize: 10, fontWeight: 900, padding: '3px 8px', borderRadius: 4, background: adminRole === 'head_admin' ? '#4a1d6e' : '#0284c7', color: '#fff' }}>
+                  {adminRole === 'head_admin' ? '👑 HEAD ADMIN' : '🛡️ SUB ADMIN'}
+                </span>
+              </div>
             </div>
             <div style={{ fontSize: 11, color: '#6b21a8', marginTop: 4, fontWeight: 600 }}>
               {getAuthUser()?.fullName || getAuthUser()?.name || 'School Administration Office'}

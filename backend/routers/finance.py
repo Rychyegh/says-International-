@@ -109,16 +109,25 @@ async def broadcast_owing_reminders(req: BroadcastOwingReminderRequest, db: Asyn
     }
 
 
-# --- Payment Vouchers ---
+# --- Payment Vouchers (Submission, Audit, Correction & Approval) ---
 @router.get("/pv")
 async def get_payment_vouchers(db: AsyncSession = Depends(get_db)):
     query = select(PaymentVoucher).order_by(PaymentVoucher.created_at.desc())
     res = await db.execute(query)
     return res.scalars().all()
 
+@router.get("/pv/{pv_id}")
+async def get_payment_voucher(pv_id: str, db: AsyncSession = Depends(get_db)):
+    query = select(PaymentVoucher).where(or_(PaymentVoucher.id == pv_id, PaymentVoucher.pv_number == pv_id))
+    res = await db.execute(query)
+    pv = res.scalars().first()
+    if not pv:
+        raise HTTPException(status_code=404, detail="Payment voucher not found")
+    return pv
+
 @router.post("/pv")
 async def create_payment_voucher(req: PaymentVoucherRequest, db: AsyncSession = Depends(get_db)):
-    pv_num = req.pv_number or f"PV-{datetime.utcnow().year}-{random.randint(100, 999)}"
+    pv_num = req.pv_number or f"PV-{datetime.utcnow().year}-{random.randint(1000, 9999)}"
     pv = PaymentVoucher(
         pv_number=pv_num,
         requisition_no=req.requisition_no,
@@ -130,9 +139,30 @@ async def create_payment_voucher(req: PaymentVoucherRequest, db: AsyncSession = 
         unit_cost=req.unit_cost,
         total_amount=req.total_amount,
         date_prepared=req.date_prepared or datetime.utcnow().strftime('%Y-%m-%d'),
-        status="DRAFT"
+        status=req.status or "Pending approval"
     )
     db.add(pv)
+    await db.commit()
+    await db.refresh(pv)
+    return pv
+
+@router.put("/pv/{pv_id}")
+async def update_payment_voucher(pv_id: str, req: PaymentVoucherRequest, db: AsyncSession = Depends(get_db)):
+    query = select(PaymentVoucher).where(or_(PaymentVoucher.id == pv_id, PaymentVoucher.pv_number == pv_id))
+    res = await db.execute(query)
+    pv = res.scalars().first()
+    if not pv:
+        raise HTTPException(status_code=404, detail="Payment voucher not found")
+
+    if req.description: pv.description = req.description
+    if req.payee_name: pv.payee_name = req.payee_name
+    if req.payee_id: pv.payee_id = req.payee_id
+    if req.quantity: pv.quantity = req.quantity
+    if req.unit_cost: pv.unit_cost = req.unit_cost
+    if req.total_amount: pv.total_amount = req.total_amount
+    if req.date_prepared: pv.date_prepared = req.date_prepared
+    if req.status: pv.status = req.status
+
     await db.commit()
     await db.refresh(pv)
     return pv
@@ -146,14 +176,36 @@ async def update_pv_status(pv_id: str, req: PaymentVoucherStatusRequest, db: Asy
         raise HTTPException(status_code=404, detail="Payment voucher not found")
 
     pv.status = req.status
-    if req.status == "PRE_AUDITED":
+    if req.status in ["Validated", "PRE_AUDITED", "APPROVED"]:
         pv.pre_audited_by = req.auditor_name or "Headmaster / Pre-Auditor"
-    elif req.status == "APPROVED":
-        pv.approved_by = req.auditor_name or "Administrator"
+        pv.approved_by = req.auditor_name or "Headmaster / Executive"
 
     await db.commit()
     await db.refresh(pv)
     return pv
+
+@router.post("/pv/batch-action")
+async def batch_action_pv(pv_ids: List[str], status: str, auditor_name: Optional[str] = "Headmaster", db: AsyncSession = Depends(get_db)):
+    query = select(PaymentVoucher).where(or_(PaymentVoucher.id.in_(pv_ids), PaymentVoucher.pv_number.in_(pv_ids)))
+    res = await db.execute(query)
+    vouchers = res.scalars().all()
+    for v in vouchers:
+        v.status = status
+        v.pre_audited_by = auditor_name
+    await db.commit()
+    return {"success": True, "updatedCount": len(vouchers), "status": status}
+
+@router.post("/pv/{pv_id}/reverse")
+async def reverse_payment_voucher(pv_id: str, db: AsyncSession = Depends(get_db)):
+    query = select(PaymentVoucher).where(or_(PaymentVoucher.id == pv_id, PaymentVoucher.pv_number == pv_id))
+    res = await db.execute(query)
+    pv = res.scalars().first()
+    if not pv:
+        raise HTTPException(status_code=404, detail="Payment voucher not found")
+
+    pv.status = "Cancel PV"
+    await db.commit()
+    return {"success": True, "message": f"Payment Voucher #{pv.pv_number} reversed/cancelled", "pv_number": pv.pv_number}
 
 # --- Defined Bills ---
 class DefinedBillCreate(BaseModel):

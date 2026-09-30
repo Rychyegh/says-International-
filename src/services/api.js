@@ -673,9 +673,13 @@ export const api = {
     });
   },
 
-  // --- Payment Vouchers ---
+  // --- Payment Vouchers (Submit, Audit, Correct & Approve) ---
   getPaymentVouchers: async () => {
     return await request('/finance/pv');
+  },
+
+  getPaymentVoucherById: async (pvId) => {
+    return await request(`/finance/pv/${pvId}`);
   },
 
   createPaymentVoucher: async (pvData) => {
@@ -685,10 +689,55 @@ export const api = {
     });
   },
 
+  updatePaymentVoucher: async (pvId, pvData) => {
+    return await request(`/finance/pv/${pvId}`, {
+      method: 'PUT',
+      body: JSON.stringify(pvData),
+    });
+  },
+
   updatePaymentVoucherStatus: async (pvId, statusData) => {
     return await request(`/finance/pv/${pvId}/status`, {
       method: 'PATCH',
       body: JSON.stringify(statusData),
+    });
+  },
+
+  batchActionPaymentVouchers: async (batchData) => {
+    return await request('/finance/pv/batch-action', {
+      method: 'POST',
+      body: JSON.stringify(batchData),
+    });
+  },
+
+  reversePaymentVoucher: async (pvId) => {
+    return await request(`/finance/pv/${pvId}/reverse`, {
+      method: 'POST',
+    });
+  },
+
+  // --- Service Providers / Vendors ---
+  getServiceProviders: async () => {
+    return await request('/finance/service-providers');
+  },
+
+  createServiceProvider: async (providerData) => {
+    return await request('/finance/service-providers', {
+      method: 'POST',
+      body: JSON.stringify(providerData),
+    });
+  },
+
+  updateServiceProvider: async (id, providerData) => {
+    return await request(`/finance/service-providers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(providerData),
+    });
+  },
+
+  deleteServiceProvider: async (id) => {
+    return await request(`/finance/service-providers/${id}`, {
+      method: 'DELETE',
     });
   },
 

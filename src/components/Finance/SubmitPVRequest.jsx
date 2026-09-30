@@ -230,12 +230,15 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       qty: itemsToPost.reduce((acc, i) => acc + i.qty, 0),
       cost: totalPVAmount,
       total: totalPVAmount,
+      grandTotal: totalPVAmount,
       datePrepared: datePrepared,
       valuedDate: datePrepared,
       status: 'Pending Audit',
       preparedBy: 'Sub-Admin / Accounts Officer',
+      submittedBy: 'Sub-Admin / Accounts Officer',
       auditRemarks: 'Submitted by Sub-Admin. Pending Headmaster Pre-Audit Approval.'
     };
+
 
     if (createPaymentVoucher) {
       createPaymentVoucher(newPVRecord);

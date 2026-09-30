@@ -461,3 +461,24 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   }
 }
 
+/* ============================
+   PV Notification Bell Animations
+   ============================ */
+
+@keyframes pvBellPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(124, 58, 200, 0.55); }
+  50%  { box-shadow: 0 0 0 6px rgba(124, 58, 200, 0.0); }
+  100% { box-shadow: 0 0 0 0 rgba(124, 58, 200, 0.0); }
+}
+
+@keyframes pvNotifSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
