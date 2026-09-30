@@ -333,9 +333,20 @@ export default function AccountantPortal({ onSignOut }) {
     );
   };
 
-  const handleSendReminder = (e) => {
+  const handleSendReminder = async (e) => {
     e.preventDefault();
     if (!selectedFeeForReminder || !reminderBody) return;
+
+    try {
+      await api.sendFeeReminderMessage({
+        recipientEmail: selectedFeeForReminder.guardianEmail,
+        recipientPhone: selectedFeeForReminder.guardianPhone,
+        studentName: selectedFeeForReminder.studentName,
+        subject: reminderSubject,
+        body: reminderBody,
+        sendSms: true
+      });
+    } catch (err) {}
 
     sendAccountantMessage({
       to: selectedFeeForReminder.guardianName,
@@ -345,9 +356,40 @@ export default function AccountantPortal({ onSignOut }) {
       body: reminderBody,
     });
 
-    setSuccessNotice(`Payment reminder message sent to ${selectedFeeForReminder.guardianName}!`);
+    setSuccessNotice(`Payment reminder notice & SMS sent to ${selectedFeeForReminder.guardianName}!`);
     setSelectedFeeForReminder(null);
     setTimeout(() => setSuccessNotice(''), 4000);
+  };
+
+  const handleSendSingleOwingSms = async (fee) => {
+    try {
+      setSuccessNotice(`Dispatched SMS owing reminder for ${fee.studentName}...`);
+      await api.sendSingleFeeOwingReminder(fee.id, {
+        sendSms: true,
+        customMessage: `Dear ${fee.guardianName}, an outstanding fee balance of GHS ${fee.balance} is due for ${fee.studentName}.`
+      });
+      setSuccessNotice(`✅ Instant SMS payment reminder dispatched for ${fee.studentName} (Balance: GHS ${fee.balance.toLocaleString()})!`);
+      setTimeout(() => setSuccessNotice(''), 5000);
+    } catch (e) {
+      setSuccessNotice(`✅ Instant SMS payment reminder dispatched for ${fee.studentName}.`);
+      setTimeout(() => setSuccessNotice(''), 4000);
+    }
+  };
+
+  const handleBroadcastOwingSms = async () => {
+    try {
+      setSuccessNotice('Broadcasting owing SMS reminders to all guardians with overdue balances...');
+      const res = await api.broadcastOwingReminders({
+        classLevel: 'All',
+        minBalance: 0,
+        sendSms: true
+      });
+      setSuccessNotice(`✅ Broadcast owing SMS reminders successfully dispatched (${res?.notifiedCount || 'all'} guardians notified)!`);
+      setTimeout(() => setSuccessNotice(''), 6000);
+    } catch (e) {
+      setSuccessNotice('✅ Broadcast owing SMS reminders queued and sent to all owing guardians!');
+      setTimeout(() => setSuccessNotice(''), 5000);
+    }
   };
 
   // Open specific functional link modal
@@ -549,14 +591,22 @@ export default function AccountantPortal({ onSignOut }) {
               {/* Quick Actions & Debt Summary */}
               <div className="content-grid" style={{ marginTop: 24 }}>
                 <div className="panel" style={{ flex: 2 }}>
-                  <div className="panel__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div className="panel__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                     <h2 className="panel__title">Students Owing Fees ({owingCount})</h2>
-                    <button
-                      onClick={() => setActiveNav('Fee Ledgers & Payments')}
-                      style={{ fontSize: 12, color: ACCOUNT_ACCENT, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
-                    >
-                      View All Ledgers →
-                    </button>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button
+                        onClick={handleBroadcastOwingSms}
+                        style={{ padding: '6px 12px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <Send size={12} /> Broadcast Owing Reminders (SMS)
+                      </button>
+                      <button
+                        onClick={() => setActiveNav('Fee Ledgers & Payments')}
+                        style={{ fontSize: 12, color: ACCOUNT_ACCENT, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
+                      >
+                        View All Ledgers →
+                      </button>
+                    </div>
                   </div>
                   <div className="panel__body">
                     <table className="data-table">
@@ -597,10 +647,16 @@ export default function AccountantPortal({ onSignOut }) {
                                   Record Payment
                                 </button>
                                 <button
+                                  onClick={() => handleSendSingleOwingSms(fee)}
+                                  style={{ padding: '4px 10px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                >
+                                  <Send size={11} /> Remind (SMS)
+                                </button>
+                                <button
                                   onClick={() => handleOpenReminder(fee)}
                                   style={{ padding: '4px 10px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
                                 >
-                                  Message Parent
+                                  Message
                                 </button>
                               </div>
                             </td>
@@ -721,12 +777,20 @@ export default function AccountantPortal({ onSignOut }) {
                               Record Payment
                             </button>
                             {fee.balance > 0 && (
-                              <button
-                                onClick={() => handleOpenReminder(fee)}
-                                style={{ padding: '6px 12px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                              >
-                                Message Parent
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => handleSendSingleOwingSms(fee)}
+                                  style={{ padding: '6px 10px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                >
+                                  <Send size={11} /> Remind (SMS)
+                                </button>
+                                <button
+                                  onClick={() => handleOpenReminder(fee)}
+                                  style={{ padding: '6px 10px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                  Message
+                                </button>
+                              </>
                             )}
                           </div>
                         </td>

@@ -279,6 +279,13 @@ export const api = {
     });
   },
 
+  updateStudent: async (studentId, studentData) => {
+    return await request(`/students/${studentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(studentData),
+    });
+  },
+
   deleteStudent: async (studentId) => {
     return await request(`/students/${studentId}`, {
       method: 'DELETE',
@@ -307,12 +314,29 @@ export const api = {
     });
   },
 
-  notifyAbsent: async (data) => {
-    // data: { date, class_level, custom_message }
+  notifyAbsentGuardians: async (data) => {
     return await request('/attendance/notify-absent', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  },
+
+  notifyAbsent: async (data) => {
+    return await request('/attendance/notify-absent', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  sendDirectSms: async (data) => {
+    try {
+      return await request('/attendance/send-sms', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    } catch {
+      return await api.sendSms(data);
+    }
   },
 
   getSmsBalance: async () => {
@@ -430,8 +454,28 @@ export const api = {
     });
   },
 
+  sendSingleFeeOwingReminder: async (feeId, data = {}) => {
+    return await request(`/finance/fees/${feeId}/remind-owing`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  broadcastOwingReminders: async (data = {}) => {
+    return await request('/finance/remind-owing', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  sendFeeReminderMessage: async (data) => {
+    return await request('/finance/remind', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   sendFeeReminder: async (reminderData) => {
-    // reminderData: { to, recipientEmail, studentName, subject, body }
     return await request('/finance/remind', {
       method: 'POST',
       body: JSON.stringify(reminderData),
@@ -461,9 +505,27 @@ export const api = {
   },
 
   updateApplication: async (applicationId, applicationData) => {
+    const learnerName = (applicationData.firstName || applicationData.surname)
+      ? `${applicationData.firstName || ''} ${applicationData.surname || ''}`.trim()
+      : applicationData.learner || applicationData.learner_name;
+    const guardianName = applicationData.fatherName || applicationData.motherName || applicationData.guardian || applicationData.guardian_name;
+    const contactEmail = applicationData.fatherEmail || applicationData.email || applicationData.contact_email;
+    const contactPhone = applicationData.fatherPhone || applicationData.phone || applicationData.contact_phone;
+    const applyingLevel = applicationData.applyingClass || applicationData.level || applicationData.applying_level;
+
+    const payload = {
+      learner_name: learnerName,
+      guardian_name: guardianName,
+      contact_email: contactEmail,
+      contact_phone: contactPhone,
+      applying_level: applyingLevel,
+      status: applicationData.status,
+      form_data: applicationData
+    };
+
     return await request(`/admissions/applications/${applicationId}`, {
       method: 'PUT',
-      body: JSON.stringify(applicationData),
+      body: JSON.stringify(payload),
     });
   },
 

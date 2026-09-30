@@ -6,7 +6,7 @@ from datetime import datetime
 
 from backend.database import get_db
 from backend.models import Student, FeeRecord, Guardian, User
-from backend.schemas import StudentOnboardRequest, StudentResponse
+from backend.schemas import StudentOnboardRequest, StudentResponse, StudentUpdateRequest
 
 router = APIRouter(prefix="/students", tags=["Students"])
 
@@ -120,6 +120,40 @@ async def onboard_student(req: StudentOnboardRequest, db: AsyncSession = Depends
         studentEmail=new_student.student_email,
         defaultPassword=new_student.default_password
     )
+
+@router.put("/{id}")
+async def update_student(id: str, req: StudentUpdateRequest, db: AsyncSession = Depends(get_db)):
+    query = select(Student).where(or_(Student.id == id, Student.student_id_code == id))
+    res = await db.execute(query)
+    student = res.scalars().first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    if req.fullName: student.full_name = req.fullName
+    if req.dob: student.dob = req.dob
+    if req.gender: student.gender = req.gender
+    if req.level: student.level = req.level
+    if req.classSection: student.class_section = req.classSection
+    if req.guardianName: student.guardian_name = req.guardianName
+    if req.guardianEmail: student.guardian_email = req.guardianEmail
+    if req.guardianPhone: student.guardian_phone = req.guardianPhone
+    if req.homeAddress: student.home_address = req.homeAddress
+    if req.status: student.status = req.status
+    if req.rfidCardCode: student.rfid_card_code = req.rfidCardCode
+
+    await db.commit()
+    await db.refresh(student)
+    return {
+        "success": True,
+        "message": f"Student {student.student_id_code} updated in database",
+        "student": {
+            "id": student.id,
+            "studentId": student.student_id_code,
+            "fullName": student.full_name,
+            "level": student.level,
+            "guardianName": student.guardian_name
+        }
+    }
 
 @router.delete("/{id}")
 async def delete_student(id: str, db: AsyncSession = Depends(get_db)):

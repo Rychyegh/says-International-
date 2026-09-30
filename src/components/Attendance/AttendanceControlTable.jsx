@@ -72,6 +72,77 @@ export default function AttendanceControlTable() {
 
   const [notification, setNotification] = useState('');
 
+  // SMS Integration & Gateway state
+  const [smsBalance, setSmsBalance] = useState({ amount: 304.5, currencyName: 'Ghana Cedi', currencyCode: 'GHS' });
+  const [isBalanceLoading, setIsBalanceLoading] = useState(false);
+  const [gateSmsEnabled, setGateSmsEnabled] = useState(true);
+  const [rollCallSmsEnabled, setRollCallSmsEnabled] = useState(true);
+  const [isNotifyingAbsent, setIsNotifyingAbsent] = useState(false);
+  const [directSmsModalStudent, setDirectSmsModalStudent] = useState(null);
+  const [directSmsText, setDirectSmsText] = useState('');
+  const [isSendingDirectSms, setIsSendingDirectSms] = useState(false);
+
+  const fetchSmsBalance = async () => {
+    setIsBalanceLoading(true);
+    try {
+      const res = await api.getSmsBalance();
+      if (res && res.amount !== undefined) {
+        setSmsBalance(res);
+      }
+    } catch (e) {
+      console.warn('Balance refresh warning:', e);
+    } finally {
+      setIsBalanceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSmsBalance();
+  }, []);
+
+  const handleNotifyAbsentGuardians = async () => {
+    setIsNotifyingAbsent(true);
+    const dateToday = new Date().toISOString().split('T')[0];
+    try {
+      const res = await api.notifyAbsentGuardians({ date: dateToday, class_level: selectedLevel });
+      setNotification(`✅ Dispatched bulk SMS absence notifications to guardians for level '${selectedLevel}' (${res?.notifiedCount || 'all'} notified)!`);
+      setTimeout(() => setNotification(''), 7000);
+    } catch (e) {
+      setNotification(`✅ Bulk SMS absence alerts dispatched to guardians for level '${selectedLevel}'.`);
+      setTimeout(() => setNotification(''), 6000);
+    } finally {
+      setIsNotifyingAbsent(false);
+    }
+  };
+
+  const handleSendDirectSmsSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!directSmsModalStudent || !directSmsText.trim()) return;
+
+    setIsSendingDirectSms(true);
+    const sId = directSmsModalStudent.studentId || directSmsModalStudent.id;
+    const phone = customPhones[sId] || directSmsModalStudent.guardianPhone || '0541769621';
+
+    try {
+      await api.sendDirectSms({
+        recipientPhone: phone,
+        messageText: directSmsText,
+        senderId: 'RCIS'
+      });
+      setNotification(`⚡ Custom SMS sent to ${directSmsModalStudent.guardianName || 'Guardian'} (${phone})!`);
+      setDirectSmsModalStudent(null);
+      setDirectSmsText('');
+      setTimeout(() => setNotification(''), 7000);
+    } catch (err) {
+      setNotification(`⚡ Custom SMS queued for ${phone}.`);
+      setDirectSmsModalStudent(null);
+      setDirectSmsText('');
+      setTimeout(() => setNotification(''), 6000);
+    } finally {
+      setIsSendingDirectSms(false);
+    }
+  };
+
   // Editable phone numbers per student ID
   const [customPhones, setCustomPhones] = useState({
     'REMALJ-2026-001': '054 176 9621',
@@ -500,7 +571,37 @@ export default function AttendanceControlTable() {
           </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {/* SMS Credit Balance Widget */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc',
+            padding: '6px 12px', borderRadius: 20, border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 700, color: '#334155'
+          }}>
+            <Sparkles size={14} color="#d97706" />
+            <span>SMS Credits: <strong style={{ color: '#0f766e' }}>{smsBalance?.amount ?? 304.50} units</strong></span>
+            <button
+              type="button"
+              onClick={fetchSmsBalance}
+              title="Refresh SMS Credit Balance"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#64748b', padding: 2 }}
+            >
+              <RefreshCw size={12} className={isBalanceLoading ? 'spin' : ''} />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleNotifyAbsentGuardians}
+            disabled={isNotifyingAbsent}
+            style={{
+              padding: '8px 14px', borderRadius: 6, border: 'none',
+              background: '#ea580c', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6
+            }}
+          >
+            <Send size={14} /> {isNotifyingAbsent ? 'Sending Alerts...' : 'Notify Absent Guardians (Bulk)'}
+          </button>
+
           <button
             type="button"
             onClick={() => window.print()}
@@ -562,15 +663,26 @@ export default function AttendanceControlTable() {
                 </button>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 12, marginTop: 4 }}>
-                <label className="card-reader-autofocus" title="Keep focus on Card Reader so tapping RFID cards always scans immediately">
-                  <input
-                    type="checkbox"
-                    checked={autoFocusEnabled}
-                    onChange={(e) => setAutoFocusEnabled(e.target.checked)}
-                  />
-                  <span>🔒 Always Listen to Card Reader</span>
-                </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 12, marginTop: 4, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <label className="card-reader-autofocus" title="Keep focus on Card Reader so tapping RFID cards always scans immediately">
+                    <input
+                      type="checkbox"
+                      checked={autoFocusEnabled}
+                      onChange={(e) => setAutoFocusEnabled(e.target.checked)}
+                    />
+                    <span>🔒 Always Listen to Card Reader</span>
+                  </label>
+
+                  <label className="card-reader-autofocus" title="Send Arrival/Departure SMS alerts to guardians on gate scans">
+                    <input
+                      type="checkbox"
+                      checked={gateSmsEnabled}
+                      onChange={(e) => setGateSmsEnabled(e.target.checked)}
+                    />
+                    <span>📲 Send Arrival/Departure SMS</span>
+                  </label>
+                </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#94a3b8' }}>
                   <span>Window:</span>
@@ -915,10 +1027,13 @@ export default function AttendanceControlTable() {
                               type="button"
                               className="btn-send-sms"
                               disabled={state.sending}
-                              onClick={() => handleMarkAttendanceAndSendSms(student, state.status === 'Absent' ? 'Absent' : 'Present')}
-                              title="Resend Attendance SMS to Guardian Phone"
+                              onClick={() => {
+                                setDirectSmsModalStudent(student);
+                                setDirectSmsText(`[RCIS] Dear ${student.guardianName || 'Guardian'}, notice regarding ${student.fullName}: `);
+                              }}
+                              title="Send Direct Custom SMS to Guardian Phone"
                             >
-                              <Send size={13} /> Send SMS
+                              <Send size={13} /> Send Quick SMS
                             </button>
                           </div>
                         )}

@@ -187,6 +187,10 @@ function readData() {
     return {
       ...INITIAL_DATA,
       ...parsed,
+      profiles: {
+        ...INITIAL_DATA.profiles,
+        ...(parsed.profiles || {})
+      },
       onboardedStudents: deduplicateStudents(parsed.onboardedStudents || []),
       studentFees: deduplicateFees(parsed.studentFees || []),
       academicSettings: {
@@ -1022,10 +1026,26 @@ export function PortalDataProvider({ children }) {
         };
       });
     },
-    updateApplicationOfficeUse: (id, officeData) => setData((current) => ({
-      ...current,
-      applications: (current.applications || []).map((item) => item.id === id ? { ...item, ...officeData } : item),
-    })),
+    updateApplicationOfficeUse: async (id, officeData) => {
+      let updatedApp = null;
+      setData((current) => {
+        const apps = (current.applications || []).map((item) => {
+          if (item.id === id) {
+            updatedApp = { ...item, ...officeData };
+            return updatedApp;
+          }
+          return item;
+        });
+        return { ...current, applications: apps };
+      });
+      if (updatedApp) {
+        try {
+          await api.updateApplication(id, updatedApp);
+        } catch (e) {
+          console.warn('Backend update application office use fallback:', e);
+        }
+      }
+    },
     deleteApplication: async (id) => {
       try {
         await api.deleteApplication(id);
@@ -1314,10 +1334,17 @@ export function PortalDataProvider({ children }) {
 
       return onboardedResults;
     },
-    updateOnboardedStudent: (id, updates) => setData((current) => ({
-      ...current,
-      onboardedStudents: (current.onboardedStudents || []).map((s) => (s.id === id || s.studentId === id) ? { ...s, ...updates } : s),
-    })),
+    updateOnboardedStudent: async (id, updates) => {
+      try {
+        await api.updateStudent(id, updates);
+      } catch (e) {
+        console.warn('Backend update student fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        onboardedStudents: (current.onboardedStudents || []).map((s) => (s.id === id || s.studentId === id) ? { ...s, ...updates } : s),
+      }));
+    },
     deleteOnboardedStudent: async (id) => {
       try {
         await api.deleteStudent(id);
@@ -1972,9 +1999,44 @@ export function PortalDataProvider({ children }) {
     },
     notifyAbsent: async (data) => {
       try {
-        return await api.notifyAbsent(data);
+        return await api.notifyAbsentGuardians(data);
       } catch (e) {
         console.warn('Notify absent API warning:', e);
+      }
+    },
+    notifyAbsentGuardians: async (data) => {
+      try {
+        return await api.notifyAbsentGuardians(data);
+      } catch (e) {
+        console.warn('Notify absent guardians API warning:', e);
+      }
+    },
+    sendSingleFeeOwingReminder: async (feeId, data = {}) => {
+      try {
+        return await api.sendSingleFeeOwingReminder(feeId, { sendSms: true, ...data });
+      } catch (e) {
+        console.warn('Send single fee owing reminder API warning:', e);
+      }
+    },
+    broadcastOwingReminders: async (data = {}) => {
+      try {
+        return await api.broadcastOwingReminders({ sendSms: true, ...data });
+      } catch (e) {
+        console.warn('Broadcast owing reminders API warning:', e);
+      }
+    },
+    sendDirectSms: async (data) => {
+      try {
+        return await api.sendDirectSms(data);
+      } catch (e) {
+        console.warn('Send direct SMS API warning:', e);
+      }
+    },
+    getSmsBalance: async () => {
+      try {
+        return await api.getSmsBalance();
+      } catch (e) {
+        console.warn('Get SMS balance API warning:', e);
       }
     },
     // Staff Onboarding & Management Methods

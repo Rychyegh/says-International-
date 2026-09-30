@@ -86,6 +86,19 @@ class StudentResponse(BaseModel):
     studentEmail: Optional[str] = None
     defaultPassword: Optional[str] = None
 
+class StudentUpdateRequest(BaseModel):
+    fullName: Optional[str] = None
+    dob: Optional[str] = None
+    gender: Optional[str] = None
+    level: Optional[str] = None
+    classSection: Optional[str] = None
+    guardianName: Optional[str] = None
+    guardianEmail: Optional[str] = None
+    guardianPhone: Optional[str] = None
+    homeAddress: Optional[str] = None
+    status: Optional[str] = None
+    rfidCardCode: Optional[str] = None
+
 # --- Attendance Schemas ---
 class AttendanceScanRequest(BaseModel):
     identifier: str
@@ -119,9 +132,30 @@ class FeePaymentRequest(BaseModel):
 class FeeReminderRequest(BaseModel):
     to: Optional[str] = None
     recipientEmail: Optional[str] = None
+    recipientPhone: Optional[str] = None
     studentName: Optional[str] = None
     subject: Optional[str] = "School Fee Payment Reminder"
     body: Optional[str] = None
+    sendSms: Optional[bool] = True
+
+class DirectSmsRequest(BaseModel):
+    recipientPhone: str
+    messageText: str
+    senderId: Optional[str] = None
+
+class FeeOwingReminderRequest(BaseModel):
+    sendSms: Optional[bool] = True
+    customMessage: Optional[str] = None
+    recipientPhone: Optional[str] = None
+
+class BroadcastOwingReminderRequest(BaseModel):
+    classLevel: Optional[str] = None
+    term: Optional[str] = None
+    academicYear: Optional[str] = None
+    minBalance: Optional[float] = 0.0
+    sendSms: Optional[bool] = True
+    customMessage: Optional[str] = None
+
 
 class PaymentVoucherRequest(BaseModel):
     pv_number: Optional[str] = None

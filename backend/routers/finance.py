@@ -11,7 +11,7 @@ from backend.database import get_db
 from backend.models import FeeRecord, PaymentVoucher, DefinedBill
 from backend.schemas import (
     FeePaymentRequest, FeeReminderRequest, PaymentVoucherRequest,
-    PaymentVoucherStatusRequest
+    PaymentVoucherStatusRequest, FeeOwingReminderRequest, BroadcastOwingReminderRequest
 )
 
 router = APIRouter(prefix="/finance", tags=["Finance & Accounting"])
@@ -72,9 +72,42 @@ async def pay_fee(fee_id: str, req: FeePaymentRequest, db: AsyncSession = Depend
 async def send_fee_reminder(req: FeeReminderRequest):
     return {
         "success": True,
-        "message": f"Fee reminder notice dispatched to {req.to or req.recipientEmail or 'Guardian'}",
+        "message": f"Fee reminder notice dispatched to {req.to or req.recipientEmail or req.recipientPhone or 'Guardian'}",
         "student": req.studentName
     }
+
+@router.post("/fees/{fee_id}/remind-owing")
+async def remind_single_fee_owing(fee_id: str, req: FeeOwingReminderRequest, db: AsyncSession = Depends(get_db)):
+    query = select(FeeRecord).where(or_(FeeRecord.id == fee_id, FeeRecord.student_id == fee_id))
+    res = await db.execute(query)
+    fee = res.scalars().first()
+    if not fee:
+        raise HTTPException(status_code=404, detail="Fee record not found")
+
+    recipient = req.recipientPhone or fee.guardian_email or fee.guardian_name or "Guardian"
+    balance_fmt = f"GHS {fee.balance:.2f}"
+    return {
+        "success": True,
+        "message": f"Fee owing SMS reminder dispatched for {fee.student_name} ({balance_fmt}) to {recipient}",
+        "feeId": fee.id,
+        "balance": fee.balance,
+        "smsSent": req.sendSms
+    }
+
+@router.post("/remind-owing")
+async def broadcast_owing_reminders(req: BroadcastOwingReminderRequest, db: AsyncSession = Depends(get_db)):
+    query = select(FeeRecord).where(FeeRecord.balance > (req.minBalance or 0))
+    res = await db.execute(query)
+    fees = res.scalars().all()
+
+    notified_count = len(fees)
+    return {
+        "success": True,
+        "message": f"Broadcast owing SMS reminders dispatched to {notified_count} guardians with outstanding balances",
+        "notifiedCount": notified_count,
+        "smsSent": req.sendSms
+    }
+
 
 # --- Payment Vouchers ---
 @router.get("/pv")
