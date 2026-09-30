@@ -883,10 +883,17 @@ export function PortalDataProvider({ children }) {
   const value = useMemo(() => ({
     ...data,
     academicSettings: data.academicSettings || INITIAL_DATA.academicSettings,
-    updateAcademicSettings: (newSettings) => setData((current) => ({
-      ...current,
-      academicSettings: { ...(current.academicSettings || INITIAL_DATA.academicSettings), ...newSettings }
-    })),
+    updateAcademicSettings: async (newSettings) => {
+      try {
+        await api.updateAcademicSettings(newSettings);
+      } catch (e) {
+        console.warn('Backend academic settings update fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        academicSettings: { ...(current.academicSettings || INITIAL_DATA.academicSettings), ...newSettings }
+      }));
+    },
     onboardedStudents: sortedOnboardedStudents,
     studentFees: sortedStudentFees,
     refreshBackendData,
@@ -985,22 +992,55 @@ export function PortalDataProvider({ children }) {
         incidents: [{ id: crypto.randomUUID?.() || String(Date.now()), category, person, severity, status: 'Open', loggedAt: new Date().toLocaleString() }, ...current.incidents],
       }));
     },
-    addAssetTask: ({ asset, task, owner, due }) => setData((current) => ({
-      ...current,
-      assetTasks: [{ id: crypto.randomUUID?.() || String(Date.now()), asset, task, owner, due, status: 'Scheduled' }, ...current.assetTasks],
-    })),
-    addDocumentationRecord: ({ title, owner }) => setData((current) => ({
-      ...current,
-      documentation: [{ id: crypto.randomUUID?.() || String(Date.now()), title, owner, status: 'Current', updatedAt: new Date().toLocaleDateString() }, ...current.documentation],
-    })),
-    toggleAcceptanceCheck: (id) => setData((current) => ({
-      ...current,
-      acceptanceChecks: current.acceptanceChecks.map((item) => item.id === id ? { ...item, done: !item.done } : item),
-    })),
-    publishAcademicDate: ({ title, start, end, type }) => setData((current) => ({
-      ...current,
-      academicCalendar: [{ id: crypto.randomUUID?.() || String(Date.now()), title, start, end: end || start, type }, ...current.academicCalendar],
-    })),
+    addAssetTask: async ({ asset, task, owner, due }) => {
+      try {
+        await api.createAssetTask({ asset, task, owner, due_date: due, status: 'Scheduled' });
+      } catch (e) {
+        console.warn('Backend asset task create fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        assetTasks: [{ id: crypto.randomUUID?.() || String(Date.now()), asset, task, owner, due, status: 'Scheduled' }, ...current.assetTasks],
+      }));
+    },
+    addDocumentationRecord: async ({ title, owner }) => {
+      try {
+        await api.createDocumentRecord({ title, owner, status: 'Current' });
+      } catch (e) {
+        console.warn('Backend document record fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        documentation: [{ id: crypto.randomUUID?.() || String(Date.now()), title, owner, status: 'Current', updatedAt: new Date().toLocaleDateString() }, ...current.documentation],
+      }));
+    },
+    toggleAcceptanceCheck: async (id) => {
+      let nextDone = false;
+      setData((current) => {
+        const item = (current.acceptanceChecks || []).find((check) => check.id === id);
+        nextDone = item ? !item.done : true;
+        return {
+          ...current,
+          acceptanceChecks: current.acceptanceChecks.map((check) => check.id === id ? { ...check, done: !check.done } : check),
+        };
+      });
+      try {
+        await api.updateAcceptanceCheck(id, nextDone);
+      } catch (e) {
+        console.warn('Backend acceptance check fallback:', e);
+      }
+    },
+    publishAcademicDate: async ({ title, start, end, type }) => {
+      try {
+        await api.createCalendarEvent({ title, start, end, type });
+      } catch (e) {
+        console.warn('Backend calendar create fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        academicCalendar: [{ id: crypto.randomUUID?.() || String(Date.now()), title, start, end: end || start, type }, ...current.academicCalendar],
+      }));
+    },
     sendMessage: async ({ from, senderRole, to, recipient, recipientEmail, studentName, subject, body }) => {
       try {
         await api.sendMessage({
@@ -1280,36 +1320,79 @@ export function PortalDataProvider({ children }) {
         applications: (current.applications || []).filter((item) => item.id !== id),
       }));
     },
-    addServiceRecord: ({ module, person, detail, status }) => setData((current) => ({
-      ...current,
-      serviceRecords: [{ id: crypto.randomUUID?.() || String(Date.now()), module, person, detail, status, recordedAt: new Date().toLocaleString() }, ...(current.serviceRecords || [])],
-    })),
-    addSecurityAlert: ({ portal, targetAccount, reason, severity = 'Medium', device }) => setData((current) => ({
-      ...current,
-      securityAlerts: [
-        {
-          id: `sec-${Date.now()}`,
-          portal: portal || 'portal',
-          targetAccount: targetAccount || 'Unknown Target Account',
-          ipAddress: '197.251.14.82 (Bogoso Web Network)',
-          attemptedAt: new Date().toLocaleString(),
-          reason: reason || 'Unauthorized login attempt detected',
-          severity: severity,
-          status: 'Unresolved',
-          device: device || (typeof navigator !== 'undefined' ? navigator.userAgent.split(' ')[0] : 'Web Device')
-        },
-        ...(current.securityAlerts || [])
-      ]
-    })),
-    resolveSecurityAlert: (id) => setData((current) => ({
-      ...current,
-      securityAlerts: (current.securityAlerts || []).map(a => a.id === id ? { ...a, status: 'Acknowledged' } : a)
-    })),
-    deleteSecurityAlert: (id) => setData((current) => ({
-      ...current,
-      securityAlerts: (current.securityAlerts || []).filter(a => a.id !== id)
-    })),
-    updateProfile: (portal, updates) => setData((current) => ({ ...current, profiles: { ...current.profiles, [portal]: { ...current.profiles[portal], ...updates } } })),
+    addServiceRecord: async ({ module, person, detail, status }) => {
+      try {
+        await api.createServiceRecord({ module, person, detail, status });
+      } catch (e) {
+        console.warn('Backend service record fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        serviceRecords: [{ id: crypto.randomUUID?.() || String(Date.now()), module, person, detail, status, recordedAt: new Date().toLocaleString() }, ...(current.serviceRecords || [])],
+      }));
+    },
+    addSecurityAlert: async ({ portal, targetAccount, reason, severity = 'Medium', device }) => {
+      const alert = {
+        portal: portal || 'portal',
+        target_account: targetAccount || 'Unknown Target Account',
+        reason: reason || 'Unauthorized login attempt detected',
+        severity,
+        status: 'Unresolved',
+        device: device || (typeof navigator !== 'undefined' ? navigator.userAgent.split(' ')[0] : 'Web Device'),
+      };
+      try {
+        await api.createSecurityAlert(alert);
+      } catch (e) {
+        console.warn('Backend security alert fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        securityAlerts: [
+          {
+            id: `sec-${Date.now()}`,
+            portal: alert.portal,
+            targetAccount: alert.target_account,
+            ipAddress: '197.251.14.82 (Bogoso Web Network)',
+            attemptedAt: new Date().toLocaleString(),
+            reason: alert.reason,
+            severity: alert.severity,
+            status: 'Unresolved',
+            device: alert.device,
+          },
+          ...(current.securityAlerts || [])
+        ]
+      }));
+    },
+    resolveSecurityAlert: async (id) => {
+      try {
+        await api.resolveSecurityAlert(id);
+      } catch (e) {
+        console.warn('Backend security alert resolve fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        securityAlerts: (current.securityAlerts || []).map(a => a.id === id ? { ...a, status: 'Acknowledged' } : a)
+      }));
+    },
+    deleteSecurityAlert: async (id) => {
+      try {
+        await api.deleteSecurityAlert(id);
+      } catch (e) {
+        console.warn('Backend security alert delete fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        securityAlerts: (current.securityAlerts || []).filter(a => a.id !== id)
+      }));
+    },
+    updateProfile: async (portal, updates) => {
+      try {
+        await api.updateMyProfile({ portal, name: updates.name, photo: updates.photo });
+      } catch (e) {
+        console.warn('Backend profile update fallback:', e);
+      }
+      setData((current) => ({ ...current, profiles: { ...current.profiles, [portal]: { ...current.profiles[portal], ...updates } } }));
+    },
     setTheme: (theme) => setData((current) => ({ ...current, theme })),
     onboardStudent: async (student) => {
       let createdFromApi = null;
@@ -1759,7 +1842,13 @@ export function PortalDataProvider({ children }) {
       }));
     },
     // Score Sheet Entry Persistence
-    saveScoreSheetEntry: (entry) => setData((current) => {
+    saveScoreSheetEntry: async (entry) => {
+      try {
+        await api.saveScoreSheet(entry);
+      } catch (e) {
+        console.warn('Backend score sheet save fallback:', e);
+      }
+      setData((current) => {
       const existingResults = current.results || [];
       const newResult = {
         id: entry.id || `res-${Date.now()}`,
@@ -1780,7 +1869,8 @@ export function PortalDataProvider({ children }) {
         ? existingResults.map(r => (r.id === newResult.id || (r.subject === newResult.subject && r.studentName === newResult.studentName)) ? { ...r, ...newResult } : r)
         : [newResult, ...existingResults];
       return { ...current, results: updated };
-    }),
+    });
+    },
     // Payment Recording with Robust Match Logic
     recordFeePayment: async ({ id, studentId, studentName, paidAmount, paymentDate, paymentMethod = 'Mobile Money', notes = '', receivingAccount = 'GCB Main Account' }) => {
       const lookupId = id || studentId || studentName;
@@ -1892,7 +1982,20 @@ export function PortalDataProvider({ children }) {
         paymentDate: (feeRecord.paidAmount || 0) > 0 ? (feeRecord.paymentDate || new Date().toISOString().split('T')[0]) : null,
       }, ...(current.studentFees || [])],
     })),
-    postAcademicBill: ({ studentId, studentName, classLevel, items, totalAmount, term = 'Term 1 · 2026' }) => setData((current) => {
+    postAcademicBill: async ({ studentId, studentName, classLevel, items, totalAmount, term = 'Term 1 · 2026' }) => {
+      try {
+        await api.postAcademicBill({
+          student_id: studentId,
+          student_name: studentName,
+          class_level: classLevel,
+          items,
+          total_amount: totalAmount,
+          term,
+        });
+      } catch (e) {
+        console.warn('Backend bill post fallback:', e);
+      }
+      setData((current) => {
       const amountToPost = Number(totalAmount) || 0;
       let targetStudents = [];
       if (studentId) {
@@ -1992,8 +2095,9 @@ export function PortalDataProvider({ children }) {
         feeAccounts: updatedFeeAccounts,
         ledgerLogs: updatedLedgerLogs,
       };
-    }),
-    adjustStudentBill: ({
+    });
+    },
+    adjustStudentBill: async ({
       studentId,
       studentName,
       classLevel,
@@ -2004,7 +2108,18 @@ export function PortalDataProvider({ children }) {
       invoiceNo = '',
       items = null,
       postedBy = 'Mrs. Grace Accountant (Finance Office)'
-    }) => setData((current) => {
+    }) => {
+      api.adjustStudentBill({
+        studentId,
+        studentName,
+        classLevel,
+        adjustmentType,
+        amount,
+        reason,
+        invoiceNo,
+        postedBy,
+      }).catch((e) => console.warn('Backend bill adjust fallback:', e));
+      setData((current) => {
       const adjAmount = Math.abs(Number(amount) || 0);
       const cleanClass = (classLevel || targetYearGroup || '').toLowerCase();
       const cleanStudentName = (studentName || '').toLowerCase();
@@ -2188,7 +2303,8 @@ export function PortalDataProvider({ children }) {
         feeAccounts: updatedFeeAccounts,
         ledgerLogs: updatedLedgerLogs,
       };
-    }),
+    });
+    },
     sendAccountantMessage: async (msg) => {
       try {
         await api.sendFeeReminder({
@@ -2383,9 +2499,14 @@ export function PortalDataProvider({ children }) {
       }));
     },
     // Dynamic Classes & Subjects Methods
-    addClassLevel: (newClass) => {
+    addClassLevel: async (newClass) => {
       if (!newClass) return;
       const formatted = formatClassToBasic(newClass.trim());
+      try {
+        await api.createCatalogEntry('classes', formatted);
+      } catch (e) {
+        console.warn('Backend class catalog fallback:', e);
+      }
       setData((current) => {
         const existing = current.classLevels || DEFAULT_CLASS_LEVELS;
         if (existing.includes(formatted)) return current;
@@ -2395,9 +2516,14 @@ export function PortalDataProvider({ children }) {
         };
       });
     },
-    addSubject: (newSubject) => {
+    addSubject: async (newSubject) => {
       if (!newSubject) return;
       const subjectName = newSubject.trim();
+      try {
+        await api.createCatalogEntry('subjects', subjectName);
+      } catch (e) {
+        console.warn('Backend subject catalog fallback:', e);
+      }
       setData((current) => {
         const existing = current.subjects || DEFAULT_SUBJECTS;
         if (existing.includes(subjectName)) return current;

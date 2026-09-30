@@ -1172,26 +1172,155 @@ export const api = {
     return await request(`/users/${userId}`, { method: 'DELETE' });
   },
 
+  updateMyProfile: async ({ portal, name, photo }) => {
+    return await request('/users/me', {
+      method: 'PUT',
+      body: JSON.stringify({
+        portal,
+        full_name: name,
+        photo_url: photo,
+      }),
+    });
+  },
+
+  updateAcademicSettings: async (settings) => {
+    return await request('/academic/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+  },
+
+  createCalendarEvent: async ({ title, start, end, type }) => {
+    return await request('/academic/calendar', {
+      method: 'POST',
+      body: JSON.stringify({
+        title,
+        start_date: start,
+        end_date: end || null,
+        description: type || null,
+        event_type: type || null,
+      }),
+    });
+  },
+
+  createCatalogEntry: async (collection, name) => {
+    return await request(`/academic/catalog/${collection}`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+  },
+
+  saveScoreSheet: async (entry) => {
+    return await request('/sims/score-sheets/entry', {
+      method: 'POST',
+      body: JSON.stringify({
+        academic_year: entry.year || entry.academicYear || entry.academic_year,
+        class_level: entry.classLevel || entry.class_level,
+        term: entry.term,
+        subject: entry.subject,
+        class_score_max: entry.classScoreMax,
+        exam_score_max: entry.examScoreMax,
+        scores: [
+          {
+            student_id: entry.studentId || entry.student_id,
+            student_code: entry.studentId || entry.student_id,
+            class_score: Number(entry.classScore ?? entry.score ?? 0),
+            exam_score: Number(entry.examScore ?? 0),
+          },
+        ],
+      }),
+    });
+  },
+
+  createSecurityAlert: async (alert) => {
+    return await request('/auth/security-alerts', {
+      method: 'POST',
+      body: JSON.stringify(alert),
+    });
+  },
+
+  resolveSecurityAlert: async (id) => {
+    return await request(`/auth/security-alerts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'Acknowledged' }),
+    });
+  },
+
+  deleteSecurityAlert: async (id) => {
+    return await request(`/auth/security-alerts/${id}`, { method: 'DELETE' });
+  },
+
+  createDocumentRecord: async (record) => {
+    return await request('/operations/documents', {
+      method: 'POST',
+      body: JSON.stringify(record),
+    });
+  },
+
+  updateAcceptanceCheck: async (id, done) => {
+    return await request(`/operations/acceptance-checks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ done }),
+    });
+  },
+
+  createServiceRecord: async (record) => {
+    return await request('/operations/service-records', {
+      method: 'POST',
+      body: JSON.stringify(record),
+    });
+  },
+
+  postAcademicBill: async (bill) => {
+    return await request('/finance/bills/post', {
+      method: 'POST',
+      body: JSON.stringify(bill),
+    });
+  },
+
+  adjustStudentBill: async (adjustment) => {
+    const feeId = adjustment.feeId || adjustment.fee_id || adjustment.studentId;
+    return await request(`/finance/fees/${feeId}/adjust`, {
+      method: 'POST',
+      body: JSON.stringify({
+        adjustment_type: adjustment.adjustmentType || adjustment.adjustment_type || 'CREDIT',
+        amount: Number(adjustment.amount) || 0,
+        reason: adjustment.reason,
+        invoice_no: adjustment.invoiceNo || adjustment.invoice_no,
+        class_level: adjustment.classLevel || adjustment.class_level,
+        student_name: adjustment.studentName || adjustment.student_name,
+        posted_by: adjustment.postedBy || adjustment.posted_by,
+      }),
+    });
+  },
+
   // --- Semester & Exam Registrations ---
   getSemesterRegistrations: async () => {
-    return await request('/academic/semester-registrations');
+    return await request('/sims/semester-registration');
   },
 
   createSemesterRegistration: async (regData) => {
-    return await request('/academic/semester-registrations', {
+    return await request('/sims/semester-registration', {
       method: 'POST',
-      body: JSON.stringify(regData),
+      body: JSON.stringify({
+        student_id: regData.studentId || regData.student_id,
+        class_level: regData.classLevel || regData.class_level,
+        class_section: regData.classSection || regData.class_section,
+        academic_year: regData.academicYear || regData.academic_year,
+        term: regData.term,
+        student_name: regData.studentName || regData.student_name,
+      }),
     });
   },
 
   deleteSemesterRegistration: async (id) => {
-    return await request(`/academic/semester-registrations/${id}`, {
+    return await request(`/sims/semester-registration/${id}`, {
       method: 'DELETE',
     });
   },
 
   getExamRegistrations: async () => {
-    return await request('/academic/exam-registrations');
+    return await request('/exams/registrations');
   },
 
   createExamRegistration: async (examData) => {
@@ -1223,14 +1352,14 @@ export const api = {
     };
     // Remove undefined fields
     Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
-    return await request('/academic/exam-registrations', {
+    return await request('/exams/register', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   },
 
   deleteExamRegistration: async (id) => {
-    return await request(`/academic/exam-registrations/${id}`, {
+    return await request(`/exams/registrations/${id}`, {
       method: 'DELETE',
     });
   },
