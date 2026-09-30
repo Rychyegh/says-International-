@@ -630,6 +630,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           </div>
           <span className="sidebar-section-label">Management</span>
           {NAV.filter(item => {
+            if (adminRole === 'head_admin') {
+              return item.label !== 'Submit PV Request';
+            }
             if (adminRole === 'sub_admin') {
               const restrictedForSubAdmin = [
                 'Register for Exams',
@@ -698,6 +701,24 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 style={{ padding: '10px 22px', background: '#4a1d6e', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, cursor: 'pointer' }}
               >
                 Return to Dashboard
+              </button>
+            </div>
+          )}
+
+          {adminRole === 'head_admin' && activeNav === 'Submit PV Request' && (
+            <div style={{ padding: 40, textAlign: 'center', background: '#fff', borderRadius: 16, margin: '20px 0', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+              <ShieldAlert size={48} color="#4a1d6e" style={{ marginBottom: 12 }} />
+              <h3 style={{ fontSize: 20, fontWeight: 900, color: '#4a1d6e', marginBottom: 8 }}>
+                👑 Head Admin Desk — Pre-Audit & Approval Station
+              </h3>
+              <p style={{ fontSize: 13, color: '#475569', maxWidth: 520, margin: '0 auto 20px', lineHeight: 1.6 }}>
+                Preparing PV requests is handled by Sub-Admin accounts. Head Admin manages pre-auditing, voucher corrections, and final approval via the <strong>Pre-Audit & Approve PV</strong> desk.
+              </p>
+              <button
+                onClick={() => setActiveNav('Pre-Audit & Approve PV')}
+                style={{ padding: '10px 22px', background: '#4a1d6e', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, cursor: 'pointer' }}
+              >
+                Go to Pre-Audit & Approve PV
               </button>
             </div>
           )}
