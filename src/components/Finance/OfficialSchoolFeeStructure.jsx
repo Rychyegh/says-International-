@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Printer, CheckCircle2, DollarSign, BookOpen, Layers, Plus, Trash2, FileText, Send, X, UserCheck, Upload, Camera, User, Bus, Utensils, Award, CreditCard, Sparkles, ChevronRight, GraduationCap, Edit3, Save, Check } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Printer, CheckCircle2, DollarSign, BookOpen, Layers, Plus, Trash2, FileText, Send, X, UserCheck, Upload, Camera, User, Bus, Utensils, Award, CreditCard, Sparkles, ChevronRight, GraduationCap, Edit3, Save, Check, Users, CheckSquare, Square, RefreshCw, Search, ArrowRight } from 'lucide-react';
 import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
 import { usePortalData } from '../../data/PortalStore';
 import './OfficialSchoolFeeStructure.css';
@@ -509,6 +509,38 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
   const [selectedPostingStudent, setSelectedPostingStudent] = useState(null);
   const [postIncludeOptional, setPostIncludeOptional] = useState(true);
 
+  // Billing Mode State: 'entire_class' | 'single_student' | 'master_schedule'
+  const [activeBillingView, setActiveBillingView] = useState('entire_class');
+
+  // Multi-Page Class Bill Printing Modal State
+  const [isPrintingClassBillsModal, setIsPrintingClassBillsModal] = useState(false);
+
+  // Excluded student IDs from the class bill (removed from class list)
+  const [excludedStudentIds, setExcludedStudentIds] = useState([]);
+
+  // Search filter within class students
+  const [classStudentSearch, setClassStudentSearch] = useState('');
+  const [showAllClassStudents, setShowAllClassStudents] = useState(true);
+
+  // Helper to ensure Full Name always includes other names across all fee scheduling displays
+  const getStudentFullName = (student) => {
+    if (!student) return '';
+    const first = (student.firstName || '').trim();
+    const other = (student.otherNames || student.middleName || student.otherName || '').trim();
+    const surname = (student.surname || student.lastName || '').trim();
+    if (first || surname || other) {
+      return [first, other, surname].filter(Boolean).join(' ');
+    }
+    if (student.fullName && other && !student.fullName.toLowerCase().includes(other.toLowerCase())) {
+      const parts = student.fullName.trim().split(' ');
+      if (parts.length > 1) {
+        return `${parts[0]} ${other} ${parts.slice(1).join(' ')}`.replace(/\s+/g, ' ').trim();
+      }
+      return `${student.fullName} ${other}`.trim();
+    }
+    return student.fullName || student.name || student.studentName || '';
+  };
+
   // Active Category & SubLevels
   const activeCategoryObj = GRADE_LEVEL_CATEGORIES.find(c => c.id === selectedGradeCategory) || GRADE_LEVEL_CATEGORIES[0];
   const activeSubLevels = activeCategoryObj.subLevels;
@@ -570,6 +602,137 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
     return false;
   });
+
+  // Included & Excluded Students for the selected class
+  const includedStudentsForClass = useMemo(() => {
+    return (studentsForSelectedClass || []).filter(
+      s => !excludedStudentIds.includes(s.id || s.studentId)
+    );
+  }, [studentsForSelectedClass, excludedStudentIds]);
+
+  const excludedStudentsForClass = useMemo(() => {
+    return (studentsForSelectedClass || []).filter(
+      s => excludedStudentIds.includes(s.id || s.studentId)
+    );
+  }, [studentsForSelectedClass, excludedStudentIds]);
+
+  const filteredClassStudents = useMemo(() => {
+    return (studentsForSelectedClass || []).filter(s => {
+      if (!classStudentSearch.trim()) return true;
+      const q = classStudentSearch.toLowerCase().trim();
+      const name = getStudentFullName(s).toLowerCase();
+      const id = (s.studentId || s.id || '').toLowerCase();
+      const sec = (s.classSection || s.section || '').toLowerCase();
+      return name.includes(q) || id.includes(q) || sec.includes(q);
+    });
+  }, [studentsForSelectedClass, classStudentSearch]);
+
+  const handleRemoveStudentFromClassBill = (studentId) => {
+    setExcludedStudentIds(prev => prev.includes(studentId) ? prev : [...prev, studentId]);
+    setSuccessMsg('Student removed from class bill list.');
+    setTimeout(() => setSuccessMsg(''), 3000);
+  };
+
+  const handleAddStudentBackToClassBill = (studentId) => {
+    setExcludedStudentIds(prev => prev.filter(id => id !== studentId));
+    setSuccessMsg('Student added back to class bill list.');
+    setTimeout(() => setSuccessMsg(''), 3000);
+  };
+
+  const handleIncludeAllClassStudents = () => {
+    setExcludedStudentIds([]);
+    setSuccessMsg('All enrolled students included in class bill list.');
+    setTimeout(() => setSuccessMsg(''), 3000);
+  };
+
+  const handleExcludeAllClassStudents = () => {
+    setExcludedStudentIds((studentsForSelectedClass || []).map(s => s.id || s.studentId));
+    setSuccessMsg('All students excluded from class bill list.');
+    setTimeout(() => setSuccessMsg(''), 3000);
+  };
+
+  const handleBulkPostToClass = () => {
+    if (includedStudentsForClass.length === 0) {
+      alert(`There are no students included in the billing list for ${selectedSubLevel}. Please include at least one student.`);
+      return;
+    }
+
+    const optionalItemsToPost = postIncludeOptional
+      ? optionalBillItems.filter(o => o.enabled).map(o => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true }))
+      : [];
+    const allItemsToPost = [...baseBillItems, ...optionalItemsToPost];
+    const totalToPost = allItemsToPost.reduce((acc, i) => acc + Number(i.amount || 0), 0);
+
+    if (portalData?.postAcademicBill) {
+      portalData.postAcademicBill({
+        targetStudents: includedStudentsForClass,
+        classLevel: selectedSubLevel,
+        items: allItemsToPost,
+        totalAmount: totalToPost,
+        term: 'Term 1 · 2026'
+      });
+    }
+
+    setPostBillSuccessData({
+      totalAmount: totalToPost,
+      compulsoryCount: baseBillItems.length,
+      optionalCount: optionalItemsToPost.length,
+      scopeLabel: `Class ${selectedSubLevel} (${includedStudentsForClass.length} Students)`,
+      affectedCount: includedStudentsForClass.length,
+      targetStudentName: '',
+      targetClass: selectedSubLevel,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      term: 'Term 1 · 2026'
+    });
+
+    setSuccessMsg(`⚡ Bulk Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${includedStudentsForClass.length} students in ${selectedSubLevel}!`);
+    setTimeout(() => setSuccessMsg(''), 7000);
+  };
+
+  const handleSinglePostToLedger = (student) => {
+    const studentToUse = student || preparingStudentBill;
+    if (!studentToUse) {
+      alert('Please select a student to post their individual bill.');
+      return;
+    }
+
+    const optionalItemsToPost = selectedStudentOptionalIds
+      .map(id => optionalBillItems.find(o => o.id === id))
+      .filter(Boolean)
+      .map(o => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true }));
+    const allItemsToPost = [...baseBillItems, ...optionalItemsToPost];
+    const totalToPost = allItemsToPost.reduce((acc, i) => acc + Number(i.amount || 0), 0);
+
+    const sFullName = getStudentFullName(studentToUse);
+
+    if (portalData?.postAcademicBill) {
+      portalData.postAcademicBill({
+        studentId: studentToUse.studentId || studentToUse.id,
+        studentName: sFullName,
+        targetStudents: [studentToUse],
+        classLevel: studentToUse.level || selectedSubLevel,
+        items: allItemsToPost,
+        totalAmount: totalToPost,
+        term: 'Term 1 · 2026'
+      });
+    }
+
+    setPostBillSuccessData({
+      totalAmount: totalToPost,
+      compulsoryCount: baseBillItems.length,
+      optionalCount: optionalItemsToPost.length,
+      scopeLabel: sFullName,
+      affectedCount: 1,
+      targetStudentName: sFullName,
+      targetStudentId: studentToUse.studentId || studentToUse.id,
+      targetClass: studentToUse.level || selectedSubLevel,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      term: 'Term 1 · 2026'
+    });
+
+    setSuccessMsg(`⚡ Single Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${sFullName} (${studentToUse.studentId || studentToUse.id})!`);
+    setTimeout(() => setSuccessMsg(''), 7000);
+  };
 
   const baseBillItems = activeClassData.baseBill || [];
   const optionalBillItems = activeClassData.optionalBills || [];
@@ -750,7 +913,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
     if (postTargetScope === 'student') {
       studentToUse = selectedPostingStudent || preparingStudentBill;
-      scopeLabel = studentToUse ? studentToUse.fullName : 'Individual Student';
+      scopeLabel = studentToUse ? getStudentFullName(studentToUse) : 'Individual Student';
       if (studentToUse) targetStudentsList = [studentToUse];
     } else if (postTargetScope === 'class_level') {
       const catObj = GRADE_LEVEL_CATEGORIES.find(c => c.id === selectedPostingCategory) || activeCategoryObj;
@@ -794,7 +957,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     if (portalData?.postAcademicBill) {
       portalData.postAcademicBill({
         studentId: studentToUse?.studentId || studentToUse?.id || null,
-        studentName: studentToUse?.fullName || null,
+        studentName: studentToUse ? getStudentFullName(studentToUse) : null,
         targetStudents: targetStudentsList,
         classLevel: selectedPostingClass || `${activeCategoryObj.name} · ${selectedSubLevel}`,
         items: allItemsToPost,
@@ -804,7 +967,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     }
 
     const affectedCount = targetStudentsList.length > 0 ? targetStudentsList.length : 1;
-    const finalScopeText = scopeLabel || (studentToUse ? studentToUse.fullName : 'All Students');
+    const finalScopeText = scopeLabel || (studentToUse ? getStudentFullName(studentToUse) : 'All Students');
 
     // Trigger Foremost Layer Success Banner/Dialog Box (Requirement 2)
     setPostBillSuccessData({
@@ -813,7 +976,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
       optionalCount: optionalItemsToPost.length,
       scopeLabel: finalScopeText,
       affectedCount,
-      targetStudentName: studentToUse?.fullName,
+      targetStudentName: studentToUse ? getStudentFullName(studentToUse) : '',
       targetStudentId: studentToUse?.studentId || studentToUse?.id,
       targetClass: selectedPostingClass || `${activeCategoryObj.name} · ${selectedSubLevel}`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -985,7 +1148,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     const feeAccount = studentFees.find(f => f.studentId === student.studentId) || { billedAmount: grandTotal, paidAmount: grandTotal, balance: 0, status: 'Paid' };
     
     let csv = `REMALJ CAREWELL INSPIRATIONAL SCHOOL - OFFICIAL STUDENT BILL & STATEMENT\n`;
-    csv += `Student Name,${student.fullName}\n`;
+    csv += `Student Name,${getStudentFullName(student)}\n`;
     csv += `Student ID,${student.studentId}\n`;
     csv += `Class Level,${activeCategoryObj.name} - ${selectedSubLevel}\n`;
     csv += `Guardian Name,${student.guardianName}\n`;
@@ -1012,7 +1175,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', `Official_Bill_${student.fullName.replace(/\s+/g, '_')}_${student.studentId}.csv`);
+    link.setAttribute('download', `Official_Bill_${getStudentFullName(student).replace(/\s+/g, '_')}_${student.studentId}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1029,7 +1192,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
       if (portalData?.updateOnboardedStudent) {
         portalData.updateOnboardedStudent(preparingStudentBill.id, { photo: photoDataUrl, passportPhoto: photoDataUrl });
       }
-      setSuccessMsg(`📷 Passport photo uploaded and saved for ${preparingStudentBill.fullName}!`);
+      setSuccessMsg(`📷 Passport photo uploaded and saved for ${getStudentFullName(preparingStudentBill)}!`);
       setTimeout(() => setSuccessMsg(''), 5000);
     };
     reader.readAsDataURL(file);
@@ -1074,16 +1237,39 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
         </div>
 
         <div className="fee-header-actions no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button className="fee-btn" style={{ background: '#581c87', color: '#fff' }} onClick={() => setIsAddingFeeModal(true)}>
+          <button
+            className="fee-btn"
+            style={{ background: '#0284c7', color: '#fff', fontWeight: 800 }}
+            onClick={() => {
+              setActiveBillingView('entire_class');
+              setIsPrintingClassBillsModal(true);
+            }}
+          >
+            <Printer size={15} /> 🖨️ Print Whole Class Bills
+          </button>
+
+          <button
+            className="fee-btn"
+            style={{ background: '#16a34a', color: '#fff', fontWeight: 800 }}
+            onClick={handleBulkPostToClass}
+          >
+            <FileText size={15} /> ⚡ Bulk Post to Class
+          </button>
+
+          <button
+            className="fee-btn"
+            style={{ background: '#581c87', color: '#fff' }}
+            onClick={() => setIsAddingFeeModal(true)}
+          >
             <Plus size={15} /> Add Fee Item
           </button>
 
-          <button className="fee-btn" style={{ background: '#166534', color: '#fff', fontWeight: 800 }} onClick={() => setIsPostingModalOpen(true)}>
-            <FileText size={15} /> ⚡ Post Student Academic Bill
-          </button>
-
-          <button className="fee-btn fee-btn-primary" onClick={() => window.print()}>
-            <Printer size={15} /> Print Schedule
+          <button
+            className="fee-btn"
+            style={{ background: '#0f3a4b', color: '#fff', fontWeight: 700 }}
+            onClick={() => setIsPostingModalOpen(true)}
+          >
+            <Send size={14} /> Advanced Post Dialog
           </button>
         </div>
       </div>
@@ -1157,7 +1343,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
               </option>
               {studentsForSelectedClass.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.fullName} ({s.studentId} · {s.level})
+                  {getStudentFullName(s)} ({s.studentId} · {s.level})
                 </option>
               ))}
             </select>
@@ -1211,68 +1397,884 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
         </div>
       </div>
 
-      {/* ── OPTIONAL BILLS QUICK-ADD & TOGGLE BAR ── */}
+      {/* ── BILLING MODE SWITCHER (ENTIRE CLASS VS SINGLE STUDENT VS MASTER RATES) ── */}
       <div className="no-print" style={{
-        background: '#f8fafc',
-        border: '1px solid #cbd5e1',
-        borderRadius: 12,
-        padding: '14px 18px',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+        display: 'flex',
+        gap: 12,
+        marginTop: 6,
+        marginBottom: 10,
+        flexWrap: 'wrap'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Sparkles size={18} color="#0284c7" />
-            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 900, color: '#0f3a4b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-              Optional Fee Bills Schedule ({selectedSubLevel})
-            </h3>
-            <span style={{ fontSize: 11, background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: 12, fontWeight: 800 }}>
-              Motivation · Bus · Feeding · Stationery · Pick Up Card
-            </span>
-          </div>
+        <button
+          type="button"
+          onClick={() => setActiveBillingView('entire_class')}
+          style={{
+            flex: '1 1 240px',
+            padding: '12px 18px',
+            borderRadius: 10,
+            border: activeBillingView === 'entire_class' ? '2.5px solid #0284c7' : '1px solid #cbd5e1',
+            background: activeBillingView === 'entire_class' ? '#e0f2fe' : '#ffffff',
+            color: activeBillingView === 'entire_class' ? '#0369a1' : '#334155',
+            fontWeight: 900,
+            fontSize: 13.5,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            boxShadow: activeBillingView === 'entire_class' ? '0 4px 12px rgba(2,132,199,0.2)' : 'none',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Users size={18} />
+          <span>📚 Entire Class Bill ({studentsForSelectedClass.length} in {selectedSubLevel})</span>
+        </button>
 
-          <div style={{ fontSize: 12, fontWeight: 800, color: '#0369a1' }}>
-            Active Optional Subtotal: <strong>GHS {totalOptionalActive.toFixed(2)}</strong>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setActiveBillingView('single_student')}
+          style={{
+            flex: '1 1 240px',
+            padding: '12px 18px',
+            borderRadius: 10,
+            border: activeBillingView === 'single_student' ? '2.5px solid #16a34a' : '1px solid #cbd5e1',
+            background: activeBillingView === 'single_student' ? '#dcfce7' : '#ffffff',
+            color: activeBillingView === 'single_student' ? '#15803d' : '#334155',
+            fontWeight: 900,
+            fontSize: 13.5,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            boxShadow: activeBillingView === 'single_student' ? '0 4px 12px rgba(22,163,74,0.2)' : 'none',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <User size={18} />
+          <span>👤 Single Student Bill ({preparingStudentBill ? getStudentFullName(preparingStudentBill) : 'Select Candidate'})</span>
+        </button>
 
-        {/* 1-Click Preset Addition Chips */}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Quick Presets:</span>
-          {OFFICIAL_OPTIONAL_PRESETS.map((preset) => {
-            const currentItem = optionalBillItems.find(o => o.id === preset.id);
-            const isEnabled = currentItem?.enabled;
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => handleAddPresetOptionalBill(preset)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 20,
-                  border: isEnabled ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
-                  background: isEnabled ? '#e0f2fe' : '#ffffff',
-                  color: isEnabled ? '#0369a1' : '#334155',
-                  fontSize: 11.5,
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s ease'
-                }}
-                title={preset.description}
-              >
-                <span>{preset.icon}</span>
-                <span>{preset.label}</span>
-                <span style={{ opacity: 0.8, fontSize: 11 }}>
-                  (GHS {currentItem ? currentItem.amount.toFixed(2) : preset.defaultAmount.toFixed(2)})
-                </span>
-                {isEnabled ? ' ✓' : ' ＋'}
-              </button>
-            );
-          })}
-        </div>
+        <button
+          type="button"
+          onClick={() => setActiveBillingView('master_schedule')}
+          style={{
+            padding: '12px 18px',
+            borderRadius: 10,
+            border: activeBillingView === 'master_schedule' ? '2.5px solid #581c87' : '1px solid #cbd5e1',
+            background: activeBillingView === 'master_schedule' ? '#f3e8ff' : '#ffffff',
+            color: activeBillingView === 'master_schedule' ? '#581c87' : '#334155',
+            fontWeight: 800,
+            fontSize: 13.5,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            boxShadow: activeBillingView === 'master_schedule' ? '0 4px 12px rgba(88,28,135,0.2)' : 'none',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <BookOpen size={18} />
+          <span>Rates & Schedule</span>
+        </button>
       </div>
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* ── SECTION A: ENTIRE CLASS BILL (BULK POST & CLASS PRINT) ─────── */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {activeBillingView === 'entire_class' && (
+        <div className="animate-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Class Billing Overview & Bulk Actions Banner */}
+          <div style={{
+            background: '#ffffff',
+            border: '2px solid #0284c7',
+            borderRadius: 12,
+            padding: '18px 22px',
+            boxShadow: '0 4px 14px rgba(2,132,199,0.08)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f3a4b' }}>
+                    Entire Class Bill: {selectedSubLevel}
+                  </h2>
+                  <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 10px', borderRadius: 12, fontWeight: 800, fontSize: 12 }}>
+                    Term 1 · 2025/2026
+                  </span>
+                </div>
+                <p style={{ margin: '4px 0 0 0', fontSize: 12.5, color: '#64748b' }}>
+                  Manage the billing roster for this class, exclude or include students, bulk post directly to student accounts, or print multi-page bills addressed to each student.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsPrintingClassBillsModal(true)}
+                  disabled={includedStudentsForClass.length === 0}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: includedStudentsForClass.length > 0 ? '#0284c7' : '#94a3b8',
+                    color: '#fff',
+                    fontWeight: 900,
+                    fontSize: 13,
+                    cursor: includedStudentsForClass.length > 0 ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    boxShadow: '0 4px 12px rgba(2,132,199,0.25)'
+                  }}
+                >
+                  <Printer size={16} /> 🖨️ Print Whole Class Bills ({includedStudentsForClass.length} Pages)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleBulkPostToClass}
+                  disabled={includedStudentsForClass.length === 0}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: includedStudentsForClass.length > 0 ? '#16a34a' : '#94a3b8',
+                    color: '#fff',
+                    fontWeight: 900,
+                    fontSize: 13,
+                    cursor: includedStudentsForClass.length > 0 ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    boxShadow: '0 4px 12px rgba(22,163,74,0.25)'
+                  }}
+                >
+                  <FileText size={16} /> ⚡ Bulk Post Bill to Class ({includedStudentsForClass.length} Students)
+                </button>
+              </div>
+            </div>
+
+            {/* Metrics Grid */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              gap: 12,
+              padding: '14px 16px',
+              background: '#f8fafc',
+              borderRadius: 10,
+              border: '1px solid #e2e8f0',
+              marginBottom: 14
+            }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Total in Class</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', marginTop: 2 }}>
+                  {studentsForSelectedClass.length} <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>enrolled</span>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#166534', textTransform: 'uppercase' }}>Selected for Billing</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#166534', marginTop: 2 }}>
+                  {includedStudentsForClass.length} <span style={{ fontSize: 12, fontWeight: 600, color: '#15803d' }}>students</span>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#b45309', textTransform: 'uppercase' }}>Excluded / Exempt</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#b45309', marginTop: 2 }}>
+                  {excludedStudentsForClass.length} <span style={{ fontSize: 12, fontWeight: 600, color: '#b45309' }}>students</span>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#0369a1', textTransform: 'uppercase' }}>Bill Per Student</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#0369a1', marginTop: 2 }}>
+                  GHS {(totalBase + (postIncludeOptional ? totalOptionalActive : 0)).toFixed(2)}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#581c87', textTransform: 'uppercase' }}>Projected Class Total</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#581c87', marginTop: 2 }}>
+                  GHS {((totalBase + (postIncludeOptional ? totalOptionalActive : 0)) * includedStudentsForClass.length).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              </div>
+            </div>
+
+            {/* Optional Bills Inclusion Checkbox */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 10,
+              padding: '8px 12px',
+              background: '#f0f9ff',
+              borderRadius: 8,
+              border: '1px solid #bae6fd'
+            }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 12.5, color: '#0369a1', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={postIncludeOptional}
+                  onChange={(e) => setPostIncludeOptional(e.target.checked)}
+                />
+                <span>Include Active Optional Bills (Motivation, Bus, Feeding, Stationery, Pick Up Card) in Class Bill</span>
+              </label>
+
+              <span style={{ fontSize: 12, fontWeight: 800, color: '#0284c7' }}>
+                Optional Subtotal: GHS {totalOptionalActive.toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          {/* Class Student Roster & Billing List */}
+          <div style={{
+            background: '#ffffff',
+            border: '1px solid #cbd5e1',
+            borderRadius: 12,
+            overflow: 'hidden',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+          }}>
+            <div style={{
+              padding: '14px 18px',
+              background: '#f8fafc',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 12
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Users size={18} color="#0284c7" />
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: '#0f3a4b' }}>
+                  Students in {selectedSubLevel} ({studentsForSelectedClass.length})
+                </h3>
+                <span style={{ fontSize: 12, fontWeight: 800, color: '#166534', background: '#dcfce7', padding: '2px 8px', borderRadius: 10 }}>
+                  {includedStudentsForClass.length} Included
+                </span>
+                {excludedStudentsForClass.length > 0 && (
+                  <span style={{ fontSize: 12, fontWeight: 800, color: '#b45309', background: '#fef3c7', padding: '2px 8px', borderRadius: 10 }}>
+                    {excludedStudentsForClass.length} Excluded
+                  </span>
+                )}
+              </div>
+
+              {/* Roster Quick Actions & Search */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative' }}>
+                  <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                  <input
+                    type="text"
+                    placeholder={`Search ${selectedSubLevel} students...`}
+                    value={classStudentSearch}
+                    onChange={(e) => setClassStudentSearch(e.target.value)}
+                    style={{ padding: '5px 8px 5px 28px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, outline: 'none', width: 180 }}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleIncludeAllClassStudents}
+                  style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #86efac', background: '#f0fdf4', color: '#166534', fontWeight: 800, fontSize: 11.5, cursor: 'pointer' }}
+                >
+                  ✓ Include All ({studentsForSelectedClass.length})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExcludeAllClassStudents}
+                  style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#ffffff', color: '#64748b', fontWeight: 800, fontSize: 11.5, cursor: 'pointer' }}
+                >
+                  ✕ Exclude All
+                </button>
+              </div>
+            </div>
+
+            {/* Students Table */}
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #e2e8f0', color: '#475569', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <th style={{ padding: '10px 14px', width: 44, textAlign: 'center' }}>Select</th>
+                    <th style={{ padding: '10px 14px' }}>Student Details (Full Name & ID)</th>
+                    <th style={{ padding: '10px 14px', width: 100 }}>Class / Section</th>
+                    <th style={{ padding: '10px 14px', width: 140 }}>Billing Status</th>
+                    <th style={{ padding: '10px 14px', width: 130, textAlign: 'right' }}>Individual Bill</th>
+                    <th style={{ padding: '10px 14px', width: 230, textAlign: 'center' }}>Billing Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredClassStudents.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#94a3b8' }}>
+                        {studentsForSelectedClass.length === 0
+                          ? `No enrolled students found in ${selectedSubLevel}.`
+                          : `No students matching "${classStudentSearch}".`}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredClassStudents.map((s) => {
+                      const sId = s.id || s.studentId;
+                      const isIncluded = !excludedStudentIds.includes(sId);
+                      const sFullName = getStudentFullName(s);
+                      const indivAmount = totalBase + (postIncludeOptional ? totalOptionalActive : 0);
+
+                      return (
+                        <tr
+                          key={sId}
+                          style={{
+                            borderBottom: '1px solid #f1f5f9',
+                            background: isIncluded ? '#ffffff' : '#fcfcfc',
+                            opacity: isIncluded ? 1 : 0.65
+                          }}
+                        >
+                          <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={isIncluded}
+                              onChange={() => {
+                                if (isIncluded) {
+                                  handleRemoveStudentFromClassBill(sId);
+                                } else {
+                                  handleAddStudentBackToClassBill(sId);
+                                }
+                              }}
+                              style={{ width: 16, height: 16, cursor: 'pointer' }}
+                            />
+                          </td>
+
+                          <td style={{ padding: '10px 14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <div style={{
+                                width: 34, height: 34, borderRadius: 6, background: '#e0f2fe',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                overflow: 'hidden', flexShrink: 0
+                              }}>
+                                {s.photo || s.passportPhoto ? (
+                                  <img src={s.photo || s.passportPhoto} alt={sFullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  <User size={18} color="#0284c7" />
+                                )}
+                              </div>
+                              <div>
+                                <strong style={{ color: '#0f172a', fontSize: 13.5 }}>{sFullName}</strong>
+                                <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>
+                                  ID: <code style={{ color: '#0284c7', fontWeight: 800 }}>{s.studentId || s.id}</code> · Guardian: {s.guardianName || s.guardian || 'Parent'}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td style={{ padding: '10px 14px', fontWeight: 700, color: '#334155' }}>
+                            {s.level || selectedSubLevel} ({s.classSection || 'A'})
+                          </td>
+
+                          <td style={{ padding: '10px 14px' }}>
+                            {isIncluded ? (
+                              <span style={{ padding: '3px 8px', borderRadius: 12, background: '#dcfce7', color: '#166534', fontWeight: 800, fontSize: 11 }}>
+                                ✓ Included in Bill
+                              </span>
+                            ) : (
+                              <span style={{ padding: '3px 8px', borderRadius: 12, background: '#fef3c7', color: '#b45309', fontWeight: 800, fontSize: 11 }}>
+                                ✕ Excluded
+                              </span>
+                            )}
+                          </td>
+
+                          <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: isIncluded ? '#0f172a' : '#94a3b8' }}>
+                            GHS {indivAmount.toFixed(2)}
+                          </td>
+
+                          <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                              {isIncluded ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveStudentFromClassBill(sId)}
+                                  style={{
+                                    padding: '4px 8px', borderRadius: 6, border: '1px solid #fecaca',
+                                    background: '#fff1f2', color: '#be123c', fontSize: 11, fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                  title="Exclude student from whole class bill"
+                                >
+                                  Remove from List
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddStudentBackToClassBill(sId)}
+                                  style={{
+                                    padding: '4px 8px', borderRadius: 6, border: '1px solid #86efac',
+                                    background: '#f0fdf4', color: '#15803d', fontSize: 11, fontWeight: 800,
+                                    cursor: 'pointer'
+                                  }}
+                                  title="Add student back to class billing list"
+                                >
+                                  ＋ Add Back
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSelectStudentForBill(s);
+                                  setActiveBillingView('single_student');
+                                }}
+                                style={{
+                                  padding: '4px 8px', borderRadius: 6, border: '1px solid #bae6fd',
+                                  background: '#f0f9ff', color: '#0369a1', fontSize: 11, fontWeight: 800,
+                                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4
+                                }}
+                                title="View single bill or post individually"
+                              >
+                                👤 Single Post
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* ── SECTION B: SINGLE STUDENT BILL (INDIVIDUAL BILL & POST) ────── */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {activeBillingView === 'single_student' && (
+        <div className="animate-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Student Picker Bar */}
+          <div style={{
+            background: '#ffffff',
+            border: '2px solid #16a34a',
+            borderRadius: 12,
+            padding: '16px 20px',
+            boxShadow: '0 4px 14px rgba(22,163,74,0.08)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 14
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <User size={20} color="#16a34a" />
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#14532d' }}>
+                  Individual Student Bill Statement
+                </h3>
+                <div style={{ fontSize: 12, color: '#64748b' }}>
+                  Select an enrolled student to prepare an individual bill, adjust their specific optional levies, post to ledger, or print.
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <select
+                style={{ padding: '8px 12px', borderRadius: 8, border: '1.5px solid #16a34a', fontSize: 13, fontWeight: 800, color: '#14532d', background: '#fff', cursor: 'pointer', minWidth: 260 }}
+                value={preparingStudentBill?.id || ''}
+                onChange={(e) => {
+                  const s = (onboardedStudents || []).find(stu => stu.id === e.target.value);
+                  handleSelectStudentForBill(s);
+                }}
+              >
+                <option value="">-- Choose Student to Bill ({onboardedStudents.length} Available) --</option>
+                {onboardedStudents.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {getStudentFullName(s)} ({s.studentId} · {s.level})
+                  </option>
+                ))}
+              </select>
+
+              {preparingStudentBill && (
+                <button
+                  type="button"
+                  onClick={() => setPreparingStudentBill(null)}
+                  style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Clear Selection
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* If Student Selected: Render Full Bill Document */}
+          {preparingStudentBill ? (
+            <div style={{
+              background: '#ffffff',
+              borderRadius: 14,
+              border: '1px solid #cbd5e1',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+              overflow: 'hidden'
+            }}>
+              {/* Action Bar for Single Bill */}
+              <div className="no-print" style={{
+                background: '#0f172a',
+                padding: '14px 22px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 10,
+                color: '#fff'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <FileText size={18} color="#38bdf8" />
+                  <span style={{ fontWeight: 800, fontSize: 14 }}>
+                    Single Student Billing: {getStudentFullName(preparingStudentBill)}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => handleExportStudentBillCSV(preparingStudentBill)}
+                    style={{ padding: '6px 12px', background: '#1e293b', color: '#38bdf8', border: '1px solid #334155', borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                  >
+                    📥 Export CSV
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    style={{ padding: '6px 14px', background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 6, fontWeight: 900, fontSize: 12, cursor: 'pointer' }}
+                  >
+                    🖨️ Print Student Bill
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSinglePostToLedger(preparingStudentBill)}
+                    style={{ padding: '6px 14px', background: '#16a34a', color: '#ffffff', border: 'none', borderRadius: 6, fontWeight: 900, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                  >
+                    ⚡ Post Single Bill to Ledger
+                  </button>
+                </div>
+              </div>
+
+              {/* Optional Bills Toggles for this specific student */}
+              <div className="no-print" style={{
+                background: '#f0fdf4',
+                padding: '12px 22px',
+                borderBottom: '1px solid #bbf7d0'
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 900, color: '#166534', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Sparkles size={15} /> Select Optional Bills for {getStudentFullName(preparingStudentBill)}:
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  {optionalBillItems.map((opt) => {
+                    const isChecked = selectedStudentOptionalIds.includes(opt.id);
+                    return (
+                      <label
+                        key={opt.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: isChecked ? '#16a34a' : '#ffffff',
+                          color: isChecked ? '#ffffff' : '#334155',
+                          padding: '5px 12px',
+                          borderRadius: 20,
+                          fontSize: 12,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedStudentOptionalIds(prev => [...prev, opt.id]);
+                            } else {
+                              setSelectedStudentOptionalIds(prev => prev.filter(id => id !== opt.id));
+                            }
+                          }}
+                        />
+                        <span>{opt.icon} {opt.label} (GHS {opt.amount.toFixed(2)})</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Printable Official Single Student Bill Document */}
+              <div style={{ padding: 32, background: '#fff' }} className="printable-document official-bill-document">
+                <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: 18, marginBottom: 24 }} className="receipt-header-box">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }} className="receipt-header-inline">
+                    <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 60, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
+                    <div style={{ textAlign: 'left' }} className="receipt-school-text">
+                      <div style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', letterSpacing: '0.03em', lineHeight: 1.2 }}>
+                        REMALJ CAREWELL INSPIRATIONAL SCHOOL
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginTop: 3 }}>
+                        P.O. BOX 139, BOGOSO · PRESTEA HUNI-VALLEY MUNICIPALITY · GHANA
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center', marginTop: 12 }}>
+                    <div style={{ display: 'inline-block', background: '#0f172a', color: '#fff', padding: '4px 18px', borderRadius: 20, fontSize: 12, fontWeight: 900, letterSpacing: '0.05em' }}>
+                      OFFICIAL STUDENT FEE BILL STATEMENT · TERM 1 (2025/2026)
+                    </div>
+                  </div>
+                </div>
+
+                {/* Student Info Card */}
+                <div style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 24,
+                  display: 'grid',
+                  gridTemplateColumns: '95px 1fr 1fr',
+                  gap: 16,
+                  alignItems: 'center'
+                }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{
+                      width: 82, height: 92, borderRadius: 8, border: '2px dashed #cbd5e1',
+                      background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      overflow: 'hidden', margin: '0 auto'
+                    }}>
+                      {preparingStudentBill.photo || preparingStudentBill.passportPhoto ? (
+                        <img src={preparingStudentBill.photo || preparingStudentBill.passportPhoto} alt={getStudentFullName(preparingStudentBill)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <User size={40} color="#94a3b8" />
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>STUDENT FULL NAME:</div>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: '#0f172a' }}>{getStudentFullName(preparingStudentBill)}</div>
+                    <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>
+                      Student ID: <code style={{ fontWeight: 800, color: '#0284c7' }}>{preparingStudentBill.studentId}</code>
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: 12.5, lineHeight: 1.6, color: '#334155' }}>
+                    <div><strong>Class:</strong> {preparingStudentBill.level || selectedSubLevel} ({preparingStudentBill.classSection || 'A'})</div>
+                    <div><strong>Guardian:</strong> {preparingStudentBill.guardianName || preparingStudentBill.guardian || 'Parent/Guardian'}</div>
+                    <div><strong>Date Issued:</strong> {new Date().toLocaleDateString('en-GB')}</div>
+                  </div>
+                </div>
+
+                {/* Line Items */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 900, color: '#0f3a4b', textTransform: 'uppercase', marginBottom: 8 }}>
+                    1. Compulsory Fees Component (Subtotal: GHS {totalBase.toFixed(2)})
+                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, border: '1px solid #cbd5e1' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '1px solid #cbd5e1', textAlign: 'left' }}>
+                        <th style={{ padding: '8px 12px' }}>Fee Line Item</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>Amount (GHS)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {baseBillItems.map((item, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '7px 12px', fontWeight: 600 }}>{item.details}</td>
+                          <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700 }}>{Number(item.amount || 0).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Selected Optional Items */}
+                {selectedStudentOptionalIds.length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 13, fontWeight: 900, color: '#0284c7', textTransform: 'uppercase', marginBottom: 8 }}>
+                      2. Optional Fees Component (Subtotal: GHS {optionalBillItems.filter(o => selectedStudentOptionalIds.includes(o.id)).reduce((acc, i) => acc + Number(i.amount || 0), 0).toFixed(2)})
+                    </div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, border: '1px solid #bae6fd' }}>
+                      <thead>
+                        <tr style={{ background: '#f0f9ff', borderBottom: '1px solid #bae6fd', textAlign: 'left' }}>
+                          <th style={{ padding: '8px 12px' }}>Optional Item</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Amount (GHS)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {optionalBillItems.filter(o => selectedStudentOptionalIds.includes(o.id)).map((opt) => (
+                          <tr key={opt.id} style={{ borderBottom: '1px solid #f0f9ff' }}>
+                            <td style={{ padding: '7px 12px', fontWeight: 600, color: '#0369a1' }}>{opt.icon} {opt.details}</td>
+                            <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700 }}>{Number(opt.amount || 0).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Total */}
+                <div style={{
+                  background: '#f0fdf4',
+                  border: '2px solid #16a34a',
+                  borderRadius: 10,
+                  padding: '12px 18px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 20
+                }}>
+                  <span style={{ fontSize: 14, fontWeight: 900, color: '#166534', textTransform: 'uppercase' }}>
+                    TOTAL AMOUNT DUE FOR {getStudentFullName(preparingStudentBill).toUpperCase()}:
+                  </span>
+                  <span style={{ fontSize: 22, fontWeight: 900, color: '#15803d' }}>
+                    GHS {(totalBase + optionalBillItems.filter(o => selectedStudentOptionalIds.includes(o.id)).reduce((acc, i) => acc + Number(i.amount || 0), 0)).toFixed(2)}
+                  </span>
+                </div>
+
+                {/* Bank / MoMo details */}
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 16px', fontSize: 12, lineHeight: 1.6, color: '#334155', marginBottom: 24 }}>
+                  <div><strong>PAYMENT DETAILS:</strong></div>
+                  <div>• GCB Bank PLC (Bogoso Branch) · Account No: 7011130001245</div>
+                  <div>• Ecobank Ghana PLC · Account No: 1441002390119</div>
+                  <div>• MTN Mobile Money: 298410 (REMALJ Carewell School) · Ref: <code>{preparingStudentBill.studentId}</code></div>
+                </div>
+
+                {/* Signatures */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 10 }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ borderBottom: '1px solid #0f172a', width: 180, marginBottom: 4 }}></div>
+                    <div style={{ fontWeight: 800, fontSize: 11, color: '#0f172a' }}>Headmaster / Principal</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ borderBottom: '1px solid #0f172a', width: 180, marginBottom: 4 }}></div>
+                    <div style={{ fontWeight: 800, fontSize: 11, color: '#0f172a' }}>Bursar / Accountant Signature</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              background: '#f8fafc',
+              border: '2px dashed #cbd5e1',
+              borderRadius: 14,
+              padding: 40,
+              textAlign: 'center'
+            }}>
+              <User size={48} color="#94a3b8" style={{ margin: '0 auto 12px auto', display: 'block' }} />
+              <h3 style={{ fontSize: 17, fontWeight: 900, color: '#334155', margin: '0 0 6px 0' }}>
+                No Student Selected for Individual Bill
+              </h3>
+              <p style={{ fontSize: 13, color: '#64748b', maxWidth: 460, margin: '0 auto 20px auto' }}>
+                Please select a candidate from the dropdown above, or click on any of the enrolled students in <strong>{selectedSubLevel}</strong> below to prepare their individual bill.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, maxWidth: 900, margin: '0 auto', textAlign: 'left' }}>
+                {studentsForSelectedClass.map((s) => (
+                  <div
+                    key={s.id}
+                    onClick={() => handleSelectStudentForBill(s)}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: 10,
+                      padding: 12,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.04)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 6, background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <User size={20} color="#0284c7" />
+                      </div>
+                      <div style={{ overflow: 'hidden' }}>
+                        <strong style={{ display: 'block', fontSize: 13, color: '#0f172a', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                          {getStudentFullName(s)}
+                        </strong>
+                        <code style={{ fontSize: 11, color: '#0284c7' }}>{s.studentId}</code>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* ── SECTION C: MASTER SCHEDULE RATES (COMPULSORY & OPTIONALS) ── */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {activeBillingView === 'master_schedule' && (
+        <div className="animate-fade-up">
+          {/* Optional Bills Quick-Add Bar */}
+          <div className="no-print" style={{
+            background: '#f8fafc',
+            border: '1px solid #cbd5e1',
+            borderRadius: 12,
+            padding: '14px 18px',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+            marginBottom: 20
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Sparkles size={18} color="#0284c7" />
+                <h3 style={{ margin: 0, fontSize: 14, fontWeight: 900, color: '#0f3a4b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  Optional Fee Bills Schedule ({selectedSubLevel})
+                </h3>
+                <span style={{ fontSize: 11, background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: 12, fontWeight: 800 }}>
+                  Motivation · Bus · Feeding · Stationery · Pick Up Card
+                </span>
+              </div>
+
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#0369a1' }}>
+                Active Optional Subtotal: <strong>GHS {totalOptionalActive.toFixed(2)}</strong>
+              </div>
+            </div>
+
+            {/* 1-Click Preset Addition Chips */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Quick Presets:</span>
+              {OFFICIAL_OPTIONAL_PRESETS.map((preset) => {
+                const currentItem = optionalBillItems.find(o => o.id === preset.id);
+                const isEnabled = currentItem?.enabled;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => handleAddPresetOptionalBill(preset)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 20,
+                      border: isEnabled ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+                      background: isEnabled ? '#e0f2fe' : '#ffffff',
+                      color: isEnabled ? '#0369a1' : '#334155',
+                      fontSize: 11.5,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      transition: 'all 0.15s ease'
+                    }}
+                    title={preset.description}
+                  >
+                    <span>{preset.icon}</span>
+                    <span>{preset.label}</span>
+                    <span style={{ opacity: 0.8, fontSize: 11 }}>
+                      (GHS {currentItem ? currentItem.amount.toFixed(2) : preset.defaultAmount.toFixed(2)})
+                    </span>
+                    {isEnabled ? ' ✓' : ' ＋'}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
       {/* Grid of Typed Tables */}
       <div className="fee-grid">
@@ -1591,6 +2593,8 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
           </table>
         </div>
       </div>
+    </div>
+  )}
 
       {/* Add New Fee Component Modal */}
       {isAddingFeeModal && (
@@ -1826,7 +2830,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
               borderBottom: '1px solid #bae6fd'
             }}>
               <div style={{ fontSize: 12, fontWeight: 900, color: '#0369a1', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Sparkles size={15} /> Select Optional Bills to Include for {preparingStudentBill.fullName}:
+                <Sparkles size={15} /> Select Optional Bills to Include for {getStudentFullName(preparingStudentBill)}:
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                 {optionalBillItems.map((opt) => {
@@ -1921,7 +2925,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                     {preparingStudentBill.photo || preparingStudentBill.passportPhoto ? (
                       <img
                         src={preparingStudentBill.photo || preparingStudentBill.passportPhoto}
-                        alt={preparingStudentBill.fullName}
+                        alt={getStudentFullName(preparingStudentBill)}
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
                     ) : (
@@ -1967,7 +2971,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Student Name</div>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a', marginTop: 2 }}>{preparingStudentBill.fullName}</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a', marginTop: 2 }}>{getStudentFullName(preparingStudentBill)}</div>
                   
                   <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginTop: 10 }}>Student ID Number</div>
                   <div style={{ fontSize: 13, fontWeight: 900, color: '#1e1b4b', fontFamily: 'monospace' }}>{preparingStudentBill.studentId}</div>
@@ -2241,7 +3245,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                             }}
                           >
                             <div>
-                              <strong style={{ fontSize: 13, color: '#0f172a' }}>{stu.fullName}</strong>
+                              <strong style={{ fontSize: 13, color: '#0f172a' }}>{getStudentFullName(stu)}</strong>
                               <span style={{ fontSize: 11, color: '#0284c7', marginLeft: 8, fontWeight: 700 }}>{stu.level}</span>
                             </div>
                             <code style={{ fontSize: 11, background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>{stu.studentId}</code>
@@ -2262,7 +3266,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                         <CheckCircle2 size={18} color="#166534" />
                         <div>
                           <div style={{ fontWeight: 800, fontSize: 13, color: '#166534' }}>
-                            {(selectedPostingStudent || preparingStudentBill).fullName}
+                            {getStudentFullName(selectedPostingStudent || preparingStudentBill)}
                           </div>
                           <div style={{ fontSize: 11, color: '#15803d' }}>
                             ID: {(selectedPostingStudent || preparingStudentBill).studentId} · Level: {(selectedPostingStudent || preparingStudentBill).level}
@@ -2494,6 +3498,258 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                   <Check size={16} /> Done / Dismiss
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── WHOLE CLASS MULTI-PAGE PRINTING MODAL ── */}
+      {/* Each page is an official bill addressed to each individual student in the selected class */}
+      {isPrintingClassBillsModal && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setIsPrintingClassBillsModal(false); }}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(6px)',
+            zIndex: 99999, overflowY: 'auto', padding: '20px 16px 60px',
+            display: 'flex', justifyContent: 'center', alignItems: 'flex-start'
+          }}
+        >
+          <div style={{
+            width: '100%', maxWidth: 840, background: '#fff', borderRadius: 16,
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)', overflow: 'hidden'
+          }}>
+            {/* Modal Control Header (no-print) */}
+            <div style={{
+              background: '#0f172a', padding: '16px 24px', color: '#fff',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12
+            }} className="no-print">
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Printer size={20} color="#38bdf8" />
+                  <span style={{ fontWeight: 900, fontSize: 16 }}>
+                    Multi-Page Print: Whole Class Bills ({selectedSubLevel})
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
+                  Each page below is addressed to each individual student in {selectedSubLevel} ({includedStudentsForClass.length} individual pages).
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  style={{
+                    padding: '8px 18px', background: '#38bdf8', color: '#0f172a',
+                    border: 'none', borderRadius: 8, fontWeight: 900, fontSize: 13,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                    boxShadow: '0 4px 12px rgba(56,189,248,0.3)'
+                  }}
+                >
+                  <Printer size={16} /> Print All ({includedStudentsForClass.length} Pages)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPrintingClassBillsModal(false)}
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                >
+                  <X size={22} />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Container: maps each student to an addressed .class-bill-page */}
+            <div style={{ background: '#f8fafc', padding: '24px 0' }} className="printable-document">
+              {includedStudentsForClass.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+                  No students currently included for billing in {selectedSubLevel}. Please include students in the roster first.
+                </div>
+              ) : (
+                includedStudentsForClass.map((s, idx) => {
+                  const sFullName = getStudentFullName(s);
+                  const activeOptionals = postIncludeOptional ? optionalBillItems.filter(o => o.enabled) : [];
+                  const sTotal = totalBase + (postIncludeOptional ? totalOptionalActive : 0);
+
+                  return (
+                    <div
+                      key={s.id || s.studentId || idx}
+                      className="class-bill-page official-bill-document"
+                      style={{
+                        background: '#ffffff',
+                        padding: '36px 42px',
+                        boxSizing: 'border-box',
+                        borderBottom: '2px dashed #cbd5e1',
+                        marginBottom: 30,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+                      }}
+                    >
+                      {/* Document Header */}
+                      <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: 16, marginBottom: 20 }} className="receipt-header-box">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }} className="receipt-header-inline">
+                          <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 56, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
+                          <div style={{ textAlign: 'left' }} className="receipt-school-text">
+                            <div style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', letterSpacing: '0.02em', lineHeight: 1.2 }}>
+                              REMALJ CAREWELL INSPIRATIONAL SCHOOL
+                            </div>
+                            <div style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', marginTop: 2 }}>
+                              P.O. BOX 139, BOGOSO · PRESTEA HUNI-VALLEY MUNICIPALITY · GHANA · PHONE: 024 111 2222
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'center', marginTop: 10 }}>
+                          <div style={{ display: 'inline-block', background: '#0f172a', color: '#fff', padding: '3px 18px', borderRadius: 20, fontSize: 11, fontWeight: 900, letterSpacing: '0.05em' }}>
+                            OFFICIAL STUDENT FEE BILL STATEMENT · TERM 1 (2025/2026)
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Student Info Card (Addressed to each individual student) */}
+                      <div style={{
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 10,
+                        padding: 14,
+                        marginBottom: 18,
+                        display: 'grid',
+                        gridTemplateColumns: '80px 1fr 1fr',
+                        gap: 14,
+                        alignItems: 'center'
+                      }}>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{
+                            width: 70, height: 78, borderRadius: 6, border: '1.5px solid #cbd5e1',
+                            background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            overflow: 'hidden', margin: '0 auto'
+                          }}>
+                            {s.photo || s.passportPhoto ? (
+                              <img src={s.photo || s.passportPhoto} alt={sFullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              <User size={36} color="#94a3b8" />
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>STUDENT FULL NAME:</div>
+                          <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{sFullName}</div>
+                          <div style={{ fontSize: 11.5, color: '#475569', marginTop: 2 }}>
+                            Student ID: <code style={{ fontWeight: 800, color: '#0284c7' }}>{s.studentId || s.id}</code>
+                          </div>
+                        </div>
+
+                        <div style={{ fontSize: 12, lineHeight: 1.55, color: '#334155' }}>
+                          <div><strong>Class:</strong> {s.level || selectedSubLevel} ({s.classSection || 'A'})</div>
+                          <div><strong>Guardian:</strong> {s.guardianName || s.guardian || 'Parent/Guardian'}</div>
+                          <div><strong>Date Issued:</strong> {new Date().toLocaleDateString('en-GB')}</div>
+                        </div>
+                      </div>
+
+                      {/* 1. Compulsory Fees Table */}
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 900, color: '#0f3a4b', textTransform: 'uppercase', marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+                          <span>1. Compulsory Term Fees Component</span>
+                          <span>Subtotal: GHS {totalBase.toFixed(2)}</span>
+                        </div>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, border: '1px solid #cbd5e1' }}>
+                          <thead>
+                            <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', textAlign: 'left' }}>
+                              <th style={{ padding: '6px 10px' }}>Fee Line Item</th>
+                              <th style={{ padding: '6px 10px', textAlign: 'right' }}>Amount (GHS)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {baseBillItems.map((item, bIdx) => (
+                              <tr key={bIdx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '5px 10px', fontWeight: 600 }}>{item.details}</td>
+                                <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 700 }}>{Number(item.amount || 0).toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* 2. Optional Fees Table (if enabled) */}
+                      {postIncludeOptional && activeOptionals.length > 0 && (
+                        <div style={{ marginBottom: 14 }}>
+                          <div style={{ fontSize: 12, fontWeight: 900, color: '#0284c7', textTransform: 'uppercase', marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+                            <span>2. Optional Services (Motivation, Bus, Feeding, Stationery, Pick Up Card)</span>
+                            <span>Subtotal: GHS {totalOptionalActive.toFixed(2)}</span>
+                          </div>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, border: '1px solid #bae6fd' }}>
+                            <thead>
+                              <tr style={{ background: '#f0f9ff', borderBottom: '1px solid #bae6fd', textAlign: 'left' }}>
+                                <th style={{ padding: '6px 10px' }}>Optional Item</th>
+                                <th style={{ padding: '6px 10px', textAlign: 'right' }}>Amount (GHS)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {activeOptionals.map((opt) => (
+                                <tr key={opt.id} style={{ borderBottom: '1px solid #f0f9ff' }}>
+                                  <td style={{ padding: '5px 10px', fontWeight: 600, color: '#0369a1' }}>{opt.icon} {opt.details}</td>
+                                  <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 700 }}>{Number(opt.amount || 0).toFixed(2)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Grand Total Due Box */}
+                      <div style={{
+                        background: '#f0fdf4',
+                        border: '2px solid #16a34a',
+                        borderRadius: 8,
+                        padding: '10px 16px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 16
+                      }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 900, color: '#166534', textTransform: 'uppercase' }}>
+                          TOTAL ACADEMIC BILL DUE FOR {sFullName.toUpperCase()}:
+                        </span>
+                        <span style={{ fontSize: 19, fontWeight: 900, color: '#15803d' }}>
+                          GHS {sTotal.toFixed(2)}
+                        </span>
+                      </div>
+
+                      {/* Bank Details */}
+                      <div style={{
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 8,
+                        padding: '10px 14px',
+                        fontSize: 11,
+                        color: '#334155',
+                        marginBottom: 18,
+                        lineHeight: 1.5
+                      }}>
+                        <div><strong>OFFICIAL BANKING PAYMENT DETAILS:</strong></div>
+                        <div>• GCB Bank PLC (Bogoso Branch) · Account No: 7011130001245</div>
+                        <div>• Ecobank Ghana PLC · Account No: 1441002390119</div>
+                        <div>• MTN Mobile Money: 298410 (REMALJ Carewell School) · Ref: <code>{s.studentId || s.id}</code></div>
+                      </div>
+
+                      {/* Signatures */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 8 }}>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ borderBottom: '1px solid #0f172a', width: 170, marginBottom: 4 }}></div>
+                          <div style={{ fontWeight: 800, fontSize: 10.5, color: '#0f172a' }}>Headmaster / Principal</div>
+                        </div>
+                        <div style={{ textAlign: 'center', fontSize: 10, color: '#64748b' }}>
+                          Addressed to {sFullName} · Page {idx + 1} of {includedStudentsForClass.length}
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ borderBottom: '1px solid #0f172a', width: 170, marginBottom: 4 }}></div>
+                          <div style={{ fontWeight: 800, fontSize: 10.5, color: '#0f172a' }}>Bursar / Accountant Signature</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

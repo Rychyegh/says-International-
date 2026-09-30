@@ -13,10 +13,13 @@ function createDataSignature(data) {
   if (!data) return '';
   const appsSig = (data.applications || []).map(a => `${a.id}_${a.learner}_${a.level}_${a.status}_${a.updatedAt || a.submittedAt}`).join('|');
   const stuSig = (data.onboardedStudents || []).map(s => `${s.id}_${s.fullName}_${s.level}_${s.updatedAt}`).join('|');
-  const feeSig = (data.studentFees || []).map(f => `${f.id}_${f.amountPaid}_${f.status}_${f.updatedAt}`).join('|');
+  const feeSig = (data.studentFees || []).map(f => `${f.id}_${f.amountPaid || f.paidAmount}_${f.status}_${f.updatedAt}`).join('|');
   const pvSig = (data.paymentVouchers || []).map(p => `${p.id}_${p.status}_${p.updatedAt}`).join('|');
   const notifSig = (data.pvNotifications || []).map(n => `${n.id}_${n.read}`).join('|');
-  return `${appsSig}#${stuSig}#${feeSig}#${pvSig}#${notifSig}`;
+  const staffSig = (data.teacherDirectory || []).map(t => `${t.id || t.staffId}_${t.name}_${t.subject}_${t.classAssigned}_${t.status}`).join('|');
+  const classSig = (data.classLevels || []).join(',');
+  const subSig = (data.subjects || []).join(',');
+  return `${appsSig}#${stuSig}#${feeSig}#${pvSig}#${notifSig}#${staffSig}#${classSig}#${subSig}`;
 }
 
 export const cloudSync = {
@@ -61,6 +64,8 @@ export const cloudSync = {
           examRegistrations: data.examRegistrations || [],
           semesterRegistrations: data.semesterRegistrations || [],
           academicSettings: data.academicSettings,
+          classLevels: data.classLevels || [],
+          subjects: data.subjects || [],
           lastSyncedAt: new Date().toISOString(),
           syncedTimestamp: Date.now()
         }

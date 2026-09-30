@@ -155,6 +155,7 @@ function AppRoutes() {
             if (role) {
               setAdminRole(role);
               localStorage.setItem('says_admin_role', role);
+              window.dispatchEvent(new Event('says_admin_role_changed'));
             }
             setAuthed((prev) => {
               const next = { ...prev, [portalKey]: true };
@@ -174,6 +175,7 @@ function AppRoutes() {
         activePortal={activePortal}
         isAuthed={isAuthed}
         onSignOut={handleSignOut}
+        adminRole={adminRole}
       />
 
       {logoutNotice && (

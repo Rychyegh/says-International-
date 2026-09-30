@@ -4,10 +4,10 @@ import {
   TrendingUp, School, CreditCard, Search, Trash2, Edit,
   CheckCircle2, X, Save, ShieldCheck, ShieldAlert, AlertTriangle, Mail, Phone, MapPin,
   Printer, Download, Eye, EyeOff, Copy, Plus, FileCheck, UserCheck, Radio,
-  ArrowUpDown, ArrowUp, ArrowDown, ArrowRight, BellRing
+  ArrowUpDown, ArrowUp, ArrowDown, ArrowRight, BellRing, Filter
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
-import { usePortalData } from '../data/PortalStore';
+import { usePortalData, formatClassToBasic } from '../data/PortalStore';
 import OfficialApplicationForm from '../components/Onboarding/OfficialApplicationForm';
 import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeStructure';
 import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
@@ -81,6 +81,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   // Application Forms state
   const [selectedApp, setSelectedApp] = useState(null);
   const [isCreatingApp, setIsCreatingApp] = useState(false);
+  const [appSearchQuery, setAppSearchQuery] = useState('');
+  const [appClassFilter, setAppClassFilter] = useState('All');
+  const [appYearFilter, setAppYearFilter] = useState('All');
+  const [appTermFilter, setAppTermFilter] = useState('All');
 
   // Transcripts & Class Results state
   const [transcriptSearch, setTranscriptSearch] = useState('');
@@ -88,7 +92,22 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [transcriptTermFilter, setTranscriptTermFilter] = useState('Term 1 · 2026');
   const [viewingTranscriptStudent, setViewingTranscriptStudent] = useState(null);
   // Admin Role State
-  const [adminRole, setAdminRole] = useState(initialAdminRole || 'head_admin'); // 'head_admin' | 'sub_admin'
+  const [adminRole, setAdminRole] = useState(() => initialAdminRole || (typeof window !== 'undefined' ? localStorage.getItem('says_admin_role') : null) || 'head_admin'); // 'head_admin' | 'sub_admin'
+
+  useEffect(() => {
+    if (initialAdminRole) {
+      setAdminRole(initialAdminRole);
+    }
+  }, [initialAdminRole]);
+
+  useEffect(() => {
+    const handleRoleEvent = () => {
+      const stored = localStorage.getItem('says_admin_role');
+      if (stored) setAdminRole(stored);
+    };
+    window.addEventListener('says_admin_role_changed', handleRoleEvent);
+    return () => window.removeEventListener('says_admin_role_changed', handleRoleEvent);
+  }, []);
   const [declineResultModal, setDeclineResultModal] = useState(null);
   const [declineInputNote, setDeclineInputNote] = useState('');
 
@@ -101,14 +120,27 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [credentialSearchQuery, setCredentialSearchQuery] = useState('');
 
   // Class Teacher Dedicated Passcode Credentials State
-  const [issuedCTCredentials, setIssuedCTCredentials] = useState([
-    { id: 'ct-1', teacherName: 'Mr. Samuel Amponsah', classAssigned: 'Grade 4 Section B', staffId: 'CT-2026-001', passcode: '9988', phone: '024 900 1100', issuedAt: '2026-09-01' },
-    { id: 'ct-2', teacherName: 'Prof. Mensah', classAssigned: 'Primary 5A', staffId: 'CT-2026-002', passcode: '7744', phone: '024 900 1101', issuedAt: '2026-09-01' },
-  ]);
+  const [issuedCTCredentials, setIssuedCTCredentials] = useState(() => {
+    try {
+      const saved = localStorage.getItem('says_issued_ct_credentials');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [
+      { id: 'ct-1', teacherName: 'Mr. Samuel Amponsah', classAssigned: 'Basic 4', staffId: 'CT-2026-001', passcode: '9988', phone: '024 900 1100', issuedAt: '2026-09-01' },
+      { id: 'ct-2', teacherName: 'Prof. Kwabena Mensah', classAssigned: 'Basic 7', staffId: 'CT-2026-002', passcode: '7744', phone: '024 900 1101', issuedAt: '2026-09-01' },
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('says_issued_ct_credentials', JSON.stringify(issuedCTCredentials));
+    } catch (e) {}
+  }, [issuedCTCredentials]);
+
   const [isIssuingCTModal, setIsIssuingCTModal] = useState(false);
   const [ctForm, setCtForm] = useState({
     teacherName: 'Mr. Samuel Amponsah',
-    classAssigned: 'Grade 4 Section B',
+    classAssigned: 'Basic 4',
     staffId: 'CT-2026-003',
     passcode: '9988',
     phone: '024 900 1100'
@@ -255,7 +287,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const defaultClassLevels = [
     'Creche', 'Nursery 1', 'Nursery 2', 'KG 1', 'KG 2',
     'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6',
-    'Basic 7', 'Basic 8', 'Basic 9'
+    'Basic 7', 'Basic 8', 'Basic 9',
+    'SHS 1', 'SHS 2', 'SHS 3'
   ];
   const LEVEL_OPTIONS = Array.from(new Set([...defaultClassLevels, ...(classLevels || [])]));
 
@@ -435,7 +468,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     fullName: '',
     dob: '',
     gender: 'Male',
-    level: 'JHS 1',
+    level: 'Basic 1',
     classSection: 'A',
     guardianName: '',
     guardianEmail: '',
@@ -454,7 +487,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       fullName: '',
       dob: '',
       gender: 'Male',
-      level: 'JHS 1',
+      level: 'Basic 1',
       classSection: 'A',
       guardianName: '',
       guardianEmail: '',
@@ -468,11 +501,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   };
 
   const handleEnrollApplicant = (app) => {
-    const learnerName = app.learner || `${app.firstName || ''} ${app.surname || ''}`.trim() || 'Student';
+    const learnerName = (app.firstName || app.surname || app.otherNames)
+      ? `${app.firstName || ''} ${app.otherNames ? app.otherNames + ' ' : ''}${app.surname || ''}`.replace(/\s+/g, ' ').trim()
+      : (app.learner || app.learner_name || app.fullName || 'Student');
     const guardianName = app.guardian || app.fatherName || app.motherName || 'Parent';
     const guardianEmail = app.email || app.fatherEmail || 'parent@remaljcarewell.edu.gh';
     const guardianPhone = app.phone || app.fatherPhone || app.motherPhone || '';
-    const level = app.level || app.applyingClass || 'JHS 1';
+    const level = formatClassToBasic(app.level || app.applyingClass || 'Basic 1');
     const homeAddress = app.residentialAddress || app.address || 'Bogoso';
 
     onboardStudent({
@@ -581,6 +616,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
   const filteredStudents = useMemo(() => {
     return (onboardedStudents || [])
+      .map((s) => ({
+        ...s,
+        level: formatClassToBasic(s.level)
+      }))
       .filter((s) =>
         s.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -596,15 +635,43 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       });
   }, [onboardedStudents, searchQuery, studentSortCol, studentSortDir]);
 
-  const filteredApplications = (applications || []).filter((a) => {
-    const name = a.learner || `${a.firstName || ''} ${a.surname || ''}`;
-    const gName = a.guardian || a.fatherName || a.motherName || '';
-    return (
-      name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      gName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (a.level || a.applyingClass || '').toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  });
+  const appUniqueClasses = useMemo(() => {
+    const defaultClasses = [
+      'Creche', 'Nursery 1', 'Nursery 2', 'Kindergarten 1', 'Kindergarten 2',
+      'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6', 'Basic 7', 'Basic 8', 'Basic 9'
+    ];
+    const classes = (applications || []).map(a => formatClassToBasic(a.level || a.applyingClass || '')).filter(Boolean);
+    return ['All', ...Array.from(new Set([...defaultClasses, ...classes]))];
+  }, [applications]);
+
+  const appUniqueYears = useMemo(() => {
+    const defaultYears = ['2024/2025', '2025/2026', '2026/2027', '2027/2028'];
+    const years = (applications || []).map(a => a.academicYear).filter(Boolean);
+    return ['All', ...Array.from(new Set([...defaultYears, ...years]))];
+  }, [applications]);
+
+  const appUniqueTerms = ['All', 'Term 1', 'Term 2', 'Term 3'];
+
+  const filteredApplications = useMemo(() => {
+    return (applications || []).filter((a) => {
+      const name = (a.firstName || a.surname || a.otherNames)
+        ? `${a.firstName || ''} ${a.otherNames ? a.otherNames + ' ' : ''}${a.surname || ''}`.replace(/\s+/g, ' ').trim()
+        : (a.learner || a.learner_name || a.fullName || '');
+      const gName = a.guardian || a.fatherName || a.motherName || '';
+      const q = (appSearchQuery || searchQuery || '').toLowerCase();
+      const matchesSearch = !q ||
+        name.toLowerCase().includes(q) ||
+        gName.toLowerCase().includes(q) ||
+        (a.level || a.applyingClass || '').toLowerCase().includes(q);
+
+      const appClass = formatClassToBasic(a.level || a.applyingClass || '');
+      const matchesClass = appClassFilter === 'All' || appClass.toLowerCase() === appClassFilter.toLowerCase();
+      const matchesYear = appYearFilter === 'All' || (a.academicYear || '2025/2026') === appYearFilter;
+      const matchesTerm = appTermFilter === 'All' || (a.academicTerm || a.term || 'Term 1') === appTermFilter;
+
+      return matchesSearch && matchesClass && matchesYear && matchesTerm;
+    });
+  }, [applications, appSearchQuery, searchQuery, appClassFilter, appYearFilter, appTermFilter]);
 
   const totalStudents = (onboardedStudents || []).length;
   const activeStudents = (onboardedStudents || []).filter((s) => s.status === 'Active').length;
@@ -620,7 +687,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
   const handleEdit = (student) => {
     setEditingId(student.id);
-    setEditingStudent({ ...student });
+    setEditingStudent({ ...student, level: formatClassToBasic(student.level) });
   };
 
   const handleSaveEdit = () => {
@@ -882,12 +949,16 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
           {successMsg && (
             <div style={{
-              padding: '12px 18px', background: '#dcfce7', border: '1px solid #86efac', color: '#166534',
-              borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: 13, marginBottom: 16,
-              display: 'flex', alignItems: 'center', gap: 8
+              position: 'fixed', top: 76, right: 24, zIndex: 99999,
+              padding: '14px 22px', background: '#14532d', color: '#f0fdf4',
+              borderRadius: 12, fontWeight: 800, fontSize: 13.5,
+              display: 'flex', alignItems: 'center', gap: 10,
+              boxShadow: '0 10px 25px rgba(0,0,0,0.25)',
+              border: '1px solid #22c55e',
+              animation: 'fadeIn 0.25s ease'
             }}>
-              <CheckCircle2 size={16} />
-              {successMsg}
+              <CheckCircle2 size={18} color="#86efac" />
+              <span>{successMsg}</span>
             </div>
           )}
 
@@ -1455,7 +1526,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       <tr key={s.id}>
                         <td><code>{s.studentId}</code></td>
                         <td><strong>{s.fullName}</strong></td>
-                        <td>{s.level} ({s.classSection || 'A'})</td>
+                        <td>{formatClassToBasic(s.level)} ({s.classSection || 'A'})</td>
                         <td>
                           <div>{s.guardianName}</div>
                           <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{s.guardianEmail}</div>
@@ -1576,15 +1647,71 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 </div>
               ) : (
                 <>
-                  <div style={{ position: 'relative', marginBottom: 16 }}>
-                    <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--gray-400)' }} />
-                    <input
-                      type="text"
-                      placeholder="Search applications by learner name, level, or guardian..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      style={{ width: '100%', padding: '10px 10px 10px 36px', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-300)', fontSize: 13 }}
-                    />
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 12,
+                    padding: 12,
+                    background: '#f8fafc',
+                    borderRadius: 10,
+                    border: '1px solid #e2e8f0',
+                    marginBottom: 16,
+                    alignItems: 'center'
+                  }}>
+                    {/* Search Input */}
+                    <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 180 }}>
+                      <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--gray-400)' }} />
+                      <input
+                        type="text"
+                        placeholder="Search applications..."
+                        value={appSearchQuery}
+                        onChange={(e) => setAppSearchQuery(e.target.value)}
+                        style={{ width: '100%', padding: '7px 10px 7px 32px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13 }}
+                      />
+                    </div>
+
+                    {/* Class Filter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Filter size={14} style={{ color: '#64748b' }} />
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Class:</span>
+                      <select
+                        value={appClassFilter}
+                        onChange={(e) => setAppClassFilter(e.target.value)}
+                        style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 12, background: '#fff' }}
+                      >
+                        {appUniqueClasses.map((cls) => (
+                          <option key={cls} value={cls}>{cls}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Academic Year Filter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Year:</span>
+                      <select
+                        value={appYearFilter}
+                        onChange={(e) => setAppYearFilter(e.target.value)}
+                        style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 12, background: '#fff' }}
+                      >
+                        {appUniqueYears.map((yr) => (
+                          <option key={yr} value={yr}>{yr === 'All' ? 'All Years' : yr}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Academic Term Filter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Term:</span>
+                      <select
+                        value={appTermFilter}
+                        onChange={(e) => setAppTermFilter(e.target.value)}
+                        style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 12, background: '#fff' }}
+                      >
+                        {appUniqueTerms.map((t) => (
+                          <option key={t} value={t}>{t === 'All' ? 'All Terms' : t}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   <div className="panel">
@@ -1614,7 +1741,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                                   <strong>{learnerName}</strong>
                                   <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>Submitted: {app.submittedAt || 'Online'}</div>
                                 </td>
-                                <td><span style={{ fontWeight: 700 }}>{app.applyingClass || app.level || 'JHS 1'}</span></td>
+                                <td>
+                                  <span style={{ fontWeight: 700 }}>{formatClassToBasic(app.applyingClass || app.level || 'Basic 1')}</span>
+                                  {(app.academicYear || app.academicTerm) && (
+                                    <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 2, fontWeight: 500 }}>
+                                      {[app.academicYear, app.academicTerm].filter(Boolean).join(' • ')}
+                                    </div>
+                                  )}
+                                </td>
                                 <td>
                                   <div>{guardianName}</div>
                                   <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{app.email || app.fatherEmail || app.phone}</div>
@@ -2451,12 +2585,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                           onChange={(e) => setCtForm(prev => ({ ...prev, classAssigned: e.target.value }))}
                           style={{ appearance: 'auto' }}
                         >
-                          <option value="Grade 4 Section B">Grade 4 Section B</option>
-                          <option value="Primary 5A">Primary 5A</option>
-                          <option value="JHS 1A">JHS 1A</option>
-                          <option value="JHS 2B">JHS 2B</option>
-                          <option value="JHS 3A">JHS 3A</option>
-                          <option value="SHS 1 Science">SHS 1 Science</option>
+                          {LEVEL_OPTIONS.map((lvl) => (
+                            <option key={lvl} value={lvl}>{lvl}</option>
+                          ))}
                         </select>
                       </div>
 
@@ -2758,13 +2889,15 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
                     <label>
                       <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Primary Subject</span>
-                      <input
-                        type="text"
-                        placeholder="e.g. Pure Mathematics"
+                      <select
                         value={newStaffForm.subject}
                         onChange={(e) => setNewStaffForm({ ...newStaffForm, subject: e.target.value })}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
-                      />
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, appearance: 'auto' }}
+                      >
+                        {SUBJECT_OPTIONS.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
                     </label>
                   </div>
 
@@ -2870,34 +3003,46 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <label>
                       <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Designation / Role</span>
-                      <input
-                        type="text"
-                        value={editingStaff.role || ''}
+                      <select
+                        value={editingStaff.role || 'Subject Teacher'}
                         onChange={(e) => setEditingStaff({ ...editingStaff, role: e.target.value })}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
-                      />
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, appearance: 'auto' }}
+                      >
+                        <option>Subject Teacher</option>
+                        <option>Form Master / Class Tutor</option>
+                        <option>Department Head</option>
+                        <option>Senior Tutor</option>
+                        <option>ICT Administrator</option>
+                      </select>
                     </label>
 
                     <label>
                       <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Primary Subject</span>
-                      <input
-                        type="text"
-                        value={editingStaff.subject || ''}
+                      <select
+                        value={editingStaff.subject || 'Pure Mathematics'}
                         onChange={(e) => setEditingStaff({ ...editingStaff, subject: e.target.value })}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
-                      />
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, appearance: 'auto' }}
+                      >
+                        {SUBJECT_OPTIONS.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
                     </label>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <label>
                       <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Assigned Class</span>
-                      <input
-                        type="text"
-                        value={editingStaff.classAssigned || ''}
+                      <select
+                        value={editingStaff.classAssigned || 'Basic 1'}
                         onChange={(e) => setEditingStaff({ ...editingStaff, classAssigned: e.target.value })}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
-                      />
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, appearance: 'auto' }}
+                      >
+                        {LEVEL_OPTIONS.map((l) => (
+                          <option key={l} value={l}>{l}</option>
+                        ))}
+                        <option value="All Levels">All Levels</option>
+                      </select>
                     </label>
 
                     <label>

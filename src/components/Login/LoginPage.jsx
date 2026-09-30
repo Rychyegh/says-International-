@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, UserCheck, Phone, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
-import { api, setAuthToken, setAuthUser } from '../../services/api';
+import { api, setAuthToken, setAuthUser, getAuthUser } from '../../services/api';
 import { usePortalData } from '../../data/PortalStore';
 import './Login.css';
 
@@ -297,12 +296,26 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     }
 
     if (adminPin.trim() === '8888') {
+      const currentAuth = getAuthUser() || {};
+      setAuthUser({
+        ...currentAuth,
+        role: 'head_admin',
+        adminRole: 'head_admin',
+        fullName: currentAuth.fullName && currentAuth.fullName !== 'School Administration Office' ? currentAuth.fullName : 'Head Administrator',
+      });
       setLoading(true);
       setSuccess(true);
       setTimeout(() => {
         onLoginSuccess('head_admin');
       }, 900);
     } else if (adminPin.trim() === '1234') {
+      const currentAuth = getAuthUser() || {};
+      setAuthUser({
+        ...currentAuth,
+        role: 'sub_admin',
+        adminRole: 'sub_admin',
+        fullName: currentAuth.fullName && currentAuth.fullName !== 'School Administration Office' ? currentAuth.fullName : 'Sub-Admin Officer',
+      });
       setLoading(true);
       setSuccess(true);
       setTimeout(() => {

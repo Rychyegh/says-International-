@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { CheckCircle2, FileText, Eye, Edit3, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, Trash2 } from 'lucide-react';
+import { CheckCircle2, FileText, Eye, Edit3, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, Trash2, Calendar, Clock } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
 import OfficialApplicationForm from './OfficialApplicationForm';
 import BulkStudentUpload from './BulkStudentUpload';
@@ -13,7 +13,10 @@ export function LearnerOnboarding() {
   const [onboardMode, setOnboardMode] = useState('single'); // 'single' | 'bulk'
 
   const handleOfficialSubmit = (formData) => {
-    const learnerName = `${formData.firstName || ''} ${formData.surname || ''}`.trim() || formData.learner || 'Applicant';
+    const otherNames = (formData.otherNames || '').trim();
+    const learnerName = (formData.firstName || formData.surname || otherNames)
+      ? `${formData.firstName || ''} ${otherNames ? otherNames + ' ' : ''}${formData.surname || ''}`.replace(/\s+/g, ' ').trim()
+      : (formData.learner || formData.fullName || 'Applicant');
     const guardianName = formData.fatherName || formData.motherName || formData.guardian || 'Parent/Guardian';
     const contactEmail = formData.fatherEmail || formData.email || 'parent@example.com';
     const contactPhone = formData.fatherPhone || formData.motherPhone || formData.phone || '';
@@ -21,11 +24,19 @@ export function LearnerOnboarding() {
     const applicationRecord = {
       ...formData,
       learner: learnerName,
+      fullName: learnerName,
+      firstName: formData.firstName || '',
+      otherNames,
+      surname: formData.surname || '',
       guardian: guardianName,
       email: contactEmail,
       phone: contactPhone,
-      level: formData.applyingClass || formData.level || 'Basic 7',
-      classSection: formData.classSection || formData.subClass || '1A',
+      level: formData.applyingClass || formData.level || 'Basic 1',
+      applyingClass: formData.applyingClass || formData.level || 'Basic 1',
+      academicYear: formData.academicYear || '2025/2026',
+      academicTerm: formData.academicTerm || formData.term || 'Term 1',
+      term: formData.academicTerm || formData.term || 'Term 1',
+      classSection: formData.classSection || formData.subClass || 'A',
     };
 
     submitApplication(applicationRecord);
@@ -107,6 +118,8 @@ export function AdmissionsRegister() {
   // Filters & Sorting state
   const [searchTerm, setSearchTerm] = useState('');
   const [classFilter, setClassFilter] = useState('All');
+  const [yearFilter, setYearFilter] = useState('All');
+  const [termFilter, setTermFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [enrolmentFilter, setEnrolmentFilter] = useState('All');
   
@@ -131,7 +144,13 @@ export function AdmissionsRegister() {
         const matchesSearch = name.includes(searchTerm.toLowerCase()) || guardian.includes(searchTerm.toLowerCase());
         
         const appClass = app.level || app.applyingClass || '';
-        const matchesClass = classFilter === 'All' || appClass === classFilter;
+        const matchesClass = classFilter === 'All' || appClass.toLowerCase().trim() === classFilter.toLowerCase().trim();
+
+        const appYear = app.academicYear || '2025/2026';
+        const matchesYear = yearFilter === 'All' || appYear === yearFilter;
+
+        const appTerm = app.academicTerm || app.term || 'Term 1';
+        const matchesTerm = termFilter === 'All' || appTerm.toLowerCase().trim() === termFilter.toLowerCase().trim();
         
         const appStatus = app.status || 'Submitted';
         const matchesStatus = statusFilter === 'All' || appStatus === statusFilter;
@@ -139,7 +158,7 @@ export function AdmissionsRegister() {
         const appEnrolment = app.residenceType || app.enrolmentType || 'Day';
         const matchesEnrolment = enrolmentFilter === 'All' || appEnrolment === enrolmentFilter;
 
-        return matchesSearch && matchesClass && matchesStatus && matchesEnrolment;
+        return matchesSearch && matchesClass && matchesYear && matchesTerm && matchesStatus && matchesEnrolment;
       })
       .sort((a, b) => {
         let valA = '';
@@ -169,12 +188,24 @@ export function AdmissionsRegister() {
         if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
         return 0;
       });
-  }, [applications, searchTerm, classFilter, statusFilter, enrolmentFilter, sortColumn, sortDirection]);
+  }, [applications, searchTerm, classFilter, yearFilter, termFilter, statusFilter, enrolmentFilter, sortColumn, sortDirection]);
 
   const uniqueClasses = useMemo(() => {
-    const set = new Set(applications.map(a => a.level || a.applyingClass).filter(Boolean));
-    return ['All', ...Array.from(set)];
+    const defaultClasses = [
+      'Creche', 'Nursery 1', 'Nursery 2', 'Kindergarten 1', 'Kindergarten 2',
+      'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6', 'Basic 7', 'Basic 8', 'Basic 9'
+    ];
+    const appClasses = applications.map(a => a.level || a.applyingClass).filter(Boolean);
+    return ['All', ...Array.from(new Set([...defaultClasses, ...appClasses]))];
   }, [applications]);
+
+  const uniqueYears = useMemo(() => {
+    const defaultYears = ['2024/2025', '2025/2026', '2026/2027', '2027/2028'];
+    const appYears = applications.map(a => a.academicYear).filter(Boolean);
+    return ['All', ...Array.from(new Set([...defaultYears, ...appYears]))];
+  }, [applications]);
+
+  const uniqueTerms = ['All', 'Term 1', 'Term 2', 'Term 3'];
 
   const renderSortIcon = (columnKey) => {
     if (sortColumn !== columnKey) {
@@ -276,6 +307,34 @@ export function AdmissionsRegister() {
               >
                 {uniqueClasses.map((cls) => (
                   <option key={cls} value={cls}>{cls}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Academic Year Filter */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Year:</span>
+              <select
+                value={yearFilter}
+                onChange={(e) => setYearFilter(e.target.value)}
+                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#fff' }}
+              >
+                {uniqueYears.map((yr) => (
+                  <option key={yr} value={yr}>{yr === 'All' ? 'All Years' : yr}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Academic Term Filter */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Term:</span>
+              <select
+                value={termFilter}
+                onChange={(e) => setTermFilter(e.target.value)}
+                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#fff' }}
+              >
+                {uniqueTerms.map((t) => (
+                  <option key={t} value={t}>{t === 'All' ? 'All Terms' : t}</option>
                 ))}
               </select>
             </div>
@@ -413,7 +472,12 @@ export function AdmissionsRegister() {
                           </div>
                         </td>
                         <td style={{ padding: '12px 14px', fontWeight: 700, color: '#1e293b', verticalAlign: 'middle' }}>
-                          {item.level || item.applyingClass || 'Basic 1'}
+                          <div>{item.level || item.applyingClass || 'Basic 1'}</div>
+                          {(item.academicYear || item.academicTerm) && (
+                            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 500, marginTop: 2 }}>
+                              {[item.academicYear, item.academicTerm].filter(Boolean).join(' • ')}
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: '12px 14px', verticalAlign: 'middle' }}>
                           <div style={{ fontWeight: 600, color: '#334155' }}>{guardianName}</div>

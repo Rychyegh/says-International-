@@ -30,6 +30,28 @@ function mergeByKey(arrA = [], arrB = [], keyFn) {
   return Array.from(map.values());
 }
 
+export function formatClassToBasic(level) {
+  if (!level) return '';
+  const str = String(level).trim();
+  // Check Grade 1 to 9 (e.g. "Grade 1", "Grade 4", "Grade 7 (JHS 1)")
+  const gradeMatch = str.match(/grade\s*([1-9])/i);
+  if (gradeMatch) return `Basic ${gradeMatch[1]}`;
+  // Check JHS 1 to 3 (e.g. "JHS 1", "JHS 2", "JHS 3", "J.H.S 1")
+  const jhsMatch = str.match(/j\.?h\.?s\.?\s*([1-3])/i);
+  if (jhsMatch) {
+    const num = parseInt(jhsMatch[1], 10);
+    return `Basic ${num + 6}`; // JHS 1 -> Basic 7, JHS 2 -> Basic 8, JHS 3 -> Basic 9
+  }
+  // Check standalone "JHS"
+  if (/^j\.?h\.?s\.?$/i.test(str)) {
+    return 'Basic 7';
+  }
+  // Check Primary 1 to 6
+  const primMatch = str.match(/primary\s*([1-6])/i);
+  if (primMatch) return `Basic ${primMatch[1]}`;
+  return str;
+}
+
 export function deduplicateStudents(students = []) {
   if (!Array.isArray(students)) return [];
   const result = [];
@@ -66,7 +88,10 @@ export function deduplicateStudents(students = []) {
     });
 
     if (existingIndex === -1) {
-      result.push({ ...s });
+      result.push({
+        ...s,
+        level: formatClassToBasic(s.level || s.class_level || s.classLevel)
+      });
     } else {
       const prev = result[existingIndex];
       const isPrevOfficialId = /REMALJ-\d{4}-\d{3}$/i.test(prev.studentId || '');
@@ -80,9 +105,10 @@ export function deduplicateStudents(students = []) {
         id: prev.id || s.id,
         studentId: preferredId,
         fullName: s.fullName || prev.fullName || s.name || prev.name,
+        otherNames: s.otherNames || prev.otherNames || '',
         dob: s.dob || prev.dob,
         gender: s.gender || prev.gender,
-        level: s.level || prev.level || s.class_level || prev.class_level,
+        level: formatClassToBasic(s.level || prev.level || s.class_level || prev.class_level),
         classSection: s.classSection || prev.classSection || s.class_section || prev.class_section || 'A',
         guardianName: (s.guardianName && s.guardianName !== 'Parent/Guardian') ? s.guardianName : (prev.guardianName || s.guardianName || 'Parent/Guardian'),
         guardianEmail: s.guardianEmail || prev.guardianEmail,
@@ -127,6 +153,111 @@ export function deduplicateFees(fees = []) {
   return Array.from(map.values());
 }
 
+export function isDeepEqual(a, b) {
+  if (a === b) return true;
+  if (a === null || a === undefined || b === null || b === undefined) return a === b;
+  if (typeof a !== 'object' || typeof b !== 'object') return a === b;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    if (a.length !== b.length) return false;
+  }
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+export const DEFAULT_CLASS_LEVELS = [
+  'Creche', 'Nursery 1', 'Nursery 2', 'KG 1', 'KG 2',
+  'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6',
+  'Basic 7', 'Basic 8', 'Basic 9',
+  'SHS 1', 'SHS 2', 'SHS 3'
+];
+
+export const DEFAULT_SUBJECTS = [
+  'Pure Mathematics', 'Mathematics', 'English Language', 'Integrated Science',
+  'Social Studies', 'ICT / Computing', 'French', 'Religious & Moral Education',
+  'Physics', 'Chemistry', 'Biology', 'Literature in English'
+];
+
+export const DEFAULT_TEACHER_DIRECTORY = [
+  {
+    id: 'stf-1',
+    staffId: 'STF-2026-001',
+    name: 'Joseph Asamoah Arthur',
+    role: 'Form Master / Senior Tutor',
+    subject: 'Pure Mathematics',
+    classAssigned: 'Basic 4',
+    email: 'j.arthur@remaljcarewell.edu.gh',
+    phone: '024 900 1101',
+    status: 'Active',
+    photo: '👨‍🏫',
+    joinedDate: '2024-01-15'
+  },
+  {
+    id: 'stf-2',
+    staffId: 'STF-2026-002',
+    name: 'Prof. Kwabena Mensah',
+    role: 'Department Head',
+    subject: 'Science / Physics',
+    classAssigned: 'Basic 7',
+    email: 'k.mensah@remaljcarewell.edu.gh',
+    phone: '024 900 1102',
+    status: 'Active',
+    photo: '👨‍🏫',
+    joinedDate: '2023-09-01'
+  },
+  {
+    id: 'stf-3',
+    staffId: 'STF-2026-003',
+    name: 'Mr. Samuel Amponsah',
+    role: 'Subject Teacher',
+    subject: 'ICT / Computing',
+    classAssigned: 'Basic 8',
+    email: 's.amponsah@remaljcarewell.edu.gh',
+    phone: '024 900 1100',
+    status: 'Active',
+    photo: '👨‍🏫',
+    joinedDate: '2024-02-10'
+  },
+  {
+    id: 'stf-4',
+    staffId: 'STF-2026-004',
+    name: 'Mrs. Abena Sarfo',
+    role: 'Form Master / Class Tutor',
+    subject: 'English Language',
+    classAssigned: 'Basic 2',
+    email: 'a.sarfo@remaljcarewell.edu.gh',
+    phone: '024 900 1104',
+    status: 'Active',
+    photo: '👩‍🏫',
+    joinedDate: '2024-03-01'
+  },
+  {
+    id: 'stf-5',
+    staffId: 'STF-2026-005',
+    name: 'Mr. Emmanuel Darko',
+    role: 'Subject Teacher',
+    subject: 'Social Studies',
+    classAssigned: 'Basic 5',
+    email: 'e.darko@remaljcarewell.edu.gh',
+    phone: '024 900 1105',
+    status: 'Active',
+    photo: '👨‍🏫',
+    joinedDate: '2024-05-15'
+  },
+  {
+    id: 'stf-6',
+    staffId: 'STF-2026-006',
+    name: 'Madam Grace Anim-Ansah',
+    role: 'Subject Teacher',
+    subject: 'French',
+    classAssigned: 'Basic 6',
+    email: 'g.anim@remaljcarewell.edu.gh',
+    phone: '024 900 1106',
+    status: 'Active',
+    photo: '👩‍🏫',
+    joinedDate: '2023-11-20'
+  }
+];
+
 const INITIAL_DATA = {
   timetable: [],
   results: [],
@@ -152,7 +283,9 @@ const INITIAL_DATA = {
   },
   securityAlerts: [],
   onboardedStudents: [],
-  teacherDirectory: [],
+  teacherDirectory: DEFAULT_TEACHER_DIRECTORY,
+  classLevels: DEFAULT_CLASS_LEVELS,
+  subjects: DEFAULT_SUBJECTS,
   studentFees: [],
   accountantMessages: [],
   busRoutes: [],
@@ -188,6 +321,9 @@ function readData() {
     return {
       ...INITIAL_DATA,
       ...parsed,
+      teacherDirectory: Array.isArray(parsed.teacherDirectory) && parsed.teacherDirectory.length > 0 ? parsed.teacherDirectory : DEFAULT_TEACHER_DIRECTORY,
+      classLevels: Array.isArray(parsed.classLevels) && parsed.classLevels.length > 0 ? parsed.classLevels : DEFAULT_CLASS_LEVELS,
+      subjects: Array.isArray(parsed.subjects) && parsed.subjects.length > 0 ? parsed.subjects : DEFAULT_SUBJECTS,
       profiles: {
         ...INITIAL_DATA.profiles,
         ...(parsed.profiles || {})
@@ -271,81 +407,92 @@ export function PortalDataProvider({ children }) {
     };
   }, []);
 
+  const isRefreshingRef = useRef(false);
+
   // Sync strictly with live backend API endpoints and Universal Cloud Sync Hub on mount & intervals
+  // Uses concurrent Promise.allSettled and atomic deep equality diffing to eliminate UI glitching/flicker
   const refreshBackendData = useCallback(async () => {
+    if (isRefreshingRef.current) return;
+    isRefreshingRef.current = true;
+
     try {
-      // 0. Pull from Universal Cloud Sync Hub (Cross-Device Real-Time Sync)
-      try {
-        const cloudData = await cloudSync.pullLatestData();
-        if (cloudData && typeof cloudData === 'object') {
-          setData(current => {
-            const mergedStudents = deduplicateStudents([...(current.onboardedStudents || []), ...(cloudData.onboardedStudents || [])]);
-            const mergedApps = mergeByKey(current.applications || [], cloudData.applications || [], a => a.id || a.learner);
-            const mergedFees = deduplicateFees(mergeByKey(current.studentFees || [], cloudData.studentFees || [], f => (f.studentName ? `${(f.studentName).toLowerCase().trim()}::${(f.term || '').toLowerCase().trim()}` : f.studentId || f.id)));
-            const mergedFeeAccounts = mergeByKey(current.feeAccounts || [], cloudData.feeAccounts || [], a => (a.child || a.id || '').toLowerCase().trim());
-            const mergedStaff = mergeByKey(current.teacherDirectory || [], cloudData.teacherDirectory || [], s => s.staffId || s.id || s.email || s.name);
-            const mergedBills = mergeByKey(current.definedBills || [], cloudData.definedBills || [], b => b.id || b.title || b.name);
-            const mergedPVs = mergeByKey(current.paymentVouchers || [], cloudData.paymentVouchers || [], p => p.pvNo || p.id);
-            const mergedNotifs = mergeByKey(current.pvNotifications || [], cloudData.pvNotifications || [], n => n.id || n.pvNo);
-            const mergedTimetable = mergeByKey(current.timetable || [], cloudData.timetable || [], t => t.id || `${t.day}-${t.time}-${t.subject}`);
-            const mergedResults = mergeByKey(current.results || [], cloudData.results || [], r => r.id || `${r.studentId}-${r.subject}`);
-            const mergedExamRegs = mergeByKey(current.examRegistrations || [], cloudData.examRegistrations || [], e => e.id || e.studentId || e.indexNumber);
-            const mergedSemRegs = mergeByKey(current.semesterRegistrations || [], cloudData.semesterRegistrations || [], s => s.id || `${s.studentId}-${s.semester}`);
+      // 1. Fetch all backend endpoints and cloud hub in a single concurrent burst
+      const [
+        cloudRes,
+        routesRes,
+        timetablesRes,
+        resultsRes,
+        reportsRes,
+        incidentsRes,
+        assetTasksRes,
+        messagesRes,
+        assignmentsRes,
+        appsRes,
+        studentsRes,
+        feesRes,
+        staffRes,
+        billsRes,
+        pvsRes,
+        semRegsRes,
+        examRegsRes
+      ] = await Promise.allSettled([
+        cloudSync.pullLatestData(),
+        api.getBusRoutes(),
+        api.getTimetables(),
+        api.getResults(),
+        api.getReportRequests(),
+        api.getIncidents(),
+        api.getAssetTasks(),
+        api.getMessages(),
+        api.getAssignments(),
+        api.getApplications(),
+        api.getStudents(),
+        api.getFees(),
+        api.getStaff(),
+        api.getDefinedBills(),
+        api.getPaymentVouchers(),
+        api.getSemesterRegistrations(),
+        api.getExamRegistrations()
+      ]);
 
-            return {
-              ...current,
-              ...cloudData,
-              onboardedStudents: mergedStudents,
-              applications: mergedApps,
-              studentFees: mergedFees,
-              feeAccounts: mergedFeeAccounts,
-              teacherDirectory: mergedStaff,
-              definedBills: mergedBills,
-              paymentVouchers: mergedPVs,
-              pvNotifications: mergedNotifs,
-              timetable: mergedTimetable,
-              results: mergedResults,
-              examRegistrations: mergedExamRegs,
-              semesterRegistrations: mergedSemRegs,
-              backendConnected: true,
-              isLoadingBackend: false
-            };
-          });
+      const cloudData = (cloudRes.status === 'fulfilled' && cloudRes.value && typeof cloudRes.value === 'object') ? cloudRes.value : null;
+
+      // 2. Perform a single atomic state commit only if data actually changed
+      setData(current => {
+        let hasChanges = false;
+        const updates = {};
+
+        // Bus Routes
+        if (routesRes.status === 'fulfilled' && routesRes.value) {
+          const raw = routesRes.value;
+          const routes = Array.isArray(raw) ? raw : (raw.routes || []);
+          if (routes.length > 0 && !isDeepEqual(current.busRoutes, routes)) {
+            updates.busRoutes = routes;
+            hasChanges = true;
+          }
         }
-      } catch (e) { /* silent */ }
 
-      // 1. Bus Routes
-      try {
-        const routesRes = await api.getBusRoutes();
-        if (Array.isArray(routesRes)) {
-          setData(current => ({ ...current, busRoutes: routesRes, backendConnected: true }));
-        } else if (routesRes && Array.isArray(routesRes.routes)) {
-          setData(current => ({ ...current, busRoutes: routesRes.routes, backendConnected: true }));
-        }
-      } catch (e) { /* silent */ }
-
-      // 2. Timetable
-      try {
-        const timetables = await api.getTimetables();
-        if (Array.isArray(timetables)) {
-          const mapped = timetables.map(t => ({
+        // Timetable
+        if (timetablesRes.status === 'fulfilled' && Array.isArray(timetablesRes.value)) {
+          const mapped = timetablesRes.value.map(t => ({
             id: t.id,
             day: t.day,
             time: t.time || `${t.start_time || ''}${t.end_time ? ' - ' + t.end_time : ''}`,
             subject: t.subject,
             room: t.room,
             lecturer: t.lecturer || t.lecturer_name,
-            classLevel: t.class_level || t.classLevel
+            classLevel: formatClassToBasic(t.class_level || t.classLevel)
           }));
-          setData(current => ({ ...current, timetable: mapped, backendConnected: true }));
+          const merged = mergeByKey(current.timetable || [], mapped, t => t.id || `${t.day}-${t.time}-${t.subject}`);
+          if (!isDeepEqual(current.timetable, merged)) {
+            updates.timetable = merged;
+            hasChanges = true;
+          }
         }
-      } catch (e) { /* silent */ }
 
-      // 3. Results
-      try {
-        const results = await api.getResults();
-        if (Array.isArray(results)) {
-          const mapped = results.map(r => ({
+        // Results
+        if (resultsRes.status === 'fulfilled' && Array.isArray(resultsRes.value)) {
+          const mapped = resultsRes.value.map(r => ({
             id: r.id,
             studentId: r.student_id || r.studentId,
             studentName: r.student_name || r.studentName,
@@ -357,15 +504,16 @@ export function PortalDataProvider({ children }) {
             declineNote: r.decline_note || r.declineNote,
             updatedAt: r.updated_at || r.updatedAt
           }));
-          setData(current => ({ ...current, results: mapped, backendConnected: true }));
+          const merged = mergeByKey(current.results || [], mapped, r => r.id || `${r.studentId}-${r.subject}`);
+          if (!isDeepEqual(current.results, merged)) {
+            updates.results = merged;
+            hasChanges = true;
+          }
         }
-      } catch (e) { /* silent */ }
 
-      // 4. Report Requests
-      try {
-        const reports = await api.getReportRequests();
-        if (Array.isArray(reports)) {
-          const mapped = reports.map(r => ({
+        // Report Requests
+        if (reportsRes.status === 'fulfilled' && Array.isArray(reportsRes.value)) {
+          const mapped = reportsRes.value.map(r => ({
             id: r.id,
             child: r.child || r.child_name,
             semester: r.semester,
@@ -376,15 +524,15 @@ export function PortalDataProvider({ children }) {
             requestedAt: r.created_at || r.requestedAt,
             uploadedAt: r.uploaded_at || r.uploadedAt
           }));
-          setData(current => ({ ...current, reportRequests: mapped, backendConnected: true }));
+          if (!isDeepEqual(current.reportRequests, mapped)) {
+            updates.reportRequests = mapped;
+            hasChanges = true;
+          }
         }
-      } catch (e) { /* silent */ }
 
-      // 5. Incidents
-      try {
-        const incidents = await api.getIncidents();
-        if (Array.isArray(incidents)) {
-          const mapped = incidents.map(i => ({
+        // Incidents
+        if (incidentsRes.status === 'fulfilled' && Array.isArray(incidentsRes.value)) {
+          const mapped = incidentsRes.value.map(i => ({
             id: i.id,
             category: i.category,
             person: i.person,
@@ -392,15 +540,15 @@ export function PortalDataProvider({ children }) {
             status: i.status,
             loggedAt: i.logged_at || i.loggedAt
           }));
-          setData(current => ({ ...current, incidents: mapped, backendConnected: true }));
+          if (!isDeepEqual(current.incidents, mapped)) {
+            updates.incidents = mapped;
+            hasChanges = true;
+          }
         }
-      } catch (e) { /* silent */ }
 
-      // 6. Asset Tasks
-      try {
-        const tasks = await api.getAssetTasks();
-        if (Array.isArray(tasks)) {
-          const mapped = tasks.map(t => ({
+        // Asset Tasks
+        if (assetTasksRes.status === 'fulfilled' && Array.isArray(assetTasksRes.value)) {
+          const mapped = assetTasksRes.value.map(t => ({
             id: t.id,
             asset: t.asset,
             task: t.task,
@@ -408,15 +556,15 @@ export function PortalDataProvider({ children }) {
             status: t.status,
             due: t.due_date || t.due
           }));
-          setData(current => ({ ...current, assetTasks: mapped, backendConnected: true }));
+          if (!isDeepEqual(current.assetTasks, mapped)) {
+            updates.assetTasks = mapped;
+            hasChanges = true;
+          }
         }
-      } catch (e) { /* silent */ }
 
-      // 7. Messages
-      try {
-        const msgs = await api.getMessages();
-        if (Array.isArray(msgs)) {
-          const mapped = msgs.map(m => ({
+        // Messages
+        if (messagesRes.status === 'fulfilled' && Array.isArray(messagesRes.value)) {
+          const mapped = messagesRes.value.map(m => ({
             id: m.id,
             from: m.from || m.from_name || m.sender_name,
             senderRole: m.senderRole || m.sender_role,
@@ -427,15 +575,15 @@ export function PortalDataProvider({ children }) {
             body: m.body,
             sentAt: m.sentAt || m.sent_at
           }));
-          setData(current => ({ ...current, messages: mapped, backendConnected: true }));
+          if (!isDeepEqual(current.messages, mapped)) {
+            updates.messages = mapped;
+            hasChanges = true;
+          }
         }
-      } catch (e) { /* silent */ }
 
-      // 8. Assignments
-      try {
-        const assignments = await api.getAssignments();
-        if (Array.isArray(assignments)) {
-          const mapped = assignments.map(a => ({
+        // Assignments
+        if (assignmentsRes.status === 'fulfilled' && Array.isArray(assignmentsRes.value)) {
+          const mapped = assignmentsRes.value.map(a => ({
             id: a.id,
             title: a.title,
             instructions: a.instructions,
@@ -444,288 +592,266 @@ export function PortalDataProvider({ children }) {
             author: a.author || a.author_name,
             status: a.status
           }));
-          setData(current => ({ ...current, assignments: mapped, backendConnected: true }));
+          if (!isDeepEqual(current.assignments, mapped)) {
+            updates.assignments = mapped;
+            hasChanges = true;
+          }
         }
-      } catch (e) { /* silent */ }
 
-      // 9. Admissions Applications
-      try {
-        const apps = await api.getApplications();
-        if (Array.isArray(apps)) {
-          const mapped = apps.map(a => ({
+        // Admissions Applications
+        if (appsRes.status === 'fulfilled' && Array.isArray(appsRes.value)) {
+          const mapped = appsRes.value.map(a => ({
             id: a.id,
             learner: a.learner || a.learner_name,
             guardian: a.guardian || a.guardian_name,
             email: a.email || a.contact_email,
             phone: a.phone || a.contact_phone,
-            level: a.level || a.applying_level,
+            level: formatClassToBasic(a.level || a.applying_level),
             status: a.status,
             submittedAt: a.submittedAt || a.submitted_at,
             office_use_notes: a.office_use_notes,
             ...(a.formData || a.form_data || {})
           }));
-          setData(current => ({ ...current, applications: mapped, backendConnected: true }));
+          const merged = mergeByKey(current.applications || [], mapped, a => a.id || a.learner);
+          if (!isDeepEqual(current.applications, merged)) {
+            updates.applications = merged;
+            hasChanges = true;
+          }
         }
-      } catch (e) { /* silent */ }
 
-      // 10. Onboarded Students
-      try {
-        const studentsRes = await api.getStudents();
-        const students = Array.isArray(studentsRes) ? studentsRes : (studentsRes?.students || studentsRes?.data || studentsRes?.records || []);
-        if (Array.isArray(students) && students.length > 0) {
-          const mapped = students.map(s => ({
-            id: s.id,
-            studentId: s.studentId || s.student_id_code || s.student_code || s.id,
-            rfidCardCode: s.rfidCardCode || s.rfid_card_code,
-            fullName: s.fullName || s.full_name,
-            dob: s.dob,
-            gender: s.gender,
-            level: s.level || s.class_level,
-            classSection: s.classSection || s.class_section || 'A',
-            guardianName: s.guardianName || s.guardian_name,
-            guardianEmail: s.guardianEmail || s.guardian_email,
-            guardianPhone: s.guardianPhone || s.guardian_phone,
-            homeAddress: s.homeAddress || s.home_address,
-            enrollmentDate: s.enrollmentDate || s.enrollment_date || new Date().toISOString().split('T')[0],
-            status: s.status || 'Active',
-            studentEmail: s.studentEmail || s.student_email,
-            defaultPassword: s.defaultPassword || s.default_password
-          }));
-          setData(current => {
-            const currentList = current.onboardedStudents || [];
-            const merged = deduplicateStudents([...currentList, ...mapped]);
-            return {
-              ...current,
-              onboardedStudents: merged.length > 0 ? merged : mapped,
-              backendConnected: true
-            };
-          });
+        // Onboarded Students
+        if (studentsRes.status === 'fulfilled') {
+          const sRaw = studentsRes.value;
+          const students = Array.isArray(sRaw) ? sRaw : (sRaw?.students || sRaw?.data || sRaw?.records || []);
+          if (Array.isArray(students) && students.length > 0) {
+            const mapped = students.map(s => ({
+              id: s.id,
+              studentId: s.studentId || s.student_id_code || s.student_code || s.id,
+              rfidCardCode: s.rfidCardCode || s.rfid_card_code,
+              fullName: s.fullName || s.full_name,
+              otherNames: s.otherNames || s.other_names || '',
+              dob: s.dob,
+              gender: s.gender,
+              level: formatClassToBasic(s.level || s.class_level),
+              classSection: s.classSection || s.class_section || 'A',
+              guardianName: s.guardianName || s.guardian_name,
+              guardianEmail: s.guardianEmail || s.guardian_email,
+              guardianPhone: s.guardianPhone || s.guardian_phone,
+              homeAddress: s.homeAddress || s.home_address,
+              enrollmentDate: s.enrollmentDate || s.enrollment_date || new Date().toISOString().split('T')[0],
+              status: s.status || 'Active',
+              studentEmail: s.studentEmail || s.student_email,
+              defaultPassword: s.defaultPassword || s.default_password
+            }));
+            const merged = deduplicateStudents([...(current.onboardedStudents || []), ...mapped]);
+            if (!isDeepEqual(current.onboardedStudents, merged)) {
+              updates.onboardedStudents = merged;
+              hasChanges = true;
+            }
+          }
         }
-      } catch (e) { /* silent */ }
 
-      // 11. Fees
-      try {
-        const feesRes = await api.getFees();
-        const fees = Array.isArray(feesRes) ? feesRes : (feesRes?.fees || feesRes?.data || feesRes?.records || []);
-        if (Array.isArray(fees) && fees.length > 0) {
-          const mapped = fees.map(f => ({
-            id: f.id,
-            studentId: f.studentId || f.student_id || f.student_code,
-            studentName: f.studentName || f.student_name,
-            guardianName: f.guardianName || f.guardian_name,
-            guardianEmail: f.guardianEmail || f.guardian_email,
-            term: f.term || 'Term 1 · 2026',
-            billedAmount: Number(f.billedAmount !== undefined ? f.billedAmount : f.billed_amount) || 0,
-            paidAmount: Number(f.paidAmount !== undefined ? f.paidAmount : f.paid_amount) || 0,
-            balance: Number(f.balance) || 0,
-            status: f.status || 'Not Paid',
-            dueDate: f.dueDate || f.due_date || '2026-09-15',
-            paymentDate: f.paymentDate || f.payment_date
-          }));
-          const mappedAccounts = mapped.map(f => ({
-            id: `fee-acc-${f.studentId || f.id}`,
-            child: f.studentName,
-            school: 'REMALJ Carewell Inspirational School',
-            term: f.term,
-            billed: f.billedAmount,
-            paid: f.paidAmount,
-            status: f.status
-          }));
-          setData(current => {
-            const curFees = current.studentFees || [];
-            const mergedFees = deduplicateFees(mergeByKey(curFees, mapped, f => (f.studentName ? `${(f.studentName).toLowerCase().trim()}::${(f.term || '').toLowerCase().trim()}` : f.studentId || f.id)));
-            return {
-              ...current,
-              studentFees: mergedFees.length > 0 ? mergedFees : mapped,
-              feeAccounts: mappedAccounts.length > 0 ? mappedAccounts : current.feeAccounts,
-              backendConnected: true
-            };
-          });
+        // Student Fees & Accounts
+        if (feesRes.status === 'fulfilled') {
+          const fRaw = feesRes.value;
+          const fees = Array.isArray(fRaw) ? fRaw : (fRaw?.fees || fRaw?.data || fRaw?.records || []);
+          if (Array.isArray(fees) && fees.length > 0) {
+            const mapped = fees.map(f => ({
+              id: f.id,
+              studentId: f.studentId || f.student_id || f.student_code,
+              studentName: f.studentName || f.student_name,
+              guardianName: f.guardianName || f.guardian_name,
+              guardianEmail: f.guardianEmail || f.guardian_email,
+              term: f.term || 'Term 1 · 2026',
+              billedAmount: Number(f.billedAmount !== undefined ? f.billedAmount : f.billed_amount) || 0,
+              paidAmount: Number(f.paidAmount !== undefined ? f.paidAmount : f.paid_amount) || 0,
+              balance: Number(f.balance) || 0,
+              status: f.status || 'Not Paid',
+              dueDate: f.dueDate || f.due_date || '2026-09-15',
+              paymentDate: f.paymentDate || f.payment_date
+            }));
+            const mergedFees = deduplicateFees(mergeByKey(current.studentFees || [], mapped, f => (f.studentName ? `${(f.studentName).toLowerCase().trim()}::${(f.term || '').toLowerCase().trim()}` : f.studentId || f.id)));
+            if (!isDeepEqual(current.studentFees, mergedFees)) {
+              updates.studentFees = mergedFees;
+              updates.feeAccounts = mergedFees.map(f => ({
+                id: `fee-acc-${f.studentId || f.id}`,
+                child: f.studentName,
+                school: 'REMALJ Carewell Inspirational School',
+                term: f.term,
+                billed: f.billedAmount,
+                paid: f.paidAmount,
+                status: f.status
+              }));
+              hasChanges = true;
+            }
+          }
         }
-      } catch (e) { /* silent */ }
 
-      // 12. Staff & Teacher Directory
-      try {
-        const staffRes = await api.getStaff();
-        const staff = Array.isArray(staffRes) ? staffRes : (staffRes?.staff || staffRes?.teachers || staffRes?.data || []);
-        if (Array.isArray(staff) && staff.length > 0) {
-          setData(current => {
-            const curStaff = current.teacherDirectory || [];
-            const staffMap = new Map();
-            curStaff.forEach(s => {
-              const k = (s.staffId || s.id || s.email || s.name || '').toLowerCase().trim();
-              if (k) staffMap.set(k, s);
-            });
-            staff.forEach(s => {
-              const k = (s.staffId || s.id || s.email || s.name || '').toLowerCase().trim();
-              if (k) {
-                const prev = staffMap.get(k) || {};
-                staffMap.set(k, { ...prev, ...s });
-              }
-            });
-            const mergedStaff = Array.from(staffMap.values());
-            return {
-              ...current,
-              teacherDirectory: mergedStaff.length > 0 ? mergedStaff : staff,
-              backendConnected: true
-            };
-          });
+        // Staff & Teacher Directory (Merged with DB / Backend API)
+        if (staffRes.status === 'fulfilled') {
+          const sRaw = staffRes.value;
+          const staff = Array.isArray(sRaw) ? sRaw : (sRaw?.staff || sRaw?.teachers || sRaw?.data || []);
+          if (Array.isArray(staff) && staff.length > 0) {
+            const mapped = staff.map(s => ({
+              id: s.id || s.staffId || s.staff_id,
+              staffId: s.staffId || s.staff_id || `STF-2026-${String(s.id).padStart(3, '0')}`,
+              name: s.name || s.fullName || s.full_name,
+              role: s.role || s.designation || 'Subject Teacher',
+              subject: s.subject || 'General Education',
+              classAssigned: formatClassToBasic(s.classAssigned || s.class_assigned || s.level || 'Basic 1'),
+              email: s.email || s.contact_email,
+              phone: s.phone || s.phone_number || s.contact_phone,
+              status: s.status || (s.is_active === false ? 'Offboarded' : 'Active'),
+              photo: s.photo || (s.gender === 'Female' ? '👩‍🏫' : '👨‍🏫'),
+              joinedDate: s.joinedDate || s.created_at || s.joined_date || new Date().toISOString().split('T')[0]
+            }));
+            const mergedStaff = mergeByKey(current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY, mapped, s => s.staffId || s.id || s.email || s.name);
+            if (!isDeepEqual(current.teacherDirectory, mergedStaff)) {
+              updates.teacherDirectory = mergedStaff;
+              hasChanges = true;
+            }
+          }
         }
-      } catch (e) { /* silent */ }
 
-      // 13. Defined Bills
-      try {
-        const billsRes = await api.getDefinedBills();
-        const bills = Array.isArray(billsRes) ? billsRes : (billsRes?.bills || billsRes?.definitions || billsRes?.data || []);
-        if (Array.isArray(bills) && bills.length > 0) {
-          setData(current => {
-            const curBills = current.definedBills || [];
-            const billMap = new Map();
-            curBills.forEach(b => {
-              const k = (b.id || b.title || b.name || '').toLowerCase().trim();
-              if (k) billMap.set(k, b);
-            });
-            bills.forEach(b => {
-              const k = (b.id || b.title || b.name || '').toLowerCase().trim();
-              if (k) {
-                const prev = billMap.get(k) || {};
-                billMap.set(k, { ...prev, ...b });
-              }
-            });
-            const mergedBills = Array.from(billMap.values());
-            return {
-              ...current,
-              definedBills: mergedBills.length > 0 ? mergedBills : bills,
-              backendConnected: true
-            };
-          });
+        // Defined Bills
+        if (billsRes.status === 'fulfilled') {
+          const bRaw = billsRes.value;
+          const bills = Array.isArray(bRaw) ? bRaw : (bRaw?.bills || bRaw?.definitions || bRaw?.data || []);
+          if (Array.isArray(bills) && bills.length > 0) {
+            const mergedBills = mergeByKey(current.definedBills || [], bills, b => b.id || b.title || b.name);
+            if (!isDeepEqual(current.definedBills, mergedBills)) {
+              updates.definedBills = mergedBills;
+              hasChanges = true;
+            }
+          }
         }
-      } catch (e) { /* silent */ }
 
-      // 14. Payment Vouchers
-      try {
-        const pvsRes = await api.getPaymentVouchers();
-        const pvs = Array.isArray(pvsRes) ? pvsRes : (pvsRes?.vouchers || pvsRes?.paymentVouchers || pvsRes?.data || []);
-        if (Array.isArray(pvs) && pvs.length > 0) {
-          const mapped = pvs.map(p => ({
-            id: p.id,
-            pvNo: p.pv_number || p.pvNo || `PV-${p.id}`,
-            requisitionNo: p.requisition_no || p.requisitionNo,
-            provider: p.payee_name || p.provider || 'Vendor',
-            providerId: p.payee_id || p.providerId,
-            description: p.description,
-            qty: p.quantity || p.qty || 1,
-            cost: p.unit_cost || p.cost || 0,
-            total: p.total_amount || p.total || 0,
-            datePrepared: p.date_prepared || p.datePrepared,
-            valuedDate: p.date_prepared || p.valuedDate,
-            auditRemarks: p.auditRemarks || p.pre_audited_by || 'Registered in system',
-            status: p.status === 'PRE_AUDITED' ? 'Pre-Audited & Approved' : p.status || 'Pending Audit',
-            editedByHeadmaster: false,
-            correctionsLog: []
-          }));
-          setData(current => {
-            const curPVs = current.paymentVouchers || [];
-            const pvMap = new Map();
-            curPVs.forEach(p => {
-              const k = (p.pvNo || p.id || '').toLowerCase().trim();
-              if (k) pvMap.set(k, p);
-            });
-            mapped.forEach(p => {
-              const k = (p.pvNo || p.id || '').toLowerCase().trim();
-              if (k) {
-                const prev = pvMap.get(k) || {};
-                pvMap.set(k, { ...prev, ...p });
-              }
-            });
-            const mergedPVs = Array.from(pvMap.values());
-            const finalPVs = mergedPVs.length > 0 ? mergedPVs : mapped;
-
-            // Synthesize unread notifications for any pending vouchers loaded from backend
-            let clearedKeys = new Set();
-            let readKeys = new Set();
-            try {
-              clearedKeys = new Set(JSON.parse(localStorage.getItem('says_cleared_pv_notifs') || '[]'));
-              readKeys = new Set(JSON.parse(localStorage.getItem('says_read_pv_notifs') || '[]'));
-            } catch (_) {}
-
-            const existingNotifMap = new Map((current.pvNotifications || []).map(n => [String(n.pvNo || '').toLowerCase().trim(), n]));
-            const pendingPVs = finalPVs.filter(p => {
-              const s = (p.status || '').toLowerCase().trim();
-              return s.includes('pending') || s === 'draft' || !s;
-            });
-            const newSynthesized = [];
-            pendingPVs.forEach(p => {
-              const key = String(p.pvNo || p.id || '').toLowerCase().trim();
-              if (key && !existingNotifMap.has(key) && !clearedKeys.has(key)) {
-                newSynthesized.push({
-                  id: `notif-${key}-${Date.now()}`,
-                  pvNo: p.pvNo || p.id,
-                  provider: p.provider || p.payee_name || 'Vendor',
-                  grandTotal: p.grandTotal || p.total || p.cost || 0,
-                  description: p.description || 'Expenditure Voucher',
-                  submittedBy: p.submittedBy || 'Sub-Admin',
-                  submittedAt: p.datePrepared || new Date().toLocaleString(),
-                  read: readKeys.has(key),
-                });
-              }
-            });
-
-            return {
-              ...current,
-              paymentVouchers: finalPVs,
-              pvNotifications: newSynthesized.length > 0 ? [...newSynthesized, ...(current.pvNotifications || [])] : (current.pvNotifications || []),
-              backendConnected: true
-            };
-          });
+        // Payment Vouchers
+        if (pvsRes.status === 'fulfilled') {
+          const pRaw = pvsRes.value;
+          const pvs = Array.isArray(pRaw) ? pRaw : (pRaw?.vouchers || pRaw?.paymentVouchers || pRaw?.data || []);
+          if (Array.isArray(pvs) && pvs.length > 0) {
+            const mapped = pvs.map(p => ({
+              id: p.id,
+              pvNo: p.pv_number || p.pvNo || `PV-${p.id}`,
+              requisitionNo: p.requisition_no || p.requisitionNo,
+              provider: p.payee_name || p.provider || 'Vendor',
+              providerId: p.payee_id || p.providerId,
+              description: p.description,
+              qty: p.quantity || p.qty || 1,
+              cost: p.unit_cost || p.cost || 0,
+              total: p.total_amount || p.total || 0,
+              datePrepared: p.date_prepared || p.datePrepared,
+              valuedDate: p.date_prepared || p.valuedDate,
+              auditRemarks: p.auditRemarks || p.pre_audited_by || 'Registered in system',
+              status: p.status === 'PRE_AUDITED' ? 'Pre-Audited & Approved' : p.status || 'Pending Audit',
+              editedByHeadmaster: false,
+              correctionsLog: []
+            }));
+            const mergedPVs = mergeByKey(current.paymentVouchers || [], mapped, p => p.pvNo || p.id);
+            if (!isDeepEqual(current.paymentVouchers, mergedPVs)) {
+              updates.paymentVouchers = mergedPVs;
+              hasChanges = true;
+            }
+          }
         }
-      } catch (e) { /* silent */ }
 
-      // 15. Semester Registrations
-      try {
-        const semRegs = await api.getSemesterRegistrations();
-        if (Array.isArray(semRegs)) {
-          setData(current => ({ ...current, semesterRegistrations: semRegs, backendConnected: true }));
+        // Semester & Exam Registrations
+        if (semRegsRes.status === 'fulfilled' && Array.isArray(semRegsRes.value)) {
+          if (!isDeepEqual(current.semesterRegistrations, semRegsRes.value)) {
+            updates.semesterRegistrations = semRegsRes.value;
+            hasChanges = true;
+          }
         }
-      } catch (e) { /* silent */ }
-
-      // 16. Exam Registrations
-      try {
-        const examRegs = await api.getExamRegistrations();
-        if (Array.isArray(examRegs)) {
-          setData(current => ({ ...current, examRegistrations: examRegs, backendConnected: true }));
+        if (examRegsRes.status === 'fulfilled' && Array.isArray(examRegsRes.value)) {
+          if (!isDeepEqual(current.examRegistrations, examRegsRes.value)) {
+            updates.examRegistrations = examRegsRes.value;
+            hasChanges = true;
+          }
         }
-      } catch (e) { /* silent */ }
 
-      setData(current => ({ ...current, isLoadingBackend: false, backendConnected: true }));
+        // Fold in Universal Cloud Hub updates if present
+        if (cloudData) {
+          if (Array.isArray(cloudData.onboardedStudents)) {
+            const merged = deduplicateStudents([...(updates.onboardedStudents || current.onboardedStudents || []), ...cloudData.onboardedStudents]);
+            if (!isDeepEqual(current.onboardedStudents, merged)) {
+              updates.onboardedStudents = merged;
+              hasChanges = true;
+            }
+          }
+          if (Array.isArray(cloudData.teacherDirectory)) {
+            const merged = mergeByKey(updates.teacherDirectory || current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY, cloudData.teacherDirectory, s => s.staffId || s.id || s.email || s.name);
+            if (!isDeepEqual(current.teacherDirectory, merged)) {
+              updates.teacherDirectory = merged;
+              hasChanges = true;
+            }
+          }
+          if (Array.isArray(cloudData.classLevels)) {
+            const merged = Array.from(new Set([...(updates.classLevels || current.classLevels || DEFAULT_CLASS_LEVELS), ...cloudData.classLevels]));
+            if (!isDeepEqual(current.classLevels, merged)) {
+              updates.classLevels = merged;
+              hasChanges = true;
+            }
+          }
+          if (Array.isArray(cloudData.subjects)) {
+            const merged = Array.from(new Set([...(updates.subjects || current.subjects || DEFAULT_SUBJECTS), ...cloudData.subjects]));
+            if (!isDeepEqual(current.subjects, merged)) {
+              updates.subjects = merged;
+              hasChanges = true;
+            }
+          }
+          if (Array.isArray(cloudData.studentFees)) {
+            const merged = deduplicateFees(mergeByKey(updates.studentFees || current.studentFees || [], cloudData.studentFees, f => (f.studentName ? `${(f.studentName).toLowerCase().trim()}::${(f.term || '').toLowerCase().trim()}` : f.studentId || f.id)));
+            if (!isDeepEqual(current.studentFees, merged)) {
+              updates.studentFees = merged;
+              hasChanges = true;
+            }
+          }
+        }
+
+        const shouldClearLoading = !current.backendConnected || current.isLoadingBackend;
+
+        // If no changes exist and already connected, return current directly!
+        // This causes React to skip re-renders completely, ensuring 0% glitching during auto-refresh
+        if (!hasChanges && !shouldClearLoading) {
+          return current;
+        }
+
+        return {
+          ...current,
+          ...updates,
+          backendConnected: true,
+          isLoadingBackend: false
+        };
+      });
 
     } catch (err) {
       console.warn('Backend sync error:', err);
-      setData(current => ({ ...current, isLoadingBackend: false }));
+      setData(current => current.isLoadingBackend ? { ...current, isLoadingBackend: false } : current);
+    } finally {
+      isRefreshingRef.current = false;
     }
   }, []);
 
-  const [lastAutoRefreshedAt, setLastAutoRefreshedAt] = useState(() => new Date().toLocaleTimeString());
-
   useEffect(() => {
+    // Initial silent load on mount
     refreshBackendData();
 
     // Auto-refresh when tab/window regains focus
     const handleFocus = () => {
       refreshBackendData();
-      setLastAutoRefreshedAt(new Date().toLocaleTimeString());
     };
     window.addEventListener('focus', handleFocus);
 
-    // Background auto-refresh every 1 minute (60,000ms)
-    const minuteAutoRefreshInterval = setInterval(() => {
+    // Background auto-refresh every 5 seconds (5,000ms)
+    // Runs silently in the background without UI flicker or glitching
+    const autoRefreshInterval = setInterval(() => {
       refreshBackendData();
-      setLastAutoRefreshedAt(new Date().toLocaleTimeString());
-    }, 60000);
+    }, 5000);
 
     return () => {
       window.removeEventListener('focus', handleFocus);
-      clearInterval(minuteAutoRefreshInterval);
+      clearInterval(autoRefreshInterval);
     };
   }, [refreshBackendData]);
 
@@ -888,11 +1014,16 @@ export function PortalDataProvider({ children }) {
       }));
     },
     submitApplication: async (application) => {
-      const learnerName = `${application.firstName || ''} ${application.surname || ''}`.trim() || application.learner || application.fullName || 'Applicant';
+      const otherNames = (application.otherNames || '').trim();
+      const learnerName = (application.firstName || application.surname || otherNames)
+        ? `${application.firstName || ''} ${otherNames ? otherNames + ' ' : ''}${application.surname || ''}`.replace(/\s+/g, ' ').trim()
+        : (application.learner || application.fullName || 'Applicant');
       const guardianName = application.fatherName || application.motherName || application.guardian || application.guardianName || 'Parent/Guardian';
       const contactEmail = application.fatherEmail || application.motherEmail || application.email || application.guardianEmail || `${(application.surname || 'parent').toLowerCase()}@remaljcarewell.edu.gh`;
       const contactPhone = application.fatherPhone || application.motherPhone || application.phone || application.guardianPhone || '024 111 2222';
-      const applyingLevel = application.applyingClass || application.level || 'JHS 1';
+      const applyingLevel = formatClassToBasic(application.applyingClass || application.level || 'Basic 1');
+      const academicYear = application.academicYear || '2025/2026';
+      const academicTerm = application.academicTerm || application.term || 'Term 1';
 
       try {
         await api.submitApplication({
@@ -901,7 +1032,12 @@ export function PortalDataProvider({ children }) {
           contact_email: contactEmail,
           contact_phone: contactPhone,
           applying_level: applyingLevel,
-          form_data: application
+          form_data: {
+            ...application,
+            academicYear,
+            academicTerm,
+            otherNames,
+          }
         });
       } catch (e) {
         console.warn('Backend application submit fallback:', e);
@@ -916,10 +1052,18 @@ export function PortalDataProvider({ children }) {
           id: appId,
           ...application,
           learner: learnerName,
+          fullName: learnerName,
+          firstName: application.firstName || '',
+          otherNames: otherNames,
+          surname: application.surname || '',
           guardian: guardianName,
           email: contactEmail,
           phone: contactPhone,
           level: applyingLevel,
+          applyingClass: applyingLevel,
+          academicYear,
+          academicTerm,
+          term: academicTerm,
           status: 'Submitted',
           submittedAt: new Date().toLocaleString()
         };
@@ -1200,14 +1344,25 @@ export function PortalDataProvider({ children }) {
         const parentPassword = student.parentPassword || 'ParentPass2026!';
         const rfidCode = student.rfidCardCode || apiStudent?.rfidCardCode || apiStudent?.rfid_card_code || existingStudent?.rfidCardCode || `CARD-${String(currentStudents.length + 1).padStart(3, '0')}`;
 
+        const fName = (student.firstName || '').trim();
+        const oName = (student.otherNames || '').trim();
+        const sName = (student.surname || '').trim();
+        const fullComputed = (fName || sName || oName)
+          ? [fName, oName, sName].filter(Boolean).join(' ')
+          : (student.fullName || student.name || 'Applicant');
+        const formattedLevel = formatClassToBasic(student.level || apiStudent?.level || apiStudent?.class_level || existingStudent?.level || 'Basic 1');
+
         const newStudent = {
           id: studentDbId,
           studentId,
           rfidCardCode: rfidCode,
-          fullName: student.fullName,
+          fullName: fullComputed,
+          firstName: fName,
+          otherNames: oName,
+          surname: sName,
           dob: student.dob || apiStudent?.dob || existingStudent?.dob,
           gender: student.gender || apiStudent?.gender || existingStudent?.gender,
-          level: student.level || apiStudent?.level || apiStudent?.class_level || existingStudent?.level,
+          level: formattedLevel,
           classSection: student.classSection || apiStudent?.classSection || apiStudent?.class_section || existingStudent?.classSection || 'A',
           guardianName: (student.guardianName && student.guardianName !== 'Parent/Guardian') ? student.guardianName : (existingStudent?.guardianName || student.guardianName),
           guardianEmail: student.guardianEmail || apiStudent?.guardianEmail || apiStudent?.guardian_email || existingStudent?.guardianEmail,
@@ -1229,7 +1384,7 @@ export function PortalDataProvider({ children }) {
               studentId,
               email: studentEmail,
               password: defaultPassword,
-              fullName: student.fullName,
+              fullName: fullComputed,
               role: 'student'
             };
             list[studentId.toLowerCase()] = {
@@ -1237,7 +1392,7 @@ export function PortalDataProvider({ children }) {
               studentId,
               email: studentEmail,
               password: defaultPassword,
-              fullName: student.fullName,
+              fullName: fullComputed,
               role: 'student'
             };
             if (student.guardianEmail) {
@@ -1246,7 +1401,7 @@ export function PortalDataProvider({ children }) {
                 email: student.guardianEmail,
                 phone: student.guardianPhone,
                 password: parentPassword,
-                fullName: student.guardianName || `Parent of ${student.fullName}`,
+                fullName: student.guardianName || `Parent of ${fullComputed}`,
                 role: 'parent'
               };
             }
@@ -1254,11 +1409,12 @@ export function PortalDataProvider({ children }) {
           } catch (e) {}
         }
 
-        const defaultBilled = (student.level || '').includes('JHS') ? 5200 : (student.level || '').includes('SHS') ? 5800 : 4800;
+        const defaultBilled = (formattedLevel || '').includes('Basic 7') || (formattedLevel || '').includes('Basic 8') || (formattedLevel || '').includes('Basic 9') ? 5200 : (formattedLevel || '').includes('SHS') ? 5800 : 4800;
         const newFee = {
           id: `fee-${newStudent.id}`,
           studentId,
-          studentName: student.fullName,
+          studentName: fullComputed,
+          otherNames: oName,
           guardianName: newStudent.guardianName,
           guardianEmail: newStudent.guardianEmail,
           term: 'Term 1 · 2026',
@@ -1271,7 +1427,7 @@ export function PortalDataProvider({ children }) {
         };
         const newFeeAccount = {
           id: `fee-acc-${newStudent.id}`,
-          child: student.fullName,
+          child: fullComputed,
           school: 'REMALJ Carewell Inspirational School',
           term: 'Term 1 · 2026',
           billed: defaultBilled,
@@ -1309,18 +1465,19 @@ export function PortalDataProvider({ children }) {
       const onboardedResults = [];
 
       for (const student of studentsArray) {
+        const studentLevel = formatClassToBasic(student.level || 'Basic 4');
         try {
           await api.onboardStudent({
             fullName: student.fullName,
             dob: student.dob || '2014-01-01',
             gender: student.gender || 'Not Specified',
-            level: student.level || 'Grade 4',
+            level: studentLevel,
             classSection: student.classSection || 'A',
             guardianName: student.guardianName || 'Guardian',
             guardianEmail: student.guardianEmail || 'parent@remaljcarewell.edu.gh',
             guardianPhone: student.guardianPhone || '0541769621',
             homeAddress: student.homeAddress || 'Bogoso',
-            initialBilledAmount: (student.level || '').includes('JHS') ? 5200 : (student.level || '').includes('SHS') ? 5800 : 4800,
+            initialBilledAmount: studentLevel.includes('Basic 7') || studentLevel.includes('Basic 8') || studentLevel.includes('Basic 9') ? 5200 : (student.level || '').includes('SHS') ? 5800 : 4800,
             term: 'Term 1 · 2026'
           }).catch(() => {});
         } catch (e) {}
@@ -1336,6 +1493,7 @@ export function PortalDataProvider({ children }) {
           currentCount++;
           const studentId = `REMALJ-${new Date().getFullYear()}-${String(currentCount).padStart(3, '0')}`;
           const id = `stu-bulk-${Date.now()}-${idx}`;
+          const studentLevel = formatClassToBasic(student.level || 'Basic 4');
 
           const newStudent = {
             id,
@@ -1343,7 +1501,7 @@ export function PortalDataProvider({ children }) {
             fullName: student.fullName,
             dob: student.dob || '2014-01-01',
             gender: student.gender || 'Male',
-            level: student.level || 'Grade 4',
+            level: studentLevel,
             classSection: student.classSection || 'A',
             guardianName: student.guardianName || 'Guardian',
             guardianEmail: student.guardianEmail || 'parent@remaljcarewell.edu.gh',
@@ -1354,7 +1512,7 @@ export function PortalDataProvider({ children }) {
             studentEmail: `${(student.fullName || 'student').toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`,
           };
 
-          const defaultBilled = (student.level || '').includes('JHS') ? 5200 : (student.level || '').includes('SHS') ? 5800 : 4800;
+          const defaultBilled = studentLevel.includes('Basic 7') || studentLevel.includes('Basic 8') || studentLevel.includes('Basic 9') ? 5200 : (student.level || '').includes('SHS') ? 5800 : 4800;
           const newFee = {
             id: `fee-${id}`,
             studentId,
@@ -1404,7 +1562,11 @@ export function PortalDataProvider({ children }) {
       }
       setData((current) => ({
         ...current,
-        onboardedStudents: (current.onboardedStudents || []).map((s) => (s.id === id || s.studentId === id) ? { ...s, ...updates } : s),
+        onboardedStudents: (current.onboardedStudents || []).map((s) => (s.id === id || s.studentId === id) ? {
+          ...s,
+          ...updates,
+          level: updates.level ? formatClassToBasic(updates.level) : s.level,
+        } : s),
       }));
     },
     deleteOnboardedStudent: async (id) => {
@@ -2105,23 +2267,38 @@ export function PortalDataProvider({ children }) {
     addStaffMember: async (staffData) => {
       let created = null;
       try {
-        created = await api.createStaff(staffData);
+        created = await api.createStaff({
+          ...staffData,
+          classAssigned: formatClassToBasic(staffData.classAssigned || 'Basic 1'),
+          role: staffData.role || 'Subject Teacher',
+          status: staffData.status || 'Active'
+        });
       } catch (e) {
         console.warn('Backend staff create fallback:', e);
       }
 
+      const createdPayload = (created && typeof created === 'object') ? (created.staff || created.data || created) : null;
+
       setData((current) => {
-        const currentList = current.teacherDirectory || [];
+        const currentList = current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY;
         const staffId = staffData.staffId || `STF-2026-${String(currentList.length + 1).padStart(3, '0')}`;
         const email = staffData.email || `${(staffData.name || 'staff').toLowerCase().replace(/[^\w]/g, '.')}@remaljcarewell.edu.gh`;
         const defaultPassword = staffData.password || `StaffPass#${staffId}`;
 
-        const newStaff = created || {
+        const newStaff = (createdPayload && createdPayload.name) ? {
+          ...createdPayload,
+          id: createdPayload.id || crypto.randomUUID?.() || String(Date.now()),
+          staffId: createdPayload.staffId || staffId,
+          name: createdPayload.name || staffData.name,
+          classAssigned: formatClassToBasic(createdPayload.classAssigned || staffData.classAssigned || 'Basic 1'),
+          role: createdPayload.role || staffData.role || 'Subject Teacher',
+          status: createdPayload.status || 'Active'
+        } : {
           id: crypto.randomUUID?.() || String(Date.now()),
           staffId,
           name: staffData.name,
           subject: staffData.subject || 'General Education',
-          classAssigned: staffData.classAssigned || 'Grade 4',
+          classAssigned: formatClassToBasic(staffData.classAssigned || 'Basic 1'),
           email,
           phone: staffData.phone || '024 900 1100',
           role: staffData.role || 'Subject Teacher',
@@ -2131,22 +2308,20 @@ export function PortalDataProvider({ children }) {
           bio: staffData.bio || `${staffData.role || 'Teacher'} at REMALJ Carewell Inspirational School.`
         };
 
-        if (created) {
-          try {
-            const raw = localStorage.getItem('registered_accounts');
-            const list = raw ? JSON.parse(raw) : {};
-            list[email.toLowerCase()] = {
-              id: newStaff.id,
-              email: email.toLowerCase(),
-              password: defaultPassword,
-              fullName: staffData.name,
-              role: 'teacher',
-              staffId,
-              phone: staffData.phone
-            };
-            localStorage.setItem('registered_accounts', JSON.stringify(list));
-          } catch (e) {}
-        }
+        try {
+          const raw = localStorage.getItem('registered_accounts');
+          const list = raw ? JSON.parse(raw) : {};
+          list[email.toLowerCase()] = {
+            id: newStaff.id,
+            email: email.toLowerCase(),
+            password: defaultPassword,
+            fullName: staffData.name,
+            role: 'teacher',
+            staffId,
+            phone: staffData.phone
+          };
+          localStorage.setItem('registered_accounts', JSON.stringify(list));
+        } catch (e) {}
 
         return {
           ...current,
@@ -2155,20 +2330,31 @@ export function PortalDataProvider({ children }) {
       });
     },
     updateStaffMember: async (id, updates) => {
+      const sanitizedUpdates = {
+        ...updates,
+        ...(updates.classAssigned ? { classAssigned: formatClassToBasic(updates.classAssigned) } : {})
+      };
       try {
-        await api.updateStaff(id, updates);
+        await api.updateStaff(id, sanitizedUpdates);
       } catch (e) {
         console.warn('Backend staff update fallback:', e);
       }
       setData((current) => ({
         ...current,
-        teacherDirectory: (current.teacherDirectory || []).map((t) => (t.id === id || t.staffId === id) ? { ...t, ...updates } : t)
+        teacherDirectory: (current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY).map((t) => (t.id === id || t.staffId === id) ? { ...t, ...sanitizedUpdates } : t)
       }));
     },
-    offboardStaffMember: (id) => setData((current) => ({
-      ...current,
-      teacherDirectory: (current.teacherDirectory || []).map((t) => (t.id === id || t.staffId === id) ? { ...t, status: 'Offboarded' } : t)
-    })),
+    offboardStaffMember: async (id) => {
+      try {
+        await api.updateStaff(id, { status: 'Offboarded', is_active: false });
+      } catch (e) {
+        console.warn('Backend staff offboard fallback:', e);
+      }
+      setData((current) => ({
+        ...current,
+        teacherDirectory: (current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY).map((t) => (t.id === id || t.staffId === id) ? { ...t, status: 'Offboarded' } : t)
+      }));
+    },
     deleteStaffMember: async (id) => {
       try {
         await api.deleteStaff(id);
@@ -2177,36 +2363,31 @@ export function PortalDataProvider({ children }) {
       }
       setData((current) => ({
         ...current,
-        teacherDirectory: (current.teacherDirectory || []).filter((t) => t.id !== id && t.staffId !== id)
+        teacherDirectory: (current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY).filter((t) => t.id !== id && t.staffId !== id)
       }));
     },
     // Dynamic Classes & Subjects Methods
     addClassLevel: (newClass) => {
       if (!newClass) return;
+      const formatted = formatClassToBasic(newClass.trim());
       setData((current) => {
-        const existing = current.classLevels || [
-          'Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6',
-          'JHS 1', 'JHS 2', 'JHS 3', 'SHS 1', 'SHS 2', 'SHS 3'
-        ];
-        if (existing.includes(newClass.trim())) return current;
+        const existing = current.classLevels || DEFAULT_CLASS_LEVELS;
+        if (existing.includes(formatted)) return current;
         return {
           ...current,
-          classLevels: [...existing, newClass.trim()]
+          classLevels: [...existing, formatted]
         };
       });
     },
     addSubject: (newSubject) => {
       if (!newSubject) return;
+      const subjectName = newSubject.trim();
       setData((current) => {
-        const existing = current.subjects || [
-          'Pure Mathematics', 'Mathematics', 'Physics', 'Science / Physics',
-          'Literature in English', 'English Language', 'ICT / Computing',
-          'Social Studies', 'French', 'Religious & Moral Education'
-        ];
-        if (existing.includes(newSubject.trim())) return current;
+        const existing = current.subjects || DEFAULT_SUBJECTS;
+        if (existing.includes(subjectName)) return current;
         return {
           ...current,
-          subjects: [...existing, newSubject.trim()]
+          subjects: [...existing, subjectName]
         };
       });
     },

@@ -22,26 +22,53 @@ const PORTAL_USER = {
   accountant: { name: 'Mrs. Grace Accountant', role: 'Finance Head' },
 };
 
-export default function Topbar({ activePortal, isAuthed, onSignOut }) {
+export default function Topbar({ activePortal, isAuthed, onSignOut, adminRole }) {
   const currentInfo = PORTAL_INFO[activePortal] || PORTAL_INFO.admin;
   const defaultUser = PORTAL_USER[activePortal] || PORTAL_USER.admin;
 
   const authUser = getAuthUser();
-  const userName = authUser?.fullName || authUser?.name || authUser?.email || defaultUser.name;
-  const userRole = authUser?.role
-    ? (authUser.role.charAt(0).toUpperCase() + authUser.role.slice(1))
-    : defaultUser.role;
-  const userInitial = (userName.charAt(0) || 'U').toUpperCase();
+  const [currentAdminRole, setCurrentAdminRole] = useState(() => {
+    return adminRole || authUser?.adminRole || (authUser?.role === 'sub_admin' || authUser?.role === 'head_admin' ? authUser.role : null) || (typeof window !== 'undefined' ? localStorage.getItem('says_admin_role') : null) || 'head_admin';
+  });
 
-  // PV Notification Bell — shown on admin portal
+  useEffect(() => {
+    if (adminRole) {
+      setCurrentAdminRole(adminRole);
+    }
+  }, [adminRole]);
+
+  useEffect(() => {
+    const handleRoleChange = () => {
+      const stored = localStorage.getItem('says_admin_role');
+      if (stored) setCurrentAdminRole(stored);
+    };
+    window.addEventListener('storage', handleRoleChange);
+    window.addEventListener('says_admin_role_changed', handleRoleChange);
+    return () => {
+      window.removeEventListener('storage', handleRoleChange);
+      window.removeEventListener('says_admin_role_changed', handleRoleChange);
+    };
+  }, []);
+
+  const isSubAdmin = currentAdminRole === 'sub_admin' || authUser?.role === 'sub_admin' || authUser?.adminRole === 'sub_admin';
+
+  const userName = authUser?.fullName || authUser?.name || authUser?.email || (isSubAdmin && activePortal === 'admin' ? 'Sub-Admin Officer' : defaultUser.name);
+  const userRole = activePortal === 'admin'
+    ? (isSubAdmin ? 'Sub-Administrator' : 'Head Administrator')
+    : (authUser?.role
+      ? (authUser.role.charAt(0).toUpperCase() + authUser.role.slice(1))
+      : defaultUser.role);
+  const userInitial = (userName.charAt(0) || (isSubAdmin ? 'S' : 'U')).toUpperCase();
+
+  // PV Notification Bell — shown on admin portal (strictly for Head Admin only, hidden for Sub Admin)
   const portalData = usePortalData();
   const pvNotifications = portalData?.pvNotifications || [];
   const markAllPVNotificationsRead = portalData?.markAllPVNotificationsRead;
   const clearPVNotifications = portalData?.clearPVNotifications;
   const markPVNotificationRead = portalData?.markPVNotificationRead;
 
-  // Show bell on admin portal when authenticated
-  const showBell = activePortal === 'admin' && isAuthed;
+  // Show bell on admin portal when authenticated ONLY if user is not a Sub-Admin
+  const showBell = activePortal === 'admin' && isAuthed && !isSubAdmin;
   const unreadCount = pvNotifications.filter(n => !n.read).length;
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const notifPanelRef = useRef(null);

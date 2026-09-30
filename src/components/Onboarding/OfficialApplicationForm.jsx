@@ -64,6 +64,9 @@ export function SchoolLogoSVG({ size = 110 }) {
 
 export const getDefaultForm = () => ({
   // Header / Page 1
+  academicYear: '2025/2026',
+  academicTerm: 'Term 1',
+  term: 'Term 1',
   applyingClass: '',
   classSection: '',
   subClass: '',
@@ -225,12 +228,17 @@ export function normalizeApplicationForm(raw) {
       surname = parts.length > 1 ? parts[parts.length - 1] : '';
     }
   }
+  const academicYear = merged.academicYear || nested.academicYear || '2025/2026';
+  const academicTerm = merged.academicTerm || merged.term || nested.academicTerm || nested.term || 'Term 1';
 
   return {
     ...merged,
     applyingClass: (applyingClass || '').trim(),
     classSection: (classSection || '').trim(),
     subClass: (classSection || '').trim(),
+    academicYear,
+    academicTerm,
+    term: academicTerm,
     firstName,
     otherNames,
     surname,
@@ -539,6 +547,42 @@ export default function OfficialApplicationForm({
 
             <div className="document-main-title">APPLICATION FORM</div>
             <div className="document-instruction">(Complete the form in block letters)</div>
+
+            <div className="form-line-row" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
+              <div style={{ flex: '1 1 200px', display: 'flex', alignItems: 'center' }}>
+                <span className="form-line-label">ACADEMIC YEAR:</span>
+                <select
+                  className="form-line-input"
+                  value={formData.academicYear || '2025/2026'}
+                  onChange={(e) => handleChange('academicYear', e.target.value)}
+                  disabled={readOnly && !isAdmin}
+                  style={{ cursor: 'pointer', background: 'transparent', fontWeight: 'bold' }}
+                >
+                  <option value="2024/2025">2024/2025</option>
+                  <option value="2025/2026">2025/2026</option>
+                  <option value="2026/2027">2026/2027</option>
+                  <option value="2027/2028">2027/2028</option>
+                </select>
+              </div>
+
+              <div style={{ flex: '1 1 200px', display: 'flex', alignItems: 'center' }}>
+                <span className="form-line-label">ACADEMIC TERM:</span>
+                <select
+                  className="form-line-input"
+                  value={formData.academicTerm || formData.term || 'Term 1'}
+                  onChange={(e) => {
+                    handleChange('academicTerm', e.target.value);
+                    handleChange('term', e.target.value);
+                  }}
+                  disabled={readOnly && !isAdmin}
+                  style={{ cursor: 'pointer', background: 'transparent', fontWeight: 'bold' }}
+                >
+                  <option value="Term 1">Term 1</option>
+                  <option value="Term 2">Term 2</option>
+                  <option value="Term 3">Term 3</option>
+                </select>
+              </div>
+            </div>
 
             <div className="form-line-row">
               <span className="form-line-label">APPLYING FOR CLASS/FORM:</span>
