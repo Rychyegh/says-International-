@@ -642,6 +642,13 @@ export function PortalDataProvider({ children }) {
             const finalPVs = mergedPVs.length > 0 ? mergedPVs : mapped;
 
             // Synthesize unread notifications for any pending vouchers loaded from backend
+            let clearedKeys = new Set();
+            let readKeys = new Set();
+            try {
+              clearedKeys = new Set(JSON.parse(localStorage.getItem('says_cleared_pv_notifs') || '[]'));
+              readKeys = new Set(JSON.parse(localStorage.getItem('says_read_pv_notifs') || '[]'));
+            } catch (_) {}
+
             const existingNotifMap = new Map((current.pvNotifications || []).map(n => [String(n.pvNo || '').toLowerCase().trim(), n]));
             const pendingPVs = finalPVs.filter(p => {
               const s = (p.status || '').toLowerCase().trim();
@@ -650,7 +657,7 @@ export function PortalDataProvider({ children }) {
             const newSynthesized = [];
             pendingPVs.forEach(p => {
               const key = String(p.pvNo || p.id || '').toLowerCase().trim();
-              if (key && !existingNotifMap.has(key)) {
+              if (key && !existingNotifMap.has(key) && !clearedKeys.has(key)) {
                 newSynthesized.push({
                   id: `notif-${key}-${Date.now()}`,
                   pvNo: p.pvNo || p.id,
@@ -659,7 +666,7 @@ export function PortalDataProvider({ children }) {
                   description: p.description || 'Expenditure Voucher',
                   submittedBy: p.submittedBy || 'Sub-Admin',
                   submittedAt: p.datePrepared || new Date().toLocaleString(),
-                  read: false,
+                  read: readKeys.has(key),
                 });
               }
             });
@@ -2450,18 +2457,57 @@ export function PortalDataProvider({ children }) {
     },
 
     // Notification management
-    markAllPVNotificationsRead: () => setData((current) => ({
-      ...current,
-      pvNotifications: (current.pvNotifications || []).map(n => ({ ...n, read: true }))
-    })),
-    clearPVNotifications: () => setData((current) => ({
-      ...current,
-      pvNotifications: []
-    })),
-    markPVNotificationRead: (id) => setData((current) => ({
-      ...current,
-      pvNotifications: (current.pvNotifications || []).map(n => n.id === id ? { ...n, read: true } : n)
-    })),
+    markAllPVNotificationsRead: () => setData((current) => {
+      const notifs = current.pvNotifications || [];
+      const allKeys = notifs.map(n => String(n.pvNo || n.id || '').toLowerCase().trim());
+      try {
+        const storedRead = JSON.parse(localStorage.getItem('says_read_pv_notifs') || '[]');
+        const combined = Array.from(new Set([...storedRead, ...allKeys]));
+        localStorage.setItem('says_read_pv_notifs', JSON.stringify(combined));
+      } catch (_) {}
+      return {
+        ...current,
+        pvNotifications: notifs.map(n => ({ ...n, read: true }))
+      };
+    }),
+    clearPVNotifications: () => setData((current) => {
+      const notifs = current.pvNotifications || [];
+      const allKeys = notifs.map(n => String(n.pvNo || n.id || '').toLowerCase().trim());
+      const pvs = current.paymentVouchers || [];
+      const pendingKeys = pvs
+        .filter(p => {
+          const s = (p.status || '').toLowerCase().trim();
+          return s.includes('pending') || s === 'draft' || !s;
+        })
+        .map(p => String(p.pvNo || p.id || '').toLowerCase().trim());
+
+      try {
+        const storedCleared = JSON.parse(localStorage.getItem('says_cleared_pv_notifs') || '[]');
+        const combined = Array.from(new Set([...storedCleared, ...allKeys, ...pendingKeys]));
+        localStorage.setItem('says_cleared_pv_notifs', JSON.stringify(combined));
+      } catch (_) {}
+      return {
+        ...current,
+        pvNotifications: []
+      };
+    }),
+    markPVNotificationRead: (idOrPvNo) => setData((current) => {
+      const key = String(idOrPvNo).toLowerCase().trim();
+      try {
+        const storedRead = JSON.parse(localStorage.getItem('says_read_pv_notifs') || '[]');
+        if (!storedRead.includes(key)) {
+          storedRead.push(key);
+          localStorage.setItem('says_read_pv_notifs', JSON.stringify(storedRead));
+        }
+      } catch (_) {}
+      return {
+        ...current,
+        pvNotifications: (current.pvNotifications || []).map(n => {
+          const nKey = String(n.pvNo || n.id || '').toLowerCase().trim();
+          return (n.id === idOrPvNo || nKey === key) ? { ...n, read: true } : n;
+        })
+      };
+    }),
     updatePaymentVoucher: async (pvNo, updatedFields, editorRole = 'Headmaster / Pre-Auditor') => {
       try {
         await api.correctPaymentVoucher(pvNo, {
@@ -2503,27 +2549,80 @@ export function PortalDataProvider({ children }) {
       });
     },
     approvePaymentVoucher: async (pvNo, actionChoice, remarks, updatedFields = null, auditorName = 'Headmaster / Pre-Auditor') => {
-      try {
-        if (actionChoice === 'Validated' || actionChoice === 'Pre-audit Approve PV') {
-          // Standard Pre-Audit & Approve Endpoints
-          await api.preAuditPaymentVoucher(pvNo, {
-            decision: 'APPROVED',
-            audit_notes: remarks || 'Pre-audited & verified by Headmaster.'
-          });
-          await api.approvePaymentVoucher(pvNo, {
-            approval_notes: remarks || 'Approved for disbursement by Headmaster.'
-          });
-        } else {
-          // Status Update Endpoint
-          await api.updatePaymentVoucherStatus(pvNo, {
-            status: actionChoice,
-            notes: remarks,
-            comments: remarks,
-            rejectionReason: actionChoice === 'Declined' ? (remarks || 'Declined during pre-audit') : undefined
-          });
+      // 1. Resolve UUID id for backend endpoint
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      let targetUuid = null;
+
+      const currentVouchers = data.paymentVouchers || [];
+      const existingVoucher = currentVouchers.find(p =>
+        (p.pvNo && String(p.pvNo).toLowerCase() === String(pvNo).toLowerCase()) ||
+        (p.id && String(p.id).toLowerCase() === String(pvNo).toLowerCase())
+      );
+
+      if (existingVoucher?.id && uuidRegex.test(existingVoucher.id)) {
+        targetUuid = existingVoucher.id;
+      } else if (uuidRegex.test(pvNo)) {
+        targetUuid = pvNo;
+      }
+
+      // If still not a UUID, query backend vouchers to match by pv_number
+      if (!targetUuid) {
+        try {
+          const remoteList = await api.getPaymentVouchers();
+          if (Array.isArray(remoteList)) {
+            const remoteMatch = remoteList.find(r =>
+              String(r.pv_number || '').toLowerCase() === String(pvNo).toLowerCase() ||
+              String(r.id || '').toLowerCase() === String(pvNo).toLowerCase()
+            );
+            if (remoteMatch?.id && uuidRegex.test(remoteMatch.id)) {
+              targetUuid = remoteMatch.id;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 2. Map frontend action choice to valid backend status enum
+      // Permitted by FastAPI: 'DRAFT', 'PRE_AUDITED', 'APPROVED', 'DISBURSED', 'REJECTED'
+      let backendStatus = 'APPROVED';
+      const lower = String(actionChoice || '').toLowerCase();
+      if (lower.includes('valid') || lower.includes('approv')) {
+        backendStatus = 'APPROVED';
+      } else if (lower.includes('declin') || lower.includes('reject') || lower.includes('cancel') || lower.includes('non-accrual')) {
+        backendStatus = 'REJECTED';
+      } else if (lower.includes('postpon') || lower.includes('draft') || lower.includes('pending')) {
+        backendStatus = 'DRAFT';
+      }
+
+      // 3. Dispatch to backend API
+      if (targetUuid) {
+        try {
+          if (backendStatus === 'APPROVED') {
+            try {
+              await api.preAuditPaymentVoucher(targetUuid, {
+                decision: 'APPROVED',
+                audit_notes: remarks || 'Pre-audited & verified by Headmaster.'
+              });
+            } catch (e1) {
+              console.warn('Pre-audit call note:', e1.message);
+            }
+            try {
+              await api.approvePaymentVoucher(targetUuid, {
+                approval_notes: remarks || 'Approved for disbursement by Headmaster.'
+              });
+            } catch (e2) {
+              console.warn('Approve call note:', e2.message);
+            }
+          } else {
+            await api.updatePaymentVoucherStatus(targetUuid, {
+              status: backendStatus,
+              notes: remarks || undefined,
+              comments: remarks || undefined,
+              rejectionReason: backendStatus === 'REJECTED' ? (remarks || 'Declined during pre-audit') : undefined
+            });
+          }
+        } catch (e) {
+          console.warn('Backend PV status update fallback:', e);
         }
-      } catch (e) {
-        console.warn('Backend PV status update fallback:', e);
       }
       setData((current) => {
         const existing = current.paymentVouchers || [];
@@ -2560,6 +2659,103 @@ export function PortalDataProvider({ children }) {
           pvNotifications: updatedNotifs
         };
       });
+    },
+    disbursePaymentVoucher: async (pvNo, paymentDetails = {}, disburserName = 'Head Admin / Headmaster') => {
+      // 1. Resolve UUID id for backend endpoint
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      let targetUuid = null;
+
+      const currentVouchers = data.paymentVouchers || [];
+      const existingVoucher = currentVouchers.find(p =>
+        (p.pvNo && String(p.pvNo).toLowerCase() === String(pvNo).toLowerCase()) ||
+        (p.id && String(p.id).toLowerCase() === String(pvNo).toLowerCase())
+      );
+
+      if (existingVoucher?.id && uuidRegex.test(existingVoucher.id)) {
+        targetUuid = existingVoucher.id;
+      } else if (uuidRegex.test(pvNo)) {
+        targetUuid = pvNo;
+      }
+
+      if (!targetUuid) {
+        try {
+          const remoteList = await api.getPaymentVouchers();
+          if (Array.isArray(remoteList)) {
+            const remoteMatch = remoteList.find(r =>
+              String(r.pv_number || '').toLowerCase() === String(pvNo).toLowerCase() ||
+              String(r.id || '').toLowerCase() === String(pvNo).toLowerCase()
+            );
+            if (remoteMatch?.id && uuidRegex.test(remoteMatch.id)) {
+              targetUuid = remoteMatch.id;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 2. Dispatch to backend API
+      if (targetUuid) {
+        try {
+          await api.disbursePaymentVoucher(targetUuid, {
+            payment_method: paymentDetails.paymentMethod || 'Bank Transfer',
+            account_number: paymentDetails.accountNumber || '',
+            reference_number: paymentDetails.referenceNumber || '',
+            disbursement_notes: paymentDetails.notes || 'Disbursed and paid by Head Admin.'
+          });
+        } catch (e) {
+          console.warn('Backend disburse voucher call:', e);
+          try {
+            await api.updatePaymentVoucherStatus(targetUuid, {
+              status: 'DISBURSED',
+              notes: paymentDetails.notes || 'Disbursed by Head Admin'
+            });
+          } catch (e2) {}
+        }
+      }
+
+      // 3. Update local state and localStorage
+      const paymentDate = paymentDetails.paymentDate || new Date().toISOString().split('T')[0];
+      const settlementRecord = {
+        status: 'DISBURSED',
+        disbursedAt: new Date().toLocaleString(),
+        disbursedBy: disburserName,
+        paymentDate,
+        paymentMethod: paymentDetails.paymentMethod || 'Bank Transfer',
+        paymentSourceAccount: paymentDetails.sourceAccount || 'School Operations Account',
+        disbursementReference: paymentDetails.referenceNumber || `TXN-${Date.now().toString().slice(-6)}`,
+        disbursementNotes: paymentDetails.notes || 'Payment processed & disbursed.',
+      };
+
+      setData((current) => {
+        const existing = current.paymentVouchers || [];
+        const updated = existing.map(p => {
+          if (p.pvNo?.toLowerCase() === String(pvNo).toLowerCase() || p.id === pvNo) {
+            return {
+              ...p,
+              ...settlementRecord
+            };
+          }
+          return p;
+        });
+
+        try {
+          const q = JSON.parse(localStorage.getItem('official_pv_queue') || '[]');
+          if (Array.isArray(q)) {
+            const updatedQ = q.map(p =>
+              (p.pvNo?.toLowerCase() === String(pvNo).toLowerCase() || p.id === pvNo)
+                ? { ...p, ...settlementRecord }
+                : p
+            );
+            localStorage.setItem('official_pv_queue', JSON.stringify(updatedQ));
+          }
+        } catch (_) {}
+
+        return {
+          ...current,
+          paymentVouchers: updated
+        };
+      });
+
+      return true;
     },
     adminSetUserPassword: async ({ identifier, email, studentId, staffId, newPassword, role = 'student', fullName = '', adminName = 'System Administrator' }) => {
       const targetId = identifier || email || studentId || staffId;

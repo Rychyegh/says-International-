@@ -15,6 +15,7 @@ import BulkStudentUpload from '../components/Onboarding/BulkStudentUpload';
 import RegisterForExamsForm from '../components/RegisterForExams/RegisterForExamsForm';
 import AcademicSettingsManager from '../components/Academic/AcademicSettingsManager';
 import ApprovePVForm from '../components/Finance/ApprovePVForm';
+import PayPVForm from '../components/Finance/PayPVForm';
 import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
 import UserAccessControl from '../components/AccessControl/UserAccessControl';
 import { api, getAuthUser } from '../services/api';
@@ -37,6 +38,7 @@ const NAV = [
   { icon: <CreditCard size={15} />, label: 'Official Fee Schedule', badge: 'Bill' },
   { icon: <ShieldCheck size={15} />, label: 'User Access Control (UAC)', badge: 'Admin' },
   { icon: <FileCheck size={15} />, label: 'Pre-Audit & Approve PV', badge: 'Headmaster' },
+  { icon: <CreditCard size={15} />, label: 'Pay PV', badge: 'Head Admin' },
   { icon: <ShieldAlert size={15} />, label: 'Security & Intrusion Alerts', badge: 'Alerts' },
 ];
 
@@ -233,9 +235,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   }, [paymentVouchers]);
 
   const pendingPVCount = useMemo(() => {
-    const fromNotifs = (pvNotifications || []).filter(n => !n.read).length;
-    return Math.max(fromNotifs, pendingPVs.length);
-  }, [pvNotifications, pendingPVs]);
+    return (pvNotifications || []).filter(n => !n.read).length;
+  }, [pvNotifications]);
 
   const [livePVAlert, setLivePVAlert] = useState(null);
   useEffect(() => {
@@ -669,6 +670,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 'Register for Exams',
                 'Academic Settings',
                 'Pre-Audit & Approve PV',
+                'Pay PV',
+                'Pay PV (Disbursement)',
                 'User Access Control (UAC)',
                 'Transcripts & Results',
                 'Student Credentials Vault',
@@ -698,6 +701,22 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 }}>
                   {pendingPVCount}
                 </span>
+              ) : item.label === 'Pay PV' ? (
+                (() => {
+                  const readyCount = (paymentVouchers || []).filter(v => {
+                    const s = String(v.status || '').toLowerCase().trim();
+                    return s === 'validated' || s === 'approved' || s.includes('approved') || s.includes('pre-audited');
+                  }).length;
+                  return readyCount > 0 ? (
+                    <span style={{
+                      background: '#16a34a', color: '#fff', fontSize: 10, fontWeight: 900,
+                      borderRadius: 99, padding: '1px 7px', marginLeft: 6, lineHeight: 1.4,
+                      boxShadow: '0 1px 4px rgba(22,163,74,0.4)'
+                    }}>
+                      {readyCount}
+                    </span>
+                  ) : null;
+                })()
               ) : item.badge ? (
                 <span className="sidebar-item__badge" style={{ fontSize: 9, opacity: 0.85 }}>{item.badge}</span>
               ) : null}
@@ -819,6 +838,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             'Register for Exams',
             'Academic Settings',
             'Pre-Audit & Approve PV',
+            'Pay PV',
+            'Pay PV (Disbursement)',
             'User Access Control (UAC)',
             'Transcripts & Results',
             'Student Credentials Vault',
@@ -2210,6 +2231,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           {(activeNav === 'Pre-Audit & Approve PV' || activeNav === 'Approve Payment Voucher (PV)') && (
             <div className="animate-fade-up">
               <ApprovePVForm setM={() => {}} />
+            </div>
+          )}
+
+          {/* ── PAY PV (HEAD ADMIN ONLY DISBURSEMENT DESK) ── */}
+          {(activeNav === 'Pay PV' || activeNav === 'Pay PV (Disbursement)') && adminRole !== 'sub_admin' && (
+            <div className="animate-fade-up">
+              <PayPVForm />
             </div>
           )}
 

@@ -51,6 +51,11 @@ export default function ApprovePVForm({ setM = () => {} }) {
       qty: 1,
       cost: 1850.00,
       total: 1850.00,
+      items: [
+        { id: 'it-082-1', description: 'Fresh Vegetables & Cooking Ingredients', provider: 'DAILY CANTEEN SUPPLIES LTD', providerId: '931043', qty: 10, costPerItem: 75.00, totalAmount: 750.00, status: 'Pending approval' },
+        { id: 'it-082-2', description: 'Bags of Rice & Cooking Oil', provider: 'DAILY CANTEEN SUPPLIES LTD', providerId: '931043', qty: 5, costPerItem: 140.00, totalAmount: 700.00, status: 'Pending approval' },
+        { id: 'it-082-3', description: 'Beverages & Dairy Provision Pack', provider: 'DAILY CANTEEN SUPPLIES LTD', providerId: '931043', qty: 4, costPerItem: 100.00, totalAmount: 400.00, status: 'Pending approval' }
+      ],
       datePrepared: '2026-09-02',
       valuedDate: '2026-09-02',
       auditRemarks: 'Pending pre-audit verification by Headmaster.',
@@ -75,6 +80,10 @@ export default function ApprovePVForm({ setM = () => {} }) {
       qty: 5,
       cost: 240.00,
       total: 1200.00,
+      items: [
+        { id: 'it-075-1', description: 'Terminal Assessment Printing Paper (A4 Reams)', provider: 'STATIONERY & PRINTING DEPOT', providerId: '931088', qty: 3, costPerItem: 240.00, totalAmount: 720.00, status: 'Validated' },
+        { id: 'it-075-2', description: 'High-Yield Black Laser Toner Cartridges', provider: 'STATIONERY & PRINTING DEPOT', providerId: '931088', qty: 2, costPerItem: 240.00, totalAmount: 480.00, status: 'Validated' }
+      ],
       datePrepared: '2026-08-28',
       valuedDate: '2026-08-28',
       auditRemarks: 'Pre-audited & Approved',
@@ -147,6 +156,32 @@ export default function ApprovePVForm({ setM = () => {} }) {
   const [costPerItem, setCostPerItem] = useState(String(pvQueue[0]?.cost || 3200.00));
   const [auditRemarks, setAuditRemarks] = useState(pvQueue[0]?.auditRemarks || 'Pre-audited & verified against monthly meter consumption records.');
   const [valuedDate, setValuedDate] = useState(pvQueue[0]?.valuedDate || '2026-09-05');
+
+  // Line items state for multi-item requests
+  const [currentItems, setCurrentItems] = useState(() => {
+    const firstV = pvQueue[0];
+    if (firstV?.items && Array.isArray(firstV.items) && firstV.items.length > 0) {
+      return firstV.items;
+    }
+    return [{
+      id: 'it-088-1',
+      description: firstV?.description || 'Cost of Electricity Bill & Utility Substation Maintenance',
+      provider: firstV?.provider || 'ELECTRICITY COMPANY OF GHANA (ECG)',
+      providerId: firstV?.providerId || 'ECG-99310',
+      qty: Number(firstV?.qty || 1),
+      cost: Number(firstV?.cost || 3200.00),
+      costPerItem: Number(firstV?.cost || 3200.00),
+      total: Number(firstV?.total || 3200.00),
+      totalAmount: Number(firstV?.total || 3200.00),
+      status: firstV?.status || 'Validated'
+    }];
+  });
+  const [selectedItemIds, setSelectedItemIds] = useState(() => currentItems.map(i => i.id));
+  const [activeItemIndex, setActiveItemIndex] = useState(0);
+
+  // Recently Actioned PVs Filters at bottom of page
+  const [actionedStatusFilter, setActionedStatusFilter] = useState('ALL');
+  const [actionedSearchQuery, setActionedSearchQuery] = useState('');
   
   // Action Choice Options matching Reference Image: Validated, Pending approval, Postponed, Declined, Cancel PV, Non-accrual
   const [actionChoice, setActionChoice] = useState('Validated');
@@ -179,6 +214,48 @@ export default function ApprovePVForm({ setM = () => {} }) {
     setDatePrepared(v.datePrepared || v.tDate || new Date().toISOString().split('T')[0]);
     setValuedDate(v.valuedDate || v.vDate || new Date().toISOString().split('T')[0]);
     setAuditRemarks(v.auditRemarks || 'Pre-audited & verified by Headmaster.');
+
+    // Process line items for multi-item support
+    let parsedItems = [];
+    if (Array.isArray(v.items) && v.items.length > 0) {
+      parsedItems = v.items.map((it, idx) => ({
+        id: it.id || `it-${idx + 1}`,
+        description: it.description || v.description || `Line Item ${idx + 1}`,
+        provider: it.provider || v.provider || 'Vendor',
+        providerId: it.providerId || v.providerId || '',
+        qty: Number(it.qty !== undefined ? it.qty : 1),
+        cost: Number(it.costPerItem !== undefined ? it.costPerItem : (it.cost !== undefined ? it.cost : (v.cost || 0))),
+        costPerItem: Number(it.costPerItem !== undefined ? it.costPerItem : (it.cost !== undefined ? it.cost : (v.cost || 0))),
+        total: Number(it.totalAmount !== undefined ? it.totalAmount : (it.total !== undefined ? it.total : (Number(it.qty || 1) * Number(it.costPerItem || it.cost || 0)))),
+        totalAmount: Number(it.totalAmount !== undefined ? it.totalAmount : (it.total !== undefined ? it.total : (Number(it.qty || 1) * Number(it.costPerItem || it.cost || 0)))),
+        status: it.status || v.status || 'Pending approval'
+      }));
+    } else {
+      parsedItems = [{
+        id: `it-${v.id || v.pvNo || '1'}-single`,
+        description: v.description || 'Expenditure Requisition',
+        provider: v.provider || v.clientProvider || 'Vendor',
+        providerId: v.providerId || '',
+        qty: Number(v.qty) || 1,
+        cost: Number(v.cost || v.costPerItem) || 0,
+        costPerItem: Number(v.cost || v.costPerItem) || 0,
+        total: Number(v.total || v.cost) || 0,
+        totalAmount: Number(v.total || v.cost) || 0,
+        status: v.status || 'Pending approval'
+      }];
+    }
+    setCurrentItems(parsedItems);
+    setSelectedItemIds(parsedItems.map(it => it.id));
+    setActiveItemIndex(0);
+
+    // If first item has description, populate active item details
+    if (parsedItems.length > 0) {
+      setDescription(parsedItems[0].description || v.description || '');
+      setQty(String(parsedItems[0].qty || 1));
+      setCostPerItem(Number(parsedItems[0].costPerItem || parsedItems[0].cost || 0).toFixed(2));
+      if (parsedItems[0].provider) setClientProvider(parsedItems[0].provider);
+      if (parsedItems[0].providerId) setProviderId(parsedItems[0].providerId);
+    }
     
     // Normalize status for Action Choice
     const statusMap = {
@@ -194,6 +271,32 @@ export default function ApprovePVForm({ setM = () => {} }) {
     };
     setActionChoice(statusMap[v.status] || 'Validated');
     setIsParticularsOpen(true);
+  };
+
+  // Select a specific item from the itemized list to populate into the edit fields
+  const handleSelectItemForEdit = (item, idx) => {
+    setActiveItemIndex(idx);
+    setDescription(item.description || '');
+    setClientProvider(item.provider || clientProvider);
+    setProviderId(item.providerId || providerId);
+    setQty(String(item.qty || 1));
+    setCostPerItem(Number(item.costPerItem || item.cost || 0).toFixed(2));
+  };
+
+  // Toggle selection for bulk action checkbox
+  const handleToggleItemSelect = (itemId) => {
+    setSelectedItemIds(prev =>
+      prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId]
+    );
+  };
+
+  // Select all or deselect all items
+  const handleToggleSelectAllItems = () => {
+    if (selectedItemIds.length === currentItems.length) {
+      setSelectedItemIds([]);
+    } else {
+      setSelectedItemIds(currentItems.map(i => i.id));
+    }
   };
 
   const [isSearching, setIsSearching] = useState(false);
@@ -324,21 +427,48 @@ export default function ApprovePVForm({ setM = () => {} }) {
     }
   };
 
+  const [isActioning, setIsActioning] = useState(false);
+
   // Save / Correct Voucher Details Prior to Approval
-  const handleSaveVoucherEdits = () => {
+  const handleSaveVoucherEdits = async () => {
     if (!pvNo.trim()) {
       alert('Please select or enter a valid PV Number.');
       return;
     }
+
+    setIsActioning(true);
+    setBannerNotice(`⏳ Saving corrected voucher details for #${pvNo}...`);
+
+    let updatedItems = [...currentItems];
+    if (updatedItems.length > 0 && activeItemIndex < updatedItems.length) {
+      updatedItems[activeItemIndex] = {
+        ...updatedItems[activeItemIndex],
+        description,
+        provider: clientProvider,
+        providerId,
+        qty: Number(qty) || 1,
+        cost: Number(costPerItem) || 0,
+        costPerItem: Number(costPerItem) || 0,
+        total: (Number(qty) || 1) * (Number(costPerItem) || 0),
+        totalAmount: (Number(qty) || 1) * (Number(costPerItem) || 0),
+      };
+      setCurrentItems(updatedItems);
+    }
+
+    const newCalculatedTotal = updatedItems.length > 1
+      ? updatedItems.reduce((acc, it) => acc + (it.totalAmount || it.total || 0), 0)
+      : calculatedTotalAmount;
+
     const updatedFields = {
       pvNo,
       requisitionNo: itemRequisitionNo,
       provider: clientProvider,
       providerId,
       description,
+      items: updatedItems,
       qty: Number(qty) || 1,
       cost: Number(costPerItem) || 0,
-      total: calculatedTotalAmount,
+      total: newCalculatedTotal,
       datePrepared,
       valuedDate,
       auditRemarks,
@@ -354,29 +484,70 @@ export default function ApprovePVForm({ setM = () => {} }) {
       localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue));
     } catch (e) {}
 
-    if (updatePaymentVoucher) {
-      updatePaymentVoucher(pvNo, updatedFields, 'Headmaster / Pre-Auditor');
+    try {
+      if (updatePaymentVoucher) {
+        await updatePaymentVoucher(pvNo, updatedFields, 'Headmaster / Pre-Auditor');
+      }
+      setBannerNotice(`✏️ ✅ Successfully saved corrected voucher details for PV #${pvNo}! Corrected by Headmaster prior to approval.`);
+    } catch (err) {
+      setBannerNotice(`✏️ Saved corrections locally (${err.message || 'offline'})`);
+    } finally {
+      setIsActioning(false);
+      setTimeout(() => setBannerNotice(''), 5000);
     }
-
-    setBannerNotice(`✏️ ✅ Successfully saved corrected voucher details for PV #${pvNo}! Corrected by Headmaster prior to approval.`);
-    setTimeout(() => setSuccessNotice(''), 5000);
   };
 
-  // Action Single PV Item Only
-  const handleActionSingleItem = () => {
+  // Action Single PV Item (or active item in multi-item request)
+  const handleActionSingleItem = async () => {
+    if (!pvNo.trim()) {
+      alert('Please select or enter a valid PV Number.');
+      return;
+    }
+
+    setIsActioning(true);
+    const normalizedDecision = actionChoice === 'Pre-audit Approve PV' || actionChoice === 'Validated' ? 'Validated' : actionChoice;
+    setBannerNotice(`⏳ Submitting executive action "${actionChoice}" for PV #${pvNo}...`);
+
+    let updatedItems = [...currentItems];
+    let overallStatus = normalizedDecision;
+
+    if (updatedItems.length > 1 && activeItemIndex < updatedItems.length) {
+      updatedItems[activeItemIndex] = {
+        ...updatedItems[activeItemIndex],
+        description,
+        qty: Number(qty) || 1,
+        cost: Number(costPerItem) || 0,
+        costPerItem: Number(costPerItem) || 0,
+        total: (Number(qty) || 1) * (Number(costPerItem) || 0),
+        totalAmount: (Number(qty) || 1) * (Number(costPerItem) || 0),
+        status: normalizedDecision,
+        auditRemarks
+      };
+      setCurrentItems(updatedItems);
+
+      const allVal = updatedItems.every(i => i.status === 'Validated');
+      const allDec = updatedItems.every(i => i.status === 'Declined');
+      overallStatus = allVal ? 'Validated' : (allDec ? 'Declined' : (actionChoice === 'Validated' ? 'Validated' : actionChoice));
+    }
+
+    const newCalculatedTotal = updatedItems.length > 1
+      ? updatedItems.reduce((acc, it) => acc + (it.totalAmount || it.total || 0), 0)
+      : calculatedTotalAmount;
+
     const updatedFields = {
       pvNo,
       requisitionNo: itemRequisitionNo,
       provider: clientProvider,
       providerId,
       description,
+      items: updatedItems,
       qty: Number(qty) || 1,
       cost: Number(costPerItem) || 0,
-      total: calculatedTotalAmount,
+      total: newCalculatedTotal,
       datePrepared,
       valuedDate,
       auditRemarks,
-      status: actionChoice,
+      status: overallStatus,
       editedByHeadmaster: true
     };
 
@@ -389,18 +560,96 @@ export default function ApprovePVForm({ setM = () => {} }) {
       localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue));
     } catch (e) {}
 
-    if (approvePaymentVoucher) {
-      approvePaymentVoucher(pvNo, actionChoice, auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
+    try {
+      if (approvePaymentVoucher) {
+        await approvePaymentVoucher(pvNo, overallStatus, auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
+      }
+      setBannerNotice(`✅ Applied executive decision "${actionChoice}" for PV #${pvNo} (Item: ${updatedItems[activeItemIndex]?.description || 'Single Item'}).`);
+    } catch (err) {
+      setBannerNotice(`⚠️ Action recorded locally (${err.message || 'backend sync issue'})`);
+    } finally {
+      setIsActioning(false);
+      setTimeout(() => setBannerNotice(''), 5000);
+    }
+  };
+
+  // Bulk Action Selected Items in Multi-Item Request
+  const handleBulkActionSelectedItems = async () => {
+    if (!pvNo.trim()) {
+      alert('Please select or enter a valid PV Number.');
+      return;
+    }
+    if (selectedItemIds.length === 0) {
+      alert('Please select at least one item from the itemized breakdown.');
+      return;
     }
 
-    setBannerNotice(`✅ Applied action "${actionChoice}" for PV Item #${pvNo}. Pre-audit ledger updated.`);
-    setTimeout(() => setBannerNotice(''), 4000);
+    setIsActioning(true);
+    const normalizedDecision = actionChoice === 'Pre-audit Approve PV' || actionChoice === 'Validated' ? 'Validated' : actionChoice;
+    setBannerNotice(`⏳ Applying bulk action "${actionChoice}" to ${selectedItemIds.length} item(s)...`);
+
+    const updatedItems = currentItems.map(item => {
+      if (selectedItemIds.includes(item.id)) {
+        return {
+          ...item,
+          status: normalizedDecision,
+          auditRemarks
+        };
+      }
+      return item;
+    });
+    setCurrentItems(updatedItems);
+
+    const allVal = updatedItems.every(i => i.status === 'Validated');
+    const allDec = updatedItems.every(i => i.status === 'Declined');
+    const overallStatus = allVal ? 'Validated' : (allDec ? 'Declined' : (actionChoice === 'Validated' ? 'Validated' : actionChoice));
+
+    const newCalculatedTotal = updatedItems.reduce((acc, it) => acc + (it.totalAmount || it.total || 0), 0);
+
+    const updatedFields = {
+      pvNo,
+      requisitionNo: itemRequisitionNo,
+      provider: clientProvider,
+      providerId,
+      items: updatedItems,
+      total: newCalculatedTotal,
+      datePrepared,
+      valuedDate,
+      auditRemarks,
+      status: overallStatus,
+      editedByHeadmaster: true
+    };
+
+    const updatedQueue = pvQueue.map(p =>
+      (p.pvNo?.toLowerCase() === pvNo.toLowerCase() || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
+    );
+
+    setPvQueue(updatedQueue);
+    try {
+      localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue));
+    } catch (e) {}
+
+    try {
+      if (approvePaymentVoucher) {
+        await approvePaymentVoucher(pvNo, overallStatus, auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
+      }
+      setBannerNotice(`✅ Applied bulk action "${actionChoice}" to ${selectedItemIds.length} item(s) in PV #${pvNo}.`);
+    } catch (err) {
+      setBannerNotice(`⚠️ Action recorded locally (${err.message || 'offline'})`);
+    } finally {
+      setIsActioning(false);
+      setTimeout(() => setBannerNotice(''), 5000);
+    }
   };
 
   // Action Next PV / Action All PV Items in Queue
-  const handleActionNextOrAll = () => {
-    // Action current item and move to next pending item in queue
-    handleActionSingleItem();
+  const handleActionNextOrAll = async () => {
+    setIsActioning(true);
+    if (currentItems.length > 1 && selectedItemIds.length > 0) {
+      await handleBulkActionSelectedItems();
+    } else {
+      await handleActionSingleItem();
+    }
     const currentIndex = pvQueue.findIndex(p => p.pvNo?.toLowerCase() === pvNo.toLowerCase() || p.id === selectedPvId);
     if (currentIndex >= 0 && currentIndex < pvQueue.length - 1) {
       const nextV = pvQueue[currentIndex + 1];
@@ -409,8 +658,66 @@ export default function ApprovePVForm({ setM = () => {} }) {
     } else {
       setBannerNotice(`✅ Applied action "${actionChoice}" for all selected items in queue.`);
     }
+    setIsActioning(false);
     setTimeout(() => setBannerNotice(''), 5000);
   };
+
+  // Recently Actioned PVs & Executive Audit Trail calculations
+  const actionedCounts = useMemo(() => {
+    const allActioned = pvQueue.filter(p => {
+      const s = String(p.status || '').toLowerCase().trim();
+      return !s.includes('pending') && s !== 'draft' && !!s;
+    });
+    return {
+      all: allActioned.length,
+      validated: allActioned.filter(p => {
+        const s = String(p.status || '').toLowerCase();
+        return s === 'validated' || s === 'approved' || s.includes('approved') || s.includes('pre-audited');
+      }).length,
+      declined: allActioned.filter(p => {
+        const s = String(p.status || '').toLowerCase();
+        return s === 'declined' || s === 'rejected';
+      }).length,
+      postponed: allActioned.filter(p => String(p.status || '').toLowerCase() === 'postponed').length,
+      cancelled: allActioned.filter(p => String(p.status || '').toLowerCase().includes('cancel')).length,
+      nonAccrual: allActioned.filter(p => String(p.status || '').toLowerCase() === 'non-accrual').length,
+    };
+  }, [pvQueue]);
+
+  const recentlyActionedPVs = useMemo(() => {
+    return pvQueue.filter(p => {
+      const s = String(p.status || '').toLowerCase().trim();
+      const isPending = s.includes('pending') || s === 'draft' || !s;
+      if (isPending) return false;
+
+      if (actionedStatusFilter === 'VALIDATED') {
+        return s === 'validated' || s === 'approved' || s.includes('approved') || s.includes('pre-audited');
+      }
+      if (actionedStatusFilter === 'DECLINED') {
+        return s === 'declined' || s === 'rejected';
+      }
+      if (actionedStatusFilter === 'POSTPONED') {
+        return s === 'postponed';
+      }
+      if (actionedStatusFilter === 'CANCEL') {
+        return s === 'cancel pv' || s === 'cancelled' || s.includes('cancel');
+      }
+      if (actionedStatusFilter === 'NON-ACCRUAL') {
+        return s === 'non-accrual';
+      }
+      return true; // 'ALL'
+    }).filter(p => {
+      if (!actionedSearchQuery) return true;
+      const q = actionedSearchQuery.toLowerCase().trim();
+      return (
+        (p.pvNo && p.pvNo.toLowerCase().includes(q)) ||
+        (p.requisitionNo && p.requisitionNo.toLowerCase().includes(q)) ||
+        (p.provider && p.provider.toLowerCase().includes(q)) ||
+        (p.description && p.description.toLowerCase().includes(q)) ||
+        (p.auditRemarks && p.auditRemarks.toLowerCase().includes(q))
+      );
+    });
+  }, [pvQueue, actionedStatusFilter, actionedSearchQuery]);
 
   // Summary Totals Calculation (Matching Image 2 Bottom Summary Bar)
   const totalPendingAmount = pvQueue.filter(p => p.status === 'Pending approval' || p.status === 'Pending Audit').reduce((acc, p) => acc + (p.total || p.cost || 0), 0);
@@ -817,6 +1124,173 @@ export default function ApprovePVForm({ setM = () => {} }) {
           </div>
         </div>
 
+        {/* ITEMIZATION SECTION FOR MULTI-ITEM REQUESTS */}
+        {currentItems.length > 1 && (
+          <div style={{
+            background: '#f0f9ff',
+            border: '1.5px solid #0284c7',
+            borderRadius: 8,
+            padding: 14,
+            marginBottom: 16
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 900, color: '#0369a1' }}>
+                  📦 Voucher #{pvNo} Contains {currentItems.length} Itemized Lines
+                </span>
+                <span style={{ fontSize: 11, background: '#bae6fd', color: '#0369a1', padding: '2px 8px', borderRadius: 12, fontWeight: 800 }}>
+                  {selectedItemIds.length} of {currentItems.length} Selected for Action
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={handleToggleSelectAllItems}
+                  style={{ fontSize: 11, padding: '4px 10px', background: '#fff', border: '1px solid #0284c7', color: '#0284c7', borderRadius: 4, fontWeight: 800, cursor: 'pointer' }}
+                >
+                  {selectedItemIds.length === currentItems.length ? 'Deselect All' : 'Select All Items'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto', background: '#fff', borderRadius: 6, border: '1px solid #cbd5e1' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                <thead>
+                  <tr style={{ background: '#e0f2fe', color: '#0369a1', textAlign: 'left' }}>
+                    <th style={{ padding: '6px 8px', width: 30, textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedItemIds.length === currentItems.length && currentItems.length > 0}
+                        onChange={handleToggleSelectAllItems}
+                        title="Select / Deselect all items"
+                      />
+                    </th>
+                    <th style={{ padding: '6px 8px' }}>Line Item Particulars</th>
+                    <th style={{ padding: '6px 8px' }}>Payee / Merchant</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'center' }}>Qty</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'right' }}>Rate (GHS)</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'right' }}>Subtotal (GHS)</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'center' }}>Item Status</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'center' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentItems.map((item, idx) => {
+                    const isSelected = selectedItemIds.includes(item.id);
+                    const isActive = activeItemIndex === idx;
+                    return (
+                      <tr
+                        key={item.id || idx}
+                        style={{
+                          background: isActive ? '#f0fdf4' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc'),
+                          borderBottom: '1px solid #e2e8f0'
+                        }}
+                      >
+                        <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleItemSelect(item.id)}
+                          />
+                        </td>
+                        <td style={{ padding: '6px 8px', fontWeight: 800, color: '#0f172a' }}>
+                          {item.description}
+                          {isActive && <span style={{ marginLeft: 6, fontSize: 9.5, color: '#16a34a', fontWeight: 900 }}>● Editing in station</span>}
+                        </td>
+                        <td style={{ padding: '6px 8px', color: '#475569' }}>
+                          {item.provider || clientProvider}
+                        </td>
+                        <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 800 }}>
+                          {item.qty}
+                        </td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                          {Number(item.costPerItem || item.cost || 0).toFixed(2)}
+                        </td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 900, color: '#0369a1' }}>
+                          {Number(item.totalAmount || item.total || 0).toFixed(2)}
+                        </td>
+                        <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                          <span style={{
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            fontSize: 9.5,
+                            fontWeight: 900,
+                            background: item.status === 'Validated' || item.status?.includes('Approved') ? '#dcfce7' : (item.status === 'Declined' ? '#fee2e2' : '#fef3c7'),
+                            color: item.status === 'Validated' || item.status?.includes('Approved') ? '#166534' : (item.status === 'Declined' ? '#dc2626' : '#b45309')
+                          }}>
+                            {item.status || 'Pending'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectItemForEdit(item, idx)}
+                            style={{
+                              padding: '3px 8px',
+                              background: isActive ? '#16a34a' : '#0284c7',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: 4,
+                              fontSize: 10,
+                              fontWeight: 800,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {isActive ? '✓ Selected' : 'Inspect / Edit'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Quick multi-item action toolbar */}
+            <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <span style={{ fontSize: 11, color: '#0369a1', fontWeight: 700 }}>
+                💡 Select items with checkboxes above to apply executive action ("{actionChoice}") in bulk or inspect an individual item below.
+              </span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={handleActionSingleItem}
+                  disabled={isActioning}
+                  style={{
+                    padding: '6px 12px',
+                    background: '#0f3a4b',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Action Single Item (#{currentItems[activeItemIndex]?.description?.substring(0, 16) || 'Item'}...)
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkActionSelectedItems}
+                  disabled={isActioning || selectedItemIds.length === 0}
+                  style={{
+                    padding: '6px 14px',
+                    background: selectedItemIds.length > 0 ? '#16a34a' : '#94a3b8',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontWeight: 900,
+                    cursor: selectedItemIds.length > 0 ? 'pointer' : 'not-allowed'
+                  }}
+                >
+                  Bulk Action Selected Items ({selectedItemIds.length}) &gt;&gt;
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
           {/* Description or Particulars */}
           <div style={{ gridColumn: 'span 3' }}>
@@ -972,22 +1446,64 @@ export default function ApprovePVForm({ setM = () => {} }) {
             </div>
           </div>
 
-          {/* Action Buttons (Image 2 Match) */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {/* Action Buttons (Image 2 Match & Multi-Item Support) */}
+          <div style={{ display: 'grid', gridTemplateColumns: currentItems.length > 1 ? '1fr 1fr 1fr' : '1fr 1fr', gap: 10 }}>
             <button
               type="button"
               onClick={handleActionSingleItem}
-              style={{ padding: '10px 16px', background: '#0f3a4b', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+              disabled={isActioning}
+              style={{
+                padding: '10px 14px', background: '#0f3a4b', color: '#fff', border: 'none',
+                borderRadius: 6, fontSize: 11.5, fontWeight: 800, cursor: isActioning ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                opacity: isActioning ? 0.75 : 1
+              }}
             >
-              Action Single PV Item (#{pvNo})
+              {isActioning ? <Loader2 size={14} className="animate-spin" /> : null}
+              {currentItems.length > 1
+                ? `Action Active Item (${currentItems[activeItemIndex]?.description?.substring(0, 14) || 'Item'}...)`
+                : `Action Single PV Item (#${pvNo})`}
             </button>
+
+            {currentItems.length > 1 && (
+              <button
+                type="button"
+                onClick={handleBulkActionSelectedItems}
+                disabled={isActioning || selectedItemIds.length === 0}
+                style={{
+                  padding: '10px 14px',
+                  background: selectedItemIds.length > 0 ? '#16a34a' : '#94a3b8',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 11.5,
+                  fontWeight: 900,
+                  cursor: (isActioning || selectedItemIds.length === 0) ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  opacity: isActioning ? 0.75 : 1
+                }}
+              >
+                {isActioning ? <Loader2 size={14} className="animate-spin" /> : null}
+                Bulk Action Selected ({selectedItemIds.length})
+              </button>
+            )}
 
             <button
               type="button"
               onClick={handleActionNextOrAll}
-              style={{ padding: '10px 16px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 900, cursor: 'pointer' }}
+              disabled={isActioning}
+              style={{
+                padding: '10px 14px', background: '#0284c7', color: '#fff', border: 'none',
+                borderRadius: 6, fontSize: 11.5, fontWeight: 900, cursor: isActioning ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                opacity: isActioning ? 0.75 : 1
+              }}
             >
-              Action Next PV / Action All PV Items
+              {isActioning ? <Loader2 size={14} className="animate-spin" /> : null}
+              Action Next PV / All Items
             </button>
           </div>
         </div>
@@ -1053,6 +1569,248 @@ export default function ApprovePVForm({ setM = () => {} }) {
       </div>
     </>
   )}
+
+  {/* EXECUTIVE AUDIT TRAIL: RECENTLY ACTIONED PAYMENT VOUCHERS (AT VERY BOTTOM OF PAGE) */}
+  <div style={{
+    marginTop: 24,
+    background: '#ffffff',
+    border: '1.5px solid #cbd5e1',
+    borderRadius: 10,
+    overflow: 'hidden',
+    boxShadow: '0 4px 14px rgba(0,0,0,0.05)'
+  }}>
+    {/* Header Banner */}
+    <div style={{
+      background: '#0f3a4b',
+      color: '#ffffff',
+      padding: '14px 20px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 12
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ background: '#38bdf8', width: 5, height: 24, borderRadius: 2 }} />
+        <div>
+          <h4 style={{ margin: 0, fontSize: 15, fontWeight: 900, letterSpacing: '0.02em', color: '#fff' }}>
+            Executive Pre-Audit Ledger · Recently Actioned Payment Vouchers
+          </h4>
+          <div style={{ fontSize: 11, color: '#bae6fd', marginTop: 2 }}>
+            Register of payment vouchers reviewed and decisioned by Head Admin · Filterable by status
+          </div>
+        </div>
+      </div>
+
+      {/* Search Input for Actioned Table */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input
+          type="text"
+          placeholder="Filter actioned records..."
+          value={actionedSearchQuery}
+          onChange={(e) => setActionedSearchQuery(e.target.value)}
+          style={{
+            padding: '5px 12px',
+            borderRadius: 6,
+            border: '1px solid rgba(255,255,255,0.3)',
+            background: 'rgba(255,255,255,0.15)',
+            color: '#fff',
+            fontSize: 11,
+            outline: 'none',
+            width: 200
+          }}
+        />
+        {actionedSearchQuery && (
+          <button
+            type="button"
+            onClick={() => setActionedSearchQuery('')}
+            style={{ padding: '4px 8px', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 4, color: '#fff', fontSize: 10, cursor: 'pointer' }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+    </div>
+
+    {/* Filterable Status Chips Bar */}
+    <div style={{
+      background: '#f8fafc',
+      padding: '12px 18px',
+      borderBottom: '1px solid #e2e8f0',
+      display: 'flex',
+      gap: 8,
+      flexWrap: 'wrap',
+      alignItems: 'center'
+    }}>
+      <span style={{ fontSize: 11, fontWeight: 900, color: '#475569', marginRight: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        Filter Status:
+      </span>
+
+      {[
+        { key: 'ALL', label: 'All Actioned', count: actionedCounts.all, color: '#0f3a4b' },
+        { key: 'VALIDATED', label: 'Validated / Approved', count: actionedCounts.validated, color: '#16a34a' },
+        { key: 'DECLINED', label: 'Declined', count: actionedCounts.declined, color: '#dc2626' },
+        { key: 'POSTPONED', label: 'Postponed', count: actionedCounts.postponed, color: '#0284c7' },
+        { key: 'CANCEL', label: 'Cancelled', count: actionedCounts.cancelled, color: '#475569' },
+        { key: 'NON-ACCRUAL', label: 'Non-accrual', count: actionedCounts.nonAccrual, color: '#6b21a8' },
+      ].map((f) => (
+        <button
+          key={f.key}
+          type="button"
+          onClick={() => setActionedStatusFilter(f.key)}
+          style={{
+            padding: '5px 12px',
+            borderRadius: 20,
+            border: actionedStatusFilter === f.key ? `2px solid ${f.color}` : '1px solid #cbd5e1',
+            background: actionedStatusFilter === f.key ? f.color : '#ffffff',
+            color: actionedStatusFilter === f.key ? '#ffffff' : '#334155',
+            fontSize: 11,
+            fontWeight: 800,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <span>{f.label}</span>
+          <span style={{
+            background: actionedStatusFilter === f.key ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
+            color: actionedStatusFilter === f.key ? '#ffffff' : '#475569',
+            padding: '1px 6px',
+            borderRadius: 10,
+            fontSize: 10,
+            fontWeight: 900
+          }}>
+            {f.count}
+          </span>
+        </button>
+      ))}
+    </div>
+
+    {/* Table of Recently Actioned PVs */}
+    <div style={{ overflowX: 'auto' }}>
+      {recentlyActionedPVs.length === 0 ? (
+        <div style={{ padding: '36px 20px', textAlign: 'center', color: '#64748b' }}>
+          <div style={{ fontSize: 13, fontWeight: 800 }}>No Actioned Payment Vouchers Found</div>
+          <div style={{ fontSize: 11.5, marginTop: 4 }}>
+            {actionedStatusFilter === 'ALL'
+              ? 'Vouchers actioned in the pre-audit desk above will automatically be logged here.'
+              : `No payment vouchers currently match the "${actionedStatusFilter}" status filter.`}
+          </div>
+        </div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+          <thead>
+            <tr style={{ background: '#f1f5f9', color: '#334155', textAlign: 'left', borderBottom: '1px solid #cbd5e1' }}>
+              <th style={{ padding: '8px 12px' }}>PV N/o</th>
+              <th style={{ padding: '8px 12px' }}>Requisition N/o</th>
+              <th style={{ padding: '8px 12px' }}>Valued Date</th>
+              <th style={{ padding: '8px 12px' }}>Client / Payee</th>
+              <th style={{ padding: '8px 12px' }}>Particulars / Items</th>
+              <th style={{ padding: '8px 12px', textAlign: 'right' }}>Debit (GHS)</th>
+              <th style={{ padding: '8px 12px', textAlign: 'center' }}>Executive Status</th>
+              <th style={{ padding: '8px 12px' }}>Pre-Audit Remarks</th>
+              <th style={{ padding: '8px 12px' }}>Imputer</th>
+              <th style={{ padding: '8px 12px', textAlign: 'center' }}>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recentlyActionedPVs.map((item, idx) => {
+              const hasMulti = Array.isArray(item.items) && item.items.length > 1;
+              const amount = Number(item.total || item.cost || 0);
+              return (
+                <tr
+                  key={item.id || item.pvNo || idx}
+                  style={{
+                    background: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
+                    borderBottom: '1px solid #e2e8f0'
+                  }}
+                >
+                  <td style={{ padding: '8px 12px', fontWeight: 900, color: '#0f3a4b' }}>
+                    {item.pvNo || item.id}
+                  </td>
+                  <td style={{ padding: '8px 12px', color: '#64748b', fontWeight: 700 }}>
+                    {item.requisitionNo || 'N/A'}
+                  </td>
+                  <td style={{ padding: '8px 12px' }}>
+                    {item.valuedDate || item.vDate || item.datePrepared || 'N/A'}
+                  </td>
+                  <td style={{ padding: '8px 12px', fontWeight: 800, color: '#1e293b' }}>
+                    {item.provider || item.clientProvider || 'Vendor'}
+                  </td>
+                  <td style={{ padding: '8px 12px', maxWidth: 240 }}>
+                    <div style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      {item.description}
+                    </div>
+                    {hasMulti && (
+                      <span style={{ fontSize: 9.5, color: '#0284c7', fontWeight: 800, display: 'inline-block', marginTop: 2 }}>
+                        📦 {item.items.length} itemized lines breakdown
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 900, color: '#0f3a4b' }}>
+                    {amount.toFixed(2)}
+                  </td>
+                  <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                    <span style={{
+                      padding: '3px 8px',
+                      borderRadius: 4,
+                      fontSize: 10,
+                      fontWeight: 900,
+                      background:
+                        item.status === 'Validated' || item.status?.includes('Approved') ? '#dcfce7' :
+                        item.status === 'Declined' ? '#fee2e2' :
+                        item.status === 'Postponed' ? '#e0f2fe' :
+                        item.status === 'Cancel PV' || item.status === 'Cancelled' ? '#f1f5f9' :
+                        item.status === 'Non-accrual' ? '#f3e8ff' : '#fef3c7',
+                      color:
+                        item.status === 'Validated' || item.status?.includes('Approved') ? '#166534' :
+                        item.status === 'Declined' ? '#dc2626' :
+                        item.status === 'Postponed' ? '#0369a1' :
+                        item.status === 'Cancel PV' || item.status === 'Cancelled' ? '#475569' :
+                        item.status === 'Non-accrual' ? '#6b21a8' : '#b45309',
+                    }}>
+                      {item.status}
+                    </span>
+                  </td>
+                  <td style={{ padding: '8px 12px', color: '#475569', fontSize: 11, maxWidth: 200 }}>
+                    {item.auditRemarks || '—'}
+                  </td>
+                  <td style={{ padding: '8px 12px', fontWeight: 700, color: '#64748b' }}>
+                    {item.imputer || item.preparedBy || 'Sub-Admin'}
+                  </td>
+                  <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        populateFormWithVoucher(item);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      style={{
+                        padding: '4px 10px',
+                        background: '#0284c7',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 4,
+                        fontSize: 10.5,
+                        fontWeight: 800,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Recall / Edit
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  </div>
+
 </div>
 );
 }
+

@@ -13,54 +13,43 @@ export default function SubmitPVRequest({ setM = () => {} }) {
   const createPaymentVoucher = portalData?.createPaymentVoucher;
   const storePaymentVouchers = portalData?.paymentVouchers || [];
 
-  // Initial Service Providers list matching reference image
-  const [serviceProviders, setServiceProviders] = useState([
-    { id: '931001', name: 'Market', address: 'Central Market Depot, Bogoso', email: 'market.supplies@remalj.edu.gh', phone: '+233 24 411 9001' },
-    { id: '931002', name: 'MAT-BANS', address: 'Plot 4, Commercial Road, Tarkwa', email: 'info@matbans.com', phone: '+233 20 812 3456' },
-    { id: '931003', name: 'Kweku Essuman', address: 'House No. B-12, Bogoso Township', email: 'kweku.essuman@gmail.com', phone: '+233 55 987 6543' },
-    { id: '931004', name: 'JONAT', address: 'Jonat Electricals & Hardware, Prestea', email: 'sales@jonathardware.com', phone: '+233 24 333 4455' },
-    { id: '931005', name: 'First Info Tech', address: 'Suite 3, Digital Plaza, Takoradi', email: 'support@firstinfotech.gh', phone: '+233 31 202 9900' },
-    { id: '931006', name: 'Melcom', address: 'Melcom Superstore, Tarkwa Branch', email: 'tarkwa@melcomgroup.com', phone: '+233 30 277 7000' },
-    { id: '931007', name: 'Fenyiwa Stationery', address: 'Fenyiwa Press & Books, Bogoso', email: 'fenyiwastationery@yahoo.com', phone: '+233 24 555 1212' },
-    { id: '931008', name: 'Isaac Addae', address: 'Addae Plumbing & Maintenance, Bogoso', email: 'isaac.addae.plumbing@gmail.com', phone: '+233 50 112 8899' },
-    { id: '931009', name: 'Plumber', address: 'Master Plumbing Services, Bogoso', email: 'plumbing.services@remalj.edu.gh', phone: '+233 24 777 9900' },
-  ]);
-
-  // Selected Service Provider in Manager Panel
-  const [selectedProviderInPanel, setSelectedProviderInPanel] = useState(serviceProviders[0]);
-  const [providerForm, setProviderForm] = useState({
-    name: serviceProviders[0].name,
-    address: serviceProviders[0].address,
-    email: serviceProviders[0].email,
-    telephone: serviceProviders[0].phone
+  // Service Providers list (persisted in localStorage or empty initially)
+  const [serviceProviders, setServiceProviders] = useState(() => {
+    try {
+      const saved = localStorage.getItem('says_service_providers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return [];
   });
 
-  // Form Fields State (Reference Image match)
-  const [pvNo, setPvNo] = useState('51250862');
-  const [itemRequisitionNo, setItemRequisitionNo] = useState('REQ-2026-901');
+  // Selected Service Provider in Manager Panel
+  const [selectedProviderInPanel, setSelectedProviderInPanel] = useState(null);
+  const [providerForm, setProviderForm] = useState({
+    name: '',
+    address: '',
+    email: '',
+    telephone: ''
+  });
+
+  // Form Fields State with clean placeholders (no hardcoded defaults)
+  const [pvNo, setPvNo] = useState('');
+  const [itemRequisitionNo, setItemRequisitionNo] = useState('');
   const [academicYear, setAcademicYear] = useState('2026/2027');
   const [academicTerm, setAcademicTerm] = useState('1st Term');
-  const [department, setDepartment] = useState('Administration');
-  const [paymentMode, setPaymentMode] = useState('Cash');
-  const [description, setDescription] = useState('BOOKS');
-  const [selectedProviderName, setSelectedProviderName] = useState('Market');
-  const [providerId, setProviderId] = useState('931001');
-  const [datePrepared, setDatePrepared] = useState('2026-09-30');
-  const [qty, setQty] = useState('1');
-  const [costPerItem, setCostPerItem] = useState('20.00');
+  const [department, setDepartment] = useState('');
+  const [paymentMode, setPaymentMode] = useState('');
+  const [description, setDescription] = useState('');
+  const [selectedProviderName, setSelectedProviderName] = useState('');
+  const [providerId, setProviderId] = useState('');
+  const [datePrepared, setDatePrepared] = useState(new Date().toISOString().split('T')[0]);
+  const [qty, setQty] = useState('');
+  const [costPerItem, setCostPerItem] = useState('');
 
-  // Draft PV Items List
-  const [pvItems, setPvItems] = useState([
-    {
-      id: 1,
-      description: 'BOOKS',
-      provider: 'Market',
-      providerId: '931001',
-      qty: 1,
-      costPerItem: 20.00,
-      totalAmount: 20.00
-    }
-  ]);
+  // Draft PV Items List (empty by default)
+  const [pvItems, setPvItems] = useState([]);
 
   // UI Modals & Notifications
   const [successNotice, setSuccessNotice] = useState('');
@@ -77,7 +66,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
   };
 
   useEffect(() => {
-    if (!pvNo || pvNo === '51250862') {
+    if (!pvNo) {
       setPvNo(generateUniquePvNumber());
     }
   }, [storePaymentVouchers]);
@@ -666,6 +655,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   }}
                   required
                 >
+                  <option value="">-- Select Department --</option>
                   <option value="Administration">Administration</option>
                   <option value="Finance & Accounts">Finance & Accounts</option>
                   <option value="Academic Affairs">Academic Affairs</option>
@@ -695,6 +685,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   }}
                   required
                 >
+                  <option value="">-- Select Payment Mode --</option>
                   <option value="Cash">Cash</option>
                   <option value="Cheque">Cheque</option>
                   <option value="Bank Transfer">Bank Transfer</option>
@@ -714,14 +705,14 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   type="text"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="e.g. BOOKS, ELECTRICITY BILL, CANTEEN SUPPLIES"
+                  placeholder="e.g. Electricity bill, Canteen supplies, Bus maintenance..."
                   style={{
                     width: '100%',
                     padding: '8px 10px',
                     borderRadius: 6,
                     border: '1px solid #cbd5e1',
-                    background: '#fef2f2',
-                    fontWeight: 800,
+                    background: '#fff',
+                    fontWeight: 700,
                     fontSize: 13,
                     color: '#0f172a'
                   }}
@@ -741,11 +732,12 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                     borderRadius: 6,
                     border: '1px solid #cbd5e1',
                     background: '#fff',
-                    fontWeight: 800,
+                    fontWeight: 700,
                     fontSize: 13,
                     color: '#0f172a'
                   }}
                 >
+                  <option value="">-- Select or Add Provider --</option>
                   {serviceProviders.map(p => (
                     <option key={p.id} value={p.name}>{p.name}</option>
                   ))}
@@ -759,14 +751,15 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                 <input
                   type="text"
                   value={providerId}
-                  readOnly
+                  onChange={(e) => setProviderId(e.target.value)}
+                  placeholder="ID / Account #"
                   style={{
                     width: '100%',
                     padding: '8px 10px',
                     borderRadius: 6,
                     border: '1px solid #cbd5e1',
-                    background: '#f1f5f9',
-                    fontWeight: 900,
+                    background: '#f8fafc',
+                    fontWeight: 700,
                     fontSize: 13,
                     color: '#0369a1'
                   }}
@@ -811,6 +804,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   min="1"
                   value={qty}
                   onChange={(e) => setQty(e.target.value)}
+                  placeholder="1"
                   style={{
                     width: '100%',
                     padding: '8px 8px',
@@ -835,14 +829,14 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   min="0"
                   value={costPerItem}
                   onChange={(e) => setCostPerItem(e.target.value)}
-                  placeholder="20.00"
+                  placeholder="0.00"
                   style={{
                     width: '100%',
                     padding: '8px 10px',
                     textAlign: 'right',
                     borderRadius: 6,
                     border: '1px solid #cbd5e1',
-                    background: '#fef2f2',
+                    background: '#fff',
                     fontWeight: 800,
                     fontSize: 13,
                     color: '#0f172a'
@@ -1219,6 +1213,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   type="text"
                   value={providerForm.name}
                   onChange={(e) => setProviderForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g. Market Depot / Vendor Name"
                   required
                   style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 700 }}
                 />
@@ -1232,6 +1227,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   rows="2"
                   value={providerForm.address}
                   onChange={(e) => setProviderForm(prev => ({ ...prev, address: e.target.value }))}
+                  placeholder="e.g. Plot 4, Commercial Road, Tarkwa"
                   style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 11, fontWeight: 600 }}
                 />
               </div>
@@ -1244,6 +1240,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   type="email"
                   value={providerForm.email}
                   onChange={(e) => setProviderForm(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="e.g. vendor@example.com"
                   style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 11 }}
                 />
               </div>
@@ -1256,6 +1253,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   type="text"
                   value={providerForm.telephone}
                   onChange={(e) => setProviderForm(prev => ({ ...prev, telephone: e.target.value }))}
+                  placeholder="e.g. +233 24 000 0000"
                   style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 11 }}
                 />
               </div>
