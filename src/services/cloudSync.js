@@ -11,13 +11,11 @@ let lastPushedSignature = '';
 
 function createDataSignature(data) {
   if (!data) return '';
-  const studentsCount = (data.onboardedStudents || []).length;
-  const appsCount = (data.applications || []).length;
-  const feesCount = (data.studentFees || []).length;
-  const staffCount = (data.teacherDirectory || []).length;
-  const billsCount = (data.definedBills || []).length;
-  const pvCount = (data.paymentVouchers || []).length;
-  return `${studentsCount}_${appsCount}_${feesCount}_${staffCount}_${billsCount}_${pvCount}`;
+  const appsSig = (data.applications || []).map(a => `${a.id}_${a.learner}_${a.level}_${a.status}_${a.updatedAt || a.submittedAt}`).join('|');
+  const stuSig = (data.onboardedStudents || []).map(s => `${s.id}_${s.fullName}_${s.level}_${s.updatedAt}`).join('|');
+  const feeSig = (data.studentFees || []).map(f => `${f.id}_${f.amountPaid}_${f.status}_${f.updatedAt}`).join('|');
+  const pvSig = (data.paymentVouchers || []).map(p => `${p.id}_${p.status}_${p.updatedAt}`).join('|');
+  return `${appsSig}#${stuSig}#${feeSig}#${pvSig}`;
 }
 
 export const cloudSync = {

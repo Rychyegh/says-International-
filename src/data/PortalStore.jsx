@@ -13,8 +13,18 @@ function mergeByKey(arrA = [], arrB = [], keyFn) {
   (arrB || []).forEach(item => {
     const k = String(keyFn(item) || '').toLowerCase().trim();
     if (k) {
-      const prev = map.get(k) || {};
-      map.set(k, { ...prev, ...item });
+      const prev = map.get(k);
+      if (!prev) {
+        map.set(k, item);
+      } else {
+        const prevTime = new Date(prev.updatedAt || prev.submittedAt || prev.lastSyncedAt || 0).getTime();
+        const itemTime = new Date(item.updatedAt || item.submittedAt || item.lastSyncedAt || 0).getTime();
+        if (itemTime > prevTime) {
+          map.set(k, { ...prev, ...item });
+        } else {
+          map.set(k, { ...item, ...prev });
+        }
+      }
     }
   });
   return Array.from(map.values());
@@ -194,11 +204,10 @@ export function PortalDataProvider({ children }) {
 
   useEffect(() => {
     try {
-      if (data.backendConnected) {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        // Real-Time Cloud Hub Push only when connected
-        cloudSync.pushLatestData(data);
-      }
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      // Real-Time Cloud Hub Push for instant cross-user / multi-portal synchronization
+      cloudSync.pushLatestData(data);
+
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
         const channel = new BroadcastChannel('rcis_portal_data_sync');
         channel.postMessage({ type: 'DATA_UPDATE', payload: data });
