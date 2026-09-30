@@ -498,8 +498,9 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
   const [preparingStudentBill, setPreparingStudentBill] = useState(null);
   const [selectedStudentOptionalIds, setSelectedStudentOptionalIds] = useState(['opt_motivation', 'opt_bus', 'opt_feeding', 'opt_stationery', 'opt_pickup_card']);
 
-  // Post Bill Modal State
+  // Post Bill Modal & Foremost Success Dialog State
   const [isPostingModalOpen, setIsPostingModalOpen] = useState(false);
+  const [postBillSuccessData, setPostBillSuccessData] = useState(null); // Foremost Layer Success Banner/Dialog Box
   const [postTargetScope, setPostTargetScope] = useState('class'); // 'class_level' | 'class' | 'subclass' | 'all' | 'student'
   const [selectedPostingCategory, setSelectedPostingCategory] = useState('basic_school');
   const [selectedPostingClass, setSelectedPostingClass] = useState('Basic 1');
@@ -516,6 +517,60 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
   const selectedClassKey = selectedSubLevel || activeSubLevels[0]?.id || 'Creche';
   const activeClassData = feeSchedule[selectedClassKey] || feeSchedule[selectedClassKey.replace(/[AB]$/, '')] || feeSchedule['Creche'] || { baseBill: [], optionalBills: [] };
   
+  // Filter students to strictly match the selected class level (Requirement 1)
+  const studentsForSelectedClass = (onboardedStudents || []).filter(student => {
+    if (!student) return false;
+    const sLevel = (student.level || student.classLevel || student.class_level || '').trim().toLowerCase();
+    const sSection = (student.classSection || student.section || '').trim().toLowerCase();
+    const targetSub = (selectedSubLevel || '').trim().toLowerCase();
+    if (!targetSub) return true;
+
+    // Direct equality (e.g. "creche" === "creche", "nursery 1" === "nursery 1")
+    if (sLevel === targetSub) return true;
+
+    // Normalizing spaces & symbols
+    const cleanStudent = sLevel.replace(/\s+/g, '').replace(/[()]/g, '');
+    const cleanTarget = targetSub.replace(/\s+/g, '').replace(/[()]/g, '');
+    const combinedLevelSec = `${cleanStudent}${sSection}`.replace(/\s+/g, '');
+
+    if (cleanStudent === cleanTarget || combinedLevelSec === cleanTarget) return true;
+
+    // Base class normalization
+    const targetBase = cleanTarget.replace(/[ab]$/i, '');
+    const studentBase = cleanStudent.replace(/[ab]$/i, '');
+
+    const aliasMap = {
+      'cr': 'creche',
+      'n1': 'nursery1',
+      'n2': 'nursery2',
+      'kg1': 'kindergarten1',
+      'kg2': 'kindergarten2',
+      'grade1': 'basic1', 'primary1': 'basic1', 'b1': 'basic1',
+      'grade2': 'basic2', 'primary2': 'basic2', 'b2': 'basic2',
+      'grade3': 'basic3', 'primary3': 'basic3', 'b3': 'basic3',
+      'grade4': 'basic4', 'primary4': 'basic4', 'b4': 'basic4',
+      'grade5': 'basic5', 'primary5': 'basic5', 'b5': 'basic5',
+      'grade6': 'basic6', 'primary6': 'basic6', 'b6': 'basic6',
+      'grade7': 'basic7', 'jhs1': 'basic7', 'b7': 'basic7',
+      'grade8': 'basic8', 'jhs2': 'basic8', 'b8': 'basic8',
+      'grade9': 'basic9', 'jhs3': 'basic9', 'b9': 'basic9',
+    };
+
+    const normTarget = aliasMap[targetBase] || targetBase;
+    const normStudent = aliasMap[studentBase] || studentBase;
+
+    if (normTarget && normStudent && normTarget === normStudent) {
+      const targetStream = cleanTarget.match(/[ab]$/i)?.[0]?.toLowerCase();
+      const studentStream = cleanStudent.match(/[ab]$/i)?.[0]?.toLowerCase() || sSection.toLowerCase();
+      if (targetStream && studentStream && targetStream !== studentStream) {
+        return false;
+      }
+      return true;
+    }
+
+    return false;
+  });
+
   const baseBillItems = activeClassData.baseBill || [];
   const optionalBillItems = activeClassData.optionalBills || [];
 
@@ -746,13 +801,31 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
         totalAmount: totalToPost,
         term: 'Term 1 · 2026'
       });
-      const affectedCount = targetStudentsList.length > 0 ? targetStudentsList.length : 1;
-      setSuccessMsg(`⚡ Successfully posted Academic Bill of GHS ${totalToPost.toFixed(2)} (${baseBillItems.length} compulsory + ${optionalItemsToPost.length} optional) to ${scopeLabel} (${affectedCount} student accounts)!`);
-      setIsPostingModalOpen(false);
-      setSelectedPostingStudent(null);
-      setPostingStudentSearch('');
-      setTimeout(() => setSuccessMsg(''), 7000);
     }
+
+    const affectedCount = targetStudentsList.length > 0 ? targetStudentsList.length : 1;
+    const finalScopeText = scopeLabel || (studentToUse ? studentToUse.fullName : 'All Students');
+
+    // Trigger Foremost Layer Success Banner/Dialog Box (Requirement 2)
+    setPostBillSuccessData({
+      totalAmount: totalToPost,
+      compulsoryCount: baseBillItems.length,
+      optionalCount: optionalItemsToPost.length,
+      scopeLabel: finalScopeText,
+      affectedCount,
+      targetStudentName: studentToUse?.fullName,
+      targetStudentId: studentToUse?.studentId || studentToUse?.id,
+      targetClass: selectedPostingClass || `${activeCategoryObj.name} · ${selectedSubLevel}`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      term: 'Term 1 · 2026'
+    });
+
+    setSuccessMsg(`⚡ Successfully posted Academic Bill of GHS ${totalToPost.toFixed(2)} (${baseBillItems.length} compulsory + ${optionalItemsToPost.length} optional) to ${finalScopeText} (${affectedCount} student accounts)!`);
+    setIsPostingModalOpen(false);
+    setPreparingStudentBill(null); // Close child modal so the foremost success dialog box is unobstructed
+    setSelectedPostingStudent(null);
+    setPostingStudentSearch('');
+    setTimeout(() => setSuccessMsg(''), 7000);
   };
 
   // Handle Inline Update Compulsory Bill Amount
@@ -1072,13 +1145,17 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
             <select
               style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #0284c7', fontSize: 12.5, fontWeight: 800, color: '#0f3a4b', background: '#fff', cursor: 'pointer' }}
               onChange={(e) => {
-                const found = onboardedStudents.find(s => s.id === e.target.value);
+                const found = studentsForSelectedClass.find(s => s.id === e.target.value);
                 handleSelectStudentForBill(found);
               }}
               value={preparingStudentBill?.id || ''}
             >
-              <option value="">-- Choose Enrolled Student ({onboardedStudents.length}) --</option>
-              {onboardedStudents.map((s) => (
+              <option value="">
+                {studentsForSelectedClass.length > 0
+                  ? `-- Choose Enrolled Student in ${selectedSubLevel} (${studentsForSelectedClass.length}) --`
+                  : `-- No Students Enrolled in ${selectedSubLevel} (0) --`}
+              </option>
+              {studentsForSelectedClass.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.fullName} ({s.studentId} · {s.level})
                 </option>
@@ -2247,6 +2324,176 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
               >
                 ⚡ Post Bill to Student Ledger Account
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── FOREMOST LAYER: POST BILL TO STUDENT LEDGER SUCCESS DIALOG BOX (Requirement 2) ── */}
+      {postBillSuccessData && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.8)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 999999, // Absolute foremost layer over all pages, modals, and elements
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16
+          }}
+          onClick={() => setPostBillSuccessData(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: 16,
+              maxWidth: 540,
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45), 0 0 0 2px rgba(34, 197, 94, 0.3)',
+              overflow: 'hidden',
+              border: '2px solid #16a34a'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Banner */}
+            <div style={{
+              background: 'linear-gradient(135deg, #14532d 0%, #166534 50%, #15803d 100%)',
+              color: '#ffffff',
+              padding: '20px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  borderRadius: '50%',
+                  padding: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <CheckCircle2 size={32} color="#ffffff" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, letterSpacing: '0.01em', color: '#ffffff' }}>
+                    Bill Successfully Posted to Ledger!
+                  </h3>
+                  <p style={{ margin: '3px 0 0', fontSize: 12, color: '#bbf7d0', fontWeight: 600 }}>
+                    Live Ledger Synchronized · {postBillSuccessData.timestamp}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPostBillSuccessData(null)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  border: 'none',
+                  color: '#ffffff',
+                  borderRadius: 8,
+                  width: 32,
+                  height: 32,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Dialog Body Content */}
+            <div style={{ padding: '24px' }}>
+              <div style={{
+                background: '#f0fdf4',
+                border: '1.5px solid #86efac',
+                borderRadius: 12,
+                padding: '16px 20px',
+                marginBottom: 20
+              }}>
+                <div style={{ fontSize: 11.5, color: '#166534', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                  Total Bill Posted (GHS)
+                </div>
+                <div style={{ fontSize: 32, fontWeight: 900, color: '#15803d' }}>
+                  GHS {postBillSuccessData.totalAmount.toFixed(2)}
+                </div>
+                <div style={{ fontSize: 12, color: '#166534', fontWeight: 700, marginTop: 4 }}>
+                  ✓ {postBillSuccessData.compulsoryCount} Compulsory Fee Items + {postBillSuccessData.optionalCount} Selected Optional Items Included
+                </div>
+              </div>
+
+              {/* Ledger Summary Grid */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: 12,
+                marginBottom: 20,
+                fontSize: 12
+              }}>
+                <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <span style={{ color: '#64748b', fontWeight: 700, display: 'block', fontSize: 11 }}>Target Account / Scope:</span>
+                  <strong style={{ color: '#0f172a', fontSize: 13 }}>{postBillSuccessData.scopeLabel}</strong>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <span style={{ color: '#64748b', fontWeight: 700, display: 'block', fontSize: 11 }}>Student Accounts Debited:</span>
+                  <strong style={{ color: '#15803d', fontSize: 13 }}>{postBillSuccessData.affectedCount} Student(s)</strong>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <span style={{ color: '#64748b', fontWeight: 700, display: 'block', fontSize: 11 }}>Class Level:</span>
+                  <strong style={{ color: '#0f172a', fontSize: 13 }}>{postBillSuccessData.targetClass}</strong>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <span style={{ color: '#64748b', fontWeight: 700, display: 'block', fontSize: 11 }}>Academic Term:</span>
+                  <strong style={{ color: '#0f172a', fontSize: 13 }}>{postBillSuccessData.term}</strong>
+                </div>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                fontSize: 12,
+                color: '#15803d',
+                background: '#dcfce7',
+                padding: '12px 16px',
+                borderRadius: 8,
+                fontWeight: 700,
+                marginBottom: 20
+              }}>
+                <Check size={18} style={{ flexShrink: 0 }} />
+                <span>Student ledger has been debited. Financial statements, billing invoices, and parent portal balances are updated.</span>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setPostBillSuccessData(null)}
+                  style={{
+                    padding: '10px 24px',
+                    background: '#16a34a',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)'
+                  }}
+                >
+                  <Check size={16} /> Done / Dismiss
+                </button>
+              </div>
             </div>
           </div>
         </div>

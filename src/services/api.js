@@ -65,9 +65,20 @@ async function request(endpoint, options = {}) {
       try {
         const errorData = await response.json();
         if (errorData.detail) {
-          errorMessage = typeof errorData.detail === 'string' 
-            ? errorData.detail 
-            : JSON.stringify(errorData.detail);
+          if (Array.isArray(errorData.detail)) {
+            console.error(`[FastAPI 422 Validation Error on ${endpoint}]:`, errorData.detail);
+            const formatted = errorData.detail
+              .map(d => {
+                const loc = Array.isArray(d.loc) ? d.loc.filter(x => x !== 'body').join('.') : d.loc;
+                return `[${loc}]: ${d.msg}`;
+              })
+              .join('; ');
+            errorMessage = `FastAPI Validation Error (HTTP 422): ${formatted}`;
+          } else {
+            errorMessage = typeof errorData.detail === 'string' 
+              ? errorData.detail 
+              : JSON.stringify(errorData.detail);
+          }
         } else if (errorData.message) {
           errorMessage = errorData.message;
         }
@@ -674,16 +685,109 @@ export const api = {
   },
 
   // --- Standard Finance Payment Voucher Endpoints (/finance/vouchers) ---
+  normalizePaymentVoucherPayload: (pvData = {}) => {
+    // 1. Payee Name (required string, min 2 chars)
+    let payeeName = (
+      pvData.payee_name ||
+      pvData.provider ||
+      pvData.payee ||
+      'General Vendor'
+    ).toString().trim();
+    if (payeeName.length < 2) payeeName = 'General Vendor';
+
+    // 2. Department (required string, min 2 chars)
+    let department = (
+      pvData.department ||
+      'Administration'
+    ).toString().trim();
+    if (department.length < 2) department = 'Administration';
+
+    // 3. Description (required string, min 3 chars)
+    let description = (
+      pvData.description ||
+      pvData.particulars ||
+      'Expenditure Payment Voucher'
+    ).toString().trim();
+    if (description.length < 3) description = `${description} - PV`;
+
+    // 4. Payment Mode (required string, min 2 chars)
+    let paymentMode = (
+      pvData.payment_mode ||
+      pvData.paymentMode ||
+      pvData.mode ||
+      'Cash'
+    ).toString().trim();
+    if (paymentMode.length < 2) paymentMode = 'Cash';
+
+    // Parse pure numbers (remove '$', 'GHS', commas, etc.)
+    const parseNum = (val) => {
+      if (val === null || val === undefined || val === '') return null;
+      if (typeof val === 'number') return isNaN(val) ? null : val;
+      const cleaned = String(val).replace(/[^0-9.-]/g, '');
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? null : num;
+    };
+
+    let rawQty = parseNum(pvData.quantity ?? pvData.qty);
+    let rawUnitCost = parseNum(pvData.unit_cost ?? pvData.costPerItem ?? pvData.cost);
+    let rawAmount = parseNum(pvData.amount ?? pvData.total_amount ?? pvData.total ?? pvData.grandTotal);
+
+    let quantity = rawQty && rawQty > 0 ? Math.round(rawQty) : 1;
+    let unitCost = rawUnitCost !== null && rawUnitCost >= 0 ? Number(rawUnitCost.toFixed(2)) : null;
+    let amount = rawAmount !== null && rawAmount >= 0 ? Number(rawAmount.toFixed(2)) : null;
+
+    // Schema rule: either amount or unit_cost must be provided;
+    // If both provided: amount strictly equals quantity * unit_cost!
+    if (amount !== null && unitCost !== null) {
+      const expected = Number((quantity * unitCost).toFixed(2));
+      if (Math.abs(expected - amount) > 0.01) {
+        // If totals do not match (e.g. multi-line voucher summarized into total),
+        // collapse to quantity 1, unit_cost = amount so (1 * amount === amount) strictly holds!
+        quantity = 1;
+        unitCost = amount;
+      } else {
+        amount = expected;
+      }
+    } else if (amount !== null && unitCost === null) {
+      unitCost = Number((amount / quantity).toFixed(2));
+    } else if (unitCost !== null && amount === null) {
+      amount = Number((quantity * unitCost).toFixed(2));
+    } else {
+      amount = 0.0;
+      unitCost = 0.0;
+    }
+
+    return {
+      payee_name: payeeName,
+      department: department,
+      description: description,
+      payment_mode: paymentMode,
+      quantity,
+      unit_cost: unitCost,
+      amount,
+      requisitionNo: pvData.requisitionNo || pvData.requisition_no || null,
+      payee_id: pvData.payee_id || pvData.providerId || null,
+      date_prepared: pvData.date_prepared || pvData.datePrepared || new Date().toISOString().split('T')[0],
+      valued_date: pvData.valued_date || pvData.valuedDate || pvData.date_prepared || pvData.datePrepared || new Date().toISOString().split('T')[0],
+      expense_account_code: pvData.expense_account_code || '5000-EXPENSE',
+      expense_account_name: pvData.expense_account_name || 'Operating Expenses',
+    };
+  },
+
   createPaymentVoucher: async (pvData) => {
+    const payload = api.normalizePaymentVoucherPayload(pvData);
     try {
       return await request('/finance/vouchers', {
         method: 'POST',
-        body: JSON.stringify(pvData),
+        body: JSON.stringify(payload),
       });
     } catch (e) {
+      if (e.message && e.message.includes('422')) {
+        throw e;
+      }
       return await request('/finance/pv', {
         method: 'POST',
-        body: JSON.stringify(pvData),
+        body: JSON.stringify(payload),
       });
     }
   },

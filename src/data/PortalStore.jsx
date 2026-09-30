@@ -2256,15 +2256,17 @@ export function PortalDataProvider({ children }) {
       try {
         await api.createPaymentVoucher({
           pv_number: pvData.pvNo,
-          requisition_no: pvData.requisitionNo,
-          payee_name: pvData.provider,
-          payee_id: pvData.providerId,
+          requisitionNo: pvData.requisitionNo,
+          payee_name: pvData.provider || pvData.payee_name || 'General Vendor',
+          payee_id: pvData.providerId || pvData.payee_id || 'VEN-001',
           department: pvData.department || 'Administration',
-          description: pvData.description,
+          description: pvData.description || 'Expenditure Voucher',
+          payment_mode: pvData.paymentMode || pvData.payment_mode || 'Cash',
           quantity: Number(pvData.qty) || 1,
-          unit_cost: Number(pvData.cost || pvData.costPerItem) || 0,
-          total_amount: (Number(pvData.qty) || 1) * (Number(pvData.cost || pvData.costPerItem) || 0),
-          date_prepared: pvData.datePrepared
+          unit_cost: Number(pvData.cost || pvData.costPerItem || pvData.unit_cost) || 0,
+          amount: Number(pvData.grandTotal || pvData.total || pvData.cost || pvData.amount) || 0,
+          date_prepared: pvData.datePrepared,
+          valued_date: pvData.valuedDate || pvData.datePrepared,
         });
       } catch (e) {
         console.warn('Backend PV create fallback:', e);
@@ -2279,6 +2281,8 @@ export function PortalDataProvider({ children }) {
           requisitionNo: pvData.requisitionNo || `REQ-${Math.floor(10000 + Math.random() * 90000)}`,
           provider: pvData.provider || 'General Vendor',
           providerId: pvData.providerId || 'VEN-001',
+          department: pvData.department || 'Administration',
+          paymentMode: pvData.paymentMode || pvData.payment_mode || 'Cash',
           description: pvData.description || 'Expenditure Voucher',
           qty: Number(pvData.qty) || 1,
           cost: Number(pvData.cost || pvData.costPerItem) || 0,
@@ -2319,15 +2323,17 @@ export function PortalDataProvider({ children }) {
       try {
         await api.createPaymentVoucher({
           pv_number: pvData.pvNo,
-          requisition_no: pvData.requisitionNo,
-          payee_name: pvData.provider,
-          payee_id: pvData.providerId,
+          requisitionNo: pvData.requisitionNo,
+          payee_name: pvData.provider || pvData.payee_name || 'General Vendor',
+          payee_id: pvData.providerId || pvData.payee_id || 'VEN-001',
           department: pvData.department || 'Administration',
-          description: pvData.description,
+          description: pvData.description || 'Expenditure Voucher',
+          payment_mode: pvData.paymentMode || pvData.payment_mode || 'Cash',
           quantity: Number(pvData.qty) || 1,
-          unit_cost: Number(pvData.cost || pvData.costPerItem) || 0,
-          total_amount: Number(pvData.grandTotal || pvData.total || pvData.cost) || 0,
+          unit_cost: Number(pvData.cost || pvData.costPerItem || pvData.unit_cost) || 0,
+          amount: Number(pvData.grandTotal || pvData.total || pvData.cost || pvData.amount) || 0,
           date_prepared: pvData.datePrepared,
+          valued_date: pvData.valuedDate || pvData.datePrepared,
           items: pvData.items || [],
           academic_year: pvData.academicYear,
           academic_term: pvData.academicTerm,

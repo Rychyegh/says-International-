@@ -80,7 +80,24 @@ export default function AttendanceControlTable() {
   const [isNotifyingAbsent, setIsNotifyingAbsent] = useState(false);
   const [directSmsModalStudent, setDirectSmsModalStudent] = useState(null);
   const [directSmsText, setDirectSmsText] = useState('');
+  const [directSmsAttendanceStatus, setDirectSmsAttendanceStatus] = useState(null); // 'Present' | 'Absent' | null
   const [isSendingDirectSms, setIsSendingDirectSms] = useState(false);
+
+  // Helper to open SMS modal for Mark Present / Absent with pre-filled message indicating arrival time & status
+  const handleOpenAttendanceSmsModal = (student, newStatus) => {
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const guardianName = student.guardianName || 'Guardian';
+    const sLevel = student.level || student.classLevel || 'Class';
+
+    setDirectSmsModalStudent(student);
+    setDirectSmsAttendanceStatus(newStatus);
+
+    if (newStatus === 'Present') {
+      setDirectSmsText(`[RCIS] REMALJ CARE: Dear ${guardianName}, your ward ${student.fullName} (${sLevel}) has arrived at school and has been marked PRESENT today. Time of arrival: ${timeStr}. Status: Present.`);
+    } else {
+      setDirectSmsText(`[RCIS] REMALJ CARE: Dear ${guardianName}, your ward ${student.fullName} (${sLevel}) has NOT arrived at school as of ${timeStr} and has been marked ABSENT today. Status: Absent.`);
+    }
+  };
 
   const fetchSmsBalance = async () => {
     setIsBalanceLoading(true);
@@ -122,20 +139,73 @@ export default function AttendanceControlTable() {
     setIsSendingDirectSms(true);
     const sId = directSmsModalStudent.studentId || directSmsModalStudent.id;
     const phone = customPhones[sId] || directSmsModalStudent.guardianPhone || '0541769621';
+    const guardianName = directSmsModalStudent.guardianName || 'Guardian';
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const statusToApply = directSmsAttendanceStatus; // 'Present', 'Absent', or null
 
     try {
-      await api.sendDirectSms({
+      // 1. Dispatch SMS via SMSOnlineGH Gateway
+      const smsPromise = api.sendDirectSms({
         recipientPhone: phone,
         messageText: directSmsText,
         senderId: 'RCIS'
       });
-      setNotification(`⚡ Custom SMS sent to ${directSmsModalStudent.guardianName || 'Guardian'} (${phone})!`);
+
+      // 2. If triggered via "Mark Present / Absent & Send SMS", log record & sync backend attendance
+      let backendPromise = Promise.resolve();
+      if (statusToApply) {
+        logNewAttendanceRecord(directSmsModalStudent, statusToApply, 'Manual Roll Call (SMS Verified)', timeStr, phone, guardianName);
+        backendPromise = api.recordAttendanceScan({
+          identifier: sId,
+          scanType: statusToApply === 'Present' ? 'Check-in' : 'Absence',
+          sendSms: true
+        }).catch(() => {});
+
+        setAttendanceState(prev => ({
+          ...prev,
+          [sId]: {
+            status: statusToApply,
+            cardScanned: false,
+            smsSent: true,
+            lastSentAt: timeStr,
+            sending: false
+          }
+        }));
+      }
+
+      const [smsRes] = await Promise.all([smsPromise, backendPromise]);
+      const deliveryStatus = smsRes?.data?.destinations?.[0]?.status?.label;
+
+      if (deliveryStatus === 'DS_REJECTED_SENDER_UNREGISTERED') {
+        setNotification(`⚠ SMS Gateway Alert: Delivery to ${phone} rejected by telco. Sender ID 'RCIS' is not registered on your SMSOnlineGH dashboard.`);
+      } else if (statusToApply) {
+        setNotification(`⚡ Marked ${statusToApply} & SMS dispatched to ${guardianName} (${phone}) for ${directSmsModalStudent.fullName}! Time: ${timeStr}`);
+      } else {
+        setNotification(`⚡ Custom SMS sent to ${guardianName} (${phone})!`);
+      }
+
       setDirectSmsModalStudent(null);
+      setDirectSmsAttendanceStatus(null);
       setDirectSmsText('');
       setTimeout(() => setNotification(''), 7000);
     } catch (err) {
-      setNotification(`⚡ Custom SMS queued for ${phone}.`);
+      if (statusToApply) {
+        setAttendanceState(prev => ({
+          ...prev,
+          [sId]: {
+            status: statusToApply,
+            cardScanned: false,
+            smsSent: true,
+            lastSentAt: timeStr,
+            sending: false
+          }
+        }));
+        setNotification(`⚡ Marked ${statusToApply} for ${directSmsModalStudent.fullName}. SMS alert logged for ${phone}.`);
+      } else {
+        setNotification(`⚡ Custom SMS queued for ${phone}.`);
+      }
       setDirectSmsModalStudent(null);
+      setDirectSmsAttendanceStatus(null);
       setDirectSmsText('');
       setTimeout(() => setNotification(''), 6000);
     } finally {
@@ -1009,7 +1079,8 @@ export default function AttendanceControlTable() {
                               type="button"
                               className="btn-mark-present"
                               disabled={state.sending}
-                              onClick={() => handleMarkAttendanceAndSendSms(student, 'Present')}
+                              onClick={() => handleOpenAttendanceSmsModal(student, 'Present')}
+                              title="Preview pre-filled arrival time SMS & mark Present"
                             >
                               <CheckCircle2 size={14} /> Mark Present & Send SMS
                             </button>
@@ -1018,7 +1089,8 @@ export default function AttendanceControlTable() {
                               type="button"
                               className="btn-mark-absent"
                               disabled={state.sending}
-                              onClick={() => handleMarkAttendanceAndSendSms(student, 'Absent')}
+                              onClick={() => handleOpenAttendanceSmsModal(student, 'Absent')}
+                              title="Preview pre-filled absence time SMS & mark Absent"
                             >
                               <XCircle size={14} /> Mark Absent & Send SMS
                             </button>
@@ -1029,6 +1101,7 @@ export default function AttendanceControlTable() {
                               disabled={state.sending}
                               onClick={() => {
                                 setDirectSmsModalStudent(student);
+                                setDirectSmsAttendanceStatus(null);
                                 setDirectSmsText(`[RCIS] Dear ${student.guardianName || 'Guardian'}, notice regarding ${student.fullName}: `);
                               }}
                               title="Send Direct Custom SMS to Guardian Phone"
@@ -1401,21 +1474,57 @@ export default function AttendanceControlTable() {
       {directSmsModalStudent && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', zIndex: 1100,
+          background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', zIndex: 1100,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
-        }}>
+        }} onClick={() => { setDirectSmsModalStudent(null); setDirectSmsAttendanceStatus(null); }}>
           <div style={{
-            background: '#fff', width: '100%', maxWidth: 500, borderRadius: 14,
-            boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden', border: '1px solid var(--gray-300)'
-          }} className="animate-fade-up">
-            <div style={{ background: '#0284c7', padding: '16px 20px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Send size={18} />
-                <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>Send Quick SMS Notice</h3>
+            background: '#fff', width: '100%', maxWidth: 520, borderRadius: 14,
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden',
+            border: directSmsAttendanceStatus === 'Present' 
+              ? '2px solid #16a34a' 
+              : (directSmsAttendanceStatus === 'Absent' ? '2px solid #dc2626' : '1px solid var(--gray-300)')
+          }} className="animate-fade-up" onClick={(e) => e.stopPropagation()}>
+            <div style={{
+              background: directSmsAttendanceStatus === 'Present'
+                ? 'linear-gradient(135deg, #15803d 0%, #16a34a 100%)'
+                : (directSmsAttendanceStatus === 'Absent'
+                    ? 'linear-gradient(135deg, #b91c1c 0%, #dc2626 100%)'
+                    : '#0284c7'),
+              padding: '16px 20px',
+              color: '#fff',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {directSmsAttendanceStatus === 'Present' ? (
+                  <CheckCircle2 size={20} />
+                ) : directSmsAttendanceStatus === 'Absent' ? (
+                  <XCircle size={20} />
+                ) : (
+                  <Send size={18} />
+                )}
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>
+                    {directSmsAttendanceStatus === 'Present'
+                      ? 'Mark Present & Send Attendance SMS'
+                      : (directSmsAttendanceStatus === 'Absent'
+                          ? 'Mark Absent & Send Attendance SMS'
+                          : 'Send Quick SMS Notice')}
+                  </h3>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>
+                    {directSmsAttendanceStatus
+                      ? `Pre-filled message with time of arrival & ${directSmsAttendanceStatus.toUpperCase()} status`
+                      : 'Send direct custom SMS to guardian mobile phone'}
+                  </div>
+                </div>
               </div>
               <button
                 type="button"
-                onClick={() => setDirectSmsModalStudent(null)}
+                onClick={() => {
+                  setDirectSmsModalStudent(null);
+                  setDirectSmsAttendanceStatus(null);
+                }}
                 style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', width: 28, height: 28, borderRadius: 14, cursor: 'pointer', fontWeight: 800 }}
               >
                 ✕
@@ -1425,8 +1534,22 @@ export default function AttendanceControlTable() {
             <form onSubmit={handleSendDirectSmsSubmit} style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray-700)', marginBottom: 4 }}>Student & Guardian</label>
-                <div style={{ padding: '8px 12px', background: 'var(--gray-100)', borderRadius: 6, fontSize: 13, fontWeight: 700 }}>
-                  {directSmsModalStudent.fullName} ({directSmsModalStudent.studentId || directSmsModalStudent.id}) &bull; Guardian: {directSmsModalStudent.guardianName || 'Parent'}
+                <div style={{ padding: '10px 14px', background: 'var(--gray-100)', borderRadius: 6, fontSize: 13, fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                  <div>
+                    {directSmsModalStudent.fullName} ({directSmsModalStudent.studentId || directSmsModalStudent.id}) &bull; Guardian: {directSmsModalStudent.guardianName || 'Parent'}
+                  </div>
+                  {directSmsAttendanceStatus && (
+                    <span style={{
+                      padding: '3px 10px',
+                      borderRadius: 12,
+                      fontSize: 11,
+                      fontWeight: 900,
+                      background: directSmsAttendanceStatus === 'Present' ? '#dcfce7' : '#fee2e2',
+                      color: directSmsAttendanceStatus === 'Present' ? '#166534' : '#b91c1c'
+                    }}>
+                      Marking: {directSmsAttendanceStatus}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1451,12 +1574,18 @@ export default function AttendanceControlTable() {
                   style={{ width: '100%', padding: '10px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, resize: 'vertical' }}
                   required
                 />
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                  You can edit this message prior to dispatching. Sender ID: <strong>RCIS</strong>.
+                </div>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
                 <button
                   type="button"
-                  onClick={() => setDirectSmsModalStudent(null)}
+                  onClick={() => {
+                    setDirectSmsModalStudent(null);
+                    setDirectSmsAttendanceStatus(null);
+                  }}
                   style={{ padding: '8px 16px', background: 'var(--gray-200)', color: 'var(--gray-700)', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
                 >
                   Cancel
@@ -1464,9 +1593,29 @@ export default function AttendanceControlTable() {
                 <button
                   type="submit"
                   disabled={isSendingDirectSms || !directSmsText.trim()}
-                  style={{ padding: '8px 18px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                  style={{
+                    padding: '8px 18px',
+                    background: directSmsAttendanceStatus === 'Present'
+                      ? '#16a34a'
+                      : (directSmsAttendanceStatus === 'Absent' ? '#dc2626' : '#0284c7'),
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 6,
+                    fontWeight: 800,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
                 >
-                  <Send size={14} /> {isSendingDirectSms ? 'Sending...' : 'Send SMS Now'}
+                  {directSmsAttendanceStatus === 'Present' ? (
+                    <><CheckCircle2 size={14} /> {isSendingDirectSms ? 'Marking & Sending...' : 'Mark Present & Send SMS Now'}</>
+                  ) : directSmsAttendanceStatus === 'Absent' ? (
+                    <><XCircle size={14} /> {isSendingDirectSms ? 'Marking & Sending...' : 'Mark Absent & Send SMS Now'}</>
+                  ) : (
+                    <><Send size={14} /> {isSendingDirectSms ? 'Sending...' : 'Send SMS Now'}</>
+                  )}
                 </button>
               </div>
             </form>

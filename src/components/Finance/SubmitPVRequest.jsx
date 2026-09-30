@@ -38,6 +38,8 @@ export default function SubmitPVRequest({ setM = () => {} }) {
   const [itemRequisitionNo, setItemRequisitionNo] = useState('REQ-2026-901');
   const [academicYear, setAcademicYear] = useState('2026/2027');
   const [academicTerm, setAcademicTerm] = useState('1st Term');
+  const [department, setDepartment] = useState('Administration');
+  const [paymentMode, setPaymentMode] = useState('Cash');
   const [description, setDescription] = useState('BOOKS');
   const [selectedProviderName, setSelectedProviderName] = useState('Market');
   const [providerId, setProviderId] = useState('931001');
@@ -165,6 +167,8 @@ export default function SubmitPVRequest({ setM = () => {} }) {
     setPvNo(String(Math.floor(50000000 + Math.random() * 40000000)));
     setItemRequisitionNo(`REQ-2026-${Math.floor(100 + Math.random() * 900)}`);
     setDescription('');
+    setDepartment('Administration');
+    setPaymentMode('Cash');
     setQty('1');
     setCostPerItem('0.00');
     setPvItems([]);
@@ -179,9 +183,11 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       alert('Please enter a Description / Particulars for the expenditure item.');
       return;
     }
-    const qtyNum = parseFloat(qty) || 1;
-    const costNum = parseFloat(costPerItem) || 0;
-    const totalNum = qtyNum * costNum;
+    const cleanQtyStr = String(qty).replace(/[^0-9]/g, '');
+    const cleanCostStr = String(costPerItem).replace(/[^0-9.]/g, '');
+    const qtyNum = parseInt(cleanQtyStr, 10) || 1;
+    const costNum = parseFloat(cleanCostStr) || 0;
+    const totalNum = Number((qtyNum * costNum).toFixed(2));
 
     const newItem = {
       id: Date.now(),
@@ -199,11 +205,17 @@ export default function SubmitPVRequest({ setM = () => {} }) {
   };
 
   // Action 2: Post PV for Approval >>
-  const handlePostPVForApproval = () => {
+  const handlePostPVForApproval = async () => {
     if (pvItems.length === 0 && !description.trim()) {
       alert('Please add at least one line item to the Payment Voucher before posting.');
       return;
     }
+
+    const cleanQtyStr = String(qty).replace(/[^0-9]/g, '');
+    const cleanCostStr = String(costPerItem).replace(/[^0-9.]/g, '');
+    const fallbackQty = parseInt(cleanQtyStr, 10) || 1;
+    const fallbackCost = parseFloat(cleanCostStr) || 0;
+    const fallbackTotal = Number((fallbackQty * fallbackCost).toFixed(2));
 
     // Build items to post
     const itemsToPost = pvItems.length > 0 ? pvItems : [{
@@ -211,12 +223,20 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       description: description.trim().toUpperCase() || 'EXPENDITURE REQUISITION',
       provider: selectedProviderName,
       providerId: providerId,
-      qty: parseFloat(qty) || 1,
-      costPerItem: parseFloat(costPerItem) || 0,
-      totalAmount: currentCalculatedTotal
+      qty: fallbackQty,
+      costPerItem: fallbackCost,
+      totalAmount: fallbackTotal
     }];
 
-    const totalPVAmount = itemsToPost.reduce((acc, i) => acc + i.totalAmount, 0);
+    const totalPVAmount = Number(itemsToPost.reduce((acc, i) => acc + (parseFloat(i.totalAmount) || 0), 0).toFixed(2));
+
+    // FastAPI schema rule: if both amount and unit_cost are provided, amount must equal quantity * unit_cost.
+    // For single item: quantity is item.qty, unit_cost is item.costPerItem, amount = quantity * unit_cost.
+    // For multi-item voucher: quantity = 1, unit_cost = totalPVAmount, amount = totalPVAmount.
+    const isSingleItem = itemsToPost.length === 1;
+    const finalQuantity = isSingleItem ? itemsToPost[0].qty : 1;
+    const finalUnitCost = isSingleItem ? itemsToPost[0].costPerItem : totalPVAmount;
+    const finalAmount = totalPVAmount;
 
     const newPVRecord = {
       pvNo: pvNo.startsWith('PV-') ? pvNo : `PV-${pvNo}`,
@@ -224,13 +244,21 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       academicYear,
       academicTerm,
       provider: selectedProviderName,
+      payee_name: selectedProviderName,
       providerId: providerId,
-      description: itemsToPost.map(i => `${i.description} (x${i.qty})`).join(', '),
+      payee_id: providerId,
+      department: department || 'Administration',
+      paymentMode: paymentMode || 'Cash',
+      payment_mode: paymentMode || 'Cash',
+      description: itemsToPost.map(i => `${i.description} (x${i.qty})`).join(', ') || description.trim() || 'Expenditure Voucher',
       items: itemsToPost,
-      qty: itemsToPost.reduce((acc, i) => acc + i.qty, 0),
-      cost: totalPVAmount,
-      total: totalPVAmount,
-      grandTotal: totalPVAmount,
+      qty: finalQuantity,
+      quantity: finalQuantity,
+      cost: finalUnitCost,
+      unit_cost: finalUnitCost,
+      total: finalAmount,
+      amount: finalAmount,
+      grandTotal: finalAmount,
       datePrepared: datePrepared,
       valuedDate: datePrepared,
       status: 'Pending Audit',
@@ -239,13 +267,16 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       auditRemarks: 'Submitted by Sub-Admin. Pending Headmaster Pre-Audit Approval.'
     };
 
-
     if (createPaymentVoucher) {
-      createPaymentVoucher(newPVRecord);
+      try {
+        await createPaymentVoucher(newPVRecord);
+        setSuccessNotice(`⚡ ✅ Successfully posted Payment Voucher #${newPVRecord.pvNo} (GHS ${totalPVAmount.toFixed(2)}) to Headmaster for Pre-Audit & Approval!`);
+      } catch (err) {
+        console.warn('Backend posting notice:', err);
+        setSuccessNotice(`⚡ ✅ Saved Payment Voucher #${newPVRecord.pvNo} (GHS ${totalPVAmount.toFixed(2)}) locally (Backend notice: ${err.message || 'Saved offline'}).`);
+      }
     }
 
-    setSuccessNotice(`⚡ ✅ Successfully posted Payment Voucher #${newPVRecord.pvNo} (GHS ${totalPVAmount.toFixed(2)}) to Headmaster for Pre-Audit & Approval!`);
-    
     // Auto-generate next PV number for subsequent submission
     const currentNum = parseInt(pvNo.replace(/\D/g, ''), 10);
     const nextPV = isNaN(currentNum) ? generateUniquePvNumber() : String(currentNum + 1);
@@ -532,6 +563,65 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   <option value="1st Term">1st Term</option>
                   <option value="2nd Term">2nd Term</option>
                   <option value="3rd Term">3rd Term</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Row 1.5: Department & Payment Mode */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                  Department <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <select
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    color: '#0f172a'
+                  }}
+                  required
+                >
+                  <option value="Administration">Administration</option>
+                  <option value="Finance & Accounts">Finance & Accounts</option>
+                  <option value="Academic Affairs">Academic Affairs</option>
+                  <option value="Estate & Maintenance">Estate & Maintenance</option>
+                  <option value="Transport & Logistics">Transport & Logistics</option>
+                  <option value="Kitchen & Canteen">Kitchen & Canteen</option>
+                  <option value="ICT & Media">ICT & Media</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                  Payment Mode <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <select
+                  value={paymentMode}
+                  onChange={(e) => setPaymentMode(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    color: '#0f172a'
+                  }}
+                  required
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Mobile Money">Mobile Money (MoMo)</option>
+                  <option value="Electronic Card">Electronic Card</option>
                 </select>
               </div>
             </div>
