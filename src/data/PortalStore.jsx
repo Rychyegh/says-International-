@@ -2416,42 +2416,66 @@ export function PortalDataProvider({ children }) {
       ...current,
       pvNotifications: (current.pvNotifications || []).map(n => n.id === id ? { ...n, read: true } : n)
     })),
-    updatePaymentVoucher: (pvNo, updatedFields, editorRole = 'Headmaster / Pre-Auditor') => setData((current) => {
-      const existing = current.paymentVouchers || [];
-      const updated = existing.map(p => {
-        if (p.pvNo.toLowerCase() === String(pvNo).toLowerCase() || p.id === pvNo) {
-          const qtyVal = Number(updatedFields.qty !== undefined ? updatedFields.qty : p.qty) || 1;
-          const costVal = Number(updatedFields.cost !== undefined ? updatedFields.cost : (updatedFields.costPerItem !== undefined ? updatedFields.costPerItem : (p.cost || 0))) || 0;
-          const newTotal = qtyVal * costVal;
-          const correctionEntry = {
-            id: `corr-${Date.now()}`,
-            timestamp: new Date().toLocaleString(),
-            editedBy: editorRole,
-            changes: updatedFields
-          };
-          return {
-            ...p,
-            ...updatedFields,
-            qty: qtyVal,
-            cost: costVal,
-            total: newTotal,
-            editedByHeadmaster: true,
-            correctionsLog: [correctionEntry, ...(p.correctionsLog || [])]
-          };
-        }
-        return p;
+    updatePaymentVoucher: async (pvNo, updatedFields, editorRole = 'Headmaster / Pre-Auditor') => {
+      try {
+        await api.correctPaymentVoucher(pvNo, {
+          reason: `Voucher details corrected by ${editorRole} prior to approval`,
+          changes: updatedFields
+        });
+      } catch (e) {
+        console.warn('Backend PV correction fallback:', e);
+      }
+      setData((current) => {
+        const existing = current.paymentVouchers || [];
+        const updated = existing.map(p => {
+          if (p.pvNo.toLowerCase() === String(pvNo).toLowerCase() || p.id === pvNo) {
+            const qtyVal = Number(updatedFields.qty !== undefined ? updatedFields.qty : p.qty) || 1;
+            const costVal = Number(updatedFields.cost !== undefined ? updatedFields.cost : (updatedFields.costPerItem !== undefined ? updatedFields.costPerItem : (p.cost || 0))) || 0;
+            const newTotal = qtyVal * costVal;
+            const correctionEntry = {
+              id: `corr-${Date.now()}`,
+              timestamp: new Date().toLocaleString(),
+              editedBy: editorRole,
+              changes: updatedFields
+            };
+            return {
+              ...p,
+              ...updatedFields,
+              qty: qtyVal,
+              cost: costVal,
+              total: newTotal,
+              editedByHeadmaster: true,
+              correctionsLog: [correctionEntry, ...(p.correctionsLog || [])]
+            };
+          }
+          return p;
+        });
+        return {
+          ...current,
+          paymentVouchers: updated
+        };
       });
-      return {
-        ...current,
-        paymentVouchers: updated
-      };
-    }),
+    },
     approvePaymentVoucher: async (pvNo, actionChoice, remarks, updatedFields = null, auditorName = 'Headmaster / Pre-Auditor') => {
       try {
-        await api.updatePaymentVoucherStatus(pvNo, {
-          status: actionChoice === 'Pre-audit Approve PV' ? 'PRE_AUDITED' : 'APPROVED',
-          auditor_name: auditorName
-        });
+        if (actionChoice === 'Validated' || actionChoice === 'Pre-audit Approve PV') {
+          // Standard Pre-Audit & Approve Endpoints
+          await api.preAuditPaymentVoucher(pvNo, {
+            decision: 'APPROVED',
+            audit_notes: remarks || 'Pre-audited & verified by Headmaster.'
+          });
+          await api.approvePaymentVoucher(pvNo, {
+            approval_notes: remarks || 'Approved for disbursement by Headmaster.'
+          });
+        } else {
+          // Status Update Endpoint
+          await api.updatePaymentVoucherStatus(pvNo, {
+            status: actionChoice,
+            notes: remarks,
+            comments: remarks,
+            rejectionReason: actionChoice === 'Declined' ? (remarks || 'Declined during pre-audit') : undefined
+          });
+        }
       } catch (e) {
         console.warn('Backend PV status update fallback:', e);
       }

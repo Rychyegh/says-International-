@@ -673,34 +673,135 @@ export const api = {
     });
   },
 
-  // --- Payment Vouchers (Submit, Audit, Correct & Approve) ---
-  getPaymentVouchers: async () => {
-    return await request('/finance/pv');
+  // --- Standard Finance Payment Voucher Endpoints (/finance/vouchers) ---
+  createPaymentVoucher: async (pvData) => {
+    try {
+      return await request('/finance/vouchers', {
+        method: 'POST',
+        body: JSON.stringify(pvData),
+      });
+    } catch (e) {
+      return await request('/finance/pv', {
+        method: 'POST',
+        body: JSON.stringify(pvData),
+      });
+    }
   },
+  createVoucher: async (pvData) => api.createPaymentVoucher(pvData),
+
+  getPaymentVouchers: async () => {
+    try {
+      return await request('/finance/vouchers');
+    } catch (e) {
+      return await request('/finance/pv');
+    }
+  },
+  getVouchers: async () => api.getPaymentVouchers(),
 
   getPaymentVoucherById: async (pvId) => {
-    return await request(`/finance/pv/${pvId}`);
+    try {
+      return await request(`/finance/vouchers/${pvId}`);
+    } catch (e) {
+      return await request(`/finance/pv/${pvId}`);
+    }
   },
+  getVoucherById: async (pvId) => api.getPaymentVoucherById(pvId),
 
-  createPaymentVoucher: async (pvData) => {
-    return await request('/finance/pv', {
-      method: 'POST',
-      body: JSON.stringify(pvData),
-    });
+  preAuditPaymentVoucher: async (pvId, auditData = {}) => {
+    try {
+      return await request(`/finance/vouchers/${pvId}/pre-audit`, {
+        method: 'POST',
+        body: JSON.stringify(auditData),
+      });
+    } catch (e) {
+      return await request(`/finance/pv/${pvId}/pre-audit`, {
+        method: 'POST',
+        body: JSON.stringify(auditData),
+      });
+    }
   },
+  preAuditVoucher: async (pvId, auditData) => api.preAuditPaymentVoucher(pvId, auditData),
 
-  updatePaymentVoucher: async (pvId, pvData) => {
-    return await request(`/finance/pv/${pvId}`, {
-      method: 'PUT',
-      body: JSON.stringify(pvData),
-    });
+  approvePaymentVoucher: async (pvId, approvalData = {}) => {
+    try {
+      return await request(`/finance/vouchers/${pvId}/approve`, {
+        method: 'POST',
+        body: JSON.stringify(approvalData),
+      });
+    } catch (e) {
+      return await request(`/finance/pv/${pvId}/approve`, {
+        method: 'POST',
+        body: JSON.stringify(approvalData),
+      });
+    }
   },
+  approveVoucher: async (pvId, approvalData) => api.approvePaymentVoucher(pvId, approvalData),
 
   updatePaymentVoucherStatus: async (pvId, statusData) => {
-    return await request(`/finance/pv/${pvId}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify(statusData),
+    try {
+      return await request(`/finance/vouchers/${pvId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify(statusData),
+      });
+    } catch (e) {
+      return await request(`/finance/pv/${pvId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify(statusData),
+      });
+    }
+  },
+  updateVoucherStatus: async (pvId, statusData) => api.updatePaymentVoucherStatus(pvId, statusData),
+
+  disbursePaymentVoucher: async (pvId, disburseData = {}) => {
+    return await request(`/finance/vouchers/${pvId}/disburse`, {
+      method: 'POST',
+      body: JSON.stringify(disburseData),
     });
+  },
+  disburseVoucher: async (pvId, disburseData) => api.disbursePaymentVoucher(pvId, disburseData),
+
+  getPaymentVoucherPdf: (pvId) => {
+    return `${API_BASE_URL}/finance/vouchers/${pvId}/pdf`;
+  },
+  getVoucherPdf: (pvId) => api.getPaymentVoucherPdf(pvId),
+
+  // --- Voucher Admin / Correction Endpoints (/finance/vouchers or /voucher-admin) ---
+  correctPaymentVoucher: async (voucherId, correctionData) => {
+    try {
+      return await request(`/finance/vouchers/${voucherId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(correctionData),
+      });
+    } catch (e) {
+      return await request(`/voucher-admin/vouchers/${voucherId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(correctionData),
+      });
+    }
+  },
+  correctVoucher: async (voucherId, correctionData) => api.correctPaymentVoucher(voucherId, correctionData),
+
+  getPaymentVoucherHistory: async (voucherId) => {
+    try {
+      return await request(`/finance/vouchers/${voucherId}/history`);
+    } catch (e) {
+      return await request(`/voucher-admin/vouchers/${voucherId}/history`);
+    }
+  },
+  getVoucherHistory: async (voucherId) => api.getPaymentVoucherHistory(voucherId),
+
+  updatePaymentVoucher: async (pvId, pvData) => {
+    try {
+      return await request(`/finance/vouchers/${pvId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(pvData),
+      });
+    } catch (e) {
+      return await request(`/finance/pv/${pvId}`, {
+        method: 'PUT',
+        body: JSON.stringify(pvData),
+      });
+    }
   },
 
   batchActionPaymentVouchers: async (batchData) => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Edit3, Save, Search, AlertCircle, FileCheck, RefreshCw, Filter, ArrowRight, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Edit3, Save, Search, AlertCircle, FileCheck, RefreshCw, Filter, ArrowRight, ShieldCheck, ChevronDown, ChevronUp } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
 
 export default function ApprovePVForm({ setM = () => {} }) {
@@ -131,6 +131,10 @@ export default function ApprovePVForm({ setM = () => {} }) {
   // Selected Active Voucher for Editing/Audit
   const [selectedPvId, setSelectedPvId] = useState(pvQueue[0]?.id || pvQueue[0]?.pvNo || 'pv-088');
 
+  // Toggle for Voucher Particulars & Calculations (Editable by Headmaster Prior to Approval)
+  // Requires clicking the Pre-Audit & Editing Station header or selecting a PV from the queue to open
+  const [isParticularsOpen, setIsParticularsOpen] = useState(false);
+
   // Form Fields State
   const [pvNo, setPvNo] = useState(pvQueue[0]?.pvNo || 'PV-2026-088');
   const [itemRequisitionNo, setItemRequisitionNo] = useState(pvQueue[0]?.requisitionNo || 'REQ-99412');
@@ -188,10 +192,12 @@ export default function ApprovePVForm({ setM = () => {} }) {
       'Non-accrual': 'Non-accrual'
     };
     setActionChoice(statusMap[v.status] || 'Validated');
+    setIsParticularsOpen(true);
   };
 
   // Search PV Action
   const handleSearchPV = () => {
+    setIsParticularsOpen(true);
     const match = pvQueue.find(p => p.pvNo?.toLowerCase().includes(pvNo.toLowerCase()));
     if (match) {
       populateFormWithVoucher(match);
@@ -310,24 +316,47 @@ export default function ApprovePVForm({ setM = () => {} }) {
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a', paddingBottom: 40 }}>
       
-      {/* Top Banner Header */}
-      <div style={{
-        background: '#0f3a4b',
-        color: '#ffffff',
-        padding: '12px 18px',
-        borderRadius: '8px 8px 0 0',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: 12,
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-      }}>
+      {/* Top Banner Header - Click to Toggle Voucher Particulars & Calculations */}
+      <div 
+        onClick={() => setIsParticularsOpen(prev => !prev)}
+        style={{
+          background: '#0f3a4b',
+          color: '#ffffff',
+          padding: '12px 18px',
+          borderRadius: '8px 8px 0 0',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          cursor: 'pointer',
+          userSelect: 'none'
+        }}
+        title="Click Payment Voucher (PV) Pre-Audit & Editing Station to toggle Voucher Particulars & Calculations"
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ background: '#0284c7', width: 6, height: 24, borderRadius: 3 }} />
           <div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#ffffff', letterSpacing: '0.02em' }}>
-              Payment Voucher (PV) Pre-Audit & Editing Station
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#ffffff', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span>Payment Voucher (PV) Pre-Audit & Editing Station</span>
+              <span style={{
+                fontSize: 10.5,
+                background: isParticularsOpen ? '#0284c7' : 'rgba(255,255,255,0.2)',
+                color: '#ffffff',
+                padding: '2px 10px',
+                borderRadius: 12,
+                fontWeight: 800,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4
+              }}>
+                {isParticularsOpen ? (
+                  <>Station Open <ChevronUp size={12} /></>
+                ) : (
+                  <>Click to Open <ChevronDown size={12} /></>
+                )}
+              </span>
             </h3>
             <div style={{ fontSize: 11, color: '#bae6fd', marginTop: 2 }}>
               Headmaster / Executive Pre-Audit Station · Edit Wrong Voucher Details Prior to Approval
@@ -336,6 +365,29 @@ export default function ApprovePVForm({ setM = () => {} }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsParticularsOpen(prev => !prev);
+            }}
+            style={{
+              background: isParticularsOpen ? '#0284c7' : 'rgba(255,255,255,0.15)',
+              border: '1px solid rgba(255,255,255,0.3)',
+              color: '#fff',
+              padding: '5px 12px',
+              borderRadius: 6,
+              fontSize: 11,
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6
+            }}
+          >
+            <Edit3 size={13} />
+            {isParticularsOpen ? 'Hide Voucher Particulars ▲' : 'Open Voucher Particulars ▼'}
+          </button>
           <span style={{
             background: 'rgba(255,255,255,0.15)',
             border: '1px solid rgba(255,255,255,0.3)',
@@ -444,29 +496,87 @@ export default function ApprovePVForm({ setM = () => {} }) {
         </div>
       </div>
 
-      {/* Top Search & Requisition Bar */}
-      <div style={{
-        background: '#f1f5f9',
-        padding: 12,
-        border: '1px solid #cbd5e1',
-        borderTop: 'none',
-        display: 'grid',
-        gridTemplateColumns: '1.4fr 1fr',
-        gap: 16,
-        alignItems: 'center'
-      }}>
-        <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 4 }}>
-            PV N/o Search & Selection
-          </label>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input
-              type="text"
-              value={pvNo}
-              onChange={(e) => setPvNo(e.target.value)}
-              placeholder="Enter PV N/o (e.g. PV-2026-088)..."
-              style={{ width: 160, padding: '6px 10px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 800, background: '#fff' }}
-            />
+      {/* CONDITIONAL STATION: Opens only when Payment Voucher (PV) Pre-Audit & Editing Station is clicked or a PV is selected */}
+      {!isParticularsOpen ? (
+        <div
+          onClick={() => setIsParticularsOpen(true)}
+          style={{
+            background: '#f8fafc',
+            border: '1px solid #cbd5e1',
+            borderTop: 'none',
+            padding: '24px 20px',
+            textAlign: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }}
+          title="Click to open Voucher Particulars & Calculations"
+        >
+          <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              color: '#0f3a4b',
+              fontSize: 13,
+              fontWeight: 800
+            }}>
+              <span>👆 Click on <strong>"Payment Voucher (PV) Pre-Audit & Editing Station"</strong> above or select any voucher in the queue to open:</span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsParticularsOpen(true);
+              }}
+              style={{
+                padding: '10px 22px',
+                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 6,
+                fontSize: 12.5,
+                fontWeight: 900,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                boxShadow: '0 2px 6px rgba(2, 132, 199, 0.35)',
+                letterSpacing: '0.02em'
+              }}
+            >
+              <Edit3 size={15} />
+              Open VOUCHER PARTICULARS &amp; CALCULATIONS (EDITABLE BY HEADMASTER PRIOR TO APPROVAL) ▼
+            </button>
+            <div style={{ fontSize: 11, color: '#64748b' }}>
+              Allows Headmaster to pre-audit calculations, edit description, item rates, quantities, and apply executive approval actions.
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Top Search & Requisition Bar */}
+          <div style={{
+            background: '#f1f5f9',
+            padding: 12,
+            border: '1px solid #cbd5e1',
+            borderTop: 'none',
+            display: 'grid',
+            gridTemplateColumns: '1.4fr 1fr',
+            gap: 16,
+            alignItems: 'center'
+          }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 4 }}>
+                PV N/o Search & Selection
+              </label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="text"
+                  value={pvNo}
+                  onChange={(e) => setPvNo(e.target.value)}
+                  placeholder="Enter PV N/o (e.g. PV-2026-088)..."
+                  style={{ width: 160, padding: '6px 10px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 800, background: '#fff' }}
+                />
             <button
               type="button"
               onClick={handleSearchPV}
@@ -515,26 +625,48 @@ export default function ApprovePVForm({ setM = () => {} }) {
             <Edit3 size={15} style={{ color: '#0284c7' }} />
             VOUCHER PARTICULARS & CALCULATIONS (EDITABLE BY HEADMASTER PRIOR TO APPROVAL)
           </div>
-          <button
-            type="button"
-            onClick={handleSaveVoucherEdits}
-            style={{
-              padding: '6px 14px',
-              background: '#0284c7',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: 6,
-              fontSize: 12,
-              fontWeight: 800,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              boxShadow: '0 2px 4px rgba(2,132,199,0.2)'
-            }}
-          >
-            <Save size={14} /> 💾 Save / Correct Voucher Details
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setIsParticularsOpen(false)}
+              style={{
+                padding: '6px 12px',
+                background: '#f1f5f9',
+                color: '#475569',
+                border: '1px solid #cbd5e1',
+                borderRadius: 6,
+                fontSize: 11.5,
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5
+              }}
+              title="Close editing station"
+            >
+              <ChevronUp size={13} /> Minimize Station ▲
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveVoucherEdits}
+              style={{
+                padding: '6px 14px',
+                background: '#0284c7',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                boxShadow: '0 2px 4px rgba(2,132,199,0.2)'
+              }}
+            >
+              <Save size={14} /> 💾 Save / Correct Voucher Details
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
@@ -771,6 +903,8 @@ export default function ApprovePVForm({ setM = () => {} }) {
         </div>
 
       </div>
-    </div>
-  );
+    </>
+  )}
+</div>
+);
 }
