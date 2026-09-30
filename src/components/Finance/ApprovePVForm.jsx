@@ -1,17 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Edit3, Save, Search, AlertCircle, FileCheck } from 'lucide-react';
+import { CheckCircle2, Edit3, Save, Search, AlertCircle, FileCheck, RefreshCw, Filter, ArrowRight, ShieldCheck } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
 
-export default function ApprovePVForm({ setM }) {
+export default function ApprovePVForm({ setM = () => {} }) {
   const portalData = usePortalData();
   const storeVouchers = portalData?.paymentVouchers || [];
   const updatePaymentVoucher = portalData?.updatePaymentVoucher;
   const approvePaymentVoucher = portalData?.approvePaymentVoucher;
 
-  const [pvQueue, setPvQueue] = useState([
+  // Default seed queue if store is empty
+  const DEFAULT_PVS = [
     {
       id: 'pv-088',
       pvNo: 'PV-2026-088',
+      accountName: 'Utility & Substation Account',
+      budget: '5000.00',
+      actuals: '3200.00',
+      batchNo: 'BATCH-2026-09',
+      tDate: '2026-09-05',
+      vDate: '2026-09-05',
       requisitionNo: 'REQ-99412',
       provider: 'ELECTRICITY COMPANY OF GHANA (ECG)',
       providerId: 'ECG-99310',
@@ -21,13 +28,21 @@ export default function ApprovePVForm({ setM }) {
       total: 3200.00,
       datePrepared: '2026-09-05',
       valuedDate: '2026-09-05',
-      auditRemarks: 'Pre-audited & verified against monthly meter consumption records.',
-      status: 'Pending Audit',
-      editedByHeadmaster: false
+      auditRemarks: 'Pre-audited & verified against monthly meter consumption records. Approved for disbursement.',
+      imputer: 'LISAB (Sub-Admin)',
+      inputDate: '2026-09-05 10:15',
+      status: 'Validated',
+      company: 'Remalj Carewell Inspirational School'
     },
     {
       id: 'pv-082',
       pvNo: 'PV-2026-082',
+      accountName: 'Canteen & Feeding Account',
+      budget: '3000.00',
+      actuals: '1850.00',
+      batchNo: 'BATCH-2026-09',
+      tDate: '2026-09-02',
+      vDate: '2026-09-02',
       requisitionNo: 'REQ-99380',
       provider: 'DAILY CANTEEN SUPPLIES LTD',
       providerId: '931043',
@@ -38,12 +53,20 @@ export default function ApprovePVForm({ setM }) {
       datePrepared: '2026-09-02',
       valuedDate: '2026-09-02',
       auditRemarks: 'Pending pre-audit verification by Headmaster.',
-      status: 'Pending Audit',
-      editedByHeadmaster: false
+      imputer: 'Sub-Admin / Accounts',
+      inputDate: '2026-09-02 11:30',
+      status: 'Pending approval',
+      company: 'Remalj Carewell Inspirational School'
     },
     {
       id: 'pv-075',
       pvNo: 'PV-2026-075',
+      accountName: 'Stationery & Printing',
+      budget: '2000.00',
+      actuals: '1200.00',
+      batchNo: 'BATCH-2026-08',
+      tDate: '2026-08-28',
+      vDate: '2026-08-28',
       requisitionNo: 'REQ-99300',
       provider: 'STATIONERY & PRINTING DEPOT',
       providerId: '931088',
@@ -54,72 +77,135 @@ export default function ApprovePVForm({ setM }) {
       datePrepared: '2026-08-28',
       valuedDate: '2026-08-28',
       auditRemarks: 'Pre-audited & Approved',
-      status: 'Pre-Audited & Approved',
-      editedByHeadmaster: false
+      imputer: 'Sub-Admin / Accounts',
+      inputDate: '2026-08-28 09:45',
+      status: 'Validated',
+      company: 'Remalj Carewell Inspirational School'
     }
-  ]);
+  ];
 
+  const [pvQueue, setPvQueue] = useState(() => {
+    try {
+      const saved = localStorage.getItem('official_pv_queue');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return DEFAULT_PVS;
+  });
+
+  // Synchronize with portalStore paymentVouchers & localStorage
   useEffect(() => {
     if (storeVouchers && storeVouchers.length > 0) {
-      setPvQueue(storeVouchers);
+      setPvQueue((prev) => {
+        // Merge store vouchers with existing queue items
+        const mergedMap = new Map();
+        [...prev, ...storeVouchers].forEach(v => {
+          const key = (v.pvNo || v.id || '').toLowerCase();
+          const existing = mergedMap.get(key) || {};
+          mergedMap.set(key, {
+            accountName: v.accountName || existing.accountName || 'Expenditure Account',
+            budget: v.budget || existing.budget || '0.00',
+            actuals: v.actuals || existing.actuals || '0.00',
+            batchNo: v.batchNo || existing.batchNo || 'BATCH-2026-01',
+            tDate: v.tDate || v.datePrepared || existing.tDate || new Date().toISOString().split('T')[0],
+            vDate: v.valuedDate || v.vDate || existing.vDate || new Date().toISOString().split('T')[0],
+            imputer: v.imputer || v.preparedBy || existing.imputer || 'Sub-Admin',
+            inputDate: v.inputDate || v.datePrepared || existing.inputDate || new Date().toISOString().split('T')[0],
+            company: v.company || existing.company || 'Remalj Carewell Inspirational School',
+            ...existing,
+            ...v,
+            status: v.status || existing.status || 'Pending approval'
+          });
+        });
+        const mergedList = Array.from(mergedMap.values());
+        try {
+          localStorage.setItem('official_pv_queue', JSON.stringify(mergedList));
+        } catch (e) {}
+        return mergedList;
+      });
     }
   }, [storeVouchers]);
 
+  // Selected Active Voucher for Editing/Audit
+  const [selectedPvId, setSelectedPvId] = useState(pvQueue[0]?.id || pvQueue[0]?.pvNo || 'pv-088');
+
   // Form Fields State
-  const [pvNo, setPvNo] = useState('PV-2026-088');
-  const [itemRequisitionNo, setItemRequisitionNo] = useState('REQ-99412');
-  const [description, setDescription] = useState('Cost of Electricity Bill & Utility Substation Maintenance');
-  const [datePrepared, setDatePrepared] = useState('2026-09-05');
-  const [clientProvider, setClientProvider] = useState('ELECTRICITY COMPANY OF GHANA (ECG)');
-  const [providerId, setProviderId] = useState('ECG-99310');
-  const [qty, setQty] = useState('1');
-  const [costPerItem, setCostPerItem] = useState('3200.00');
-  const [auditRemarks, setAuditRemarks] = useState('Pre-audited & verified against monthly meter consumption records. Approved for disbursement.');
-  const [valuedDate, setValuedDate] = useState('2026-09-05');
-  const [actionChoice, setActionChoice] = useState('Pre-audit Approve PV');
+  const [pvNo, setPvNo] = useState(pvQueue[0]?.pvNo || 'PV-2026-088');
+  const [itemRequisitionNo, setItemRequisitionNo] = useState(pvQueue[0]?.requisitionNo || 'REQ-99412');
+  const [description, setDescription] = useState(pvQueue[0]?.description || 'Cost of Electricity Bill & Utility Substation Maintenance');
+  const [datePrepared, setDatePrepared] = useState(pvQueue[0]?.datePrepared || '2026-09-05');
+  const [clientProvider, setClientProvider] = useState(pvQueue[0]?.provider || 'ELECTRICITY COMPANY OF GHANA (ECG)');
+  const [providerId, setProviderId] = useState(pvQueue[0]?.providerId || 'ECG-99310');
+  const [qty, setQty] = useState(String(pvQueue[0]?.qty || 1));
+  const [costPerItem, setCostPerItem] = useState(String(pvQueue[0]?.cost || 3200.00));
+  const [auditRemarks, setAuditRemarks] = useState(pvQueue[0]?.auditRemarks || 'Pre-audited & verified against monthly meter consumption records.');
+  const [valuedDate, setValuedDate] = useState(pvQueue[0]?.valuedDate || '2026-09-05');
+  
+  // Action Choice Options matching Reference Image: Validated, Pending approval, Postponed, Declined, Cancel PV, Non-accrual
+  const [actionChoice, setActionChoice] = useState('Validated');
   const [bannerNotice, setBannerNotice] = useState('');
-  const [isEditingMode, setIsEditingMode] = useState(false);
+  const [searchFilter, setSearchFilter] = useState('');
 
   const calculatedTotalAmount = (parseFloat(qty) || 0) * (parseFloat(costPerItem) || 0);
 
+  // Format Date Preview
   const formatDatePreview = (dateStr) => {
     if (!dateStr) return '';
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    return `${days[d.getDay()]} , ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+    return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
   };
 
-  const populateFormWithVoucher = (match) => {
-    if (!match) return;
-    setPvNo(match.pvNo);
-    setItemRequisitionNo(match.requisitionNo || match.itemRequisitionNo || '');
-    setClientProvider(match.provider || match.clientProvider || '');
-    setProviderId(match.providerId || '');
-    setDescription(match.description || '');
-    setQty(String(match.qty || 1));
-    setCostPerItem(Number(match.cost || match.costPerItem || 0).toFixed(2));
-    setDatePrepared(match.datePrepared || new Date().toISOString().split('T')[0]);
-    setValuedDate(match.valuedDate || match.datePrepared || new Date().toISOString().split('T')[0]);
-    setAuditRemarks(match.auditRemarks || 'Pre-audited & verified by Headmaster.');
+  // Populate Form from Voucher object
+  const populateFormWithVoucher = (v) => {
+    if (!v) return;
+    setSelectedPvId(v.id || v.pvNo);
+    setPvNo(v.pvNo || '');
+    setItemRequisitionNo(v.requisitionNo || v.itemRequisitionNo || '');
+    setClientProvider(v.provider || v.clientProvider || '');
+    setProviderId(v.providerId || '');
+    setDescription(v.description || '');
+    setQty(String(v.qty || 1));
+    setCostPerItem(Number(v.cost || v.costPerItem || 0).toFixed(2));
+    setDatePrepared(v.datePrepared || v.tDate || new Date().toISOString().split('T')[0]);
+    setValuedDate(v.valuedDate || v.vDate || new Date().toISOString().split('T')[0]);
+    setAuditRemarks(v.auditRemarks || 'Pre-audited & verified by Headmaster.');
+    
+    // Normalize status for Action Choice
+    const statusMap = {
+      'Pre-Audited & Approved': 'Validated',
+      'Approved': 'Validated',
+      'Validated': 'Validated',
+      'Pending Audit': 'Pending approval',
+      'Pending approval': 'Pending approval',
+      'Postponed': 'Postponed',
+      'Declined': 'Declined',
+      'Cancel PV': 'Cancel PV',
+      'Non-accrual': 'Non-accrual'
+    };
+    setActionChoice(statusMap[v.status] || 'Validated');
   };
 
+  // Search PV Action
   const handleSearchPV = () => {
     const match = pvQueue.find(p => p.pvNo?.toLowerCase().includes(pvNo.toLowerCase()));
     if (match) {
       populateFormWithVoucher(match);
-      setBannerNotice(`🔍 Loaded PV record #${match.pvNo}. Ready for editing or pre-audit approval.`);
+      setBannerNotice(`🔍 Loaded PV record #${match.pvNo}. Ready for pre-audit verification and approval.`);
     } else {
-      setBannerNotice(`🔍 Searching PV Records for #${pvNo}...`);
+      setBannerNotice(`🔍 Searching PV Records database for #${pvNo}...`);
     }
     setTimeout(() => setBannerNotice(''), 4000);
   };
 
-  // Save Wrong Voucher Edits Prior to Approval
+  // Save / Correct Voucher Details Prior to Approval
   const handleSaveVoucherEdits = () => {
     if (!pvNo.trim()) {
-      alert('Please enter or select a valid PV Number.');
+      alert('Please select or enter a valid PV Number.');
       return;
     }
     const updatedFields = {
@@ -137,19 +223,25 @@ export default function ApprovePVForm({ setM }) {
       editedByHeadmaster: true
     };
 
-    setPvQueue(prev => prev.map(p => p.pvNo.toLowerCase() === pvNo.toLowerCase() ? { ...p, ...updatedFields } : p));
+    const updatedQueue = pvQueue.map(p =>
+      (p.pvNo?.toLowerCase() === pvNo.toLowerCase() || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
+    );
+
+    setPvQueue(updatedQueue);
+    try {
+      localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue));
+    } catch (e) {}
 
     if (updatePaymentVoucher) {
       updatePaymentVoucher(pvNo, updatedFields, 'Headmaster / Pre-Auditor');
     }
 
     setBannerNotice(`✏️ ✅ Successfully saved corrected voucher details for PV #${pvNo}! Corrected by Headmaster prior to approval.`);
-    setIsEditingMode(true);
-    setTimeout(() => setBannerNotice(''), 5000);
+    setTimeout(() => setSuccessNotice(''), 5000);
   };
 
+  // Action Single PV Item Only
   const handleActionSingleItem = () => {
-    const updatedStatus = actionChoice === 'Pre-audit Approve PV' ? 'Pre-Audited & Approved' : actionChoice;
     const updatedFields = {
       pvNo,
       requisitionNo: itemRequisitionNo,
@@ -162,30 +254,63 @@ export default function ApprovePVForm({ setM }) {
       datePrepared,
       valuedDate,
       auditRemarks,
-      status: updatedStatus,
+      status: actionChoice,
       editedByHeadmaster: true
     };
 
-    setPvQueue(prev => prev.map(p => p.pvNo.toLowerCase() === pvNo.toLowerCase() ? { ...p, ...updatedFields } : p));
+    const updatedQueue = pvQueue.map(p =>
+      (p.pvNo?.toLowerCase() === pvNo.toLowerCase() || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
+    );
+
+    setPvQueue(updatedQueue);
+    try {
+      localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue));
+    } catch (e) {}
 
     if (approvePaymentVoucher) {
       approvePaymentVoucher(pvNo, actionChoice, auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
     }
 
-    setBannerNotice(`✅ Applied action "${actionChoice}" for PV Item #${pvNo}. Ledger updated.`);
+    setBannerNotice(`✅ Applied action "${actionChoice}" for PV Item #${pvNo}. Pre-audit ledger updated.`);
     setTimeout(() => setBannerNotice(''), 4000);
   };
 
-  const handleActionAllItems = () => {
-    const updatedStatus = actionChoice === 'Pre-audit Approve PV' ? 'Pre-Audited & Approved' : actionChoice;
-    setPvQueue(prev => prev.map(p => ({ ...p, status: updatedStatus })));
-    setBannerNotice(`✅ Applied action "${actionChoice}" for ALL pending PV items in queue.`);
-    setTimeout(() => setBannerNotice(''), 4000);
+  // Action Next PV / Action All PV Items in Queue
+  const handleActionNextOrAll = () => {
+    // Action current item and move to next pending item in queue
+    handleActionSingleItem();
+    const currentIndex = pvQueue.findIndex(p => p.pvNo?.toLowerCase() === pvNo.toLowerCase() || p.id === selectedPvId);
+    if (currentIndex >= 0 && currentIndex < pvQueue.length - 1) {
+      const nextV = pvQueue[currentIndex + 1];
+      populateFormWithVoucher(nextV);
+      setBannerNotice(`➡️ Applied action "${actionChoice}" for #${pvNo}. Advanced to next PV #${nextV.pvNo}.`);
+    } else {
+      setBannerNotice(`✅ Applied action "${actionChoice}" for all selected items in queue.`);
+    }
+    setTimeout(() => setBannerNotice(''), 5000);
   };
+
+  // Summary Totals Calculation (Matching Image 2 Bottom Summary Bar)
+  const totalPendingAmount = pvQueue.filter(p => p.status === 'Pending approval' || p.status === 'Pending Audit').reduce((acc, p) => acc + (p.total || p.cost || 0), 0);
+  const totalPostponedAmount = pvQueue.filter(p => p.status === 'Postponed').reduce((acc, p) => acc + (p.total || p.cost || 0), 0);
+  const totalValidatedAmount = pvQueue.filter(p => p.status === 'Validated' || p.status?.includes('Approved')).reduce((acc, p) => acc + (p.total || p.cost || 0), 0);
+  const totalDeclinedAmount = pvQueue.filter(p => p.status === 'Declined' || p.status === 'Rejected').reduce((acc, p) => acc + (p.total || p.cost || 0), 0);
+  const totalCancelledAmount = pvQueue.filter(p => p.status === 'Cancel PV' || p.status === 'Cancelled').reduce((acc, p) => acc + (p.total || p.cost || 0), 0);
+  const totalNonAccrualAmount = pvQueue.filter(p => p.status === 'Non-accrual').reduce((acc, p) => acc + (p.total || p.cost || 0), 0);
+
+  // Filtered Queue for Table
+  const filteredQueue = pvQueue.filter(p =>
+    !searchFilter ||
+    p.pvNo?.toLowerCase().includes(searchFilter.toLowerCase()) ||
+    p.provider?.toLowerCase().includes(searchFilter.toLowerCase()) ||
+    p.description?.toLowerCase().includes(searchFilter.toLowerCase()) ||
+    p.requisitionNo?.toLowerCase().includes(searchFilter.toLowerCase())
+  );
 
   return (
-    <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a' }}>
-      {/* Top Header Card */}
+    <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a', paddingBottom: 40 }}>
+      
+      {/* Top Banner Header */}
       <div style={{
         background: '#0f3a4b',
         color: '#ffffff',
@@ -228,10 +353,101 @@ export default function ApprovePVForm({ setM }) {
         </div>
       </div>
 
-      {/* Top Search & Filter Bar */}
+      {/* TOP SECTION: Interactive Ledger Table Grid (Matching Reference Image 2) */}
+      <div style={{ background: '#e2e8f0', border: '1px solid #cbd5e1', borderTop: 'none', padding: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', marginBottom: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={handleSearchPV}
+              style={{ padding: '4px 12px', background: '#0f3a4b', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 800, fontSize: 11, cursor: 'pointer' }}
+            >
+              Search PV Records &gt;&gt;
+            </button>
+            <input
+              type="text"
+              placeholder="Filter PV records..."
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              style={{ width: 180, padding: '3px 8px', borderRadius: 4, border: '1px solid #94a3b8', fontSize: 11, background: '#fff' }}
+            />
+          </div>
+          <span style={{ fontSize: 11, fontWeight: 800, color: '#0f3a4b' }}>
+            ⚡ Live Database Queue: {pvQueue.length} Vouchers Synchronized
+          </span>
+        </div>
+
+        {/* Ledger Grid Table (Exact Match to Image 2 Grid) */}
+        <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #94a3b8', background: '#fff' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, whiteSpace: 'nowrap' }}>
+            <thead>
+              <tr style={{ background: '#0f3a4b', color: '#fff', textAlign: 'left' }}>
+                <th style={{ padding: '6px 8px' }}>PL / Account Name</th>
+                <th style={{ padding: '6px 8px', textAlign: 'right' }}>Budget</th>
+                <th style={{ padding: '6px 8px', textAlign: 'right' }}>Actuals</th>
+                <th style={{ padding: '6px 8px' }}>Batch N/o</th>
+                <th style={{ padding: '6px 8px' }}>T. Date</th>
+                <th style={{ padding: '6px 8px' }}>V. Date</th>
+                <th style={{ padding: '6px 8px' }}>Merchant / Provider</th>
+                <th style={{ padding: '6px 8px', textAlign: 'right' }}>Debit (GHS)</th>
+                <th style={{ padding: '6px 8px' }}>T. Description</th>
+                <th style={{ padding: '6px 8px' }}>Pre Audit Remarks</th>
+                <th style={{ padding: '6px 8px' }}>Imputer</th>
+                <th style={{ padding: '6px 8px' }}>Input Date</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center' }}>Status</th>
+                <th style={{ padding: '6px 8px' }}>Company</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredQueue.map((item, idx) => {
+                const isSelected = selectedPvId === item.id || selectedPvId === item.pvNo;
+                return (
+                  <tr
+                    key={item.id || idx}
+                    onClick={() => populateFormWithVoucher(item)}
+                    style={{
+                      background: isSelected ? '#0284c7' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc'),
+                      color: isSelected ? '#ffffff' : '#0f172a',
+                      cursor: 'pointer',
+                      borderBottom: '1px solid #cbd5e1'
+                    }}
+                  >
+                    <td style={{ padding: '5px 8px', fontWeight: 800 }}>{item.accountName || item.description?.substring(0, 20)}</td>
+                    <td style={{ padding: '5px 8px', textAlign: 'right' }}>{Number(item.budget || 0).toFixed(2)}</td>
+                    <td style={{ padding: '5px 8px', textAlign: 'right' }}>{Number(item.actuals || 0).toFixed(2)}</td>
+                    <td style={{ padding: '5px 8px' }}>{item.batchNo || 'BATCH-2026-01'}</td>
+                    <td style={{ padding: '5px 8px' }}>{item.tDate || item.datePrepared}</td>
+                    <td style={{ padding: '5px 8px' }}>{item.vDate || item.valuedDate}</td>
+                    <td style={{ padding: '5px 8px', fontWeight: 700 }}>{item.provider || item.clientProvider}</td>
+                    <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 900 }}>{Number(item.total || item.cost || 0).toFixed(2)}</td>
+                    <td style={{ padding: '5px 8px' }}>{item.description}</td>
+                    <td style={{ padding: '5px 8px' }}>{item.auditRemarks}</td>
+                    <td style={{ padding: '5px 8px', fontWeight: 700 }}>{item.imputer || item.preparedBy || 'Sub-Admin'}</td>
+                    <td style={{ padding: '5px 8px' }}>{item.inputDate || item.datePrepared}</td>
+                    <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 10,
+                        fontWeight: 900,
+                        background: isSelected ? '#ffffff' : (item.status === 'Validated' ? '#dcfce7' : (item.status === 'Declined' || item.status === 'Cancel PV' ? '#fee2e2' : '#fef3c7')),
+                        color: isSelected ? '#0369a1' : (item.status === 'Validated' ? '#166534' : (item.status === 'Declined' || item.status === 'Cancel PV' ? '#dc2626' : '#b45309'))
+                      }}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td style={{ padding: '5px 8px' }}>{item.company || 'Remalj Carewell'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Top Search & Requisition Bar */}
       <div style={{
         background: '#f1f5f9',
-        padding: 14,
+        padding: 12,
         border: '1px solid #cbd5e1',
         borderTop: 'none',
         display: 'grid',
@@ -292,12 +508,12 @@ export default function ApprovePVForm({ setM }) {
         </div>
       )}
 
-      {/* Main Editable Voucher Form */}
+      {/* MIDDLE SECTION: Editable Voucher Particulars & Calculations */}
       <div style={{ background: '#ffffff', padding: 16, border: '1px solid #cbd5e1', borderTop: 'none' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1px solid #e2e8f0', paddingBottom: 8 }}>
           <div style={{ fontSize: 12, fontWeight: 900, color: '#0f3a4b', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
             <Edit3 size={15} style={{ color: '#0284c7' }} />
-            Voucher Particulars & Calculations (Editable by Headmaster Prior to Approval)
+            VOUCHER PARTICULARS & CALCULATIONS (EDITABLE BY HEADMASTER PRIOR TO APPROVAL)
           </div>
           <button
             type="button"
@@ -416,7 +632,7 @@ export default function ApprovePVForm({ setM }) {
           </div>
         </div>
 
-        {/* Pre-Audit Approval Controls */}
+        {/* Executive Pre-Audit Verification & Decision Section */}
         <div style={{
           background: '#f8fafc',
           padding: 14,
@@ -447,6 +663,7 @@ export default function ApprovePVForm({ setM }) {
             />
           </div>
 
+          {/* Valued Date & Action Choice Dropdown (Exact Match to Image 2 Dropdown) */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Valued Date</label>
@@ -465,15 +682,17 @@ export default function ApprovePVForm({ setM }) {
                 onChange={(e) => setActionChoice(e.target.value)}
                 style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff', fontWeight: 800, color: '#0f3a4b' }}
               >
-                <option value="Pre-audit Approve PV">Pre-audit Approve PV</option>
-                <option value="Reject / Query PV">Reject / Query PV</option>
-                <option value="Hold PV for Clarification">Hold PV for Clarification</option>
+                <option value="Validated">Validated (Pre-audit Approved)</option>
+                <option value="Pending approval">Pending approval</option>
+                <option value="Postponed">Postponed</option>
+                <option value="Declined">Declined</option>
                 <option value="Cancel PV">Cancel PV</option>
+                <option value="Non-accrual">Non-accrual</option>
               </select>
             </div>
           </div>
 
-          {/* Action Buttons */}
+          {/* Action Buttons (Image 2 Match) */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <button
               type="button"
@@ -485,81 +704,72 @@ export default function ApprovePVForm({ setM }) {
 
             <button
               type="button"
-              onClick={handleActionAllItems}
+              onClick={handleActionNextOrAll}
               style={{ padding: '10px 16px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 900, cursor: 'pointer' }}
             >
-              Action All PV Items in Queue
+              Action Next PV / Action All PV Items
             </button>
           </div>
         </div>
 
-        {/* Voucher Queue Table */}
-        <div style={{ background: '#ffffff', borderRadius: 6, border: '1px solid #cbd5e1', overflow: 'hidden' }}>
-          <div style={{ background: '#f1f5f9', padding: '10px 14px', fontSize: 12, fontWeight: 900, color: '#0f3a4b', borderBottom: '1px solid #cbd5e1', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Payment Vouchers Pending & Audited Queue ({pvQueue.length} Vouchers)</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Click "Select & Edit" to correct any wrong entered details</span>
+        {/* BOTTOM SECTION: Summary Totals Bar (Exact Match to Image 2 Bottom Summary Grid) */}
+        <div style={{
+          background: '#f1f5f9',
+          border: '1px solid #cbd5e1',
+          borderRadius: 8,
+          padding: 12,
+          marginTop: 16
+        }}>
+          <div style={{ fontSize: 11.5, fontWeight: 900, color: '#334155', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            📊 Executive Pre-Audit Summary Totals (GHS)
           </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
+            
+            <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
+              <div style={{ fontSize: 9.5, fontWeight: 800, color: '#64748b', marginBottom: 2 }}>Total Pending Amount</div>
+              <div style={{ fontSize: 12, fontWeight: 900, color: '#d97706' }}>
+                {totalPendingAmount.toFixed(2)}
+              </div>
+            </div>
 
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'left', color: '#475569' }}>
-                <th style={{ padding: '8px 10px' }}>#</th>
-                <th style={{ padding: '8px 10px' }}>PV N/o</th>
-                <th style={{ padding: '8px 10px' }}>Requisition #</th>
-                <th style={{ padding: '8px 10px' }}>Service Provider</th>
-                <th style={{ padding: '8px 10px' }}>Particulars / Description</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Total (GHS)</th>
-                <th style={{ padding: '8px 10px', textAlign: 'center' }}>Audit Status</th>
-                <th style={{ padding: '8px 10px', textAlign: 'center' }}>Corrections</th>
-                <th style={{ padding: '8px 10px', textAlign: 'center' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pvQueue.map((item, idx) => (
-                <tr key={item.id || item.pvNo || idx} style={{ borderBottom: '1px solid #e2e8f0', background: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
-                  <td style={{ padding: '8px 10px', color: '#64748b', fontWeight: 700 }}>{idx + 1}</td>
-                  <td style={{ padding: '8px 10px', fontWeight: 900, color: '#0369a1' }}>#{item.pvNo}</td>
-                  <td style={{ padding: '8px 10px', fontWeight: 700, color: '#475569' }}>{item.requisitionNo || item.itemRequisitionNo}</td>
-                  <td style={{ padding: '8px 10px', fontWeight: 800, color: '#0f3a4b' }}>{item.provider || item.clientProvider}</td>
-                  <td style={{ padding: '8px 10px' }}>{item.description}</td>
-                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 900, color: '#0f172a' }}>
-                    {Number(item.total || (item.qty * (item.cost || 0))).toFixed(2)}
-                  </td>
-                  <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                    <span style={{
-                      fontSize: 10.5,
-                      fontWeight: 800,
-                      padding: '2px 8px',
-                      borderRadius: 10,
-                      background: item.status?.includes('Approved') ? '#dcfce7' : '#fef3c7',
-                      color: item.status?.includes('Approved') ? '#15803d' : '#b45309'
-                    }}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                    {item.editedByHeadmaster ? (
-                      <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd' }}>
-                        ✏️ Corrected
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: 10, color: '#94a3b8' }}>Original</span>
-                    )}
-                  </td>
-                  <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                    <button
-                      type="button"
-                      onClick={() => populateFormWithVoucher(item)}
-                      style={{ padding: '4px 10px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer' }}
-                    >
-                      Select & Edit
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
+              <div style={{ fontSize: 9.5, fontWeight: 800, color: '#64748b', marginBottom: 2 }}>Total Postponed Amount</div>
+              <div style={{ fontSize: 12, fontWeight: 900, color: '#0284c7' }}>
+                {totalPostponedAmount.toFixed(2)}
+              </div>
+            </div>
+
+            <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
+              <div style={{ fontSize: 9.5, fontWeight: 800, color: '#64748b', marginBottom: 2 }}>Total Validated Amount</div>
+              <div style={{ fontSize: 12, fontWeight: 900, color: '#16a34a' }}>
+                {totalValidatedAmount.toFixed(2)}
+              </div>
+            </div>
+
+            <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
+              <div style={{ fontSize: 9.5, fontWeight: 800, color: '#64748b', marginBottom: 2 }}>Total Amount Declined</div>
+              <div style={{ fontSize: 12, fontWeight: 900, color: '#dc2626' }}>
+                {totalDeclinedAmount.toFixed(2)}
+              </div>
+            </div>
+
+            <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
+              <div style={{ fontSize: 9.5, fontWeight: 800, color: '#64748b', marginBottom: 2 }}>Total Amount Cancelled</div>
+              <div style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>
+                {totalCancelledAmount.toFixed(2)}
+              </div>
+            </div>
+
+            <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
+              <div style={{ fontSize: 9.5, fontWeight: 800, color: '#64748b', marginBottom: 2 }}>Total Non-Accruals Amount</div>
+              <div style={{ fontSize: 12, fontWeight: 900, color: '#6b21a8' }}>
+                {totalNonAccrualAmount.toFixed(2)}
+              </div>
+            </div>
+
+          </div>
         </div>
+
       </div>
     </div>
   );

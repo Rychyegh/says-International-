@@ -65,6 +65,19 @@ export default function SubmitPVRequest({ setM = () => {} }) {
   const [isPrintMemoOpen, setIsPrintMemoOpen] = useState(false);
   const [printedPV, setPrintedPV] = useState(null);
 
+  // Auto Generate Unique PV Number Function
+  const generateUniquePvNumber = () => {
+    const existingCount = (storePaymentVouchers || []).length;
+    const baseSeq = 51250862 + existingCount * 3 + Math.floor(Math.random() * 9);
+    return String(baseSeq);
+  };
+
+  useEffect(() => {
+    if (!pvNo || pvNo === '51250862') {
+      setPvNo(generateUniquePvNumber());
+    }
+  }, [storePaymentVouchers]);
+
   // Auto-calculated total amount for current input line
   const currentCalculatedTotal = (parseFloat(qty) || 0) * (parseFloat(costPerItem) || 0);
 
@@ -229,6 +242,14 @@ export default function SubmitPVRequest({ setM = () => {} }) {
     }
 
     setSuccessNotice(`⚡ ✅ Successfully posted Payment Voucher #${newPVRecord.pvNo} (GHS ${totalPVAmount.toFixed(2)}) to Headmaster for Pre-Audit & Approval!`);
+    
+    // Auto-generate next PV number for subsequent submission
+    const currentNum = parseInt(pvNo.replace(/\D/g, ''), 10);
+    const nextPV = isNaN(currentNum) ? generateUniquePvNumber() : String(currentNum + 1);
+    setPvNo(nextPV);
+    setItemRequisitionNo(`REQ-2026-${Math.floor(100 + Math.random() * 900)}`);
+    setPvItems([]);
+    setDescription('');
     setTimeout(() => setSuccessNotice(''), 7000);
   };
 
@@ -352,14 +373,14 @@ export default function SubmitPVRequest({ setM = () => {} }) {
             gap: 12,
             flexWrap: 'wrap'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontWeight: 800, fontSize: 12.5, color: '#334155' }}>PV #:</span>
               <input
                 type="text"
                 value={pvNo}
                 onChange={(e) => setPvNo(e.target.value)}
                 style={{
-                  width: 140,
+                  width: 120,
                   padding: '6px 10px',
                   borderRadius: 6,
                   border: '1px solid #94a3b8',
@@ -369,6 +390,26 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   fontSize: 13
                 }}
               />
+              <button
+                type="button"
+                onClick={() => setPvNo(generateUniquePvNumber())}
+                style={{
+                  padding: '5px 9px',
+                  background: '#0284c7',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontWeight: 800,
+                  fontSize: 11,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3
+                }}
+                title="Auto-generate a new unique PV Number"
+              >
+                <Sparkles size={12} /> Auto
+              </button>
             </div>
 
             <button
