@@ -1383,7 +1383,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         </thead>
                         <tbody>
                           {filteredApplications.map((app) => {
-                            const learnerName = app.learner || `${app.firstName || ''} ${app.surname || ''}`.trim() || 'Applicant';
+                            const learnerName = (app.firstName || app.surname || app.otherNames)
+                              ? `${app.firstName || ''} ${app.otherNames ? app.otherNames + ' ' : ''}${app.surname || ''}`.replace(/\s+/g, ' ').trim()
+                              : (app.learner || app.learner_name || app.fullName || 'Applicant');
                             const guardianName = app.guardian || app.fatherName || app.motherName || 'Parent';
 
                             return (

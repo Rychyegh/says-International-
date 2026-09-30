@@ -397,7 +397,9 @@ export function AdmissionsRegister() {
                   </tr>
                 ) : (
                   filteredApplications.map((item) => {
-                    const learnerName = item.learner || `${item.firstName || ''} ${item.surname || ''}`.trim() || 'Applicant';
+                    const learnerName = (item.firstName || item.surname || item.otherNames)
+                      ? `${item.firstName || ''} ${item.otherNames ? item.otherNames + ' ' : ''}${item.surname || ''}`.replace(/\s+/g, ' ').trim()
+                      : (item.learner || item.learner_name || item.fullName || 'Applicant');
                     const guardianName = item.guardian || item.fatherName || item.motherName || 'Parent/Guardian';
                     const email = item.email || item.fatherEmail || item.motherEmail || `${learnerName.toLowerCase().replace(/\s+/g, '')}@remaljcarewell.edu.gh`;
                     const enrolmentType = item.residenceType || item.enrolmentType || 'Day';

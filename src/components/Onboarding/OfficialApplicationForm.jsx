@@ -212,11 +212,14 @@ export function normalizeApplicationForm(raw) {
   }
 
   let firstName = merged.firstName || nested.firstName || '';
+  let otherNames = merged.otherNames || nested.otherNames || '';
   let surname = merged.surname || nested.surname || '';
-  if (!firstName && !surname) {
-    const fullNameStr = (merged.learner || merged.fullName || merged.learner_name || nested.learner || nested.fullName || '').trim();
-    if (fullNameStr) {
-      const parts = fullNameStr.split(' ');
+  let learnerName = `${firstName} ${otherNames} ${surname}`.replace(/\s+/g, ' ').trim();
+
+  if (!learnerName) {
+    learnerName = (merged.learner || merged.fullName || merged.learner_name || nested.learner || nested.fullName || '').trim();
+    if (learnerName) {
+      const parts = learnerName.split(' ');
       firstName = parts.slice(0, -1).join(' ') || parts[0] || '';
       surname = parts.length > 1 ? parts[parts.length - 1] : '';
     }
@@ -228,7 +231,11 @@ export function normalizeApplicationForm(raw) {
     classSection: (classSection || '').trim(),
     subClass: (classSection || '').trim(),
     firstName,
+    otherNames,
     surname,
+    learner: learnerName,
+    learner_name: learnerName,
+    fullName: learnerName,
   };
 }
 

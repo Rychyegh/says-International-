@@ -30,10 +30,20 @@ async def get_applications(db: AsyncSession = Depends(get_db)):
                 sec_cls = str(app_cls).strip()
                 app_cls = m.group(1)
 
+        l_name = None
+        if f_data.get("firstName") or f_data.get("surname"):
+            parts = [f_data.get("firstName", ""), f_data.get("otherNames", ""), f_data.get("surname", "")]
+            import re
+            l_name = " ".join([p for p in parts if p]).strip()
+            l_name = re.sub(r'\s+', ' ', l_name)
+        if not l_name:
+            l_name = a.learner_name or f_data.get("learner") or f_data.get("learner_name") or f_data.get("fullName") or "Applicant"
+
         obj = {
             "id": a.id,
-            "learner": a.learner_name,
-            "learner_name": a.learner_name,
+            "learner": l_name,
+            "learner_name": l_name,
+            "fullName": l_name,
             "guardian": a.guardian_name,
             "guardian_name": a.guardian_name,
             "email": a.contact_email,
