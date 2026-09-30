@@ -159,22 +159,14 @@ class BroadcastOwingReminderRequest(BaseModel):
 
 class PaymentVoucherRequest(BaseModel):
     pv_number: Optional[str] = None
-    requisition_no: Optional[str] = None
-    payee_name: Optional[str] = "General Vendor"
+    payee_name: str
     payee_id: Optional[str] = None
-    department: Optional[str] = "Administration"
-    description: Optional[str] = "Expenditure Voucher"
+    department: str
+    description: str
     quantity: Optional[int] = 1
-    unit_cost: Optional[float] = 0.0
-    total_amount: Optional[float] = 0.0
+    unit_cost: float
+    total_amount: float
     date_prepared: Optional[str] = None
-    status: Optional[str] = "Pending Audit"
-    submitted_by: Optional[str] = "Sub-Admin"
-    items: Optional[List[Any]] = None
-    academic_year: Optional[str] = None
-    academic_term: Optional[str] = None
-
-    model_config = {"extra": "ignore"}
 
 class PaymentVoucherStatusRequest(BaseModel):
     status: str # DRAFT, PRE_AUDITED, APPROVED, REJECTED, PAID

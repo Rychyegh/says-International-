@@ -1,7 +1,0 @@
-node_modules
-.venv
-__pycache__
-*.pyc
-*.db
-.DS_Store
-dist

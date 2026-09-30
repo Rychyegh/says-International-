@@ -607,11 +607,6 @@ export function PortalDataProvider({ children }) {
             valuedDate: p.date_prepared || p.valuedDate,
             auditRemarks: p.auditRemarks || p.pre_audited_by || 'Registered in system',
             status: p.status === 'PRE_AUDITED' ? 'Pre-Audited & Approved' : p.status || 'Pending Audit',
-            grandTotal: p.total_amount || p.total || 0,
-            items: p.items || [],
-            academicYear: p.academic_year || p.academicYear,
-            academicTerm: p.academic_term || p.academicTerm,
-            submittedBy: p.prepared_by || p.submitted_by || p.submittedBy || 'Sub-Admin',
             editedByHeadmaster: false,
             correctionsLog: []
           }));

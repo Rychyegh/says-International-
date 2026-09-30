@@ -127,47 +127,19 @@ async def get_payment_voucher(pv_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.post("/pv")
 async def create_payment_voucher(req: PaymentVoucherRequest, db: AsyncSession = Depends(get_db)):
-    # Check if a voucher with this pv_number already exists to prevent duplicate key crashes
-    if req.pv_number:
-        query = select(PaymentVoucher).where(PaymentVoucher.pv_number == req.pv_number)
-        res = await db.execute(query)
-        existing = res.scalars().first()
-        if existing:
-            if req.requisition_no is not None: existing.requisition_no = req.requisition_no
-            if req.payee_name is not None: existing.payee_name = req.payee_name
-            if req.payee_id is not None: existing.payee_id = req.payee_id
-            if req.department is not None: existing.department = req.department
-            if req.description is not None: existing.description = req.description
-            if req.quantity is not None: existing.quantity = req.quantity
-            if req.unit_cost is not None: existing.unit_cost = req.unit_cost
-            if req.total_amount is not None: existing.total_amount = req.total_amount
-            if req.date_prepared is not None: existing.date_prepared = req.date_prepared
-            if req.status is not None: existing.status = req.status
-            if req.submitted_by is not None: existing.prepared_by = req.submitted_by
-            if req.items is not None: existing.items = req.items
-            if req.academic_year is not None: existing.academic_year = req.academic_year
-            if req.academic_term is not None: existing.academic_term = req.academic_term
-            await db.commit()
-            await db.refresh(existing)
-            return existing
-
     pv_num = req.pv_number or f"PV-{datetime.utcnow().year}-{random.randint(1000, 9999)}"
     pv = PaymentVoucher(
         pv_number=pv_num,
         requisition_no=req.requisition_no,
-        payee_name=req.payee_name or "General Vendor",
+        payee_name=req.payee_name,
         payee_id=req.payee_id,
-        department=req.department or "Administration",
-        description=req.description or "Expenditure Voucher",
+        department=req.department,
+        description=req.description,
         quantity=req.quantity or 1,
-        unit_cost=req.unit_cost or 0.0,
-        total_amount=req.total_amount or 0.0,
+        unit_cost=req.unit_cost,
+        total_amount=req.total_amount,
         date_prepared=req.date_prepared or datetime.utcnow().strftime('%Y-%m-%d'),
-        status=req.status or "Pending Audit",
-        prepared_by=req.submitted_by or "Sub-Admin",
-        items=req.items,
-        academic_year=req.academic_year,
-        academic_term=req.academic_term
+        status=req.status or "Pending approval"
     )
     db.add(pv)
     await db.commit()
