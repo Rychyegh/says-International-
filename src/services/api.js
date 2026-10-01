@@ -534,6 +534,8 @@ function staffProfilePayload(staffData = {}) {
   if (role) payload.designation = role;
   if (subject) payload.department = subject;
   if (classAssigned) payload.class_assigned = classAssigned;
+  const mainClass = staffData.mainClass || staffData.main_class;
+  if (mainClass) payload.main_class = mainClass;
   if (phone) payload.phone = phone;
   if (email) payload.email = email;
   return payload;
@@ -945,6 +947,7 @@ export const api = {
       body: JSON.stringify({
         teacher_name: teacherName,
         class_assigned: classAssigned,
+        main_class: data.mainClass || data.main_class || classAssigned,
         staff_id: staffId,
         passcode: data.passcode,
         phone,
@@ -1861,7 +1864,10 @@ export const api = {
       || userData.teacherDesignation === 'class_teacher'
       || userData.teacher_designation === 'class_teacher';
     const role = isClassTeacher ? 'teacher' : uiRole;
-    const classAssigned = userData.classLevel || userData.class_level || userData.assignedClass || userData.class_assigned || undefined;
+    const mainClass = isClassTeacher
+      ? String(userData.mainClass || userData.main_class || '').trim() || undefined
+      : undefined;
+    const classAssigned = mainClass || userData.classLevel || userData.class_level || userData.assignedClass || userData.class_assigned || undefined;
     const subClass = userData.subClass || userData.sub_class || undefined;
 
     const payload = {
@@ -1883,6 +1889,8 @@ export const api = {
       designation:  isClassTeacher ? 'class_teacher' : (userData.designation || undefined),
       assigned_class: classAssigned,
       class_assigned: classAssigned,
+      main_class:   mainClass,
+      mainClass,
       sub_class:    subClass,
     };
 
@@ -1918,6 +1926,8 @@ export const api = {
       photo_url:    userData.photoUrl || userData.photo_url || undefined,
       is_active:    userData.status ? userData.status !== 'Suspended' : undefined,
       status:       userData.status || undefined,
+      teacher_designation: userData.teacherDesignation || userData.teacher_designation || undefined,
+      main_class:   userData.mainClass || userData.main_class || undefined,
     };
 
     // Strip undefined fields

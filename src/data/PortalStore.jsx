@@ -44,11 +44,14 @@ export function directoryProfileFromUser(user = {}) {
   const inactive = user.is_active === false || /suspend|inactive|offboard/i.test(String(user.status || ''));
   return {
     id: user.id || staffId || email,
+    userId: user.id || user._id || '',
+    staffRecordId: '',
     staffId,
     name: name || email,
     role,
     subject,
-    classAssigned: formatClassToBasic(user.assignedClass || user.assigned_class || user.class_assigned || user.classLevel || user.class_level || ''),
+    mainClass: user.mainClass || user.main_class || '',
+    classAssigned: user.mainClass || user.main_class || formatClassToBasic(user.assignedClass || user.assigned_class || user.class_assigned || user.classLevel || user.class_level || ''),
     email,
     phone: user.phone || user.phone_number || user.phoneNumber || '',
     status: inactive ? 'Offboarded' : 'Active',
@@ -76,6 +79,8 @@ function mergeDirectoryAccount(list, profile) {
       phone: profile.phone || list[index].phone,
       email: profile.email || list[index].email,
       staffId: profile.staffId || list[index].staffId,
+      userId: profile.userId || list[index].userId || '',
+      staffRecordId: list[index].staffRecordId || '',
       status: profile.status || list[index].status,
     };
     return;
@@ -1955,8 +1960,10 @@ export function PortalDataProvider({ children }) {
             ? sRaw
             : (Array.isArray(sRaw?.staff) ? sRaw.staff : Array.isArray(sRaw?.teachers) ? sRaw.teachers : Array.isArray(sRaw?.data) ? sRaw.data : []);
           const mapped = staff.map(s => ({
-            id: s.id || s.staffId || s.staff_id,
-            staffId: s.staffId || s.staff_id || '',
+            id: s.id || s.staffId || s.staff_id || s.staff_code,
+            staffRecordId: s.id || '',
+            userId: s.userId || s.user_id || '',
+            staffId: s.staffId || s.staff_id || s.staff_code || '',
             name: s.name || s.fullName || s.full_name,
             role: s.role || s.designation || 'Subject Teacher',
             subject: s.subject || '',
@@ -2334,6 +2341,72 @@ export function PortalDataProvider({ children }) {
   const sortedStudentFees = useMemo(() => {
     return deduplicateFees(data.studentFees || []).sort((a, b) => (a.studentName || '').localeCompare(b.studentName || ''));
   }, [data.studentFees]);
+
+  const setDirectoryAccess = async (staffOrId, action) => {
+    const person = staffOrId && typeof staffOrId === 'object' ? staffOrId : { id: staffOrId, staffId: staffOrId };
+    const offboard = action === 'offboard';
+    let userId = String(person.userId || '').trim();
+    const staffRecordId = String(person.staffRecordId || '').trim();
+    const staffCode = String(person.staffId || '').trim();
+    const email = String(person.email || '').trim().toLowerCase();
+
+    if (!userId) {
+      try {
+        const accounts = extractAccountList(await api.getUsers());
+        const match = accounts.find((account) => {
+          const accountId = String(account.id || account._id || '').trim();
+          const accountEmail = String(account.email || '').trim().toLowerCase();
+          const accountStaff = String(account.staffId || account.staff_id || account.staff_code || '').trim().toLowerCase();
+          return (person.id && accountId === String(person.id))
+            || (email && accountEmail === email)
+            || (staffCode && accountStaff === staffCode.toLowerCase());
+        });
+        userId = String(match?.id || match?._id || '').trim();
+      } catch {
+        userId = '';
+      }
+    }
+
+    const errors = [];
+    let staffSaved = false;
+    let userSaved = false;
+    const staffTarget = staffRecordId || (staffCode && staffCode !== userId ? staffCode : '');
+    if (staffTarget) {
+      try {
+        if (offboard) await api.offboardStaff(staffTarget);
+        else await api.reactivateStaff(staffTarget);
+        staffSaved = true;
+      } catch (error) {
+        errors.push(error?.message || 'Staff update failed');
+      }
+    }
+    if (userId) {
+      try {
+        await api.toggleUserAccountStatus(userId, offboard ? 'Suspended' : 'Active');
+        userSaved = true;
+      } catch (statusError) {
+        try {
+          await api.updateUserAccount(userId, { status: offboard ? 'Suspended' : 'Active' });
+          userSaved = true;
+        } catch (updateError) {
+          errors.push(updateError?.message || statusError?.message || 'Account update failed');
+        }
+      }
+    }
+    if (!staffSaved && !userSaved) {
+      throw new Error(errors[errors.length - 1] || 'The database did not update this staff member.');
+    }
+
+    const keys = new Set([person.id, person.staffId, person.userId, userId, email].map((value) => String(value || '').trim().toLowerCase()).filter(Boolean));
+    setData((current) => ({
+      ...current,
+      teacherDirectory: (current.teacherDirectory || []).map((member) => {
+        const memberKeys = [member.id, member.staffId, member.userId, member.email].map((value) => String(value || '').trim().toLowerCase());
+        if (!memberKeys.some((value) => value && keys.has(value))) return member;
+        return { ...member, status: offboard ? 'Offboarded' : 'Active', userId: member.userId || userId };
+      }),
+    }));
+  };
 
   const value = useMemo(() => ({
     ...data,
@@ -4102,19 +4175,11 @@ export function PortalDataProvider({ children }) {
         teacherDirectory: (current.teacherDirectory || []).map((t) => (t.id === id || t.staffId === id) ? { ...t, ...sanitizedUpdates } : t)
       }));
     },
-    offboardStaffMember: async (id) => {
-      await api.offboardStaff(id);
-      setData((current) => ({
-        ...current,
-        teacherDirectory: (current.teacherDirectory || []).map((t) => (t.id === id || t.staffId === id) ? { ...t, status: 'Offboarded' } : t)
-      }));
+    offboardStaffMember: async (staffOrId) => {
+      await setDirectoryAccess(staffOrId, 'offboard');
     },
-    reactivateStaffMember: async (id) => {
-      await api.reactivateStaff(id);
-      setData((current) => ({
-        ...current,
-        teacherDirectory: (current.teacherDirectory || []).map((t) => (t.id === id || t.staffId === id) ? { ...t, status: 'Active' } : t)
-      }));
+    reactivateStaffMember: async (staffOrId) => {
+      await setDirectoryAccess(staffOrId, 'reactivate');
     },
     deleteStaffMember: async (id) => {
       await api.deleteStaff(id);

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { usePortalData, directoryProfileFromUser } from '../../data/PortalStore';
 import { api, getAuthUser, getAuthToken, ensureDemoClassTeacherAccounts } from '../../services/api';
-import { CLASS_LEVELS, getMappedSubClasses } from '../../data/classStructure';
+import { ALL_SUB_CLASSES, CLASS_LEVELS, getMappedSubClasses } from '../../data/classStructure';
 
 const ROLES = [
   { value: 'admin', label: 'Head Administrator', badgeColor: '#4a1d6e', bg: '#f3e8ff', desc: 'Full institutional control and administrative governance' },
@@ -138,6 +138,7 @@ function mapBackendUser(item) {
     studentId: item.studentId || item.student_id || item.student_code || '',
     password: item.password || '',
     department: item.department || '',
+    mainClass: item.mainClass || item.main_class || '',
     assignedClass: item.assignedClass || item.assigned_class || item.class_assigned || '',
     classLevel: item.classLevel || item.class_level || '',
     subClass: item.subClass || item.sub_class || '',
@@ -252,6 +253,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     studentId: '',
     assignedClass: '',
     subClass: '',
+    mainClass: '',
     password: '',
     status: 'Active',
     mustChangePassword: false,
@@ -301,8 +303,8 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     }
 
     const isClassTeacher = createForm.role === 'class_teacher';
-    if (isClassTeacher && !createForm.assignedClass) {
-      alert('Assign a class before creating a class teacher.');
+    if (isClassTeacher && !createForm.mainClass) {
+      alert('Choose a main class before creating a class teacher.');
       return;
     }
 
@@ -313,7 +315,8 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       createForm.role === 'admin' ? `ADM-2026-${String(users.length + 1).padStart(3, '0')}` : undefined
     );
     const classPasscode = isClassTeacher ? String(Math.floor(1000 + Math.random() * 9000)) : undefined;
-    const assignedClass = createForm.subClass || createForm.assignedClass || undefined;
+    const mainClass = isClassTeacher ? createForm.mainClass : '';
+    const assignedClass = mainClass || createForm.subClass || createForm.assignedClass || undefined;
 
     const newUser = {
       id: `usr_${createForm.role}_${Date.now()}`,
@@ -325,8 +328,9 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       status: createForm.status || 'Active',
       staffId: autoStaffId,
       studentId: createForm.studentId.trim() || undefined,
+      mainClass: mainClass || undefined,
       assignedClass,
-      classLevel: createForm.assignedClass || undefined,
+      classLevel: createForm.assignedClass || mainClass || undefined,
       subClass: createForm.subClass || undefined,
       password: finalPass,
       passcode: classPasscode,
@@ -346,7 +350,8 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
           await addStaffMember({
             ...directoryProfile,
             teacherDesignation: isClassTeacher ? 'class_teacher' : undefined,
-            classAssigned: newUser.classLevel || newUser.assignedClass || '',
+            mainClass: newUser.mainClass || '',
+            classAssigned: newUser.mainClass || newUser.classLevel || newUser.assignedClass || '',
             status: 'Active',
           });
         } catch (staffErr) {
@@ -358,7 +363,8 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
         try {
           await api.issueClassTeacherCredential({
             teacherName: newUser.fullName,
-            classAssigned: newUser.assignedClass || newUser.classLevel,
+            classAssigned: newUser.mainClass || newUser.assignedClass || newUser.classLevel,
+            mainClass: newUser.mainClass,
             staffId: newUser.staffId,
             passcode: newUser.passcode,
             phone: newUser.phone,
@@ -389,6 +395,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       studentId: '',
       assignedClass: '',
       subClass: '',
+      mainClass: '',
       password: '',
       status: 'Active',
       mustChangePassword: false,
@@ -629,6 +636,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                 studentId: '',
                 assignedClass: '',
                 subClass: '',
+                mainClass: '',
                 password: generateSecurePassword('teacher'),
                 status: 'Active',
                 mustChangePassword: true,
@@ -865,9 +873,9 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                               <Shield size={12} />
                               {roleConfig.label}
                             </span>
-                            {user.assignedClass && (
+                            {(user.mainClass || user.assignedClass) && (
                               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontWeight: 600 }}>
-                                🏫 Class: {user.assignedClass}
+                                🏫 {user.mainClass ? `Main class: ${user.mainClass}` : `Class: ${user.assignedClass}`}
                               </div>
                             )}
                           </td>
@@ -1207,8 +1215,40 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Assigned User Role *</label>
                 <RoleSelect
                   value={createForm.role}
-                  onChange={(role) => setCreateForm(prev => ({ ...prev, role }))}
+                  onChange={(role) => setCreateForm(prev => ({
+                    ...prev,
+                    role,
+                    mainClass: role === 'class_teacher' ? prev.mainClass : '',
+                  }))}
                 />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                  Main Class {createForm.role === 'class_teacher' ? '*' : ''}
+                </label>
+                <select
+                  value={createForm.mainClass}
+                  disabled={createForm.role !== 'class_teacher'}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, mainClass: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
+                    fontSize: 13,
+                    background: createForm.role === 'class_teacher' ? '#fff' : 'var(--bg-muted, #f1f5f9)',
+                    color: createForm.role === 'class_teacher' ? 'inherit' : '#94a3b8',
+                    cursor: createForm.role === 'class_teacher' ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  <option value="">
+                    {createForm.role === 'class_teacher' ? 'Select main class' : 'Available when Class Teacher is selected'}
+                  </option>
+                  {createForm.role === 'class_teacher' && ALL_SUB_CLASSES.map((level) => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -1251,7 +1291,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                    Assigned Class {createForm.role === 'class_teacher' ? '*' : '(Optional)'}
+                    Assigned Class (Optional)
                   </label>
                   <select
                     value={createForm.assignedClass}

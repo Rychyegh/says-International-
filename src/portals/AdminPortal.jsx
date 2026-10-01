@@ -474,7 +474,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     setStaffActionLoading(true);
     setStaffActionError('');
     try {
-      await offboardStaffMember(offboardingStaff.id || offboardingStaff.staffId);
+      await offboardStaffMember(offboardingStaff);
       setSuccessMsg(`Staff member ${offboardingStaff.name} offboarded. Portal access is inactive.`);
       setOffboardingStaff(null);
       setTimeout(() => setSuccessMsg(''), 5000);
@@ -488,7 +488,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const handleReactivateStaff = async (staff) => {
     setStaffActionError('');
     try {
-      await reactivateStaffMember(staff.id || staff.staffId);
+      await reactivateStaffMember(staff);
       setSuccessMsg(`Reactivated staff member ${staff.name}.`);
       setTimeout(() => setSuccessMsg(''), 5000);
     } catch (err) {
@@ -3032,17 +3032,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       placeholder="e.g. 024 900 1100"
                       value={newStaffForm.phone}
                       onChange={(e) => setNewStaffForm({ ...newStaffForm, phone: e.target.value })}
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
-                    />
-                  </label>
-
-                  <label>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Official School Email</span>
-                    <input
-                      type="email"
-                      placeholder="e.g. user@remaljcarewell.edu.gh"
-                      value={newStaffForm.email}
-                      onChange={(e) => setNewStaffForm({ ...newStaffForm, email: e.target.value })}
                       style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
                     />
                   </label>
