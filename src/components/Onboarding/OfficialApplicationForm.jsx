@@ -3,46 +3,11 @@ import {
   FileText, Download, Printer, CheckCircle2, Save, Edit3,
   ArrowLeft, ArrowRight, UserCheck, ShieldAlert, Upload, Image as ImageIcon
 } from 'lucide-react';
-import { usePortalData } from '../../data/PortalStore';
+import { usePortalData, findMatchingStudent, preferIssuedRfid } from '../../data/PortalStore';
+import { ALL_SUB_CLASSES, getMappedSubClasses, isLegacySectionLabel } from '../../data/classStructure';
 import './OfficialApplicationForm.css';
 
-export const CLASS_SUBCLASS_MAP = {
-  'Creche': ['Creche'],
-  'Nursery 1': ['Nursery 1A', 'Nursery 1B'],
-  'Nursery 2': ['Nursery 2A', 'Nursery 2B'],
-  'Kindergarten 1': ['Kindergarten 1A', 'Kindergarten 1B'],
-  'Kindergarten 2': ['Kindergarten 2A', 'Kindergarten 2B'],
-  'KG 1': ['Kindergarten 1A', 'Kindergarten 1B'],
-  'KG 2': ['Kindergarten 2A', 'Kindergarten 2B'],
-  'Basic 1': ['Basic 1A', 'Basic 1B'],
-  'Basic 2': ['Basic 2A', 'Basic 2B'],
-  'Basic 3': ['Basic 3A', 'Basic 3B'],
-  'Basic 4': ['Basic 4A', 'Basic 4B'],
-  'Basic 5': ['Basic 5A', 'Basic 5B'],
-  'Basic 6': ['Basic 6A', 'Basic 6B'],
-  'Basic 7': ['Basic 7A', 'Basic 7B'],
-  'Basic 8': ['Basic 8A', 'Basic 8B'],
-  'Basic 9': ['Basic 9A', 'Basic 9B']
-};
-
-export function getMappedSubClasses(selectedClass) {
-  if (!selectedClass) return [];
-  if (CLASS_SUBCLASS_MAP[selectedClass]) {
-    return CLASS_SUBCLASS_MAP[selectedClass];
-  }
-  const norm = selectedClass.toLowerCase().trim();
-  if (norm.includes('creche')) return ['Creche'];
-  if (norm.includes('nursery 1')) return ['Nursery 1A', 'Nursery 1B'];
-  if (norm.includes('nursery 2')) return ['Nursery 2A', 'Nursery 2B'];
-  if (norm.includes('kg 1') || norm.includes('kindergarten 1')) return ['Kindergarten 1A', 'Kindergarten 1B'];
-  if (norm.includes('kg 2') || norm.includes('kindergarten 2')) return ['Kindergarten 2A', 'Kindergarten 2B'];
-  for (let i = 1; i <= 9; i++) {
-    if (norm.includes(`basic ${i}`) || norm.includes(`class ${i}`) || norm.includes(`jhs ${i}`)) {
-      return [`Basic ${i}A`, `Basic ${i}B`];
-    }
-  }
-  return [`${selectedClass}A`, `${selectedClass}B`];
-}
+export { CLASS_SUBCLASS_MAP, getMappedSubClasses, ALL_SUB_CLASSES, CLASS_LEVELS, normalizeSubClass } from '../../data/classStructure';
 
 // Official Crest Emblem Logo for REMALJ Carewell Inspirational School
 export function SchoolLogoSVG({ size = 110 }) {
@@ -150,6 +115,7 @@ export const getDefaultForm = () => ({
   childHealthInsuranceCard: '',
   gpsAddress: '',
   childEatsFromSchool: 'Yes', // 'Yes' | 'No'
+  rfidCardCode: '',
 
   // Office Use Only
   officeExamEnglishMark: '',
@@ -245,6 +211,7 @@ export function normalizeApplicationForm(raw) {
     learner: learnerName,
     learner_name: learnerName,
     fullName: learnerName,
+    rfidCardCode: merged.rfidCardCode || nested.rfidCardCode || '',
   };
 }
 
@@ -258,26 +225,12 @@ export default function OfficialApplicationForm({
   onCancel = null
 }) {
   const portalData = usePortalData() || {};
-  const { updateApplication } = portalData;
+  const { updateApplication, onboardedStudents = [] } = portalData;
 
   const [formData, setFormData] = useState(() => normalizeApplicationForm(initialData));
 
   const SUBCLASS_STORAGE_KEY = 'rcis_custom_subclasses_pool';
-  const DEFAULT_SUB_CLASSES = [
-    '1A', '1B', '1C',
-    '2A', '2B', '2C',
-    '3A', '3B', '3C',
-    '4A', '4B',
-    '5A', '5B',
-    '6A', '6B',
-    '7A', '7B',
-    '8A', '8B',
-    '9A', '9B',
-    'Section A', 'Section B', 'Section C', 'Section D',
-    'Stream A', 'Stream B',
-    'Gold Class', 'Diamond Class',
-    'Sunflower', 'Rose'
-  ];
+  const DEFAULT_SUB_CLASSES = [...ALL_SUB_CLASSES];
 
   const loadSubClasses = () => {
     try {
@@ -285,7 +238,7 @@ export default function OfficialApplicationForm({
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return [...new Set([...DEFAULT_SUB_CLASSES, ...parsed])];
+          return [...new Set([...DEFAULT_SUB_CLASSES, ...parsed.filter((item) => !isLegacySectionLabel(item))])];
         }
       }
     } catch (e) {}
@@ -298,6 +251,12 @@ export default function OfficialApplicationForm({
   const [isEditingMode, setIsEditingMode] = useState(!readOnly);
 
   const effectiveReadOnly = readOnly && !isEditingMode;
+  const rfidLocked = Boolean(initialData);
+  const linkedStudent = findMatchingStudent(onboardedStudents, {
+    fullName: [formData.firstName, formData.otherNames, formData.surname].filter(Boolean).join(' ') || formData.learner || formData.fullName,
+    studentId: formData.officeStudentID || formData.studentId,
+  }) || (onboardedStudents || []).find((s) => String(s.applicationId || '') === String(formData.id || initialData?.id || ''));
+  const displayedRfid = preferIssuedRfid(linkedStudent?.rfidCardCode, formData.rfidCardCode);
 
   useEffect(() => {
     if (initialData) {
@@ -307,7 +266,17 @@ export default function OfficialApplicationForm({
     }
   }, [initialData]);
 
+  useEffect(() => {
+    if (!displayedRfid) return;
+    setFormData((prev) => (
+      prev.rfidCardCode === displayedRfid
+        ? prev
+        : { ...prev, rfidCardCode: displayedRfid }
+    ));
+  }, [displayedRfid]);
+
   const handleChange = (field, value) => {
+    if (field === 'rfidCardCode' && rfidLocked) return;
     if (effectiveReadOnly && !isAdmin) return;
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -762,13 +731,14 @@ export default function OfficialApplicationForm({
               </span>
               <input
                 className="form-line-input"
-                style={{ fontWeight: 800, color: '#166534', letterSpacing: '0.05em' }}
-                value={formData.rfidCardCode || ''}
+                style={{ fontWeight: 800, color: '#166534', letterSpacing: '0.05em', background: rfidLocked ? '#f1f5f9' : undefined }}
+                value={displayedRfid}
                 onChange={(e) => handleChange('rfidCardCode', e.target.value)}
                 placeholder="e.g. CARD-001 or tap RFID Card Reader to assign..."
-                disabled={readOnly && !isAdmin}
+                disabled={rfidLocked || (readOnly && !isAdmin)}
+                readOnly={rfidLocked}
               />
-              {!readOnly && (
+              {!rfidLocked && !readOnly && (
                 <button
                   type="button"
                   style={{ padding: '4px 12px', fontSize: 11, fontWeight: 800, borderRadius: 4, background: '#166534', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8 }}
@@ -780,6 +750,11 @@ export default function OfficialApplicationForm({
                 >
                   💳 Tap Card Reader
                 </button>
+              )}
+              {rfidLocked && (
+                <span style={{ fontSize: 11, color: '#0369a1', fontWeight: 700, marginLeft: 8 }}>
+                  {displayedRfid ? 'Issued UID — change only on Card Issuance & Smart Identity' : 'Issue this card on Card Issuance & Smart Identity'}
+                </span>
               )}
             </div>
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Printer, CheckCircle2, DollarSign, BookOpen, Layers, Plus, Trash2, FileText, Send, X, UserCheck, Upload, Camera, User, Bus, Utensils, Award, CreditCard, Sparkles, ChevronRight, GraduationCap, Edit3, Save, Check, Users, CheckSquare, Square, RefreshCw, Search, ArrowRight } from 'lucide-react';
 import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
+import { ALL_SUB_CLASSES, getMappedSubClasses } from '../../data/classStructure';
 import { usePortalData, formatClassToBasic, studentsAreSamePerson } from '../../data/PortalStore';
 import { getAuthUser } from '../../services/api';
 import './OfficialSchoolFeeStructure.css';
@@ -61,18 +62,6 @@ export const GRADE_LEVEL_CATEGORIES = [
       { id: 'Basic 9B', label: 'Basic 9B', code: 'B9B', stationery: 2090.00 },
     ]
   }
-];
-
-export const SINGLE_STUDENT_BASIC_SUBLEVELS = [
-  { id: 'Basic 1', label: 'Basic 1', code: 'B1', stationery: 1365.00, ucmas: 295.00 },
-  { id: 'Basic 2', label: 'Basic 2', code: 'B2', stationery: 1115.00, ucmas: 295.00 },
-  { id: 'Basic 3', label: 'Basic 3', code: 'B3', stationery: 1115.00, ucmas: 295.00 },
-  { id: 'Basic 4', label: 'Basic 4', code: 'B4', stationery: 1040.00, scienceSet: 190.00, ucmas: 295.00 },
-  { id: 'Basic 5', label: 'Basic 5', code: 'B5', stationery: 1040.00, scienceSet: 190.00, ucmas: 295.00 },
-  { id: 'Basic 6', label: 'Basic 6', code: 'B6', stationery: 1040.00, scienceSet: 190.00, ucmas: 295.00 },
-  { id: 'Basic 7', label: 'Basic 7', code: 'B7', stationery: 2090.00 },
-  { id: 'Basic 8', label: 'Basic 8', code: 'B8', stationery: 2090.00 },
-  { id: 'Basic 9', label: 'Basic 9', code: 'B9', stationery: 2090.00 },
 ];
 
 const CLASS_ALIAS = {
@@ -626,9 +615,27 @@ function cloneClassSchedule(schedule, key) {
   return JSON.parse(JSON.stringify(source));
 }
 
+function relatedClassScheduleKeys(key) {
+  const raw = String(key || '').trim();
+  if (!raw) return [];
+  const base = raw.replace(/\s*[AB]$/i, '');
+  const keys = new Set([raw, base]);
+  if (/^(Basic|Nursery|Kindergarten)\s*\d/i.test(base) || /^KG\s*\d/i.test(base)) {
+    keys.add(`${base}A`);
+    keys.add(`${base}B`);
+  }
+  const basicNum = base.match(/^Basic\s*([1-9])$/i);
+  if (basicNum) keys.add(`Grade ${basicNum[1]}`);
+  return [...keys];
+}
+
 function patchClassSchedule(prev, key, updater) {
   const next = updater(cloneClassSchedule(prev, key));
-  return { ...prev, [key]: next };
+  const updated = { ...prev };
+  relatedClassScheduleKeys(key).forEach((relatedKey) => {
+    updated[relatedKey] = JSON.parse(JSON.stringify(next));
+  });
+  return updated;
 }
 
 function loadFeeSchedule() {
@@ -717,7 +724,6 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
   // Prepare & View Student Bill Modal State
   const [preparingStudentBill, setPreparingStudentBill] = useState(null);
-  const [selectedStudentOptionalIds, setSelectedStudentOptionalIds] = useState(['opt_motivation', 'opt_bus', 'opt_feeding', 'opt_stationery', 'opt_pickup_card']);
 
   // Post Bill Modal & Foremost Success Dialog State
   const [isPostingModalOpen, setIsPostingModalOpen] = useState(false);
@@ -725,10 +731,9 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
   const [postTargetScope, setPostTargetScope] = useState('class'); // 'class_level' | 'class' | 'subclass' | 'all' | 'student'
   const [selectedPostingCategory, setSelectedPostingCategory] = useState('basic_school');
   const [selectedPostingClass, setSelectedPostingClass] = useState('Basic 1');
-  const [selectedPostingSubClass, setSelectedPostingSubClass] = useState('1A');
+  const [selectedPostingSubClass, setSelectedPostingSubClass] = useState('Basic 1A');
   const [postingStudentSearch, setPostingStudentSearch] = useState('');
   const [selectedPostingStudent, setSelectedPostingStudent] = useState(null);
-  const [postIncludeOptional, setPostIncludeOptional] = useState(true);
 
   // Billing Mode State: 'entire_class' | 'single_student' | 'master_schedule'
   const [activeBillingView, setActiveBillingView] = useState('entire_class');
@@ -763,21 +768,14 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     return student.fullName || student.name || student.studentName || '';
   };
 
-  // Active Category & SubLevels
+  // Active Category & SubLevels — same class chips for bulk, single, and rates/schedule
   const activeCategoryObj = GRADE_LEVEL_CATEGORIES.find(c => c.id === selectedGradeCategory) || GRADE_LEVEL_CATEGORIES[0];
-  const activeSubLevels = useMemo(() => {
-    if (activeBillingView === 'single_student' && selectedGradeCategory === 'basic_school') {
-      return SINGLE_STUDENT_BASIC_SUBLEVELS;
-    }
-    return activeCategoryObj.subLevels;
-  }, [activeBillingView, selectedGradeCategory, activeCategoryObj]);
+  const activeSubLevels = activeCategoryObj.subLevels;
 
   // Active Class Data Lookup
   const selectedClassKey = selectedSubLevel || activeSubLevels[0]?.id || 'Creche';
   const baseClassKey = (selectedClassKey || '').replace(/\s*[AB]$/i, '');
-  const activeSubLevelDisplay = (activeBillingView === 'single_student' && selectedGradeCategory === 'basic_school')
-    ? baseClassKey || 'Basic 1'
-    : selectedClassKey;
+  const activeSubLevelDisplay = selectedClassKey;
 
   const activeClassData = feeSchedule[selectedClassKey] 
     || feeSchedule[baseClassKey] 
@@ -879,17 +877,6 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     return list;
   }, [studentsForSelectedClass, preparingStudentBill]);
 
-  // Sync sub-level format when switching between billing views
-  useEffect(() => {
-    if (selectedGradeCategory === 'basic_school') {
-      if (activeBillingView === 'single_student') {
-        if (/Basic\s*[1-9][AB]$/i.test(selectedSubLevel)) {
-          setSelectedSubLevel(prev => prev.replace(/\s*[AB]$/i, ''));
-        }
-      }
-    }
-  }, [activeBillingView, selectedGradeCategory, selectedSubLevel]);
-
   const handleRemoveStudentFromClassBill = (studentId) => {
     setExcludedStudentIds(prev => prev.includes(studentId) ? prev : [...prev, studentId]);
     setSuccessMsg('Student removed from class bill list.');
@@ -921,9 +908,9 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       return;
     }
 
-    const optionalItemsToPost = postIncludeOptional
-      ? optionalBillItems.filter(o => o.enabled).map(o => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true }))
-      : [];
+    const optionalItemsToPost = optionalBillItems
+      .filter((o) => o.enabled)
+      .map((o) => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true }));
     const allItemsToPost = [...baseBillItems, ...optionalItemsToPost];
     const totalToPost = allItemsToPost.reduce((acc, i) => acc + Number(i.amount || 0), 0);
 
@@ -970,10 +957,9 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       return;
     }
 
-    const optionalItemsToPost = selectedStudentOptionalIds
-      .map(id => optionalBillItems.find(o => o.id === id))
-      .filter(Boolean)
-      .map(o => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true }));
+    const optionalItemsToPost = optionalBillItems
+      .filter((o) => o.enabled)
+      .map((o) => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true }));
     const allItemsToPost = [...baseBillItems, ...optionalItemsToPost];
     const totalToPost = allItemsToPost.reduce((acc, i) => acc + Number(i.amount || 0), 0);
 
@@ -1050,25 +1036,16 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     });
   }, [activeClassData, selectedSubLevel, stationerySchedule]);
 
-  useEffect(() => {
-    if (!preparingStudentBill) return;
-    setSelectedStudentOptionalIds((optionalBillItems || []).filter((o) => o.enabled).map((o) => o.id));
-  }, [preparingStudentBill?.studentId, preparingStudentBill?.id, selectedClassKey]);
-
   const totalBase = money(baseBillItems.reduce((acc, item) => acc + money(item.amount), 0));
   const totalOptionalActive = money(optionalBillItems.filter(o => o.enabled).reduce((acc, item) => acc + money(item.amount), 0));
-  const classBillPerStudent = money(totalBase + (postIncludeOptional ? totalOptionalActive : 0));
+  const classBillPerStudent = money(totalBase + totalOptionalActive);
 
   // Handle Category Change (Auto-selects first sub-level in category)
   const handleCategoryChange = (categoryId) => {
     setSelectedGradeCategory(categoryId);
-    if (activeBillingView === 'single_student' && categoryId === 'basic_school') {
-      setSelectedSubLevel('Basic 1');
-    } else {
-      const cat = GRADE_LEVEL_CATEGORIES.find(c => c.id === categoryId);
-      if (cat && cat.subLevels.length > 0) {
-        setSelectedSubLevel(cat.subLevels[0].id);
-      }
+    const cat = GRADE_LEVEL_CATEGORIES.find(c => c.id === categoryId);
+    if (cat && cat.subLevels.length > 0) {
+      setSelectedSubLevel(cat.subLevels[0].id);
     }
     if (preparingStudentBill) {
       setPreparingStudentBill(null);
@@ -1087,6 +1064,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     const formatted = formatClassToBasic(student.level || student.classLevel || selectedSubLevel || 'Basic 1');
     const baseLevel = formatted.replace(/\s*[AB]$/i, '');
     const compact = baseLevel.toLowerCase();
+    const stream = extractStreamLetter(student.classSection || student.subClass || student.section || formatted);
 
     if (compact.includes('creche')) {
       setSelectedGradeCategory('nursery_creche');
@@ -1105,7 +1083,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       setSelectedSubLevel('Kindergarten 1');
     } else {
       setSelectedGradeCategory('basic_school');
-      setSelectedSubLevel(baseLevel || 'Basic 1');
+      setSelectedSubLevel(stream ? `${baseLevel}${stream.toUpperCase()}` : (baseLevel ? `${baseLevel}A` : 'Basic 1A'));
     }
   };
 
@@ -1210,45 +1188,38 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
   // Toggle Optional Bill in Schedule
   const handleToggleOptionalBill = (optId) => {
-    setFeeSchedule((prev) => {
-      const updatedClassData = { ...prev[selectedClassKey] };
-      updatedClassData.optionalBills = (updatedClassData.optionalBills || []).map(opt =>
+    setFeeSchedule((prev) => patchClassSchedule(prev, selectedClassKey, (classData) => ({
+      ...classData,
+      optionalBills: (classData.optionalBills || []).map((opt) =>
         opt.id === optId ? { ...opt, enabled: !opt.enabled } : opt
-      );
-      return {
-        ...prev,
-        [selectedClassKey]: updatedClassData
-      };
-    });
+      ),
+    })));
   };
 
-  // Update Optional Bill Amount
   const handleUpdateOptionalBillAmount = (optId, newAmount) => {
     const amt = parseFloat(newAmount);
     if (isNaN(amt) || amt < 0) return;
-    setFeeSchedule((prev) => {
-      const updatedClassData = { ...prev[selectedClassKey] };
-      updatedClassData.optionalBills = (updatedClassData.optionalBills || []).map(opt =>
+    setFeeSchedule((prev) => patchClassSchedule(prev, selectedClassKey, (classData) => ({
+      ...classData,
+      optionalBills: (classData.optionalBills || []).map((opt) =>
         opt.id === optId ? { ...opt, amount: amt } : opt
-      );
-      return {
-        ...prev,
-        [selectedClassKey]: updatedClassData
-      };
-    });
+      ),
+    })));
   };
 
-  // Quick Add Preset Optional Bill
   const handleAddPresetOptionalBill = (preset) => {
-    setFeeSchedule((prev) => {
-      const updatedClassData = { ...prev[selectedClassKey] };
-      const currentOpts = updatedClassData.optionalBills || [];
-      const exists = currentOpts.find(o => o.id === preset.id || o.details.toLowerCase() === preset.details.toLowerCase());
-      
+    setFeeSchedule((prev) => patchClassSchedule(prev, selectedClassKey, (classData) => {
+      const currentOpts = classData.optionalBills || [];
+      const exists = currentOpts.find((o) => o.id === preset.id || o.details.toLowerCase() === preset.details.toLowerCase());
       if (exists) {
-        updatedClassData.optionalBills = currentOpts.map(o => o.id === exists.id ? { ...o, enabled: true } : o);
-      } else {
-        updatedClassData.optionalBills = [
+        return {
+          ...classData,
+          optionalBills: currentOpts.map((o) => o.id === exists.id ? { ...o, enabled: true } : o),
+        };
+      }
+      return {
+        ...classData,
+        optionalBills: [
           ...currentOpts,
           {
             id: preset.id,
@@ -1257,15 +1228,11 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
             amount: preset.defaultAmount,
             enabled: true,
             icon: preset.icon,
-            description: preset.description
-          }
-        ];
-      }
-      return {
-        ...prev,
-        [selectedClassKey]: updatedClassData
+            description: preset.description,
+          },
+        ],
       };
-    });
+    }));
     setSuccessMsg(`✅ Added optional bill "${preset.label}" (${preset.details} - GHS ${preset.defaultAmount.toFixed(2)}) to ${selectedSubLevel}.`);
     setTimeout(() => setSuccessMsg(''), 4000);
   };
@@ -1309,12 +1276,9 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     }
 
     // Compute active items
-    const optionalItemsToPost = postIncludeOptional
-      ? (preparingStudentBill
-          ? optionalBillItems.filter(o => selectedStudentOptionalIds.includes(o.id))
-          : optionalBillItems.filter(o => o.enabled)
-        ).map(o => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true }))
-      : [];
+    const optionalItemsToPost = optionalBillItems
+      .filter((o) => o.enabled)
+      .map((o) => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true }));
 
     const allItemsToPost = [...baseBillItems, ...optionalItemsToPost];
     const totalToPost = allItemsToPost.reduce((acc, i) => acc + Number(i.amount || 0), 0);
@@ -1497,7 +1461,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
   // Prepare Printable CSV Export for Student Bill
   const handleExportStudentBillCSV = (student) => {
-    const studentOptionalItems = optionalBillItems.filter(o => selectedStudentOptionalIds.includes(o.id));
+    const studentOptionalItems = optionalBillItems.filter((o) => o.enabled);
     const optionalTotal = studentOptionalItems.reduce((acc, o) => acc + money(o.amount), 0);
     const grandTotal = money(totalBase + optionalTotal);
 
@@ -1560,9 +1524,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     : stationerySchedule.filter(s => s.category === stationeryFilter);
 
   // Calculate active student bill totals
-  const studentSelectedOpts = preparingStudentBill
-    ? optionalBillItems.filter(o => selectedStudentOptionalIds.includes(o.id))
-    : [];
+  const studentSelectedOpts = optionalBillItems.filter((o) => o.enabled);
   const studentOptTotal = money(studentSelectedOpts.reduce((acc, o) => acc + money(o.amount), 0));
   const studentGrandTotal = money(totalBase + studentOptTotal);
   const printPages = printClassStudents.length > 0 ? printClassStudents : includedWholeClassForPrint;
@@ -1730,7 +1692,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1 }}>
             {activeSubLevels.map((sub) => {
-              const isSubActive = selectedSubLevel === sub.id || (activeBillingView === 'single_student' && selectedSubLevel.replace(/\s*[AB]$/i, '') === sub.id);
+              const isSubActive = selectedSubLevel === sub.id;
               return (
                 <button
                   key={sub.id}
@@ -1780,12 +1742,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       }}>
         <button
           type="button"
-          onClick={() => {
-            setActiveBillingView('entire_class');
-            if (selectedGradeCategory === 'basic_school' && /^Basic\s*[1-9]$/i.test(selectedSubLevel)) {
-              setSelectedSubLevel(prev => `${prev}A`);
-            }
-          }}
+          onClick={() => setActiveBillingView('entire_class')}
           style={{
             flex: '1 1 240px',
             padding: '12px 18px',
@@ -1810,12 +1767,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
         <button
           type="button"
-          onClick={() => {
-            setActiveBillingView('single_student');
-            if (selectedGradeCategory === 'basic_school' && /Basic\s*[1-9][AB]$/i.test(selectedSubLevel)) {
-              setSelectedSubLevel(prev => prev.replace(/\s*[AB]$/i, ''));
-            }
-          }}
+          onClick={() => setActiveBillingView('single_student')}
           style={{
             flex: '1 1 240px',
             padding: '12px 18px',
@@ -1983,32 +1935,6 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                   GHS {(classBillPerStudent * includedStudentsForClass.length).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               </div>
-            </div>
-
-            {/* Optional Bills Inclusion Checkbox */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 10,
-              padding: '8px 12px',
-              background: '#f0f9ff',
-              borderRadius: 8,
-              border: '1px solid #bae6fd'
-            }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 12.5, color: '#0369a1', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={postIncludeOptional}
-                  onChange={(e) => setPostIncludeOptional(e.target.checked)}
-                />
-                <span>Include Active Optional Bills (Motivation, Bus, Feeding, Stationery, Pick Up Card) in Class Bill</span>
-              </label>
-
-              <span style={{ fontSize: 12, fontWeight: 800, color: '#0284c7' }}>
-                Optional Subtotal: GHS {totalOptionalActive.toFixed(2)}
-              </span>
             </div>
           </div>
 
@@ -2269,7 +2195,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                   Individual Student Bill Statement
                 </h3>
                 <div style={{ fontSize: 12, color: '#64748b' }}>
-                  Select an enrolled student to prepare an individual bill, adjust their specific optional levies, post to ledger, or print.
+                  Select an enrolled student to prepare an individual bill using the selected class rates, post to ledger, or print.
                 </div>
               </div>
             </div>
@@ -2369,54 +2295,6 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                   >
                     ⚡ Post Single Bill to Ledger
                   </button>
-                </div>
-              </div>
-
-              {/* Optional Bills Toggles for this specific student */}
-              <div className="no-print" style={{
-                background: '#f0fdf4',
-                padding: '12px 22px',
-                borderBottom: '1px solid #bbf7d0'
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 900, color: '#166534', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Sparkles size={15} /> Select Optional Bills for {getStudentFullName(preparingStudentBill)}:
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                  {optionalBillItems.map((opt) => {
-                    const isChecked = selectedStudentOptionalIds.includes(opt.id);
-                    return (
-                      <label
-                        key={opt.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          background: isChecked ? '#16a34a' : '#ffffff',
-                          color: isChecked ? '#ffffff' : '#334155',
-                          padding: '5px 12px',
-                          borderRadius: 20,
-                          fontSize: 12,
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedStudentOptionalIds(prev => [...prev, opt.id]);
-                            } else {
-                              setSelectedStudentOptionalIds(prev => prev.filter(id => id !== opt.id));
-                            }
-                          }}
-                        />
-                        <span>{opt.icon} {opt.label} (GHS {money(opt.amount).toFixed(2)})</span>
-                      </label>
-                    );
-                  })}
                 </div>
               </div>
 
@@ -3036,10 +2914,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                       <button
                         type="button"
                         onClick={() => {
-                          const targetSub = (activeBillingView === 'single_student' && s.category === 'basic_school')
-                            ? (s.classLevel.match(/\d+/) ? `Basic ${s.classLevel.match(/\d+/)[0]}` : s.classLevel)
-                            : s.classLevel;
-                          setSelectedSubLevel(targetSub);
+                          setSelectedSubLevel(s.classLevel);
                           setSelectedGradeCategory(s.category);
                           setSavedStationeryNotice(`✅ Synchronized and loaded active bill view for ${s.label}!`);
                           setTimeout(() => setSavedStationeryNotice(''), 3000);
@@ -3282,7 +3157,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
               >
                 <option value="class">📚 Bulk Post to One Specific Class (e.g. {selectedSubLevel})</option>
                 <option value="class_level">🏢 Bulk Post to Entire Class Level / Department (e.g. {activeCategoryObj.name})</option>
-                <option value="subclass">🏷️ Bulk Post to One Specific Sub-Class / Section (e.g. 1A, 1B, Section A)</option>
+                <option value="subclass">🏷️ Bulk Post to One Specific Sub-Class (e.g. Basic 1A, Nursery 1B)</option>
                 <option value="all">🌍 Bulk Post to All Active Students (School-wide)</option>
                 <option value="student">👤 Post to Individual Student (Single Candidate)</option>
               </select>
@@ -3314,7 +3189,12 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                   <select
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #0284c7', fontSize: 13, fontWeight: 700, color: '#0369a1', background: '#fff' }}
                     value={selectedPostingClass}
-                    onChange={(e) => setSelectedPostingClass(e.target.value)}
+                    onChange={(e) => {
+                      const nextClass = e.target.value;
+                      setSelectedPostingClass(nextClass);
+                      const mapped = getMappedSubClasses(nextClass);
+                      setSelectedPostingSubClass(mapped[0] || '');
+                    }}
                   >
                     {['Creche', 'Nursery 1', 'Nursery 2', 'KG 1', 'KG 2', 'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6', 'Basic 7', 'Basic 8', 'Basic 9'].map(c => (
                       <option key={c} value={c}>{c}</option>
@@ -3327,14 +3207,14 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
               {postTargetScope === 'subclass' && (
                 <div style={{ marginTop: 12 }}>
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#475569', marginBottom: 4 }}>
-                    Select Target Sub-Class / Section:
+                    Select Target Sub-Class:
                   </label>
                   <select
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #0284c7', fontSize: 13, fontWeight: 700, color: '#0369a1', background: '#fff' }}
                     value={selectedPostingSubClass}
                     onChange={(e) => setSelectedPostingSubClass(e.target.value)}
                   >
-                    {['1A', '1B', '1C', '2A', '2B', '3A', '3B', '4A', '4B', '5A', '5B', '6A', '6B', '7A', '7B', '8A', '8B', '9A', '9B', 'Section A', 'Section B', 'Section C', 'Section D', 'Stream A', 'Stream B', 'Gold Class', 'Diamond Class', 'Sunflower', 'Rose'].map(sc => (
+                    {(getMappedSubClasses(selectedPostingClass).length ? getMappedSubClasses(selectedPostingClass) : ALL_SUB_CLASSES).map(sc => (
                       <option key={sc} value={sc}>{sc}</option>
                     ))}
                   </select>
@@ -3435,18 +3315,6 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
               )}
             </div>
 
-            {/* Optional Bills Inclusion Toggle in Posting Modal */}
-            <div style={{ background: '#f0f9ff', padding: 12, borderRadius: 8, border: '1px solid #bae6fd', marginBottom: 16 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 12.5, color: '#0369a1', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={postIncludeOptional}
-                  onChange={(e) => setPostIncludeOptional(e.target.checked)}
-                />
-                <span>Include Active Optional Bills (Motivation, Bus, Feeding, Stationery, Pick Up Card)</span>
-              </label>
-            </div>
-
             <div style={{ background: '#f0fdf4', padding: 14, borderRadius: 10, border: '1px solid #bbf7d0', marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, fontWeight: 800, color: '#166534' }}>TOTAL AMOUNT TO POST & DEBIT:</span>
@@ -3455,7 +3323,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                 </span>
               </div>
               <div style={{ fontSize: 11, color: '#15803d', marginTop: 4 }}>
-                {baseBillItems.length} compulsory components + {postIncludeOptional ? optionalBillItems.filter(o => o.enabled).length : 0} optional components
+                {baseBillItems.length} compulsory components + {optionalBillItems.filter(o => o.enabled).length} optional components from {selectedSubLevel} rates
               </div>
             </div>
 
@@ -3727,7 +3595,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
               ) : (
                 printPages.map((s, idx) => {
                   const sFullName = getStudentFullName(s);
-                  const activeOptionals = postIncludeOptional ? optionalBillItems.filter(o => o.enabled) : [];
+                  const activeOptionals = optionalBillItems.filter((o) => o.enabled);
                   const sTotal = classBillPerStudent;
 
                   return (
@@ -3829,7 +3697,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                       </div>
 
                       {/* 2. Optional Fees Table (if enabled) */}
-                      {postIncludeOptional && activeOptionals.length > 0 && (
+                      {activeOptionals.length > 0 && (
                         <div style={{ marginBottom: 14 }}>
                           <div style={{ fontSize: 12, fontWeight: 900, color: '#0284c7', textTransform: 'uppercase', marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
                             <span>2. Optional Services (Motivation, Bus, Feeding, Stationery, Pick Up Card)</span>

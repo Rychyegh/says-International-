@@ -9,6 +9,7 @@ import {
 import { usePortalData } from '../../data/PortalStore';
 import { api, getAuthUser, getAuthToken } from '../../services/api';
 import { cloudSync } from '../../services/cloudSync';
+import { CLASS_LEVELS, getMappedSubClasses } from '../../data/classStructure';
 
 const ROLES = [
   { value: 'admin', label: 'Head Administrator', badgeColor: '#4a1d6e', bg: '#f3e8ff', desc: 'Full institutional control and administrative governance' },
@@ -21,13 +22,7 @@ const ROLES = [
   { value: 'security_driver', label: 'Transport / Security', badgeColor: '#374151', bg: '#f3f4f6', desc: 'Bus routing, RFID gate scans, and safety logging' },
 ];
 
-const CLASS_OPTIONS = [
-  'Creche', 'Nursery 1', 'Nursery 2', 'KG 1', 'KG 2',
-  'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6',
-  'Basic 7', 'Basic 8', 'Basic 9',
-];
-
-const SUB_CLASS_OPTIONS = ['Section A', 'Section B', 'Section C', 'Section D'];
+const CLASS_OPTIONS = CLASS_LEVELS;
 
 function RoleSelect({ value, onChange }) {
   const [open, setOpen] = useState(false);
@@ -154,7 +149,7 @@ const DEFAULT_USERS_SEED = [
     staffId: 'CT-2026-001',
     password: 'Teacher2026!',
     department: 'Mathematics & Science',
-    assignedClass: 'Grade 4 Section B',
+    assignedClass: 'Basic 4B',
     createdAt: '2026-02-01',
     lastLogin: '2026-09-29 11:05',
     mustChangePassword: false,
@@ -171,9 +166,9 @@ const DEFAULT_USERS_SEED = [
     password: 'ClassTeacher2026!',
     passcode: '2468',
     department: 'Class Tutors',
-    assignedClass: 'Basic 1 · Section A',
+    assignedClass: 'Basic 1A',
     classLevel: 'Basic 1',
-    subClass: 'Section A',
+    subClass: 'Basic 1A',
     createdAt: '2026-02-01',
     lastLogin: 'Never',
     mustChangePassword: false,
@@ -190,9 +185,9 @@ const DEFAULT_USERS_SEED = [
     password: 'ClassTeacher2026!',
     passcode: '1357',
     department: 'English Language',
-    assignedClass: 'Basic 2 · Section A',
+    assignedClass: 'Basic 2A',
     classLevel: 'Basic 2',
-    subClass: 'Section A',
+    subClass: 'Basic 2A',
     createdAt: '2026-03-01',
     lastLogin: 'Never',
     mustChangePassword: false,
@@ -540,7 +535,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       createForm.role === 'admin' ? `ADM-2026-${String(users.length + 1).padStart(3, '0')}` : undefined
     );
     const classPasscode = isClassTeacher ? String(Math.floor(1000 + Math.random() * 9000)) : undefined;
-    const assignedClass = [createForm.assignedClass, createForm.subClass].filter(Boolean).join(' · ') || undefined;
+    const assignedClass = createForm.subClass || createForm.assignedClass || undefined;
 
     const newUser = {
       id: `usr_${createForm.role}_${Date.now()}`,
@@ -1506,7 +1501,15 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                   </label>
                   <select
                     value={createForm.assignedClass}
-                    onChange={(e) => setCreateForm(prev => ({ ...prev, assignedClass: e.target.value }))}
+                    onChange={(e) => {
+                      const assignedClass = e.target.value;
+                      const mapped = getMappedSubClasses(assignedClass);
+                      setCreateForm((prev) => ({
+                        ...prev,
+                        assignedClass,
+                        subClass: mapped.includes(prev.subClass) ? prev.subClass : (mapped[0] || ''),
+                      }));
+                    }}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13, background: '#fff' }}
                   >
                     <option value="">Not assigned</option>
@@ -1525,7 +1528,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13, background: createForm.assignedClass ? '#fff' : 'var(--bg-muted, #f1f5f9)' }}
                   >
                     <option value="">{createForm.assignedClass ? 'No sub class' : 'Select a class first'}</option>
-                    {SUB_CLASS_OPTIONS.map((section) => (
+                    {getMappedSubClasses(createForm.assignedClass).map((section) => (
                       <option key={section} value={section}>{section}</option>
                     ))}
                   </select>

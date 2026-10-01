@@ -61,6 +61,73 @@ function isSyntheticLocalId(id) {
   return !s || /^stu(-bulk)?-/i.test(s) || /^fee-(acc-)?/i.test(s);
 }
 
+export function normalizeRfidUid(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[\s:_-]/g, '')
+    .replace(/^0+/, '')
+    .trim();
+}
+
+export function rfidUidsMatch(a, b) {
+  const left = normalizeRfidUid(a);
+  const right = normalizeRfidUid(b);
+  return Boolean(left && right && left === right);
+}
+
+function isPlaceholderRfid(value) {
+  return /^card-\d{1,4}$/i.test(String(value || '').trim());
+}
+
+export function preferIssuedRfid(...values) {
+  const codes = values.map((v) => String(v || '').trim()).filter(Boolean);
+  return codes.find((c) => !isPlaceholderRfid(c)) || codes[0] || '';
+}
+
+function applicationLearnerName(app = {}) {
+  return [app.firstName, app.otherNames, app.surname]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+    .join(' ')
+    || app.learner || app.learner_name || app.fullName || '';
+}
+
+function applicationMatchesStudent(app, student) {
+  if (!app || !student) return false;
+  if (student.applicationId && String(app.id) === String(student.applicationId)) return true;
+  if (app.officeStudentID && student.studentId && String(app.officeStudentID).toLowerCase() === String(student.studentId).toLowerCase()) return true;
+  const appName = normalizePersonName(applicationLearnerName(app));
+  const stuName = normalizePersonName(student.fullName || student.name);
+  return Boolean(appName && stuName && appName === stuName);
+}
+
+export function findStudentByCardUid(students = [], applications = [], rawCode) {
+  const code = String(rawCode || '').trim();
+  if (!code) return null;
+  const fromRoster = (students || []).find((s) => rfidUidsMatch(s.rfidCardCode, code));
+  if (fromRoster) return fromRoster;
+  const app = (applications || []).find((a) =>
+    rfidUidsMatch(a.rfidCardCode, code) || rfidUidsMatch(a.formData?.rfidCardCode, code)
+  );
+  if (app) {
+    const learnerName = applicationLearnerName(app);
+    return findMatchingStudent(students, {
+      fullName: learnerName,
+      studentId: app.officeStudentID || app.studentId,
+    }) || {
+      id: app.id,
+      studentId: app.officeStudentID || app.studentId || '',
+      fullName: learnerName || 'Student',
+      level: formatClassToBasic(app.applyingClass || app.level || ''),
+      classSection: app.classSection || app.subClass || '',
+      guardianName: app.fatherName || app.motherName || app.guardian || '',
+      guardianPhone: app.fatherPhone || app.motherPhone || app.phone || '',
+      rfidCardCode: app.rfidCardCode,
+    };
+  }
+  return null;
+}
+
 function isOfficialStudentCode(code) {
   return /REMALJ-\d{4}-\d{3,}$/i.test(String(code || '').trim());
 }
@@ -148,6 +215,11 @@ export function mapStudentFromApi(s = {}, fallback = {}) {
     status: s.status || fallback.status || 'Active',
     studentEmail: s.studentEmail || s.student_email || s.school_email || fallback.studentEmail || '',
     defaultPassword: s.defaultPassword || s.default_password || fallback.defaultPassword || '',
+    fatherName: s.fatherName || s.father_name || fallback.fatherName || '',
+    fatherPhone: s.fatherPhone || s.father_phone || fallback.fatherPhone || '',
+    motherName: s.motherName || s.mother_name || fallback.motherName || '',
+    motherPhone: s.motherPhone || s.mother_phone || fallback.motherPhone || '',
+    applicationId: s.applicationId || s.application_id || fallback.applicationId || '',
   };
 }
 
@@ -181,6 +253,31 @@ export function findMatchingStudent(list = [], candidate = {}) {
   return (list || []).find((s) => studentsAreSamePerson(s, candidate)) || null;
 }
 
+function syncIssuedRfidAcrossIdentities(students = [], applications = []) {
+  const roster = (students || []).map((s) => {
+    const app = (applications || []).find((a) => applicationMatchesStudent(a, s));
+    const issued = preferIssuedRfid(s?.rfidCardCode, app?.rfidCardCode, app?.formData?.rfidCardCode);
+    if (!issued || rfidUidsMatch(s?.rfidCardCode, issued)) return s;
+    return { ...s, rfidCardCode: issued };
+  });
+
+  const apps = (applications || []).map((app) => {
+    const student = roster.find((s) => applicationMatchesStudent(app, s));
+    const issued = preferIssuedRfid(student?.rfidCardCode, app.rfidCardCode, app.formData?.rfidCardCode);
+    if (!issued) return app;
+    if (rfidUidsMatch(app.rfidCardCode, issued) && rfidUidsMatch(app.formData?.rfidCardCode, issued)) {
+      return app;
+    }
+    return {
+      ...app,
+      rfidCardCode: issued,
+      formData: { ...(app.formData || {}), rfidCardCode: issued },
+    };
+  });
+
+  return { students: roster, applications: apps };
+}
+
 export function mergeStudentRecords(prev, incoming) {
   return {
     ...prev,
@@ -205,7 +302,12 @@ export function mergeStudentRecords(prev, incoming) {
     status: incoming.status || prev.status || 'Active',
     studentEmail: incoming.studentEmail || prev.studentEmail,
     defaultPassword: incoming.defaultPassword || prev.defaultPassword,
-    rfidCardCode: incoming.rfidCardCode || prev.rfidCardCode,
+    rfidCardCode: preferIssuedRfid(incoming.rfidCardCode, prev.rfidCardCode),
+    fatherName: incoming.fatherName || prev.fatherName || '',
+    fatherPhone: incoming.fatherPhone || prev.fatherPhone || '',
+    motherName: incoming.motherName || prev.motherName || '',
+    motherPhone: incoming.motherPhone || prev.motherPhone || '',
+    applicationId: incoming.applicationId || prev.applicationId || '',
   };
 }
 
@@ -359,6 +461,13 @@ function applyCanonicalStudentToState(current, canonical) {
     onboardedStudents: deduplicateStudents([canonical, ...otherStudents]),
     studentFees: deduplicateFees([newFee, ...otherFees]),
     feeAccounts: [newFeeAccount, ...otherFeeAccounts],
+    applications: canonical.rfidCardCode
+      ? (current.applications || []).map((app) => (
+        applicationMatchesStudent(app, canonical)
+          ? { ...app, rfidCardCode: canonical.rfidCardCode, formData: { ...(app.formData || {}), rfidCardCode: canonical.rfidCardCode } }
+          : app
+      ))
+      : current.applications,
   };
 }
 
@@ -1059,18 +1168,22 @@ export function PortalDataProvider({ children }) {
 
         // Admissions Applications
         if (appsRes.status === 'fulfilled' && Array.isArray(appsRes.value)) {
-          const mapped = appsRes.value.map(a => ({
-            id: a.id,
-            learner: a.learner || a.learner_name,
-            guardian: a.guardian || a.guardian_name,
-            email: a.email || a.contact_email,
-            phone: a.phone || a.contact_phone,
-            level: formatClassToBasic(a.level || a.applying_level),
-            status: a.status,
-            submittedAt: a.submittedAt || a.submitted_at,
-            office_use_notes: a.office_use_notes,
-            ...(a.formData || a.form_data || {})
-          }));
+          const mapped = appsRes.value.map(a => {
+            const formData = a.formData || a.form_data || {};
+            return {
+              id: a.id,
+              learner: a.learner || a.learner_name,
+              guardian: a.guardian || a.guardian_name,
+              email: a.email || a.contact_email,
+              phone: a.phone || a.contact_phone,
+              level: formatClassToBasic(a.level || a.applying_level),
+              status: a.status,
+              submittedAt: a.submittedAt || a.submitted_at,
+              office_use_notes: a.office_use_notes,
+              ...formData,
+              rfidCardCode: formData.rfidCardCode || a.rfidCardCode || a.rfid_card_code || '',
+            };
+          });
           const merged = mergeByKey(current.applications || [], mapped, a => a.id || a.learner);
           if (!isDeepEqual(current.applications, merged)) {
             updates.applications = merged;
@@ -1293,6 +1406,18 @@ export function PortalDataProvider({ children }) {
           }
         }
 
+        const nextStudents = updates.onboardedStudents || current.onboardedStudents;
+        const nextApps = updates.applications || current.applications;
+        const syncedIdentities = syncIssuedRfidAcrossIdentities(nextStudents, nextApps);
+        if (!isDeepEqual(nextStudents, syncedIdentities.students)) {
+          updates.onboardedStudents = syncedIdentities.students;
+          hasChanges = true;
+        }
+        if (!isDeepEqual(nextApps, syncedIdentities.applications)) {
+          updates.applications = syncedIdentities.applications;
+          hasChanges = true;
+        }
+
         const shouldClearLoading = !current.backendConnected || current.isLoadingBackend;
 
         // If no changes exist and already connected, return current directly!
@@ -1355,6 +1480,11 @@ export function PortalDataProvider({ children }) {
       guardianName: student.guardianName || student.guardian || student.fatherName || 'Parent/Guardian',
       guardianEmail: student.guardianEmail || student.email || student.fatherEmail || '',
       guardianPhone: student.guardianPhone || student.phone || student.fatherPhone || '',
+      fatherName: student.fatherName || '',
+      fatherPhone: student.fatherPhone || student.guardianPhone || student.phone || '',
+      motherName: student.motherName || '',
+      motherPhone: student.motherPhone || '',
+      applicationId: student.applicationId || '',
       homeAddress: student.homeAddress || student.residentialAddress || 'Bogoso',
       dob: student.dob || student.dateOfBirth || '2015-01-01',
       gender: student.gender || student.sex || 'Not Specified',
@@ -1390,6 +1520,14 @@ export function PortalDataProvider({ children }) {
         term: 'Term 1 · 2026',
         rfidCardCode: draft.rfidCardCode,
         rfid_card_code: draft.rfidCardCode,
+        fatherName: draft.fatherName,
+        father_name: draft.fatherName,
+        fatherPhone: draft.fatherPhone,
+        father_phone: draft.fatherPhone,
+        motherName: draft.motherName,
+        mother_name: draft.motherName,
+        motherPhone: draft.motherPhone,
+        mother_phone: draft.motherPhone,
       };
 
       let createdFromApi = null;
@@ -1431,7 +1569,7 @@ export function PortalDataProvider({ children }) {
         studentEmail: mappedApi?.studentEmail || existing?.studentEmail || schoolEmailFromName(fullComputed),
         defaultPassword: mappedApi?.defaultPassword || existing?.defaultPassword || draft.defaultPassword
           || `StuPass#${String(mappedApi?.studentId || fallbackCode).replace(/REMALJ-/i, '')}`,
-        rfidCardCode: mappedApi?.rfidCardCode || draft.rfidCardCode || existing?.rfidCardCode || `CARD-${String(rosterCount).padStart(3, '0')}`,
+        rfidCardCode: preferIssuedRfid(mappedApi?.rfidCardCode, draft.rfidCardCode, existing?.rfidCardCode),
       });
 
       if (!canonical.id) canonical.id = crypto.randomUUID?.() || String(Date.now());
@@ -1705,12 +1843,25 @@ export function PortalDataProvider({ children }) {
           academicTerm,
           term: academicTerm,
           status: 'Submitted',
-          submittedAt: new Date().toLocaleString()
+          submittedAt: new Date().toLocaleString(),
+          rfidCardCode: application.rfidCardCode || '',
+          formData: {
+            ...application,
+            rfidCardCode: application.rfidCardCode || '',
+          },
         };
 
+        const issuedRfid = application.rfidCardCode || '';
         return {
           ...current,
           applications: [newApp, ...(current.applications || [])],
+          onboardedStudents: issuedRfid
+            ? (current.onboardedStudents || []).map((s) => (
+              studentsAreSamePerson(s, { fullName: learnerName, studentId: application.officeStudentID || application.studentId }) && !s.rfidCardCode
+                ? { ...s, rfidCardCode: issuedRfid }
+                : s
+            ))
+            : current.onboardedStudents,
         };
       });
     },
@@ -1799,7 +1950,7 @@ export function PortalDataProvider({ children }) {
             guardianEmail: app.email || app.fatherEmail || app.guardianEmail,
             guardianPhone: app.phone || app.fatherPhone || app.guardianPhone,
             homeAddress: app.residentialAddress || app.homeAddress,
-            rfidCardCode: app.officeStudentID || app.rfidCardCode,
+            rfidCardCode: app.rfidCardCode || '',
           });
         }
       }
@@ -1811,19 +1962,86 @@ export function PortalDataProvider({ children }) {
         console.warn('Backend update application fallback:', e);
       }
 
-      setData((current) => {
-        const existingApp = (current.applications || []).find(a => a.id === id);
-        if (!existingApp) return current;
+      const existingApp = (dataRef.current.applications || []).find((a) => a.id === id) || {};
+      const otherNames = String(updatedForm.otherNames || existingApp.otherNames || '').trim();
+      const learnerName = [updatedForm.firstName || existingApp.firstName, otherNames, updatedForm.surname || existingApp.surname]
+        .map((part) => String(part || '').trim())
+        .filter(Boolean)
+        .join(' ')
+        || updatedForm.learner || updatedForm.fullName || existingApp.learner || existingApp.fullName || '';
+      const guardianName = updatedForm.fatherName || updatedForm.motherName || updatedForm.guardian || updatedForm.guardianName || existingApp.guardian;
+      const contactEmail = updatedForm.fatherEmail || updatedForm.email || updatedForm.guardianEmail || existingApp.email;
+      const contactPhone = updatedForm.fatherPhone || updatedForm.motherPhone || updatedForm.phone || updatedForm.guardianPhone || existingApp.phone;
+      const applyingLevel = formatClassToBasic(updatedForm.applyingClass || updatedForm.level || existingApp.level || 'Basic 1');
+      const classSection = updatedForm.classSection || updatedForm.subClass || updatedForm.officeFormAssigned || updatedForm.class_section || existingApp.classSection || existingApp.subClass || 'A';
+      const studentPatch = {
+        fullName: learnerName,
+        firstName: updatedForm.firstName || existingApp.firstName || '',
+        otherNames,
+        surname: updatedForm.surname || existingApp.surname || '',
+        level: applyingLevel,
+        classSection,
+        guardianName,
+        guardianEmail: contactEmail,
+        guardianPhone: contactPhone,
+        fatherName: updatedForm.fatherName || existingApp.fatherName || '',
+        fatherPhone: updatedForm.fatherPhone || existingApp.fatherPhone || contactPhone || '',
+        motherName: updatedForm.motherName || existingApp.motherName || '',
+        motherPhone: updatedForm.motherPhone || existingApp.motherPhone || '',
+        homeAddress: updatedForm.residentialAddress || existingApp.residentialAddress,
+        dob: updatedForm.dob || existingApp.dob,
+        gender: updatedForm.sex || updatedForm.gender || existingApp.sex,
+        applicationId: id,
+      };
 
-        const learnerName = `${updatedForm.firstName || ''} ${updatedForm.surname || ''}`.trim() || updatedForm.learner || updatedForm.fullName || existingApp.learner;
-        const guardianName = updatedForm.fatherName || updatedForm.motherName || updatedForm.guardian || updatedForm.guardianName || existingApp.guardian;
-        const contactEmail = updatedForm.fatherEmail || updatedForm.email || updatedForm.guardianEmail || existingApp.email;
-        const contactPhone = updatedForm.fatherPhone || updatedForm.motherPhone || updatedForm.phone || updatedForm.guardianPhone || existingApp.phone;
-        const applyingLevel = updatedForm.applyingClass || updatedForm.level || existingApp.level || 'Basic 1';
-        const classSection = updatedForm.classSection || updatedForm.subClass || updatedForm.class_section || existingApp.classSection || '';
+      const roster = dataRef.current.onboardedStudents || [];
+      const previousName = existingApp.learner || existingApp.fullName || learnerName;
+      const matchedStudent = findMatchingStudent(roster, {
+        fullName: learnerName,
+        studentId: updatedForm.officeStudentID || existingApp.officeStudentID || existingApp.studentId,
+      })
+        || findMatchingStudent(roster, { fullName: previousName, studentId: existingApp.officeStudentID })
+        || roster.find((stu) => String(stu.applicationId || '') === String(id))
+        || roster.find((stu) => stu.fullName === previousName || stu.fullName === learnerName)
+        || null;
+
+      const issuedRfid = String(matchedStudent?.rfidCardCode || '').trim();
+      const formRfid = String(updatedForm.rfidCardCode || existingApp.rfidCardCode || '').trim();
+      studentPatch.rfidCardCode = issuedRfid || formRfid;
+
+      if (matchedStudent) {
+        const backendId = matchedStudent.id && !isSyntheticLocalId(matchedStudent.id)
+          ? matchedStudent.id
+          : matchedStudent.studentId;
+        try {
+          if (backendId) {
+            await api.updateStudent(backendId, {
+              ...studentPatch,
+              full_name: learnerName,
+              class_level: applyingLevel,
+              class_section: classSection,
+              guardian_name: guardianName,
+              guardian_email: contactEmail,
+              guardian_phone: contactPhone,
+              father_name: studentPatch.fatherName,
+              father_phone: studentPatch.fatherPhone,
+              mother_name: studentPatch.motherName,
+              mother_phone: studentPatch.motherPhone,
+              rfid_card_code: studentPatch.rfidCardCode,
+              rfidCardCode: studentPatch.rfidCardCode,
+            });
+          }
+        } catch (e) {
+          console.warn('Backend cascade student update fallback:', e);
+        }
+      }
+
+      setData((current) => {
+        const currentApp = (current.applications || []).find((a) => a.id === id);
+        if (!currentApp) return current;
 
         const updatedApplicationRecord = {
-          ...existingApp,
+          ...currentApp,
           ...updatedForm,
           learner: learnerName,
           guardian: guardianName,
@@ -1831,54 +2049,49 @@ export function PortalDataProvider({ children }) {
           phone: contactPhone,
           level: applyingLevel,
           applyingClass: applyingLevel,
-          classSection: classSection,
+          classSection,
           subClass: classSection,
+          rfidCardCode: studentPatch.rfidCardCode,
           formData: {
-            ...(existingApp.formData || {}),
+            ...(currentApp.formData || {}),
             ...updatedForm,
             applyingClass: applyingLevel,
-            classSection: classSection,
+            classSection,
             subClass: classSection,
+            rfidCardCode: studentPatch.rfidCardCode,
           },
           updatedAt: new Date().toLocaleString(),
         };
 
-        const updatedApplications = (current.applications || []).map(app =>
+        const updatedApplications = (current.applications || []).map((app) =>
           app.id === id ? updatedApplicationRecord : app
         );
 
-        const updatedOnboardedStudents = (current.onboardedStudents || []).map(stu => {
-          if (stu.id === id || stu.studentId === id || stu.fullName === existingApp.learner || stu.fullName === learnerName) {
-            return {
-              ...stu,
-              fullName: learnerName,
-              level: applyingLevel,
-              guardianName: guardianName,
-              guardianEmail: contactEmail,
-              guardianPhone: contactPhone,
-              homeAddress: updatedForm.residentialAddress || stu.homeAddress,
-              dob: updatedForm.dob || stu.dob,
-              gender: updatedForm.sex || stu.gender,
-              passportPhoto: updatedForm.passportPhoto || stu.passportPhoto,
-            };
-          }
-          return stu;
+        const updatedOnboardedStudents = (current.onboardedStudents || []).map((stu) => {
+          const isMatch = matchedStudent
+            ? studentsAreSamePerson(stu, matchedStudent)
+            : (stu.id === id || stu.studentId === id || stu.fullName === previousName || stu.fullName === learnerName || String(stu.applicationId || '') === String(id));
+          if (!isMatch) return stu;
+          return mergeStudentRecords(stu, {
+            ...studentPatch,
+            passportPhoto: updatedForm.passportPhoto || stu.passportPhoto,
+          });
         });
 
-        const updatedStudentFees = (current.studentFees || []).map(fee => {
-          if (fee.studentName === existingApp.learner || fee.studentName === learnerName || fee.studentId === id) {
+        const updatedStudentFees = (current.studentFees || []).map((fee) => {
+          if (fee.studentName === previousName || fee.studentName === learnerName || fee.studentId === id || (matchedStudent && (fee.studentId === matchedStudent.studentId || fee.studentId === matchedStudent.id))) {
             return {
               ...fee,
               studentName: learnerName,
-              guardianName: guardianName,
+              guardianName,
               guardianEmail: contactEmail,
             };
           }
           return fee;
         });
 
-        const updatedFeeAccounts = (current.feeAccounts || []).map(acc => {
-          if (acc.child === existingApp.learner || acc.child === learnerName) {
+        const updatedFeeAccounts = (current.feeAccounts || []).map((acc) => {
+          if (acc.child === previousName || acc.child === learnerName || (matchedStudent && acc.studentId === matchedStudent.studentId)) {
             return {
               ...acc,
               child: learnerName,
@@ -1890,7 +2103,7 @@ export function PortalDataProvider({ children }) {
         return {
           ...current,
           applications: updatedApplications,
-          onboardedStudents: updatedOnboardedStudents,
+          onboardedStudents: deduplicateStudents(updatedOnboardedStudents),
           studentFees: updatedStudentFees,
           feeAccounts: updatedFeeAccounts,
         };
@@ -2029,7 +2242,20 @@ export function PortalDataProvider({ children }) {
         guardian_email: updates.guardianEmail || existing?.guardianEmail,
         guardianPhone: updates.guardianPhone || existing?.guardianPhone,
         guardian_phone: updates.guardianPhone || existing?.guardianPhone,
+        fatherName: updates.fatherName || existing?.fatherName,
+        father_name: updates.fatherName || existing?.fatherName,
+        fatherPhone: updates.fatherPhone || existing?.fatherPhone,
+        father_phone: updates.fatherPhone || existing?.fatherPhone,
+        motherName: updates.motherName || existing?.motherName,
+        mother_name: updates.motherName || existing?.motherName,
+        motherPhone: updates.motherPhone || existing?.motherPhone,
+        mother_phone: updates.motherPhone || existing?.motherPhone,
+        rfidCardCode: updates.rfidCardCode || existing?.rfidCardCode,
+        rfid_card_code: updates.rfidCardCode || existing?.rfidCardCode,
       };
+      const matchingApps = existing
+        ? (dataRef.current.applications || []).filter((app) => applicationMatchesStudent(app, existing))
+        : [];
       try {
         if (backendId) {
           await api.updateStudent(backendId, payload);
@@ -2038,6 +2264,19 @@ export function PortalDataProvider({ children }) {
         }
       } catch (e) {
         console.warn('Backend update student fallback:', e);
+      }
+      if (updates.rfidCardCode) {
+        await Promise.all(matchingApps.map(async (app) => {
+          try {
+            await api.updateApplication(app.id, {
+              ...app,
+              rfidCardCode: updates.rfidCardCode,
+              formData: { ...(app.formData || {}), rfidCardCode: updates.rfidCardCode },
+            });
+          } catch (e) {
+            console.warn('Backend RFID cascade to application fallback:', e);
+          }
+        }));
       }
       setData((current) => {
         const roster = current.onboardedStudents || [];
@@ -2052,11 +2291,19 @@ export function PortalDataProvider({ children }) {
         });
         const oldName = normalizePersonName(prev.fullName || prev.name);
         const oldSid = String(prev.studentId || prev.id || '');
+        const issuedRfid = updates.rfidCardCode || merged.rfidCardCode;
         return {
           ...current,
           onboardedStudents: deduplicateStudents(
             roster.map((s) => (studentsAreSamePerson(s, prev) ? merged : s))
           ),
+          applications: issuedRfid
+            ? (current.applications || []).map((app) => (
+              applicationMatchesStudent(app, prev)
+                ? { ...app, rfidCardCode: issuedRfid, formData: { ...(app.formData || {}), rfidCardCode: issuedRfid } }
+                : app
+            ))
+            : current.applications,
           studentFees: (current.studentFees || []).map((f) => {
             const same = (f.studentId && String(f.studentId) === oldSid)
               || (f.id && String(f.id) === String(prev.id))
@@ -3648,6 +3895,8 @@ export function PortalDataProvider({ children }) {
         paymentDate,
         paymentMethod: paymentDetails.paymentMethod || 'Bank Transfer',
         paymentSourceAccount: paymentDetails.sourceAccount || 'School Operations Account',
+        plAccountName: paymentDetails.plAccountName || '',
+        plAccountCode: paymentDetails.plAccountCode || '',
         disbursementReference: paymentDetails.referenceNumber || `TXN-${Date.now().toString().slice(-6)}`,
         disbursementNotes: paymentDetails.notes || 'Payment processed & disbursed.',
       };

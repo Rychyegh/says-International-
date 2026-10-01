@@ -19,6 +19,7 @@ import {
   Sparkles,
   Trash2
 } from 'lucide-react';
+import { CLASS_LEVELS, ALL_SUB_CLASSES, getMappedSubClasses } from '../../data/classStructure';
 
 const DEFAULT_SUBJECTS = [
   'Mathematics',
@@ -31,37 +32,6 @@ const DEFAULT_SUBJECTS = [
   'French',
   'BDT / Pre-Technical Skills',
   'Physical Education'
-];
-
-const CLASS_LEVELS = [
-  'Creche',
-  'Nursery 1',
-  'Nursery 2',
-  'KG 1',
-  'KG 2',
-  'Basic 1',
-  'Basic 2',
-  'Basic 3',
-  'Basic 4',
-  'Basic 5',
-  'Basic 6',
-  'Basic 7',
-  'Basic 8',
-  'Basic 9'
-];
-
-const SUB_CLASS_OPTIONS = [
-  'Section A',
-  'Section B',
-  'Section C',
-  'Section D',
-  'Stream A',
-  'Stream B',
-  'Stream C',
-  'Gold Class',
-  'Diamond Class',
-  'Sunflower',
-  'Rose'
 ];
 
 const EXAM_TYPES = [
@@ -529,7 +499,10 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
               {/* Class / Level filter */}
               <select
                 value={indivClassFilter}
-                onChange={(e) => setIndivClassFilter(e.target.value)}
+                onChange={(e) => {
+                  setIndivClassFilter(e.target.value);
+                  setIndivSubClassFilter('All');
+                }}
                 style={{ padding: '9px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 700 }}
               >
                 <option value="All">All Classes</option>
@@ -543,7 +516,7 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
                 style={{ padding: '9px 10px', background: '#1e293b', border: '1px solid #0284c7', borderRadius: 8, color: '#38bdf8', fontSize: 12, fontWeight: 700 }}
               >
                 <option value="All">All Sub-Classes</option>
-                {SUB_CLASS_OPTIONS.map(sub => <option key={sub} value={sub}>{sub}</option>)}
+                {(indivClassFilter === 'All' ? ALL_SUB_CLASSES : getMappedSubClasses(indivClassFilter)).map(sub => <option key={sub} value={sub}>{sub}</option>)}
               </select>
 
               {/* Gender filter */}

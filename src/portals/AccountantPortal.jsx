@@ -13,6 +13,8 @@ import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
 import ApprovePVForm from '../components/Finance/ApprovePVForm';
 import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
 import { getAuthUser, api } from '../services/api';
+import { ALL_SUB_CLASSES, getMappedSubClasses } from '../data/classStructure';
+import { SCHOOL_PL_ACCOUNTS, getPlAccountCode, printPvPage } from '../data/chartOfAccounts';
 
 const ACCOUNT_BG = '#0f3a4b';
 const ACCOUNT_LIGHT = '#e0f2fe';
@@ -1527,9 +1529,7 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
     'Pre-school',
     'Basic School (Basic 1 - 9)'
   ]);
-  const [subClasses, setSubClasses] = useState([
-    'A - Sunflower', 'B - Rose', 'Stream A', 'Stream B', 'Stream C', 'Gold Class', 'Diamond Class'
-  ]);
+  const [subClasses, setSubClasses] = useState([...ALL_SUB_CLASSES]);
   const [billAccounts, setBillAccounts] = useState([
     'Tuition Account',
     'Facility & ICT Account',
@@ -1550,7 +1550,7 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
   const [postTerm, setPostTerm] = useState('1st Term');
   const [postDept, setPostDept] = useState('Pre-school');
   const [postClass, setPostClass] = useState('Nursery 2');
-  const [postSubClass, setPostSubClass] = useState('A - Sunflower');
+  const [postSubClass, setPostSubClass] = useState('Nursery 2A');
 
   const [billDate, setBillDate] = useState('2026-07-28');
   const [reopeningDate, setReopeningDate] = useState('2026-07-28');
@@ -1657,7 +1657,7 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
       if (match) {
         setFormStudentName(match.fullName || match.name);
         setFormCurrentClass(match.level || 'Nursery 1');
-        setFormSubClass(match.classSection || 'A - Sunflower');
+        setFormSubClass(match.classSection || match.subClass || getMappedSubClasses(match.level)[0] || '');
         setFormStatus(match.status || 'Active');
         setJournalStatusNotice(`Loaded existing bill for student: ${match.fullName || match.name} (${match.studentId})`);
         setTimeout(() => setJournalStatusNotice(''), 3500);
@@ -2796,7 +2796,7 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
     studentId: 'REMALJ-2026-001',
     fullName: 'Benjamin Edwards',
     level: 'Grade 4',
-    classSection: 'Section B',
+    classSection: 'Basic 4B',
     guardianName: 'Mrs. Angela Edwards',
     guardianPhone: '024 111 2222'
   };
@@ -2804,7 +2804,7 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
   const [studentId, setStudentId] = useState(defaultStudent.studentId || 'REMALJ-2026-001');
   const [studentName, setStudentName] = useState(defaultStudent.fullName || defaultStudent.name || 'Benjamin Edwards');
   const [studentClass, setStudentClass] = useState(defaultStudent.level || 'Grade 4');
-  const [subClass, setSubClass] = useState(defaultStudent.classSection || 'B');
+  const [subClass, setSubClass] = useState(defaultStudent.classSection || 'Basic 4B');
   const [modeOfAdmission, setModeOfAdmission] = useState('Day');
   const [statusOfEntry, setStatusOfEntry] = useState('Enrolled');
   const [studentIndex, setStudentIndex] = useState(0);
@@ -4064,7 +4064,7 @@ function ReceiveOtherPaymentsForm({ setM }) {
   const [clientProvider, setClientProvider] = useState('DAILY FEEDING');
   const [providerId, setProviderId] = useState('931043');
   const [valueDate, setValueDate] = useState('2026-09-05');
-  const [glAccountType, setGlAccountType] = useState('Canteen / Feeding Account');
+  const [glAccountType, setGlAccountType] = useState('Canteen fees');
   const [merchantType, setMerchantType] = useState('MTN Mobile Money');
   const [referenceNo, setReferenceNo] = useState('REF-884920');
   const [amount, setAmount] = useState('750.00');
@@ -4379,11 +4379,9 @@ function ReceiveOtherPaymentsForm({ setM }) {
                   onChange={(e) => setGlAccountType(e.target.value)}
                   style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
                 >
-                  <option value="Canteen / Feeding Account">Canteen / Feeding Account</option>
-                  <option value="Sundry Revenue Account">Sundry Revenue Account</option>
-                  <option value="Bookshop & Sales Account">Bookshop & Sales Account</option>
-                  <option value="Transport Revenue Account">Transport Revenue Account</option>
-                  <option value="Facility Rental & Misc">Facility Rental & Misc</option>
+                  {SCHOOL_PL_ACCOUNTS.map((account) => (
+                    <option key={account.code + account.name} value={account.name}>{account.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -4598,14 +4596,14 @@ function BatchProcessingForm({ setM, students = [], recordFeePayment }) {
     studentId: 'REMALJ-2026-001',
     fullName: 'Benjamin Edwards',
     level: 'Grade 4',
-    classSection: 'A'
+    classSection: 'Basic 4A'
   };
 
   const [txnNo, setTxnNo] = useState('BATCH-TXN-2026-8801');
   const [studentId, setStudentId] = useState(defaultStudent.studentId || 'REMALJ-2026-001');
   const [studentName, setStudentName] = useState(defaultStudent.fullName || defaultStudent.name || 'Benjamin Edwards');
   const [studentClass, setStudentClass] = useState(defaultStudent.level || 'Grade 4');
-  const [subClass, setSubClass] = useState(defaultStudent.classSection || 'A');
+  const [subClass, setSubClass] = useState(defaultStudent.classSection || 'Basic 4A');
   const [modeOfAdmission, setModeOfAdmission] = useState('Day');
   const [statusOfEntry, setStatusOfEntry] = useState('Enrolled');
   const [studentIndex, setStudentIndex] = useState(0);
@@ -5012,12 +5010,9 @@ function BatchProcessingForm({ setM, students = [], recordFeePayment }) {
                   onChange={(e) => setGlAccountType(e.target.value)}
                   style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
                 >
-                  <option value="Tuition & Academic Fees">Tuition & Academic Fees</option>
-                  <option value="Facility & ICT Account">Facility & ICT Account</option>
-                  <option value="PTA Development Levy">PTA Development Levy</option>
-                  <option value="Canteen / Feeding Account">Canteen / Feeding Account</option>
-                  <option value="Transport Account">Transport Account</option>
-                  <option value="Sundry Revenue Account">Sundry Revenue Account</option>
+                  {SCHOOL_PL_ACCOUNTS.map((account) => (
+                    <option key={account.code + account.name} value={account.name}>{account.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -6764,14 +6759,16 @@ function OtherAccountsReceivablesForm({ setM, students = [] }) {
             <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Name of PL/Account</label>
             <select
               value={plAccountName}
-              onChange={(e) => setPlAccountName(e.target.value)}
+              onChange={(e) => {
+                setPlAccountName(e.target.value);
+                const code = getPlAccountCode(e.target.value);
+                if (code) setAccountNo(code);
+              }}
               style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff', fontWeight: 700 }}
             >
-              <option value="Accounts Receivable - Sundry Students">Accounts Receivable - Sundry Students</option>
-              <option value="Accounts Receivable - External Commercial Clients">Accounts Receivable - External Commercial Clients</option>
-              <option value="Accounts Receivable - Canteen & Feeding Services">Accounts Receivable - Canteen & Feeding Services</option>
-              <option value="Accounts Receivable - Transport & Bus Logistics">Accounts Receivable - Transport & Bus Logistics</option>
-              <option value="Accounts Receivable - Facility Rentals & Amenities">Accounts Receivable - Facility Rentals & Amenities</option>
+              {SCHOOL_PL_ACCOUNTS.map((account) => (
+                <option key={account.code + account.name} value={account.name}>{account.name}</option>
+              ))}
             </select>
           </div>
 
@@ -7388,13 +7385,15 @@ function AuthoriseBillsReceivablesForm({ setM, students = [] }) {
 
           <div>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Name of PL/Account</label>
-            <input
-              type="text"
+            <select
               value={plAccountName}
               onChange={(e) => setPlAccountName(e.target.value)}
-              placeholder="PL/Account name..."
               style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
-            />
+            >
+              {SCHOOL_PL_ACCOUNTS.map((account) => (
+                <option key={account.code + account.name} value={account.name}>{account.name}</option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -7918,14 +7917,16 @@ function PayPVForm({ setM }) {
               <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Name of PL/Account</label>
               <select
                 value={plAccountName}
-                onChange={(e) => setPlAccountName(e.target.value)}
+                onChange={(e) => {
+                  setPlAccountName(e.target.value);
+                  const code = getPlAccountCode(e.target.value);
+                  if (code) setAccountNo(code);
+                }}
                 style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
               >
-                <option value="Electricity & Utility Expenses Account">Electricity & Utility Expenses Account</option>
-                <option value="Canteen & Feeding Operations Account">Canteen & Feeding Operations Account</option>
-                <option value="Office Supplies & Stationery Account">Office Supplies & Stationery Account</option>
-                <option value="Transport & Vehicle Maintenance Account">Transport & Vehicle Maintenance Account</option>
-                <option value="General Operating Expenses">General Operating Expenses</option>
+                {SCHOOL_PL_ACCOUNTS.map((account) => (
+                  <option key={account.code + account.name} value={account.name}>{account.name}</option>
+                ))}
               </select>
             </div>
 
@@ -8137,6 +8138,7 @@ function PayPVForm({ setM }) {
 }
 
 function PrintPVForm({ setM }) {
+  const { paymentVouchers = [] } = usePortalData() || {};
   const [pvNo, setPvNo] = useState('PV-2026-088');
   const [activePv, setActivePv] = useState({
     pvNo: 'PV-2026-088',
@@ -8229,6 +8231,34 @@ function PrintPVForm({ setM }) {
   const handlePreviewPV = () => {
     if (!pvNo) {
       alert('Please enter a PV N/o.');
+      return;
+    }
+    const live = (paymentVouchers || []).find((p) => String(p.pvNo || p.id || '').toLowerCase() === pvNo.toLowerCase());
+    if (live) {
+      const total = Number(live.total || live.payableTotal || live.cost || 0) || 0;
+      setActivePv({
+        pvNo: live.pvNo || live.id,
+        requisitionNo: live.requisitionNo || 'REQ-OFFICIAL',
+        datePrepared: live.datePrepared || live.valuedDate || '',
+        valuedDate: live.valuedDate || live.datePrepared || '',
+        clientProvider: live.provider || live.payee_name || 'Vendor',
+        providerId: live.providerId || '',
+        description: live.description || (live.items || []).map((i) => i.description).filter(Boolean).join('; ') || 'Expenditure',
+        qty: live.qty || (live.items || []).reduce((acc, i) => acc + (Number(i.qty) || 1), 0) || 1,
+        rate: live.cost || live.rate || total,
+        total,
+        amountInWords: live.amountInWords || '',
+        plAccountName: live.plAccountName || live.plAccount || 'Diesel',
+        accountNo: live.accountNo || getPlAccountCode(live.plAccountName || live.plAccount || 'Diesel'),
+        merchant: live.merchant || live.paymentMethod || '',
+        referenceNo: live.referenceNo || live.disbursementReference || '',
+        receivedBy: live.receivedBy || '',
+        auditStatus: live.status || 'Approved',
+        preAuditRemarks: live.auditRemarks || live.preAuditRemarks || '',
+        items: live.items || [],
+      });
+      setBannerNotice(`Loaded preview for Payment Voucher #${live.pvNo || live.id}.`);
+      setTimeout(() => setBannerNotice(''), 3000);
       return;
     }
     const found = samplePvRecords.find(p => p.pvNo.toLowerCase() === pvNo.toLowerCase());
@@ -8382,7 +8412,7 @@ function PrintPVForm({ setM }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => printPvPage()}
                 title="Print Document"
                 style={{ padding: '4px 10px', background: '#0f3a4b', color: '#fff', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
               >
@@ -8441,11 +8471,11 @@ function PrintPVForm({ setM }) {
           )}
 
           {/* ── PRINTABLE DOCUMENT CANVAS ── */}
-          <div style={{
+          <div className="pv-print-page" style={{
             background: '#ffffff',
             boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
             borderRadius: 4,
-            padding: 24,
+            padding: 14,
             width: '100%',
             maxWidth: 780,
             margin: '0 auto',
@@ -8454,18 +8484,15 @@ function PrintPVForm({ setM }) {
           }}>
 
             {/* ── SCHOOL LETTERHEAD ── */}
-            <div style={{ borderBottom: '2px solid #0f3a4b', paddingBottom: 12, marginBottom: 16 }} className="receipt-header-box">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }} className="receipt-header-inline">
-                <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 50, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
+            <div style={{ borderBottom: '1.5px solid #0f3a4b', paddingBottom: 8, marginBottom: 10 }} className="receipt-header-box">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }} className="receipt-header-inline">
+                <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 36, width: 'auto', borderRadius: 4, flexShrink: 0 }} className="receipt-logo" />
                 <div style={{ textAlign: 'left' }} className="receipt-school-text">
-                  <h2 style={{ margin: 0, fontSize: 19, fontWeight: 900, color: '#0f3a4b', letterSpacing: '0.03em', lineHeight: 1.2 }}>
+                  <h2 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: '#0f3a4b', letterSpacing: '0.02em', lineHeight: 1.15 }}>
                     REMALJ CAREWELL INSPIRATIONAL SCHOOL
                   </h2>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#0284c7', marginTop: 2 }}>
-                    P.O. Box 112, Bogoso - Western Region · Tel: 0241-112222 / 0242-334455
-                  </div>
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                    Official Financial & Payment Disbursement Voucher
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#0284c7' }}>
+                    Bogoso · Official Payment Voucher
                   </div>
                 </div>
               </div>
@@ -8475,135 +8502,93 @@ function PrintPVForm({ setM }) {
             <div style={{
               background: '#0f3a4b',
               color: '#ffffff',
-              padding: '6px 12px',
-              borderRadius: 4,
+              padding: '4px 10px',
+              borderRadius: 3,
               textAlign: 'center',
               fontWeight: 900,
-              fontSize: 14,
-              letterSpacing: '0.05em',
-              marginBottom: 16,
+              fontSize: 12,
+              letterSpacing: '0.04em',
+              marginBottom: 10,
               textTransform: 'uppercase'
             }}>
-              Official Payment Voucher (PV)
+              Payment Voucher #{activePv.pvNo}
             </div>
 
-            {/* ── METADATA GRID ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, background: '#f8fafc', padding: 12, borderRadius: 6, border: '1px solid #e2e8f0', marginBottom: 16, fontSize: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, background: '#f8fafc', padding: 8, borderRadius: 4, border: '1px solid #e2e8f0', marginBottom: 10, fontSize: 11 }}>
               <div>
-                <div style={{ color: '#64748b', fontSize: 11, fontWeight: 700 }}>PV NUMBER:</div>
-                <div style={{ fontWeight: 900, color: '#0369a1', fontSize: 14 }}>#{activePv.pvNo}</div>
+                <div style={{ color: '#64748b', fontSize: 9, fontWeight: 800 }}>DATE</div>
+                <div style={{ fontWeight: 800, color: '#0f3a4b' }}>{activePv.datePrepared || activePv.valuedDate}</div>
               </div>
               <div>
-                <div style={{ color: '#64748b', fontSize: 11, fontWeight: 700 }}>ITEM REQUISITION #:</div>
+                <div style={{ color: '#64748b', fontSize: 9, fontWeight: 800 }}>REQUISITION</div>
                 <div style={{ fontWeight: 800, color: '#0f3a4b' }}>{activePv.requisitionNo}</div>
               </div>
               <div>
-                <div style={{ color: '#64748b', fontSize: 11, fontWeight: 700 }}>DATE PREPARED:</div>
-                <div style={{ fontWeight: 800, color: '#0f3a4b' }}>{activePv.datePrepared}</div>
+                <div style={{ color: '#64748b', fontSize: 9, fontWeight: 800 }}>PL / ACCOUNT</div>
+                <div style={{ fontWeight: 800, color: '#0f3a4b' }}>{activePv.plAccountName}</div>
               </div>
-              <div>
-                <div style={{ color: '#64748b', fontSize: 11, fontWeight: 700 }}>VALUE DATE:</div>
-                <div style={{ fontWeight: 800, color: '#0f3a4b' }}>{activePv.valuedDate}</div>
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <div style={{ color: '#64748b', fontSize: 11, fontWeight: 700 }}>PAYEE / SERVICE PROVIDER:</div>
-                <div style={{ fontWeight: 900, color: '#0f3a4b', fontSize: 13 }}>
-                  {activePv.clientProvider} <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>(ID: {activePv.providerId})</span>
-                </div>
+              <div style={{ gridColumn: 'span 3' }}>
+                <div style={{ color: '#64748b', fontSize: 9, fontWeight: 800 }}>PAYEE</div>
+                <div style={{ fontWeight: 900, color: '#0f3a4b', fontSize: 12 }}>{activePv.clientProvider}</div>
               </div>
             </div>
 
             {/* ── LINE ITEMS TABLE ── */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 16 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginBottom: 8 }}>
               <thead>
                 <tr style={{ background: '#0f3a4b', color: '#ffffff', textAlign: 'left' }}>
-                  <th style={{ padding: '8px 10px' }}>#</th>
-                  <th style={{ padding: '8px 10px' }}>Particulars / Description</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'center' }}>Qty</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'right' }}>Rate (GHS)</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'right' }}>Total Amount (GHS)</th>
+                  <th style={{ padding: '5px 8px' }}>#</th>
+                  <th style={{ padding: '5px 8px' }}>Particulars</th>
+                  <th style={{ padding: '5px 8px', textAlign: 'center' }}>Qty</th>
+                  <th style={{ padding: '5px 8px', textAlign: 'right' }}>Rate</th>
+                  <th style={{ padding: '5px 8px', textAlign: 'right' }}>Amount (GHS)</th>
                 </tr>
               </thead>
               <tbody>
-                <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
-                  <td style={{ padding: '10px', fontWeight: 700, color: '#64748b' }}>1</td>
-                  <td style={{ padding: '10px', fontWeight: 800, color: '#0f3a4b' }}>{activePv.description}</td>
-                  <td style={{ padding: '10px', textAlign: 'center', fontWeight: 700 }}>{activePv.qty}</td>
-                  <td style={{ padding: '10px', textAlign: 'right' }}>{activePv.rate.toFixed(2)}</td>
-                  <td style={{ padding: '10px', textAlign: 'right', fontWeight: 900, color: '#0f172a' }}>{activePv.total.toFixed(2)}</td>
-                </tr>
+                {(Array.isArray(activePv.items) && activePv.items.length > 0 ? activePv.items : [{
+                  description: activePv.description,
+                  qty: activePv.qty,
+                  cost: activePv.rate,
+                  total: activePv.total,
+                }]).map((item, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #cbd5e1' }}>
+                    <td style={{ padding: '6px 8px', fontWeight: 700, color: '#64748b' }}>{idx + 1}</td>
+                    <td style={{ padding: '6px 8px', fontWeight: 800, color: '#0f3a4b' }}>{item.description || activePv.description}</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700 }}>{item.qty || 1}</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'right' }}>{Number(item.cost || item.costPerItem || item.rate || activePv.rate || 0).toFixed(2)}</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 900 }}>{Number(item.totalAmount || item.total || activePv.total || 0).toFixed(2)}</td>
+                  </tr>
+                ))}
               </tbody>
               <tfoot>
                 <tr style={{ background: '#f1f5f9', fontWeight: 900, borderTop: '2px solid #0f3a4b' }}>
-                  <td colSpan={4} style={{ padding: '10px', color: '#0f3a4b', fontSize: 13 }}>TOTAL VOUCHER AMOUNT:</td>
-                  <td style={{ padding: '10px', textAlign: 'right', fontSize: 15, color: '#0284c7' }}>
-                    GHS {activePv.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <td colSpan={4} style={{ padding: '6px 8px', color: '#0f3a4b' }}>TOTAL</td>
+                  <td style={{ padding: '6px 8px', textAlign: 'right', color: '#0284c7' }}>
+                    GHS {Number(activePv.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                 </tr>
               </tfoot>
             </table>
 
-            {/* ── AMOUNT IN WORDS ── */}
-            <div style={{ background: '#f8fafc', padding: '8px 12px', borderRadius: 4, border: '1px solid #e2e8f0', marginBottom: 16, fontSize: 12 }}>
-              <span style={{ fontWeight: 800, color: '#0f3a4b' }}>Amount in Words: </span>
-              <span style={{ fontStyle: 'italic', fontWeight: 700, color: '#0369a1' }}>{activePv.amountInWords}</span>
-            </div>
-
-            {/* ── ACCOUNTING & DISBURSEMENT DETAILS ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, background: '#f1f5f9', padding: 12, borderRadius: 6, border: '1px solid #cbd5e1', marginBottom: 16, fontSize: 11.5 }}>
-              <div>
-                <span style={{ fontWeight: 800, color: '#0f3a4b' }}>PL / Account Name: </span>
-                <span style={{ fontWeight: 700, color: '#334155' }}>{activePv.plAccountName}</span>
+            {activePv.amountInWords ? (
+              <div style={{ background: '#f8fafc', padding: '4px 8px', borderRadius: 3, border: '1px solid #e2e8f0', marginBottom: 10, fontSize: 10.5 }}>
+                <span style={{ fontWeight: 800, color: '#0f3a4b' }}>Amount in Words: </span>
+                <span style={{ fontStyle: 'italic', fontWeight: 700 }}>{activePv.amountInWords}</span>
               </div>
+            ) : null}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, textAlign: 'center', fontSize: 10, paddingTop: 8, borderTop: '1px dashed #cbd5e1' }}>
               <div>
-                <span style={{ fontWeight: 800, color: '#0f3a4b' }}>Account N/o: </span>
-                <span style={{ fontWeight: 700, color: '#334155' }}>{activePv.accountNo}</span>
+                <div style={{ borderBottom: '1px solid #0f3a4b', paddingBottom: 18, marginBottom: 3 }} />
+                <div style={{ fontWeight: 800, color: '#64748b' }}>Prepared By</div>
               </div>
               <div>
-                <span style={{ fontWeight: 800, color: '#0f3a4b' }}>Payment Merchant: </span>
-                <span style={{ fontWeight: 700, color: '#334155' }}>{activePv.merchant}</span>
+                <div style={{ borderBottom: '1px solid #0f3a4b', paddingBottom: 18, marginBottom: 3 }} />
+                <div style={{ fontWeight: 800, color: '#64748b' }}>Audited By</div>
               </div>
               <div>
-                <span style={{ fontWeight: 800, color: '#0f3a4b' }}>Reference N/o: </span>
-                <span style={{ fontWeight: 700, color: '#334155' }}>{activePv.referenceNo}</span>
-              </div>
-            </div>
-
-            {/* ── AUDIT STATUS & SIGNATURES ── */}
-            <div style={{ borderTop: '2px dashed #cbd5e1', paddingTop: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <div>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b' }}>AUDIT STATUS: </span>
-                  <span style={{ fontSize: 11, fontWeight: 900, padding: '2px 8px', borderRadius: 4, background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>
-                    {activePv.auditStatus}
-                  </span>
-                </div>
-                <div style={{ fontSize: 11, color: '#475569', fontStyle: 'italic' }}>
-                  Remarks: {activePv.preAuditRemarks}
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, textAlign: 'center', fontSize: 11, paddingTop: 10 }}>
-                <div>
-                  <div style={{ borderBottom: '1px solid #0f3a4b', paddingBottom: 24, marginBottom: 4, fontWeight: 700, color: '#0f3a4b' }}>
-                    Mrs. Grace Accountant
-                  </div>
-                  <div style={{ fontSize: 10.5, fontWeight: 800, color: '#64748b' }}>Prepared By (Accounts Officer)</div>
-                </div>
-
-                <div>
-                  <div style={{ borderBottom: '1px solid #0f3a4b', paddingBottom: 24, marginBottom: 4, fontWeight: 700, color: '#0f3a4b' }}>
-                    Internal Auditor
-                  </div>
-                  <div style={{ fontSize: 10.5, fontWeight: 800, color: '#64748b' }}>Passed By Auditor</div>
-                </div>
-
-                <div>
-                  <div style={{ borderBottom: '1px solid #0f3a4b', paddingBottom: 24, marginBottom: 4, fontWeight: 700, color: '#0f3a4b' }}>
-                    {activePv.receivedBy}
-                  </div>
-                  <div style={{ fontSize: 10.5, fontWeight: 800, color: '#64748b' }}>Received By (Recipient Sign)</div>
-                </div>
+                <div style={{ borderBottom: '1px solid #0f3a4b', paddingBottom: 18, marginBottom: 3 }} />
+                <div style={{ fontWeight: 800, color: '#64748b' }}>Received By</div>
               </div>
             </div>
 
@@ -10283,20 +10268,10 @@ function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
   const [zoomLevel, setZoomLevel] = useState('100%');
   const [searchText, setSearchText] = useState('');
 
-  const accountMap = {
-    'Admin fees': '10081',
-    'Tuition & Academic Fees': '10012',
-    'Bus & Transport Services': '10025',
-    'Stationery & Depot Revenue': '10040',
-    'Utility & Generator Expenses': '50010',
-    'Staff Salaries Account': '50022',
-  };
-
   const handleAccountChange = (name) => {
     setAccountName(name);
-    if (accountMap[name]) {
-      setAccountNo(accountMap[name]);
-    }
+    const code = getPlAccountCode(name);
+    if (code) setAccountNo(code);
   };
 
   const loadStudentLedger = async (studentId) => {
@@ -10503,12 +10478,9 @@ function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
                       onChange={(e) => handleAccountChange(e.target.value)}
                       style={{ width: 180, padding: '3px 6px', fontSize: 11, border: '1px solid #94a3b8', borderRadius: 3, background: '#fff' }}
                     >
-                      <option value="Admin fees">Admin fees</option>
-                      <option value="Tuition & Academic Fees">Tuition & Academic Fees</option>
-                      <option value="Bus & Transport Services">Bus & Transport Services</option>
-                      <option value="Stationery & Depot Revenue">Stationery & Depot Revenue</option>
-                      <option value="Utility & Generator Expenses">Utility & Generator Expenses</option>
-                      <option value="Staff Salaries Account">Staff Salaries Account</option>
+                      {SCHOOL_PL_ACCOUNTS.map((account) => (
+                        <option key={account.code + account.name} value={account.name}>{account.name}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -10806,7 +10778,7 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
   const [postTerm, setPostTerm] = useState('Term 1');
   const [postDept, setPostDept] = useState('JHS Department');
   const [postClass, setPostClass] = useState('Basic 8');
-  const [postSubClass, setPostSubClass] = useState('B');
+  const [postSubClass, setPostSubClass] = useState('All');
   const [subTitleText, setSubTitleText] = useState('Academic Year 2026/2027 · Term 1 · Class: Basic 8 - B');
   const [zoomLevel, setZoomLevel] = useState('100%');
   const [searchText, setSearchText] = useState('');
@@ -10970,11 +10942,15 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
               </div>
               <div>
                 <label style={{ display: 'block', fontWeight: 600, marginBottom: 2 }}>Select Post Sub-class</label>
-                <select value={postSubClass} onChange={(e) => setPostSubClass(e.target.value)} style={{ width: '100%', padding: '3px 6px', fontSize: 11, border: '1px solid #94a3b8', borderRadius: 3, background: '#fff' }}>
-                  <option value="B">B</option>
-                  <option value="A">A</option>
-                  <option value="C">C</option>
+                <select
+                  value={postSubClass}
+                  onChange={(e) => setPostSubClass(e.target.value)}
+                  style={{ width: '100%', padding: '3px 6px', fontSize: 11, border: '1px solid #94a3b8', borderRadius: 3, background: '#fff' }}
+                >
                   <option value="All">All Sub-Classes</option>
+                  {getMappedSubClasses(postClass).map((section) => (
+                    <option key={section} value={section}>{section}</option>
+                  ))}
                 </select>
               </div>
 
@@ -14100,7 +14076,7 @@ function ViewPendingTestResultsForm({ setM, students }) {
 function ViewRegisteredStudentsPerClassForm({ setM, students }) {
   const [dept, setDept] = useState('Primary Department');
   const [cls, setCls] = useState('Basic 1');
-  const [subClass, setSubClass] = useState('Stream A - Gold');
+  const [subClass, setSubClass] = useState('Basic 1A');
   const [year, setYear] = useState('2025/2026');
   const [term, setTerm] = useState('Term 3');
   const [classMaster, setClassMaster] = useState('Mrs. Grace Ennin / Mr. Ebenezer Arthur');
@@ -14135,9 +14111,9 @@ function ViewRegisteredStudentsPerClassForm({ setM, students }) {
           <div style={{ marginBottom: 10 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 2 }}>Sub class</label>
             <select value={subClass} onChange={(e) => setSubClass(e.target.value)} style={{ width: '100%', padding: 5, borderRadius: 4, border: '1px solid #cbd5e1', background: '#fef2f2' }}>
-              <option>Stream A - Gold</option>
-              <option>Stream B - Blue</option>
-              <option>General Sub class</option>
+              {getMappedSubClasses(cls).map((section) => (
+                <option key={section} value={section}>{section}</option>
+              ))}
             </select>
           </div>
 
@@ -14212,7 +14188,7 @@ function ViewRegisteredStudentsPerClassForm({ setM, students }) {
 function ViewUnauthorisedCrecheReportsForm({ setM, students }) {
   const [dept, setDept] = useState('Creche & Early Years Unit');
   const [cls, setCls] = useState('Creche Gold');
-  const [subClass, setSubClass] = useState('Stream A');
+  const [subClass, setSubClass] = useState('Nursery 1A');
   const [year, setYear] = useState('2025/2026');
   const [term, setTerm] = useState('Term 3');
   const [classMaster, setClassMaster] = useState('Mrs. Mercy Creche Master');
@@ -14257,8 +14233,9 @@ function ViewUnauthorisedCrecheReportsForm({ setM, students }) {
           <div style={{ marginBottom: 10 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 2 }}>Sub class</label>
             <select value={subClass} onChange={(e) => setSubClass(e.target.value)} style={{ width: '100%', padding: 5, borderRadius: 4, border: '1px solid #cbd5e1', background: '#fef2f2' }}>
-              <option>Stream A</option>
-              <option>Stream B</option>
+              {getMappedSubClasses(cls).map((section) => (
+                <option key={section} value={section}>{section}</option>
+              ))}
             </select>
           </div>
 
@@ -14335,7 +14312,7 @@ function ViewUnauthorisedCrecheReportsForm({ setM, students }) {
 function PrintIndividualTerminalReportForm({ setM, students = [] }) {
   const [dept, setDept] = useState('Primary Department');
   const [cls, setCls] = useState('Basic 1');
-  const [subClass, setSubClass] = useState('Stream A - Gold');
+  const [subClass, setSubClass] = useState('Basic 1A');
   const [year, setYear] = useState('2025/2026');
   const [term, setTerm] = useState('Term 3');
   const [studentSearch, setStudentSearch] = useState('');
@@ -14389,7 +14366,9 @@ function PrintIndividualTerminalReportForm({ setM, students = [] }) {
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 10, fontWeight: 700 }}>Select Sub class</label>
             <select value={subClass} onChange={(e) => setSubClass(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1', background: '#fef2f2' }}>
-              <option>Stream A - Gold</option><option>Stream B - Blue</option>
+              {getMappedSubClasses(cls).map((section) => (
+                <option key={section} value={section}>{section}</option>
+              ))}
             </select>
           </div>
           <div style={{ marginBottom: 8 }}>
@@ -14522,7 +14501,7 @@ function PrintIndividualTerminalReportForm({ setM, students = [] }) {
 function PrintTerminalReportByYearGroupForm({ setM, students }) {
   const [dept, setDept] = useState('Primary Department');
   const [cls, setCls] = useState('Basic 1');
-  const [subClass, setSubClass] = useState('Stream A - Gold');
+  const [subClass, setSubClass] = useState('Basic 1A');
   const [year, setYear] = useState('2025/2026');
   const [term, setTerm] = useState('Term 3');
   const [isCreche, setIsCreche] = useState(false);
@@ -14555,7 +14534,9 @@ function PrintTerminalReportByYearGroupForm({ setM, students }) {
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 10, fontWeight: 700 }}>Select Sub class</label>
             <select value={subClass} onChange={(e) => setSubClass(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1', background: '#fef2f2' }}>
-              <option>Stream A - Gold</option><option>Stream B - Blue</option>
+              {getMappedSubClasses(cls).map((section) => (
+                <option key={section} value={section}>{section}</option>
+              ))}
             </select>
           </div>
           <div style={{ marginBottom: 8 }}>

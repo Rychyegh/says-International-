@@ -634,9 +634,9 @@ export const DEMO_CLASS_TEACHER_ACCOUNTS = [
     staffId: 'CT-2026-DEMO',
     password: 'ClassTeacher2026!',
     passcode: '2468',
-    assignedClass: 'Basic 1 · Section A',
+    assignedClass: 'Basic 1A',
     classLevel: 'Basic 1',
-    subClass: 'Section A',
+    subClass: 'Basic 1A',
     department: 'Class Tutors',
   },
   {
@@ -650,9 +650,9 @@ export const DEMO_CLASS_TEACHER_ACCOUNTS = [
     staffId: 'STF-2026-004',
     password: 'ClassTeacher2026!',
     passcode: '1357',
-    assignedClass: 'Basic 2 · Section A',
+    assignedClass: 'Basic 2A',
     classLevel: 'Basic 2',
-    subClass: 'Section A',
+    subClass: 'Basic 2A',
     department: 'English Language',
   },
 ];

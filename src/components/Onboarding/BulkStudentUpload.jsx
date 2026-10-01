@@ -117,9 +117,9 @@ export default function BulkStudentUpload({ onComplete }) {
   // Download Sample CSV Template
   const handleDownloadTemplate = () => {
     const sampleCsv = `Full Name, DOB (YYYY-MM-DD), Gender, Class Level, Section, Guardian Name, Guardian Phone, Guardian Email, Home Address, RFID Card Code
-Kofi Mensah,2015-04-12,Male,Grade 4,Section A,Mr. Kwame Mensah,0541769621,kwame.mensah@example.com,Bogoso Anikoko,CARD-009
-Ama Serwaa,2014-08-20,Female,Primary 5,Section B,Mrs. Akosua Serwaa,0541769621,akosua.serwaa@example.com,Prestea Junction,CARD-010
-Yaw Boateng,2013-11-05,Male,JHS 2,Section A,Mr. Kojo Boateng,0541769621,kojo.boateng@example.com,Tarkwa Market,CARD-011`;
+Kofi Mensah,2015-04-12,Male,Basic 4,Basic 4A,Mr. Kwame Mensah,0541769621,kwame.mensah@example.com,Bogoso Anikoko,CARD-009
+Ama Serwaa,2014-08-20,Female,Basic 5,Basic 5B,Mrs. Akosua Serwaa,0541769621,akosua.serwaa@example.com,Prestea Junction,CARD-010
+Yaw Boateng,2013-11-05,Male,Basic 8,Basic 8A,Mr. Kojo Boateng,0541769621,kojo.boateng@example.com,Tarkwa Market,CARD-011`;
 
     const blob = new Blob([sampleCsv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);

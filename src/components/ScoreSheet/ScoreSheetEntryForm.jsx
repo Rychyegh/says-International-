@@ -1,26 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { usePortalData, scoreSheetEntryKey } from '../../data/PortalStore';
 import { getUserFullName } from '../../services/api';
-import { getMappedSubClasses } from '../Onboarding/OfficialApplicationForm';
+import { getMappedSubClasses } from '../../data/classStructure';
 
 // Each of the four class tests is marked over 100, so the class test total is out of 400
 const CLASS_TEST_MAX = 100;
 const CLASS_TEST_COUNT = 4;
 const CLASS_TEST_TOTAL_MAX = CLASS_TEST_MAX * CLASS_TEST_COUNT;
 
-export const STANDARD_SUB_CLASSES = [
-  'Section A',
-  'Section B',
-  'Section C',
-  'Section D',
-  'Stream A',
-  'Stream B',
-  'Stream C',
-  'Gold Class',
-  'Diamond Class',
-  'Sunflower',
-  'Rose'
-];
+export const STANDARD_SUB_CLASSES = [];
 
 function detectStudentClassAndSub(student) {
   if (!student) return { classLevel: 'Basic 1', subClassLevel: 'Basic 1A' };
@@ -104,22 +92,13 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
     const mapped = getMappedSubClasses(cls);
     (mapped || []).forEach(add);
 
-    // 2. Class-prefixed standard variants
-    const norm = (cls || '').trim();
-    add(`${norm}A`);
-    add(`${norm}B`);
-    add(`${norm}C`);
-
-    // 3. Current subClass and custom subclasses
+    // 2. Current subClass and custom subclasses
     if (subClass) add(subClass);
     customSubClasses.forEach(add);
 
-    // 4. Student's specific subclass if defined
+    // 3. Student's specific subclass if defined
     const stuSub = selectedStudent?.classSection || selectedStudent?.subClass || selectedStudent?.stream || selectedStudent?.section;
     if (stuSub) add(stuSub);
-
-    // 5. Standard sections & streams
-    STANDARD_SUB_CLASSES.forEach(add);
 
     return list;
   }, [cls, subClass, customSubClasses, selectedStudent]);
@@ -238,7 +217,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
               onChange={(e) => {
                 const val = e.target.value;
                 if (val === '__ADD_NEW__') {
-                  const custom = window.prompt(`Enter new custom Sub-Class Level for ${cls} (e.g. ${cls}C, Section C, Stream B):`);
+                  const custom = window.prompt(`Enter new custom Sub-Class for ${cls} (e.g. ${cls}A, ${cls}B):`);
                   if (custom && custom.trim()) {
                     const clean = custom.trim();
                     setCustomSubClasses(prev => [...prev, clean]);

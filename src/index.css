@@ -212,7 +212,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
   html, body {
     background: #ffffff !important;
-    color: #000000 !important;
+    color: #374151 !important;
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
@@ -479,6 +479,177 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+.student-roster-print {
+  display: none;
+}
+
+@media print {
+  body.print-student-roster .topbar,
+  body.print-student-roster .pre-header,
+  body.print-student-roster .portal__sidebar,
+  body.print-student-roster .page-header,
+  body.print-student-roster .no-print,
+  body.print-student-roster button:not(.print-keep) {
+    display: none !important;
+  }
+
+  body.print-student-roster .portal,
+  body.print-student-roster .portal__layout,
+  body.print-student-roster .portal__main,
+  body.print-student-roster .portal__content {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    position: static !important;
+    display: block !important;
+  }
+
+  body.print-student-roster .student-roster-print,
+  .student-roster-print {
+    display: block !important;
+    visibility: visible !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 8px 4px !important;
+  }
+
+  body.print-student-roster .student-roster-print table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  body.print-student-roster .student-roster-print th,
+  body.print-student-roster .student-roster-print td {
+    border-bottom: 1px solid #cbd5e1 !important;
+    padding: 7px 10px !important;
+    font-size: 12px !important;
+  }
+
+  body.print-pv .topbar,
+  body.print-pv .pre-header,
+  body.print-pv .portal__sidebar,
+  body.print-pv .page-header,
+  body.print-pv .no-print,
+  body.print-pv button:not(.print-keep) {
+    display: none !important;
+  }
+
+  body.print-pv .pv-print-page {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 270mm !important;
+    margin: 0 !important;
+    padding: 4mm !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    transform: none !important;
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  body.print-pv .pv-print-page table {
+    width: 100% !important;
+    font-size: 11px !important;
+  }
+
+  body.print-pv .pv-print-page h2 {
+    font-size: 14px !important;
+  }
+}
+
+/* ========================================
+   TONER-SAVING GREYSCALE PRINT
+   Deep navy / purple / green / red fills become
+   light greys so colour cartridges are not used.
+   ======================================== */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    outline-color: #9ca3af !important;
+  }
+
+  html, body, #app-root, .app, .portal, .portal__layout, .portal__main, .portal__content {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #374151 !important;
+  }
+
+  *:not(img):not(svg):not(canvas):not(video):not(path):not(circle):not(rect):not(g) {
+    background-image: none !important;
+    background-color: #ffffff !important;
+    color: #374151 !important;
+    border-color: #9ca3af !important;
+  }
+
+  h1, h2, h3, h4, h5, h6, strong, b, th {
+    color: #1f2937 !important;
+  }
+
+  a, a:visited {
+    color: #4b5563 !important;
+  }
+
+  th, thead, thead tr, thead th, thead td {
+    background: #e5e7eb !important;
+    background-color: #e5e7eb !important;
+    color: #1f2937 !important;
+    border-color: #9ca3af !important;
+  }
+
+  tfoot, tfoot tr, tfoot td, tfoot th {
+    background: #f3f4f6 !important;
+    background-color: #f3f4f6 !important;
+    color: #1f2937 !important;
+  }
+
+  table, tr, td, th {
+    border-color: #9ca3af !important;
+  }
+
+  hr {
+    border-color: #d1d5db !important;
+    background: #d1d5db !important;
+  }
+
+  img, svg, canvas, video {
+    filter: grayscale(100%) contrast(0.92) brightness(1.08) !important;
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+
+  .receipt-header-box,
+  .receipt-header-inline,
+  .school-header-box,
+  .official-document-page,
+  .printable-page,
+  .pv-print-page,
+  .official-bill-document,
+  .official-transcript-printable,
+  .fee-structure-printable,
+  .credential-slip-printable,
+  .accountant-printable,
+  .student-roster-print,
+  .class-bill-page,
+  .single-student-bill-page {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #374151 !important;
+    border-color: #9ca3af !important;
   }
 }
 

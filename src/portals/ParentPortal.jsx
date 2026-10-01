@@ -129,7 +129,7 @@ export default function ParentPortal() {
     return mine.map((s, idx) => ({
       name: s.fullName || s.name || `Student ${idx + 1}`,
       studentId: s.studentId || s.id,
-      grade: `${s.level || 'Grade 4'}${s.classSection ? ' • Section ' + s.classSection : ''}`,
+      grade: `${s.classSection || s.subClass || s.level || 'Basic 1'}`,
       gpa: '3.8',
       attendance: 96,
       photo: s.gender === 'Female' ? '👧' : '👦',

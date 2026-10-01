@@ -4,14 +4,14 @@ import {
   CreditCard, Cpu, Sparkles, Filter, Calendar, FileText, Download, Printer,
   Eye, RefreshCw, Layers, UserCheck, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
-import { usePortalData } from '../../data/PortalStore';
+import { usePortalData, findStudentByCardUid, mapStudentFromApi, rfidUidsMatch } from '../../data/PortalStore';
 import { api } from '../../services/api';
 import './AttendanceControlTable.css';
 
 const INITIAL_ATTENDANCE_LOGS = [];
 
 export default function AttendanceControlTable() {
-  const { onboardedStudents, updateOnboardedStudent } = usePortalData();
+  const { onboardedStudents, applications = [] } = usePortalData();
   const [activeTab, setActiveTab] = useState('take-attendance'); // 'take-attendance' | 'attendance-records'
 
   // Search & Filters for Taking Attendance
@@ -30,7 +30,6 @@ export default function AttendanceControlTable() {
   const [autoFocusEnabled, setAutoFocusEnabled] = useState(true);
   const [lastScannedStudent, setLastScannedStudent] = useState(null);
   const [unassignedCardCode, setUnassignedCardCode] = useState('');
-  const [assignStudentId, setAssignStudentId] = useState('');
   const [simulatedTimeSlot, setSimulatedTimeSlot] = useState('auto'); // 'auto' | 'morning' | 'afternoon'
   const cardInputRef = useRef(null);
 
@@ -340,47 +339,17 @@ export default function AttendanceControlTable() {
 
     setIsScanning(true);
     setUnassignedCardCode('');
-    const codeLower = rawCode.toLowerCase();
-    const cleanDigits = rawCode.replace(/^0+/, '');
+    setLastScannedStudent(null);
 
-    // Find student in local DB store by Student ID, RFID Card Code, Card ID, or Full Name
-    let matchedStudent = studentsList.find(s => {
-      const rfid = (s.rfidCardCode || '').toLowerCase();
-      const rfidDigits = rfid.replace(/^0+/, '');
-      const sId = (s.studentId || '').toLowerCase();
-      const sIdDigits = sId.replace(/^0+/, '');
-      const cId = (s.cardId || '').toLowerCase();
-      const fullName = (s.fullName || '').toLowerCase();
+    let matchedStudent = findStudentByCardUid(studentsList, applications, rawCode);
 
-      return rfid === codeLower ||
-             (cleanDigits && rfidDigits && rfidDigits === cleanDigits) ||
-             sId === codeLower ||
-             (cleanDigits && sIdDigits && sIdDigits === cleanDigits) ||
-             cId === codeLower ||
-             fullName === codeLower ||
-             (s.id && s.id.toLowerCase() === codeLower);
-    }) || studentsList.find(s =>
-      (s.studentId && s.studentId.toLowerCase().includes(codeLower)) ||
-      (s.rfidCardCode && s.rfidCardCode.toLowerCase().includes(codeLower)) ||
-      (s.fullName && s.fullName.toLowerCase().includes(codeLower))
-    );
-
-    // Cross-check live backend API
     if (!matchedStudent) {
       try {
         const dbRes = await api.getStudents({ search: rawCode });
-        if (dbRes && dbRes.students && dbRes.students.length > 0) {
-          const dbMatch = dbRes.students[0];
-          matchedStudent = {
-            id: dbMatch.id || dbMatch.student_code || `db-${Date.now()}`,
-            studentId: dbMatch.student_code || dbMatch.studentId || rawCode,
-            fullName: dbMatch.full_name || dbMatch.fullName || 'Student',
-            level: dbMatch.class_level || dbMatch.level || 'Class Level',
-            guardianName: dbMatch.guardian_name || dbMatch.guardianName || 'Guardian',
-            guardianPhone: dbMatch.guardian_phone || dbMatch.guardianPhone || '0541769621',
-            rfidCardCode: dbMatch.rfid_card_code || rawCode
-          };
-        }
+        const list = Array.isArray(dbRes) ? dbRes : (dbRes?.students || dbRes?.data || []);
+        matchedStudent = (list || [])
+          .map((s) => mapStudentFromApi(s))
+          .find((s) => rfidUidsMatch(s.rfidCardCode, rawCode)) || null;
       } catch (err) {
         console.warn('Backend DB lookup error:', err);
       }
@@ -389,8 +358,7 @@ export default function AttendanceControlTable() {
     if (!matchedStudent) {
       playBeep(false);
       setUnassignedCardCode(rawCode);
-      setAssignStudentId(studentsList[0]?.id || '');
-      setNotification(`💳 Card Reader Alert: Card "${rawCode}" was cross-checked against the DB but no student was matched. Select a student below to assign.`);
+      setNotification(`💳 Card "${rawCode}" is not issued to any student. Issue this UID on Card Issuance & Smart Identity, then scan again.`);
       setCardInput('');
       setIsScanning(false);
       return;
@@ -428,25 +396,6 @@ export default function AttendanceControlTable() {
     setIsScanning(false);
     if (cardInputRef.current) cardInputRef.current.focus();
     setTimeout(() => setNotification(''), 9000);
-  };
-
-  const handleAssignUnassignedCard = async () => {
-    if (!unassignedCardCode || !assignStudentId) return;
-
-    const studentToAssign = studentsList.find(s => s.id === assignStudentId || s.studentId === assignStudentId);
-    if (!studentToAssign) return;
-
-    if (updateOnboardedStudent) {
-      updateOnboardedStudent(studentToAssign.id, { rfidCardCode: unassignedCardCode });
-    }
-    studentToAssign.rfidCardCode = unassignedCardCode;
-
-    playBeep(true);
-    await executeStudentCardVerification(studentToAssign, unassignedCardCode);
-
-    setUnassignedCardCode('');
-    setNotification(`✅ Linked Physical Card #${unassignedCardCode} to ${studentToAssign.fullName}! Attendance marked Present and parent SMS sent.`);
-    setTimeout(() => setNotification(''), 8000);
   };
 
   const handleMarkAttendanceAndSendSms = async (student, newStatus) => {
@@ -860,7 +809,7 @@ export default function AttendanceControlTable() {
             </div>
           )}
 
-          {/* Unassigned Physical Card Linking Bar */}
+          {/* Unassigned Physical Card — issuance is only on Card Issuance & Smart Identity */}
           {unassignedCardCode && (
             <div style={{
               background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
@@ -879,53 +828,21 @@ export default function AttendanceControlTable() {
                 <CreditCard size={24} style={{ color: '#818cf8' }} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 900, color: '#c7d2fe', letterSpacing: '0.05em' }}>
-                    💳 NEW PHYSICAL CARD SCANNED: <code style={{ background: '#090d16', padding: '2px 8px', borderRadius: 4, color: '#38bdf8', fontSize: 14 }}>{unassignedCardCode}</code>
+                    💳 UNISSUED CARD SCANNED: <code style={{ background: '#090d16', padding: '2px 8px', borderRadius: 4, color: '#38bdf8', fontSize: 14 }}>{unassignedCardCode}</code>
                   </div>
                   <div style={{ fontSize: 12, color: '#a5b4fc', marginTop: 2 }}>
-                    Select a student below to link this physical card number permanently and mark check-in.
+                    This UID is not assigned to a student. Issue it on Card Issuance & Smart Identity, then scan again to show the assigned student.
                   </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <select
-                  value={assignStudentId}
-                  onChange={(e) => setAssignStudentId(e.target.value)}
-                  style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #818cf8', background: '#090d16', color: '#fff', fontSize: 12, fontWeight: 700 }}
-                >
-                  {studentsList.map(s => (
-                    <option key={s.id || s.studentId} value={s.id || s.studentId}>
-                      {s.fullName} ({s.studentId} - {s.level})
-                    </option>
-                  ))}
-                </select>
-
-                <button
-                  type="button"
-                  onClick={handleAssignUnassignedCard}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: 8,
-                    background: '#22c55e',
-                    color: '#052e16',
-                    border: 'none',
-                    fontWeight: 900,
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(34, 197, 94, 0.4)'
-                  }}
-                >
-                  🔗 Link Card #{unassignedCardCode} & Verify Present
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setUnassignedCardCode('')}
-                  style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.1)', color: '#cbd5e1', border: 'none', fontSize: 12, cursor: 'pointer' }}
-                >
-                  Dismiss
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setUnassignedCardCode('')}
+                style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.1)', color: '#cbd5e1', border: 'none', fontSize: 12, cursor: 'pointer' }}
+              >
+                Dismiss
+              </button>
             </div>
           )}
 
@@ -1013,7 +930,7 @@ export default function AttendanceControlTable() {
                       <td>
                         <div><code>{student.studentId}</code></div>
                         <div style={{ fontSize: 10, color: 'var(--ics-green-700)', fontWeight: 800, marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
-                          <CreditCard size={10} /> RFID: {student.rfidCardCode || ('CARD-' + (student.studentId || '').split('-').pop())}
+                          <CreditCard size={10} /> RFID: {student.rfidCardCode || 'Not issued'}
                         </div>
                       </td>
                       <td>
@@ -1416,7 +1333,7 @@ export default function AttendanceControlTable() {
                 <div style={{ padding: 12, background: '#faf5ff', borderRadius: 8, border: '1px solid #e9d5ff', textAlign: 'center' }}>
                   <span style={{ fontSize: 11, fontWeight: 800, color: '#6b21a8' }}>RFID Card</span>
                   <div style={{ fontSize: 12, fontWeight: 900, color: '#581c87', marginTop: 4, fontFamily: 'monospace' }}>
-                    {selectedStudentHistory.rfidCardCode || '0009841234'}
+                    {selectedStudentHistory.rfidCardCode || 'Not issued'}
                   </div>
                 </div>
               </div>

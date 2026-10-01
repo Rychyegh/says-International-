@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
 import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
+import { SCHOOL_PL_ACCOUNTS, getPlAccountCode, printPvPage } from '../../data/chartOfAccounts';
 
 export default function PayPVForm() {
   const { paymentVouchers = [], disbursePaymentVoucher } = usePortalData();
@@ -34,6 +35,7 @@ export default function PayPVForm() {
   // Payment Form Fields
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer (Instant EFT)');
   const [sourceAccount, setSourceAccount] = useState('Stanbic Bank - Operations Account (Acc: 90400031892)');
+  const [plAccountName, setPlAccountName] = useState('Diesel');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [disbursementNotes, setDisbursementNotes] = useState('');
@@ -118,6 +120,8 @@ export default function PayPVForm() {
         await disbursePaymentVoucher(targetPvNo, {
           paymentMethod,
           sourceAccount,
+          plAccountName,
+          plAccountCode: getPlAccountCode(plAccountName),
           referenceNumber: referenceNumber.trim() || `TXN-${Date.now()}`,
           paymentDate,
           notes: disbursementNotes
@@ -132,6 +136,8 @@ export default function PayPVForm() {
         disbursedAt: new Date().toLocaleString(),
         paymentMethod,
         paymentSourceAccount: sourceAccount,
+        plAccountName,
+        plAccountCode: getPlAccountCode(plAccountName),
         disbursementReference: referenceNumber,
         disbursementNotes
       };
@@ -834,6 +840,24 @@ export default function PayPVForm() {
                   </div>
                 </div>
 
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 4 }}>
+                    Name of PL/Account *
+                  </label>
+                  <select
+                    value={plAccountName}
+                    onChange={(e) => setPlAccountName(e.target.value)}
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11.5, background: '#fff', fontWeight: 700 }}
+                  >
+                    {SCHOOL_PL_ACCOUNTS.map((account) => (
+                      <option key={account.code + account.name} value={account.name}>{account.name}</option>
+                    ))}
+                  </select>
+                  <div style={{ fontSize: 10, color: '#0284c7', fontWeight: 700, marginTop: 3 }}>
+                    Account N/o: {getPlAccountCode(plAccountName) || '—'}
+                  </div>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 4 }}>
@@ -978,7 +1002,7 @@ export default function PayPVForm() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() => printPvPage()}
                   style={{
                     padding: '6px 14px',
                     background: '#0284c7',
@@ -1006,7 +1030,7 @@ export default function PayPVForm() {
             </div>
 
             {/* Printable Receipt Body */}
-            <div style={{ padding: 28, background: '#fff' }}>
+            <div className="pv-print-page" style={{ padding: 16, background: '#fff' }}>
               {/* School Header */}
               <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 16, marginBottom: 20 }}>
                 <div style={{ display: 'inline-flex', justifyContent: 'center', marginBottom: 8 }}>
@@ -1072,7 +1096,7 @@ export default function PayPVForm() {
                   GHS {(parseFloat(receiptVoucher.total || receiptVoucher.cost || receiptVoucher.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div style={{ fontSize: 11, color: '#166534', marginTop: 4, fontWeight: 700 }}>
-                  Source: {receiptVoucher.paymentSourceAccount || 'School Operations Account'}
+                  PL/Account: {receiptVoucher.plAccountName || 'Diesel'} · Source: {receiptVoucher.paymentSourceAccount || 'School Operations Account'}
                 </div>
               </div>
 

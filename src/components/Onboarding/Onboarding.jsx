@@ -52,7 +52,7 @@ export function LearnerOnboarding() {
       guardianEmail: contactEmail,
       guardianPhone: contactPhone,
       homeAddress: formData.residentialAddress || formData.homeAddress,
-      rfidCardCode: formData.officeStudentID || formData.rfidCardCode,
+      rfidCardCode: formData.rfidCardCode || '',
     });
     await submitApplication(applicationRecord);
     setNotice('✅ Student onboarded. One account created and synced across Student Roster, Credentials Vault, and Fee Schedule.');

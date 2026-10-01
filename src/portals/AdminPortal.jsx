@@ -19,6 +19,7 @@ import PayPVForm from '../components/Finance/PayPVForm';
 import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
 import UserAccessControl from '../components/AccessControl/UserAccessControl';
 import { api, getAuthUser, getAuthToken } from '../services/api';
+import { getMappedSubClasses, formatDetailedClass } from '../data/classStructure';
 
 const ADMIN_BG = '#4a1d6e';
 const ADMIN_LIGHT = '#f3e8ff';
@@ -76,8 +77,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [editingId, setEditingId] = useState(null);
-  const [editingStudent, setEditingStudent] = useState({});
+  const [viewingRecordStudent, setViewingRecordStudent] = useState(null);
   const [successMsg, setSuccessMsg] = useState('');
 
   // Application Forms state
@@ -303,6 +303,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     updateApplication,
     submitApplication,
     deleteApplication,
+    refreshBackendData,
     adminSetUserPassword,
     paymentVouchers,
     pvNotifications,
@@ -426,19 +427,20 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     notes: ''
   });
 
-  const handleIssueStudentCardSubmit = (e) => {
+  const handleIssueStudentCardSubmit = async (e) => {
     e.preventDefault();
     if (!issuingCardStudent || !cardForm.rfidCardCode.trim()) return;
 
+    const issuedUid = cardForm.rfidCardCode.trim();
     if (updateOnboardedStudent) {
-      updateOnboardedStudent(issuingCardStudent.id, {
-        rfidCardCode: cardForm.rfidCardCode.trim(),
+      await updateOnboardedStudent(issuingCardStudent.id, {
+        rfidCardCode: issuedUid,
         cardIssued: true,
         dailyLimit: cardForm.dailyLimit || '50'
       });
     }
 
-    setSuccessMsg(`💳 Smart RFID Card #${cardForm.rfidCardCode.trim()} encoded & issued to ${issuingCardStudent.fullName}!`);
+    setSuccessMsg(`💳 Smart RFID Card #${issuedUid} encoded & issued to ${issuingCardStudent.fullName}!`);
     setIssuingCardStudent(null);
     setCardForm({ rfidCardCode: '', dailyLimit: '50', pin: '1234', holderName: '', notes: '' });
     setTimeout(() => setSuccessMsg(''), 6000);
@@ -544,7 +546,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     dob: '',
     gender: 'Male',
     level: 'Basic 1',
-    classSection: 'A',
+    classSection: 'Basic 1A',
     guardianName: '',
     guardianEmail: '',
     guardianPhone: '',
@@ -563,7 +565,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       dob: '',
       gender: 'Male',
       level: 'Basic 1',
-      classSection: 'A',
+      classSection: 'Basic 1A',
       guardianName: '',
       guardianEmail: '',
       guardianPhone: '',
@@ -598,8 +600,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       guardianName: guardianName,
       guardianEmail: guardianEmail,
       guardianPhone: guardianPhone,
+      fatherName: app.fatherName || '',
+      fatherPhone: app.fatherPhone || guardianPhone,
+      motherName: app.motherName || '',
+      motherPhone: app.motherPhone || '',
+      applicationId: app.id,
       homeAddress: homeAddress,
-      rfidCardCode: app.officeStudentID || app.rfidCardCode,
+      rfidCardCode: app.rfidCardCode || '',
     });
 
     await updateApplicationStatus(app.id, 'Enrolled');
@@ -777,25 +784,58 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     { label: 'Teaching Staff', value: String((teacherDirectory || []).filter(t => t.status !== 'Offboarded').length), trend: 'All departments', icon: '👨‍🏫', bg: '#e0f2fe', ic: '#0369a1', nav: 'Classes & Staff' },
   ];
 
-  const handleEdit = (student) => {
-    setEditingId(student.id || student.studentId);
-    setEditingStudent({ ...student, level: formatClassToBasic(student.level) });
+  const studentDetailedClass = (student) => {
+    if (!student) return '—';
+    const level = formatClassToBasic(student.level || student.classLevel || student.applyingClass || '');
+    return formatDetailedClass(level, student.classSection || student.subClass || student.section || '');
   };
 
-  const handleSaveEdit = () => {
-    const targetId = editingId || editingStudent.id || editingStudent.studentId;
-    updateOnboardedStudent(targetId, {
-      fullName: editingStudent.fullName,
-      level: editingStudent.level,
-      classSection: editingStudent.classSection,
-      guardianName: editingStudent.guardianName,
-      guardianEmail: editingStudent.guardianEmail,
-      guardianPhone: editingStudent.guardianPhone,
-    });
-    setEditingId(null);
-    setEditingStudent({});
-    setSuccessMsg('Student record updated successfully.');
-    setTimeout(() => setSuccessMsg(''), 4000);
+  const matchingApplicationForStudent = (student) => {
+    if (!student) return null;
+    return (applications || []).find((app) => {
+      if (student.applicationId && String(app.id) === String(student.applicationId)) return true;
+      if (app.officeStudentID && student.studentId && String(app.officeStudentID).toLowerCase() === String(student.studentId).toLowerCase()) return true;
+      const appName = (app.firstName || app.surname || app.otherNames)
+        ? `${app.firstName || ''} ${app.otherNames ? `${app.otherNames} ` : ''}${app.surname || ''}`.replace(/\s+/g, ' ').trim()
+        : (app.learner || app.fullName || '');
+      return appName && student.fullName && appName.toLowerCase() === String(student.fullName).toLowerCase();
+    }) || null;
+  };
+
+  const studentRecordDetails = (student) => {
+    const app = matchingApplicationForStudent(student) || {};
+    return {
+      studentName: student?.fullName || '—',
+      studentClass: studentDetailedClass(student),
+      fatherName: student?.fatherName || app.fatherName || student?.guardianName || '—',
+      fatherContact: student?.fatherPhone || app.fatherPhone || student?.guardianPhone || '—',
+      motherName: student?.motherName || app.motherName || '—',
+      motherContact: student?.motherPhone || app.motherPhone || '—',
+    };
+  };
+
+  const handleViewRecord = (student) => {
+    setViewingRecordStudent(student);
+  };
+
+  const handlePrintRoster = async () => {
+    setSuccessMsg('Loading live student roster from the database…');
+    try {
+      if (refreshBackendData) await refreshBackendData();
+    } catch (e) {
+      console.warn('Roster refresh before print failed:', e);
+    }
+    document.body.classList.add('print-student-roster');
+    const cleanup = () => {
+      document.body.classList.remove('print-student-roster');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(() => {
+      window.print();
+      setTimeout(cleanup, 400);
+      setSuccessMsg('');
+    }, 250);
   };
 
   const handleDelete = (id) => {
@@ -1280,7 +1320,15 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       <span>Entry Level / Grade *</span>
                       <select
                         value={onboardingForm.level}
-                        onChange={(e) => setOnboardingForm({ ...onboardingForm, level: e.target.value })}
+                        onChange={(e) => {
+                          const level = e.target.value;
+                          const mapped = getMappedSubClasses(level);
+                          setOnboardingForm({
+                            ...onboardingForm,
+                            level,
+                            classSection: mapped.includes(onboardingForm.classSection) ? onboardingForm.classSection : (mapped[0] || ''),
+                          });
+                        }}
                       >
                         {LEVEL_OPTIONS.map((lvl) => (
                           <option key={lvl}>{lvl}</option>
@@ -1289,13 +1337,16 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     </label>
 
                     <label>
-                      <span>Class Section</span>
-                      <input
-                        type="text"
-                        placeholder="e.g. Section A"
+                      <span>Class / Sub Class</span>
+                      <select
                         value={onboardingForm.classSection}
                         onChange={(e) => setOnboardingForm({ ...onboardingForm, classSection: e.target.value })}
-                      />
+                      >
+                        <option value="">Select sub class</option>
+                        {getMappedSubClasses(onboardingForm.level).map((section) => (
+                          <option key={section} value={section}>{section}</option>
+                        ))}
+                      </select>
                     </label>
                   </div>
 
@@ -1563,12 +1614,36 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           {/* ── STUDENT ROSTER ── */}
           {activeNav === 'Student Roster' && (
             <div className="animate-fade-up">
-              <div className="page-header">
+              <div className="page-header no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                <div>
                 <h1 className="page-header__title">Student Roster Database</h1>
-                <p className="page-header__subtitle">Manage registered learners, edit student profiles, or delete records.</p>
+                  <p className="page-header__subtitle">View registered learners from the live database, print name and class lists, or manage records.</p>
+                </div>
+                <button
+                  type="button"
+                  className="print-keep"
+                  onClick={handlePrintRoster}
+                  disabled={(filteredStudents || []).length === 0}
+                  style={{
+                    padding: '10px 16px',
+                    borderRadius: 8,
+                    background: (filteredStudents || []).length > 0 ? ADMIN_BG : '#94a3b8',
+                    color: '#fff',
+                    border: 'none',
+                    fontWeight: 800,
+                    fontSize: 13,
+                    cursor: (filteredStudents || []).length > 0 ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    boxShadow: '0 4px 12px rgba(74, 29, 110, 0.2)'
+                  }}
+                >
+                  <Printer size={15} /> Print Name & Class List ({filteredStudents.length})
+                </button>
               </div>
 
-              <div style={{ position: 'relative', marginBottom: 16 }}>
+              <div className="no-print" style={{ position: 'relative', marginBottom: 16 }}>
                 <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--gray-400)' }} />
                 <input
                   type="text"
@@ -1579,7 +1654,35 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 />
               </div>
 
-              <div className="panel">
+              <div className="student-roster-print official-document-printable">
+                <div style={{ textAlign: 'center', marginBottom: 16, borderBottom: '2px solid #0f172a', paddingBottom: 12 }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '0.03em' }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginTop: 4 }}>Student Roster · Full Name &amp; Level / Section</div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                    Printed {new Date().toLocaleDateString('en-GB')} · {filteredStudents.length} student{filteredStudents.length === 1 ? '' : 's'} from live database
+                  </div>
+                </div>
+                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '2px solid #0f172a', width: 56 }}>#</th>
+                      <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '2px solid #0f172a' }}>Full Name</th>
+                      <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '2px solid #0f172a' }}>Level / Section</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStudents.map((s, idx) => (
+                      <tr key={s.id || s.studentId || idx}>
+                        <td style={{ padding: '7px 10px', borderBottom: '1px solid #e2e8f0' }}>{idx + 1}</td>
+                        <td style={{ padding: '7px 10px', borderBottom: '1px solid #e2e8f0', fontWeight: 700 }}>{s.fullName}</td>
+                        <td style={{ padding: '7px 10px', borderBottom: '1px solid #e2e8f0' }}>{studentDetailedClass(s)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="panel no-print">
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -1621,7 +1724,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       <tr key={s.id}>
                         <td><code>{s.studentId}</code></td>
                         <td><strong>{s.fullName}</strong></td>
-                        <td>{formatClassToBasic(s.level)} ({s.classSection || 'A'})</td>
+                        <td>{studentDetailedClass(s)}</td>
                         <td>
                           <div>{s.guardianName}</div>
                           <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{s.guardianEmail}</div>
@@ -1662,10 +1765,11 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                               <CreditCard size={12} /> Issue Card
                             </button>
                             <button
-                              onClick={() => handleEdit(s)}
-                              style={{ padding: '4px 8px', background: 'var(--gray-100)', border: '1px solid var(--gray-300)', borderRadius: 4, cursor: 'pointer' }}
+                              onClick={() => handleViewRecord(s)}
+                              style={{ padding: '4px 8px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#334155' }}
+                              title="View student record"
                             >
-                              <Edit size={13} />
+                              <Eye size={13} /> View Record
                             </button>
                             <button
                               onClick={() => handleDelete(s.id)}
@@ -1717,10 +1821,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     readOnly={true}
                     isAdmin={true}
                     onCancel={() => setSelectedApp(null)}
-                    onUpdate={(id, updatedForm) => {
-                      if (updateApplication) updateApplication(id, updatedForm);
+                    onUpdate={async (id, updatedForm) => {
+                      if (updateApplication) await updateApplication(id, updatedForm);
                       setSelectedApp(null);
-                      setSuccessMsg('✅ Application Form updated successfully! Changes saved across all portals.');
+                      setSuccessMsg('Application form updated. Changes saved to the database and synced to Student Roster.');
                       setTimeout(() => setSuccessMsg(''), 6000);
                     }}
                     onSaveOfficeUse={handleSaveOfficeEvaluation}
@@ -1749,8 +1853,12 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         guardianName: newForm.fatherName || newForm.motherName || newForm.guardian,
                         guardianEmail: newForm.fatherEmail || newForm.email,
                         guardianPhone: newForm.fatherPhone || newForm.motherPhone || newForm.phone,
+                        fatherName: newForm.fatherName || '',
+                        fatherPhone: newForm.fatherPhone || '',
+                        motherName: newForm.motherName || '',
+                        motherPhone: newForm.motherPhone || '',
                         homeAddress: newForm.residentialAddress || newForm.homeAddress,
-                        rfidCardCode: newForm.officeStudentID || newForm.rfidCardCode,
+                        rfidCardCode: newForm.rfidCardCode || '',
                       });
                       await submitApplication(newForm);
                       setIsCreatingApp(false);
@@ -2589,17 +2697,17 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       >
                         {isProvisioningCtDemos ? 'Saving demos…' : '💾 Save demo class teachers to database'}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsIssuingCTModal(true)}
-                        style={{
-                          padding: '9px 16px', background: '#581c87', color: '#fff', border: 'none',
-                          borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                          boxShadow: '0 4px 12px rgba(88,28,135,0.25)'
-                        }}
-                      >
-                        🔑 Issue Class Teacher Passcode
-                      </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsIssuingCTModal(true)}
+                      style={{
+                        padding: '9px 16px', background: '#581c87', color: '#fff', border: 'none',
+                        borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                        boxShadow: '0 4px 12px rgba(88,28,135,0.25)'
+                      }}
+                    >
+                      🔑 Issue Class Teacher Passcode
+                    </button>
                     </div>
                   </div>
 
@@ -3398,83 +3506,50 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             </div>
           )}
 
-          {/* ── EDIT STUDENT MODAL ── */}
-          {editingId && (
-            <div
-              onClick={(e) => { if (e.target === e.currentTarget) setEditingId(null); }}
+          {/* ── VIEW STUDENT RECORD MODAL ── */}
+          {viewingRecordStudent && (() => {
+            const rec = studentRecordDetails(viewingRecordStudent);
+            const rows = [
+              { label: 'Student name', value: rec.studentName },
+              { label: 'Student class', value: rec.studentClass },
+              { label: 'Father / guardian name', value: rec.fatherName },
+              { label: 'Father / guardian contact', value: rec.fatherContact },
+              { label: 'Mother / guardian name', value: rec.motherName },
+              { label: 'Mother / guardian contact', value: rec.motherContact },
+            ];
+            return (
+              <div
+                className="no-print"
+                onClick={(e) => { if (e.target === e.currentTarget) setViewingRecordStudent(null); }}
               style={{
-                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex',
+                  position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', display: 'flex',
                 alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
               }}
             >
-              <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 500, borderRadius: 'var(--radius-lg)', padding: 24 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--gray-900)' }}>Edit Student Record</h2>
-                  <button onClick={() => setEditingId(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 480, borderRadius: 14, overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.25)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: ADMIN_BG, color: '#fff' }}>
+                    <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: '#fff' }}>Student Record</h2>
+                    <button type="button" onClick={() => setViewingRecordStudent(null)} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff', width: 30, height: 30, borderRadius: 15, cursor: 'pointer', fontWeight: 900 }}>✕</button>
                 </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <label>
-                    <span style={{ fontSize: 12, fontWeight: 700 }}>Full Name</span>
-                    <input
-                      type="text"
-                      value={editingStudent.fullName || ''}
-                      onChange={(e) => setEditingStudent({ ...editingStudent, fullName: e.target.value })}
-                      style={{ width: '100%', padding: '8px', borderRadius: 6, border: '1px solid var(--gray-300)' }}
-                    />
-                  </label>
-
-                  <label>
-                    <span style={{ fontSize: 12, fontWeight: 700 }}>Grade Level</span>
-                    <select
-                      value={editingStudent.level || ''}
-                      onChange={(e) => setEditingStudent({ ...editingStudent, level: e.target.value })}
-                      style={{ width: '100%', padding: '8px', borderRadius: 6, border: '1px solid var(--gray-300)' }}
-                    >
-                      {LEVEL_OPTIONS.map((l) => (
-                        <option key={l}>{l}</option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label>
-                    <span style={{ fontSize: 12, fontWeight: 700 }}>Guardian Name</span>
-                    <input
-                      type="text"
-                      value={editingStudent.guardianName || ''}
-                      onChange={(e) => setEditingStudent({ ...editingStudent, guardianName: e.target.value })}
-                      style={{ width: '100%', padding: '8px', borderRadius: 6, border: '1px solid var(--gray-300)' }}
-                    />
-                  </label>
-
-                  <label>
-                    <span style={{ fontSize: 12, fontWeight: 700 }}>Guardian Email</span>
-                    <input
-                      type="email"
-                      value={editingStudent.guardianEmail || ''}
-                      onChange={(e) => setEditingStudent({ ...editingStudent, guardianEmail: e.target.value })}
-                      style={{ width: '100%', padding: '8px', borderRadius: 6, border: '1px solid var(--gray-300)' }}
-                    />
-                  </label>
-
-                  <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                  <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {rows.map((row) => (
+                      <div key={row.label} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', background: '#f8fafc' }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{row.label}</div>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginTop: 3 }}>{row.value || '—'}</div>
+                      </div>
+                    ))}
                     <button
-                      onClick={() => setEditingId(null)}
-                      style={{ flex: 1, padding: 10, border: '1px solid var(--gray-300)', borderRadius: 6, background: '#fff', cursor: 'pointer' }}
+                      type="button"
+                      onClick={() => setViewingRecordStudent(null)}
+                      style={{ marginTop: 6, padding: 10, border: 'none', borderRadius: 8, background: ADMIN_BG, color: '#fff', fontWeight: 800, cursor: 'pointer' }}
                     >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSaveEdit}
-                      style={{ flex: 1, padding: 10, border: 'none', borderRadius: 6, background: ADMIN_BG, color: '#fff', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      Save Changes
+                      Close
                     </button>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ── ISSUE / ENCODE STUDENT RFID CARD MODAL ── */}
           {issuingCardStudent && (
@@ -3787,7 +3862,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                           </div>
                           <div>
                             <span style={{ fontSize: 8.5, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Class Level & Section:</span>
-                            <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a' }}>{viewingTranscriptStudent.level} (Section {viewingTranscriptStudent.classSection || 'A'})</div>
+                            <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a' }}>{viewingTranscriptStudent.level} ({viewingTranscriptStudent.classSection || viewingTranscriptStudent.subClass || ''})</div>
                           </div>
                           <div>
                             <span style={{ fontSize: 8.5, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Parent / Guardian:</span>

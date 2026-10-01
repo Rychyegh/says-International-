@@ -8,6 +8,7 @@ import { usePortalData } from '../../data/PortalStore';
 import { api } from '../../services/api';
 import { cloudSync } from '../../services/cloudSync';
 import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
+import { printPvPage } from '../../data/chartOfAccounts';
 
 export default function SubmitPVRequest({ setM = () => {} }) {
   const portalData = usePortalData();
@@ -1649,77 +1650,72 @@ export default function SubmitPVRequest({ setM = () => {} }) {
             zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflowY: 'auto'
           }}
         >
-          <div style={{ maxWidth: 720, width: '100%', background: '#fff', borderRadius: 12, padding: 28, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #0f172a', paddingBottom: 16, marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <SchoolLogoSVG size={50} />
+          <div className="pv-print-page" style={{ maxWidth: 720, width: '100%', background: '#fff', borderRadius: 12, padding: 18, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #0f172a', paddingBottom: 10, marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <SchoolLogoSVG size={36} />
                 <div>
-                  <h2 style={{ fontSize: 16, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                  <h2 style={{ fontSize: 14, fontWeight: 900, color: '#0f172a', margin: 0 }}>
                     REMALJ CAREWELL INSPIRATIONAL SCHOOL
                   </h2>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>
-                    OFFICIAL PAYMENT VOUCHER MEMORANDUM
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#475569' }}>
+                    PAYMENT VOUCHER
                   </div>
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 16, fontWeight: 900, color: '#991b1b' }}>#{printedPV.pvNo}</div>
-                <div style={{ fontSize: 11, color: '#64748b' }}>Date: {printedPV.datePrepared}</div>
+                <div style={{ fontSize: 14, fontWeight: 900, color: '#991b1b' }}>#{printedPV.pvNo}</div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>{printedPV.datePrepared}</div>
               </div>
             </div>
 
-            {/* Details Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 12.5, background: '#f8fafc', padding: 14, borderRadius: 8, marginBottom: 20 }}>
-              <div><strong>Requisition #:</strong> {printedPV.requisitionNo}</div>
-              <div><strong>Academic Term:</strong> {printedPV.academicYear} · {printedPV.academicTerm}</div>
-              <div><strong>Service Provider:</strong> {printedPV.provider} (#{printedPV.providerId})</div>
-              <div><strong>Prepared By:</strong> Sub-Admin / Accounts Officer</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 11, background: '#f8fafc', padding: 10, borderRadius: 6, marginBottom: 12 }}>
+              <div><strong>Requisition:</strong> {printedPV.requisitionNo}</div>
+              <div><strong>Term:</strong> {printedPV.academicYear} · {printedPV.academicTerm}</div>
+              <div style={{ gridColumn: 'span 2' }}><strong>Payee:</strong> {printedPV.provider}</div>
             </div>
 
-            {/* Breakdown Table */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 20 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginBottom: 12 }}>
               <thead>
                 <tr style={{ background: '#0f172a', color: '#fff' }}>
-                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>#</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Expenditure Particulars</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'center' }}>Qty</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'right' }}>Cost / Item</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'right' }}>Total (GHS)</th>
+                  <th style={{ padding: '5px 8px', textAlign: 'left' }}>#</th>
+                  <th style={{ padding: '5px 8px', textAlign: 'left' }}>Particulars</th>
+                  <th style={{ padding: '5px 8px', textAlign: 'center' }}>Qty</th>
+                  <th style={{ padding: '5px 8px', textAlign: 'right' }}>Rate</th>
+                  <th style={{ padding: '5px 8px', textAlign: 'right' }}>Amount</th>
                 </tr>
               </thead>
               <tbody>
                 {printedPV.items.map((item, idx) => (
                   <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '8px 10px' }}>{idx + 1}</td>
-                    <td style={{ padding: '8px 10px', fontWeight: 800 }}>{item.description}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'center' }}>{item.qty}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>{item.costPerItem.toFixed(2)}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 900 }}>{item.totalAmount.toFixed(2)}</td>
+                    <td style={{ padding: '6px 8px' }}>{idx + 1}</td>
+                    <td style={{ padding: '6px 8px', fontWeight: 800 }}>{item.description}</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'center' }}>{item.qty}</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'right' }}>{Number(item.costPerItem || 0).toFixed(2)}</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 900 }}>{Number(item.totalAmount || 0).toFixed(2)}</td>
                   </tr>
                 ))}
                 <tr style={{ background: '#f1f5f9', fontWeight: 900 }}>
-                  <td colSpan="4" style={{ padding: '10px 10px', textAlign: 'right' }}>TOTAL AMOUNT:</td>
-                  <td style={{ padding: '10px 10px', textAlign: 'right', fontSize: 14, color: '#0369a1' }}>
-                    GHS {printedPV.totalAmount.toFixed(2)}
+                  <td colSpan="4" style={{ padding: '6px 8px', textAlign: 'right' }}>TOTAL</td>
+                  <td style={{ padding: '6px 8px', textAlign: 'right', color: '#0369a1' }}>
+                    GHS {Number(printedPV.totalAmount || 0).toFixed(2)}
                   </td>
                 </tr>
               </tbody>
             </table>
 
-            {/* Signatures Row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, paddingTop: 20, borderTop: '1px dashed #cbd5e1', fontSize: 11, textAlign: 'center' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, paddingTop: 8, borderTop: '1px dashed #cbd5e1', fontSize: 10, textAlign: 'center' }}>
               <div>
-                <div style={{ height: 40, borderBottom: '1px solid #000', marginBottom: 6 }}></div>
-                <strong>Prepared By (Sub-Admin)</strong>
+                <div style={{ height: 22, borderBottom: '1px solid #000', marginBottom: 4 }}></div>
+                <strong>Prepared By</strong>
               </div>
               <div>
-                <div style={{ height: 40, borderBottom: '1px solid #000', marginBottom: 6 }}></div>
-                <strong>Pre-Audited By (Headmaster)</strong>
+                <div style={{ height: 22, borderBottom: '1px solid #000', marginBottom: 4 }}></div>
+                <strong>Audited By</strong>
               </div>
               <div>
-                <div style={{ height: 40, borderBottom: '1px solid #000', marginBottom: 6 }}></div>
-                <strong>Approved / Paid By</strong>
+                <div style={{ height: 22, borderBottom: '1px solid #000', marginBottom: 4 }}></div>
+                <strong>Approved / Paid</strong>
               </div>
             </div>
 
@@ -1732,7 +1728,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                 Close
               </button>
               <button
-                onClick={() => window.print()}
+                onClick={() => printPvPage()}
                 style={{ padding: '9px 20px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 <Printer size={15} /> Print Memo Slip
