@@ -13,6 +13,21 @@ import './App.css';
 
 const REQUIRES_AUTH = ['admin', 'accountant', 'parent', 'teacher', 'student'];
 
+const PORTAL_DEFAULT_NAV = {
+  admin: 'Dashboard',
+  teacher: 'Dashboard',
+  parent: 'Dashboard',
+  student: 'My Dashboard',
+  accountant: 'Financial Overview',
+};
+
+function openPortalOnDashboard(portalKey) {
+  const nav = PORTAL_DEFAULT_NAV[portalKey] || 'Dashboard';
+  try {
+    localStorage.setItem(`says_${portalKey}_active_nav`, nav);
+  } catch (e) {}
+}
+
 function DirectAccessNotice() {
   return (
     <div style={{
@@ -152,6 +167,7 @@ function AppRoutes() {
         <LoginPage
           portal={portalKey}
           onLoginSuccess={(role) => {
+            openPortalOnDashboard(portalKey);
             if (role) {
               setAdminRole(role);
               localStorage.setItem('says_admin_role', role);

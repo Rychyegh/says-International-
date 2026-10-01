@@ -1517,23 +1517,43 @@ export const api = {
       quantity,
       unit_cost: unitCost,
       amount,
+      pv_number: pvData.pv_number || pvData.pvNo || undefined,
       requisitionNo: pvData.requisitionNo || pvData.requisition_no || null,
       payee_id: pvData.payee_id || pvData.providerId || null,
       date_prepared: pvData.date_prepared || pvData.datePrepared || new Date().toISOString().split('T')[0],
       valued_date: pvData.valued_date || pvData.valuedDate || pvData.date_prepared || pvData.datePrepared || new Date().toISOString().split('T')[0],
       expense_account_code: pvData.expense_account_code || '5000-EXPENSE',
       expense_account_name: pvData.expense_account_name || 'Operating Expenses',
+      items: Array.isArray(pvData.items) && pvData.items.length
+        ? pvData.items.map((it) => ({
+            description: it.description || it.particulars || description,
+            quantity: Number(it.qty || it.quantity) || 1,
+            unit_cost: Number(it.costPerItem || it.unit_cost || it.cost) || 0,
+            amount: Number(it.totalAmount || it.total || it.amount) || 0,
+            payee_name: it.provider || it.payee_name || payeeName,
+            payee_id: it.providerId || it.payee_id || null,
+          }))
+        : undefined,
     };
   },
 
   createPaymentVoucher: async (pvData) => {
     const payload = api.normalizePaymentVoucherPayload(pvData);
+    const postVoucher = (body) => request('/finance/vouchers', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
     try {
-      return await request('/finance/vouchers', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      return await postVoucher(payload);
     } catch (e) {
+      if (e.message && e.message.includes('422') && payload.items) {
+        const { items, ...withoutItems } = payload;
+        try {
+          return await postVoucher(withoutItems);
+        } catch (retryErr) {
+          if (retryErr.message && retryErr.message.includes('422')) throw retryErr;
+        }
+      }
       if (e.message && e.message.includes('422')) {
         throw e;
       }

@@ -216,7 +216,7 @@ const SIMS_DATA = {
 
 export default function AccountantPortal({ onSignOut }) {
   const [activeNav, setActiveNavState] = useState(() => {
-    return localStorage.getItem('says_accountant_active_nav') || 'SIMS Auth & Login Terminal';
+    return localStorage.getItem('says_accountant_active_nav') || 'Financial Overview';
   });
 
   const setActiveNav = (nav) => {

@@ -93,6 +93,15 @@ export default function SubmitPVRequest({ setM = () => {} }) {
     return String(baseSeq);
   };
 
+  const formatOfficialPvNo = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^PV-\d{4}-\d+/i.test(raw)) return raw.toUpperCase();
+    const year = new Date().getFullYear();
+    const digits = raw.replace(/^PV-/i, '').replace(/\s+/g, '');
+    return `PV-${year}-${digits}`;
+  };
+
   useEffect(() => {
     if (!pvNo) {
       setPvNo(generateUniquePvNumber());
@@ -112,10 +121,12 @@ export default function SubmitPVRequest({ setM = () => {} }) {
   const handleRefreshStatus = async () => {
     setIsRefreshingStatus(true);
     try {
-      if (api.getPaymentVouchers) {
+      if (typeof portalData.refreshBackendData === 'function') {
+        await portalData.refreshBackendData();
+      } else if (api.getPaymentVouchers) {
         await api.getPaymentVouchers();
       }
-      setSuccessNotice('🔄 Synchronized latest PV approval statuses from server.');
+      setSuccessNotice('🔄 Synchronized latest PV approval and disbursement statuses.');
       setTimeout(() => setSuccessNotice(''), 3500);
     } catch (e) {
       console.warn('Status refresh warning:', e);
@@ -449,7 +460,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
     const finalAmount = totalPVAmount;
 
     const newPVRecord = {
-      pvNo: pvNo.startsWith('PV-') ? pvNo : `PV-${pvNo}`,
+      pvNo: formatOfficialPvNo(pvNo),
       requisitionNo: itemRequisitionNo,
       academicYear,
       academicTerm,
@@ -512,7 +523,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
     const totalPVAmount = itemsToPrint.reduce((acc, i) => acc + i.totalAmount, 0);
 
     setPrintedPV({
-      pvNo: pvNo.startsWith('PV-') ? pvNo : `PV-${pvNo}`,
+      pvNo: formatOfficialPvNo(pvNo),
       requisitionNo: itemRequisitionNo,
       academicYear,
       academicTerm,
@@ -1232,14 +1243,28 @@ export default function SubmitPVRequest({ setM = () => {} }) {
           {(() => {
             const filteredPVs = storePaymentVouchers.filter(p => {
               const s = (p.status || '').toLowerCase();
-              if (statusFilter === 'Pending') return s.includes('pending') || s.includes('draft');
-              if (statusFilter === 'Approved') return s.includes('approv') || s.includes('validat');
-              if (statusFilter === 'Declined') return s.includes('declin') || s.includes('reject') || s.includes('cancel');
+              if (statusFilter === 'Pending') return s.includes('pending') || s.includes('draft') || s.includes('postpon') || !s;
+              if (statusFilter === 'Approved') return (s.includes('approv') || s.includes('validat') || s.includes('pre-audit') || s.includes('partial')) && !s.includes('disburs');
+              if (statusFilter === 'Declined') return s.includes('declin') || s.includes('reject') || s.includes('cancel') || s.includes('non-accrual');
+              if (statusFilter === 'Disbursed') return s.includes('disburs') || s === 'paid';
               return true;
             });
-            const pendingCount = storePaymentVouchers.filter(p => (p.status || '').toLowerCase().includes('pending')).length;
-            const approvedCount = storePaymentVouchers.filter(p => (p.status || '').toLowerCase().includes('approv') || (p.status || '').toLowerCase().includes('validat')).length;
-            const declinedCount = storePaymentVouchers.filter(p => (p.status || '').toLowerCase().includes('declin') || (p.status || '').toLowerCase().includes('reject')).length;
+            const pendingCount = storePaymentVouchers.filter(p => {
+              const s = (p.status || '').toLowerCase();
+              return s.includes('pending') || s.includes('draft') || s.includes('postpon') || !s;
+            }).length;
+            const approvedCount = storePaymentVouchers.filter(p => {
+              const s = (p.status || '').toLowerCase();
+              return (s.includes('approv') || s.includes('validat') || s.includes('pre-audit') || s.includes('partial')) && !s.includes('disburs');
+            }).length;
+            const declinedCount = storePaymentVouchers.filter(p => {
+              const s = (p.status || '').toLowerCase();
+              return s.includes('declin') || s.includes('reject') || s.includes('cancel');
+            }).length;
+            const disbursedCount = storePaymentVouchers.filter(p => {
+              const s = (p.status || '').toLowerCase();
+              return s.includes('disburs') || s === 'paid';
+            }).length;
 
             return (
               <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, padding: 16, marginTop: 16, boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}>
@@ -1249,7 +1274,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                       <span>📑</span> Submitted Payment Vouchers &amp; Approval Status Tracker ({filteredPVs.length})
                     </h3>
                     <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                      Track whether vouchers submitted by Sub-Admin have been approved, declined, or pre-audited by Headmaster.
+                      Track Headmaster pre-audit decisions and Pay PV disbursements. Status updates live when Head Admin acts.
                     </div>
                   </div>
 
@@ -1258,6 +1283,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                       { key: 'All', label: `All (${storePaymentVouchers.length})` },
                       { key: 'Pending', label: `⏳ Pending (${pendingCount})` },
                       { key: 'Approved', label: `✅ Approved (${approvedCount})` },
+                      { key: 'Disbursed', label: `💸 Disbursed (${disbursedCount})` },
                       { key: 'Declined', label: `❌ Declined (${declinedCount})` },
                     ].map(tab => (
                       <button
@@ -1338,11 +1364,17 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                             <td style={{ padding: '7px 9px', textAlign: 'center' }}>
                               {renderPvStatusBadge(pv.status, pv.auditRemarks)}
                             </td>
-                            <td style={{ padding: '7px 9px', fontSize: 11, color: pv.auditRemarks ? '#0f172a' : '#94a3b8' }}>
-                              {pv.auditRemarks || 'Pending review...'}
+                            <td style={{ padding: '7px 9px', fontSize: 11, color: (pv.auditRemarks || pv.disbursementNotes) ? '#0f172a' : '#94a3b8' }}>
+                              {pv.auditRemarks || pv.disbursementNotes || 'Pending review...'}
                               {pv.approvedBy && (
                                 <div style={{ fontSize: 10, color: '#0284c7', marginTop: 1, fontWeight: 700 }}>
-                                  By: {pv.approvedBy} {pv.approvedAt ? `(${pv.approvedAt})` : ''}
+                                  Actioned by: {pv.approvedBy} {pv.approvedAt ? `(${pv.approvedAt})` : ''}
+                                </div>
+                              )}
+                              {(String(pv.status || '').toLowerCase().includes('disburs') || pv.disbursedBy) && (
+                                <div style={{ fontSize: 10, color: '#6b21a8', marginTop: 1, fontWeight: 700 }}>
+                                  Disbursed by: {pv.disbursedBy || 'Head Admin'} {pv.disbursedAt ? `(${pv.disbursedAt})` : ''}
+                                  {pv.disbursementReference ? ` · Ref ${pv.disbursementReference}` : ''}
                                 </div>
                               )}
                             </td>

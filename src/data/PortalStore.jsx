@@ -58,7 +58,10 @@ function normalizePersonName(value) {
 
 function isSyntheticLocalId(id) {
   const s = String(id || '').trim();
-  return !s || /^stu(-bulk)?-/i.test(s) || /^fee-(acc-)?/i.test(s);
+  return !s
+    || /^stu(-bulk)?-/i.test(s)
+    || /^fee-(acc-)?/i.test(s)
+    || /^pv-\d+$/i.test(s);
 }
 
 export function normalizeRfidUid(value) {
@@ -216,6 +219,238 @@ function extractApplicationsList(raw) {
     if (Array.isArray(raw[key])) return raw[key];
   }
   return [];
+}
+
+function normalizePvNo(value) {
+  return String(value || '').toUpperCase().replace(/\s+/g, '').replace(/^PV-/, '');
+}
+
+function pvTrailingNumber(value) {
+  const match = String(value || '').match(/(\d+)(?!.*\d)/);
+  if (!match) return '';
+  return String(match[1]).replace(/^0+/, '') || String(match[1]);
+}
+
+export function pvNosMatch(a, b) {
+  const left = normalizePvNo(a);
+  const right = normalizePvNo(b);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const shorter = left.length <= right.length ? left : right;
+  const longer = left.length <= right.length ? right : left;
+  if (shorter.length >= 4 && (longer.endsWith(`-${shorter}`) || longer.endsWith(shorter))) return true;
+  const leftTail = pvTrailingNumber(left);
+  const rightTail = pvTrailingNumber(right);
+  return Boolean(leftTail && rightTail && leftTail === rightTail && leftTail.length >= 4);
+}
+
+function pvMatchesRef(voucher, ref) {
+  if (!voucher || ref == null || ref === '') return false;
+  const key = String(ref);
+  if (voucher.id && String(voucher.id) === key) return true;
+  if (pvNosMatch(voucher.pvNo, key) || pvNosMatch(voucher.pv_number, key)) return true;
+  return false;
+}
+
+function mapApiPvStatus(status) {
+  const s = String(status || '').trim();
+  const upper = s.toUpperCase();
+  if (upper === 'DISBURSED' || upper === 'PAID' || /disburs|paid/i.test(s)) return 'DISBURSED';
+  if (upper === 'APPROVED' || upper === 'PRE_AUDITED' || /validat|approv|pre-audit/i.test(s)) return 'Validated';
+  if (upper === 'REJECTED' || /declin|reject/i.test(s)) return 'Declined';
+  if (/cancel/i.test(s)) return 'Cancel PV';
+  if (/non-accrual/i.test(s)) return 'Non-accrual';
+  if (/postpon/i.test(s)) return 'Postponed';
+  if (upper === 'DRAFT' || upper === 'PENDING' || /pending|draft/i.test(s)) return 'Pending Audit';
+  return s || 'Pending Audit';
+}
+
+function pvStatusRank(status) {
+  const s = String(status || '').toLowerCase();
+  if (s.includes('disburs') || s === 'paid') return 50;
+  if (s.includes('declin') || s.includes('reject') || s.includes('cancel') || s.includes('non-accrual')) return 40;
+  if (s.includes('valid') || s.includes('approv') || s.includes('pre-audit')) return 40;
+  if (s.includes('partial')) return 30;
+  if (s.includes('postpon')) return 20;
+  if (s.includes('pending') || s.includes('draft') || !s) return 10;
+  return 15;
+}
+
+function mapApiPaymentVoucher(p = {}) {
+  let items = Array.isArray(p.items) ? p.items.map((it, idx) => ({
+    id: it.id || `it-${p.id || p.pv_number}-${idx}`,
+    description: it.description || it.particulars,
+    provider: it.payee_name || it.provider || p.payee_name,
+    providerId: it.payee_id || it.providerId,
+    qty: Number(it.quantity || it.qty) || 1,
+    cost: Number(it.unit_cost || it.cost) || 0,
+    costPerItem: Number(it.unit_cost || it.costPerItem || it.cost) || 0,
+    total: Number(it.total_amount || it.total) || 0,
+    totalAmount: Number(it.total_amount || it.totalAmount || it.total) || 0,
+    status: mapApiPvStatus(it.status || p.status),
+    datePrepared: it.date_prepared || it.datePrepared || p.date_prepared || p.datePrepared,
+  })) : [];
+  if (!items.length) {
+    const qty = Number(p.quantity || p.qty) || 1;
+    const unit = Number(p.unit_cost || p.cost) || 0;
+    const total = Number(p.total_amount || p.total) || Number((qty * unit).toFixed(2));
+    items = [{
+      id: `it-${p.id || p.pv_number || 'pv'}-1`,
+      description: p.description || 'Expenditure Requisition',
+      provider: p.payee_name || p.provider || 'Vendor',
+      providerId: p.payee_id || p.providerId || '',
+      qty,
+      cost: unit,
+      costPerItem: unit,
+      total,
+      totalAmount: total,
+      status: mapApiPvStatus(p.status),
+      datePrepared: p.date_prepared || p.datePrepared,
+    }];
+  }
+  return {
+    id: p.id,
+    pvNo: p.pv_number || p.pvNo || (p.id ? `PV-${p.id}` : ''),
+    requisitionNo: p.requisition_no || p.requisitionNo,
+    provider: p.payee_name || p.provider || 'Vendor',
+    providerId: p.payee_id || p.providerId,
+    description: p.description,
+    qty: p.quantity || p.qty || 1,
+    cost: p.unit_cost || p.cost || 0,
+    total: p.total_amount || p.total || 0,
+    datePrepared: p.date_prepared || p.datePrepared,
+    valuedDate: p.valued_date || p.valuedDate || p.date_prepared,
+    auditRemarks: p.audit_notes || p.auditRemarks || p.approval_notes || p.pre_audited_by || p.disbursement_notes || '',
+    status: mapApiPvStatus(p.status),
+    approvedBy: p.approved_by || p.approvedBy,
+    approvedAt: p.approved_at || p.approvedAt,
+    disbursedAt: p.disbursed_at || p.disbursedAt,
+    disbursedBy: p.disbursed_by || p.disbursedBy,
+    disbursementReference: p.reference_number || p.disbursementReference,
+    paymentMethod: p.payment_method || p.paymentMethod,
+    updatedAt: p.updated_at || p.updatedAt || p.disbursed_at || p.approved_at || p.date_prepared,
+    items,
+  };
+}
+
+function pvItemsScore(items = []) {
+  if (!Array.isArray(items) || !items.length) return 0;
+  return items.reduce((score, it) => {
+    const qty = Number(it.qty || it.quantity || 0);
+    const cost = Number(it.costPerItem || it.unit_cost || it.cost || 0);
+    const desc = String(it.description || '').trim();
+    return score + 1 + (qty > 1 ? 2 : 0) + (cost > 0 ? 1 : 0) + (desc.length > 3 ? 1 : 0);
+  }, 0);
+}
+
+function pickPreferredPvItems(prevItems, incomingItems) {
+  const prev = Array.isArray(prevItems) ? prevItems : [];
+  const incoming = Array.isArray(incomingItems) ? incomingItems : [];
+  if (incoming.length > prev.length) return incoming;
+  if (prev.length > incoming.length) return prev;
+  if (!incoming.length) return prev;
+  return pvItemsScore(incoming) >= pvItemsScore(prev) ? incoming : prev;
+}
+
+function unwrapApiPaymentVoucher(res) {
+  if (!res || typeof res !== 'object') return null;
+  if (res.voucher && typeof res.voucher === 'object') return res.voucher;
+  if (res.payment_voucher && typeof res.payment_voucher === 'object') return res.payment_voucher;
+  if (res.paymentVoucher && typeof res.paymentVoucher === 'object') return res.paymentVoucher;
+  if (res.data && typeof res.data === 'object' && !Array.isArray(res.data)) {
+    return res.data.voucher || res.data.payment_voucher || res.data.paymentVoucher || res.data;
+  }
+  if (res.id || res.pv_number || res.pvNo) return res;
+  return null;
+}
+
+function upsertPaymentVoucherList(existing = [], newPV) {
+  if (!newPV) return deduplicatePaymentVouchers(existing);
+  const idx = existing.findIndex((p) =>
+    (p.id && newPV.id && String(p.id) === String(newPV.id))
+    || pvNosMatch(p.pvNo, newPV.pvNo)
+  );
+  const next = idx === -1
+    ? [newPV, ...existing]
+    : existing.map((p, i) => (i === idx ? mergePaymentVoucherRecords(p, newPV) : p));
+  return deduplicatePaymentVouchers(next);
+}
+
+function buildPersistedPaymentVoucher(pvData = {}, apiRecord = null) {
+  const mapped = apiRecord ? mapApiPaymentVoucher(apiRecord) : {};
+  const localItems = Array.isArray(pvData.items) && pvData.items.length ? pvData.items : [];
+  const items = pickPreferredPvItems(mapped.items, localItems);
+  const grandTotal = Number(pvData.grandTotal || pvData.total || pvData.amount || mapped.total) || 0;
+  return {
+    ...mapped,
+    id: preferCanonicalId(mapped.id, pvData.id) || `pv-${Date.now()}`,
+    pvNo: mapped.pvNo || pvData.pvNo || '',
+    requisitionNo: pvData.requisitionNo || mapped.requisitionNo || `REQ-${Math.floor(10000 + Math.random() * 90000)}`,
+    provider: pvData.provider || mapped.provider || 'General Vendor',
+    providerId: pvData.providerId || mapped.providerId || 'VEN-001',
+    department: pvData.department || 'Administration',
+    paymentMode: pvData.paymentMode || pvData.payment_mode || 'Cash',
+    description: pvData.description || mapped.description || 'Expenditure Voucher',
+    qty: Number(pvData.qty || pvData.quantity || mapped.qty) || 1,
+    cost: Number(pvData.cost || pvData.costPerItem || mapped.cost) || 0,
+    total: grandTotal || mapped.total || 0,
+    grandTotal: grandTotal || mapped.total || 0,
+    datePrepared: pvData.datePrepared || mapped.datePrepared || new Date().toISOString().split('T')[0],
+    valuedDate: pvData.valuedDate || mapped.valuedDate || pvData.datePrepared || new Date().toISOString().split('T')[0],
+    auditRemarks: pvData.auditRemarks || mapped.auditRemarks || 'Submitted by Sub-Admin. Pending pre-audit approval.',
+    status: pvData.status || mapped.status || 'Pending Audit',
+    editedByHeadmaster: false,
+    correctionsLog: pvData.correctionsLog || [],
+    items,
+    academicYear: pvData.academicYear,
+    academicTerm: pvData.academicTerm,
+    submittedBy: pvData.submittedBy || 'Sub-Admin / Accounts Officer',
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function mergePaymentVoucherRecords(prev = {}, incoming = {}) {
+  const prevRank = pvStatusRank(prev.status);
+  const incRank = pvStatusRank(incoming.status);
+  const preferIncoming = incRank > prevRank
+    || (incRank === prevRank && new Date(incoming.updatedAt || incoming.approvedAt || incoming.disbursedAt || 0) >= new Date(prev.updatedAt || prev.approvedAt || prev.disbursedAt || 0));
+  const older = preferIncoming ? prev : incoming;
+  const newer = preferIncoming ? incoming : prev;
+  return {
+    ...older,
+    ...newer,
+    id: preferCanonicalId(incoming.id, prev.id),
+    pvNo: (String(incoming.pvNo || '').length >= String(prev.pvNo || '').length)
+      ? (incoming.pvNo || prev.pvNo)
+      : (prev.pvNo || incoming.pvNo),
+    status: preferIncoming ? (incoming.status || prev.status) : (prev.status || incoming.status),
+    items: pickPreferredPvItems(prev.items, incoming.items),
+    auditRemarks: (newer.auditRemarks && newer.auditRemarks !== 'Registered in system')
+      ? newer.auditRemarks
+      : (older.auditRemarks || newer.auditRemarks || ''),
+    approvedBy: newer.approvedBy || older.approvedBy,
+    approvedAt: newer.approvedAt || older.approvedAt,
+    disbursedAt: newer.disbursedAt || older.disbursedAt,
+    disbursedBy: newer.disbursedBy || older.disbursedBy,
+    disbursementReference: newer.disbursementReference || older.disbursementReference,
+    paymentMethod: newer.paymentMethod || older.paymentMethod,
+    updatedAt: newer.updatedAt || older.updatedAt,
+  };
+}
+
+function deduplicatePaymentVouchers(list = []) {
+  if (!Array.isArray(list)) return [];
+  const result = [];
+  for (const pv of list) {
+    if (!pv || typeof pv !== 'object') continue;
+    const existingIndex = result.findIndex((prev) =>
+      (prev.id && pv.id && String(prev.id) === String(pv.id))
+      || pvNosMatch(prev.pvNo, pv.pvNo)
+    );
+    if (existingIndex === -1) result.push(pv);
+    else result[existingIndex] = mergePaymentVoucherRecords(result[existingIndex], pv);
+  }
+  return result;
 }
 
 export function findStudentByCardUid(students = [], applications = [], rawCode) {
@@ -914,7 +1149,7 @@ function readData() {
       },
       // Always ensure these arrays exist even in old localStorage snapshots
       pvNotifications: Array.isArray(parsed.pvNotifications) ? parsed.pvNotifications : [],
-      paymentVouchers: Array.isArray(parsed.paymentVouchers) ? parsed.paymentVouchers : [],
+      paymentVouchers: Array.isArray(parsed.paymentVouchers) ? deduplicatePaymentVouchers(parsed.paymentVouchers) : [],
       serviceProviders: (() => {
         try {
           const list = Array.isArray(parsed.serviceProviders) && parsed.serviceProviders.length > 0
@@ -1391,38 +1626,8 @@ export function PortalDataProvider({ children }) {
           const pRaw = pvsRes.value;
           const pvs = Array.isArray(pRaw) ? pRaw : (pRaw?.vouchers || pRaw?.paymentVouchers || pRaw?.data || []);
           if (Array.isArray(pvs) && pvs.length > 0) {
-            const mapped = pvs.map(p => ({
-              id: p.id,
-              pvNo: p.pv_number || p.pvNo || `PV-${p.id}`,
-              requisitionNo: p.requisition_no || p.requisitionNo,
-              provider: p.payee_name || p.provider || 'Vendor',
-              providerId: p.payee_id || p.providerId,
-              description: p.description,
-              qty: p.quantity || p.qty || 1,
-              cost: p.unit_cost || p.cost || 0,
-              total: p.total_amount || p.total || 0,
-              datePrepared: p.date_prepared || p.datePrepared,
-              valuedDate: p.date_prepared || p.valuedDate,
-              auditRemarks: p.auditRemarks || p.pre_audited_by || 'Registered in system',
-              status: p.status === 'PRE_AUDITED' ? 'Pre-Audited & Approved' : p.status || 'Pending Audit',
-              ...(Array.isArray(p.items) && p.items.length > 0 ? {
-                items: p.items.map((it, idx) => ({
-                  id: it.id || `it-${p.id || p.pv_number}-${idx}`,
-                  description: it.description || it.particulars,
-                  provider: it.payee_name || it.provider || p.payee_name,
-                  providerId: it.payee_id || it.providerId,
-                  qty: Number(it.quantity || it.qty) || 1,
-                  cost: Number(it.unit_cost || it.cost) || 0,
-                  costPerItem: Number(it.unit_cost || it.costPerItem || it.cost) || 0,
-                  total: Number(it.total_amount || it.total) || 0,
-                  totalAmount: Number(it.total_amount || it.totalAmount || it.total) || 0,
-                  status: it.status || 'Pending approval',
-                }))
-              } : {}),
-              editedByHeadmaster: false,
-              correctionsLog: []
-            }));
-            const mergedPVs = mergeByKey(current.paymentVouchers || [], mapped, p => p.pvNo || p.id);
+            const mapped = pvs.map(mapApiPaymentVoucher);
+            const mergedPVs = deduplicatePaymentVouchers([...(current.paymentVouchers || []), ...mapped]);
             if (!isDeepEqual(current.paymentVouchers, mergedPVs)) {
               updates.paymentVouchers = mergedPVs;
               hasChanges = true;
@@ -3543,8 +3748,9 @@ export function PortalDataProvider({ children }) {
     },
     // Payment Voucher (PV) Management Methods
     addPaymentVoucher: async (pvData) => {
+      let apiRecord = null;
       try {
-        await api.createPaymentVoucher({
+        const created = await api.createPaymentVoucher({
           pv_number: pvData.pvNo,
           requisitionNo: pvData.requisitionNo,
           payee_name: pvData.provider || pvData.payee_name || 'General Vendor',
@@ -3557,42 +3763,24 @@ export function PortalDataProvider({ children }) {
           amount: Number(pvData.grandTotal || pvData.total || pvData.cost || pvData.amount) || 0,
           date_prepared: pvData.datePrepared,
           valued_date: pvData.valuedDate || pvData.datePrepared,
+          items: pvData.items || [],
         });
+        apiRecord = unwrapApiPaymentVoucher(created);
       } catch (e) {
         console.warn('Backend PV create fallback:', e);
       }
       setData((current) => {
         const existing = current.paymentVouchers || [];
         const existingNotifs = current.pvNotifications || [];
-        const pvNo = pvData.pvNo || `PV-2026-${String(existing.length + 100).padStart(3, '0')}`;
-        const newPV = {
-          id: `pv-${Date.now()}`,
-          pvNo,
-          requisitionNo: pvData.requisitionNo || `REQ-${Math.floor(10000 + Math.random() * 90000)}`,
-          provider: pvData.provider || 'General Vendor',
-          providerId: pvData.providerId || 'VEN-001',
-          department: pvData.department || 'Administration',
-          paymentMode: pvData.paymentMode || pvData.payment_mode || 'Cash',
-          description: pvData.description || 'Expenditure Voucher',
-          qty: Number(pvData.qty) || 1,
-          cost: Number(pvData.cost || pvData.costPerItem) || 0,
-          total: (Number(pvData.qty) || 1) * (Number(pvData.cost || pvData.costPerItem) || 0),
-          datePrepared: pvData.datePrepared || new Date().toISOString().split('T')[0],
-          valuedDate: pvData.valuedDate || new Date().toISOString().split('T')[0],
+        const newPV = buildPersistedPaymentVoucher({
+          ...pvData,
+          pvNo: pvData.pvNo || `PV-2026-${String(existing.length + 100).padStart(3, '0')}`,
           auditRemarks: pvData.auditRemarks || 'Created in system.',
-          status: pvData.status || 'Pending Audit',
-          editedByHeadmaster: false,
-          correctionsLog: [],
-          items: pvData.items || [],
-          grandTotal: pvData.grandTotal || 0,
-          academicYear: pvData.academicYear,
-          academicTerm: pvData.academicTerm,
           submittedBy: pvData.submittedBy || 'Sub-Admin',
-        };
-        // Push a head-admin notification
+        }, apiRecord);
         const newNotif = {
           id: `notif-pv-${Date.now()}`,
-          pvNo,
+          pvNo: newPV.pvNo,
           provider: newPV.provider,
           grandTotal: newPV.grandTotal || newPV.total,
           description: newPV.description,
@@ -3602,7 +3790,7 @@ export function PortalDataProvider({ children }) {
         };
         return {
           ...current,
-          paymentVouchers: [newPV, ...existing],
+          paymentVouchers: upsertPaymentVoucherList(existing, newPV),
           pvNotifications: [newNotif, ...existingNotifs],
         };
       });
@@ -3693,9 +3881,9 @@ export function PortalDataProvider({ children }) {
     },
     // Alias so SubmitPVRequest can call createPaymentVoucher too
     createPaymentVoucher: async (pvData) => {
-      // 1. Try to persist to backend
+      let apiRecord = null;
       try {
-        await api.createPaymentVoucher({
+        const created = await api.createPaymentVoucher({
           pv_number: pvData.pvNo,
           requisitionNo: pvData.requisitionNo,
           payee_name: pvData.provider || pvData.payee_name || 'General Vendor',
@@ -3714,44 +3902,24 @@ export function PortalDataProvider({ children }) {
           status: 'Pending Audit',
           submitted_by: pvData.submittedBy || 'Sub-Admin',
         });
-        console.log('[PV] Saved to backend ✅', pvData.pvNo);
+        apiRecord = unwrapApiPaymentVoucher(created);
+        console.log('[PV] Saved to backend ✅', apiRecord?.pv_number || apiRecord?.pvNo || pvData.pvNo, apiRecord?.id || '');
       } catch (e) {
         console.warn('[PV] Backend offline — saving locally:', e.message);
       }
 
-      // 2. Always update local state + create notification
       setData((current) => {
         const existing = current.paymentVouchers || [];
         const existingNotifs = current.pvNotifications || [];
-        const pvNo = pvData.pvNo || `PV-2026-${String(existing.length + 100).padStart(3, '0')}`;
-        const grandTotal = Number(pvData.grandTotal || pvData.total || pvData.cost) || 0;
-        const newPV = {
-          id: `pv-${Date.now()}`,
-          pvNo,
-          requisitionNo: pvData.requisitionNo || `REQ-${Math.floor(10000 + Math.random() * 90000)}`,
-          provider: pvData.provider || 'General Vendor',
-          providerId: pvData.providerId || 'VEN-001',
-          description: pvData.description || 'Expenditure Voucher',
-          qty: Number(pvData.qty) || 1,
-          cost: Number(pvData.cost || pvData.costPerItem) || 0,
-          total: grandTotal,
-          grandTotal,
-          datePrepared: pvData.datePrepared || new Date().toISOString().split('T')[0],
-          valuedDate: pvData.valuedDate || new Date().toISOString().split('T')[0],
-          auditRemarks: pvData.auditRemarks || 'Submitted by Sub-Admin. Pending pre-audit approval.',
-          status: pvData.status || 'Pending Audit',
-          editedByHeadmaster: false,
-          correctionsLog: [],
-          items: pvData.items || [],
-          academicYear: pvData.academicYear,
-          academicTerm: pvData.academicTerm,
-          submittedBy: pvData.submittedBy || 'Sub-Admin / Accounts Officer',
-        };
+        const newPV = buildPersistedPaymentVoucher({
+          ...pvData,
+          pvNo: pvData.pvNo || `PV-2026-${String(existing.length + 100).padStart(3, '0')}`,
+        }, apiRecord);
         const newNotif = {
           id: `notif-pv-${Date.now()}`,
-          pvNo,
+          pvNo: newPV.pvNo,
           provider: newPV.provider,
-          grandTotal,
+          grandTotal: newPV.grandTotal || newPV.total,
           description: newPV.description,
           submittedBy: newPV.submittedBy,
           submittedAt: new Date().toLocaleString(),
@@ -3759,25 +3927,23 @@ export function PortalDataProvider({ children }) {
         };
         console.log('[PV] Notification queued for Head Admin 🔔', newNotif);
 
-        // 3. Broadcast to other tabs via BroadcastChannel
         try {
           if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
             const ch = new BroadcastChannel('rcis_portal_data_sync');
-            ch.postMessage({ type: 'PV_SUBMITTED', pvNo, notif: newNotif });
+            ch.postMessage({ type: 'PV_SUBMITTED', pvNo: newPV.pvNo, notif: newNotif });
             ch.close();
           }
         } catch (_) {}
 
-        // 4. Also fire a window event for same-tab AdminPortal to react
         try {
           window.dispatchEvent(new CustomEvent('rcis_pv_submitted', {
-            detail: { pvNo, notif: newNotif }
+            detail: { pvNo: newPV.pvNo, notif: newNotif }
           }));
         } catch (_) {}
 
         return {
           ...current,
-          paymentVouchers: [newPV, ...existing],
+          paymentVouchers: upsertPaymentVoucherList(existing, newPV),
           pvNotifications: [newNotif, ...existingNotifs],
         };
       });
@@ -3847,7 +4013,7 @@ export function PortalDataProvider({ children }) {
       setData((current) => {
         const existing = current.paymentVouchers || [];
         const updated = existing.map(p => {
-          if (p.pvNo.toLowerCase() === String(pvNo).toLowerCase() || p.id === pvNo) {
+          if (pvMatchesRef(p, pvNo)) {
             const qtyVal = Number(updatedFields.qty !== undefined ? updatedFields.qty : p.qty) || 1;
             const costVal = Number(updatedFields.cost !== undefined ? updatedFields.cost : (updatedFields.costPerItem !== undefined ? updatedFields.costPerItem : (p.cost || 0))) || 0;
             const newTotal = qtyVal * costVal;
@@ -3954,53 +4120,85 @@ export function PortalDataProvider({ children }) {
       setData((current) => {
         const existing = current.paymentVouchers || [];
         const statusText = actionChoice === 'Pre-audit Approve PV' ? 'Pre-Audited & Approved' : actionChoice;
+        const nowIso = new Date().toISOString();
+        let found = false;
         const updated = existing.map(p => {
-          if (p.pvNo.toLowerCase() === String(pvNo).toLowerCase() || p.id === pvNo) {
-            const mergedItems = Array.isArray(updatedFields?.items) ? updatedFields.items : (p.items || []);
-            const qtyVal = Number(updatedFields?.qty !== undefined ? updatedFields.qty : p.qty) || 1;
-            const costVal = Number(updatedFields?.cost !== undefined ? updatedFields.cost : (updatedFields?.costPerItem !== undefined ? updatedFields.costPerItem : (p.cost || 0))) || 0;
-            const payable = Array.isArray(mergedItems) && mergedItems.length > 0
-              ? mergedItems
-                  .filter((i) => /valid|approv|pre-audit/i.test(String(i.status || '')))
-                  .reduce((acc, i) => acc + (Number(i.totalAmount || i.total || 0) || 0), 0)
-              : (qtyVal * costVal);
-            const isEdited = !!updatedFields || p.editedByHeadmaster;
-            const mixedStatus = Array.isArray(mergedItems) && mergedItems.length > 1
-              ? (() => {
-                  const statuses = mergedItems.map((i) => String(i.status || '').toLowerCase());
-                  const allVal = statuses.every((s) => s.includes('valid') || s.includes('approv'));
-                  const allDec = statuses.every((s) => s.includes('declin') || s.includes('reject') || s.includes('cancel'));
-                  if (allVal) return 'Validated';
-                  if (allDec) return 'Declined';
-                  if (statuses.some((s) => s.includes('valid') || s.includes('approv'))) return 'Partially Approved';
-                  return statusText;
-                })()
-              : statusText;
-            return {
-              ...p,
-              ...(updatedFields || {}),
-              items: mergedItems,
-              qty: qtyVal,
-              cost: costVal,
-              total: payable,
-              payableTotal: payable,
-              status: mixedStatus,
-              auditRemarks: remarks || p.auditRemarks,
-              approvedBy: auditorName,
-              approvedAt: new Date().toLocaleString(),
-              editedByHeadmaster: isEdited,
-            };
+          if (!pvMatchesRef(p, pvNo) && !pvMatchesRef(p, existingVoucher?.id) && !pvMatchesRef(p, existingVoucher?.pvNo)) {
+            return p;
           }
-          return p;
+          found = true;
+          const mergedItems = Array.isArray(updatedFields?.items) ? updatedFields.items : (p.items || []);
+          const qtyVal = Number(updatedFields?.qty !== undefined ? updatedFields.qty : p.qty) || 1;
+          const costVal = Number(updatedFields?.cost !== undefined ? updatedFields.cost : (updatedFields?.costPerItem !== undefined ? updatedFields.costPerItem : (p.cost || 0))) || 0;
+          const payable = Array.isArray(mergedItems) && mergedItems.length > 0
+            ? mergedItems
+                .filter((i) => /valid|approv|pre-audit/i.test(String(i.status || '')))
+                .reduce((acc, i) => acc + (Number(i.totalAmount || i.total || 0) || 0), 0)
+            : (qtyVal * costVal);
+          const isEdited = !!updatedFields || p.editedByHeadmaster;
+          const mixedStatus = Array.isArray(mergedItems) && mergedItems.length > 1
+            ? (() => {
+                const statuses = mergedItems.map((i) => String(i.status || '').toLowerCase());
+                const allVal = statuses.every((s) => s.includes('valid') || s.includes('approv'));
+                const allDec = statuses.every((s) => s.includes('declin') || s.includes('reject') || s.includes('cancel'));
+                if (allVal) return 'Validated';
+                if (allDec) return 'Declined';
+                if (statuses.some((s) => s.includes('valid') || s.includes('approv'))) return 'Partially Approved';
+                return statusText;
+              })()
+            : statusText;
+          return {
+            ...p,
+            ...(updatedFields || {}),
+            items: mergedItems,
+            qty: qtyVal,
+            cost: costVal,
+            total: payable,
+            payableTotal: payable,
+            status: mixedStatus,
+            auditRemarks: remarks || p.auditRemarks,
+            approvedBy: auditorName,
+            approvedAt: new Date().toLocaleString(),
+            editedByHeadmaster: isEdited,
+            updatedAt: nowIso,
+          };
         });
+        if (!found) {
+          updated.unshift({
+            ...(existingVoucher || {}),
+            ...(updatedFields || {}),
+            pvNo: (existingVoucher && existingVoucher.pvNo) || pvNo,
+            id: (existingVoucher && existingVoucher.id) || pvNo,
+            status: statusText,
+            auditRemarks: remarks || existingVoucher?.auditRemarks || '',
+            approvedBy: auditorName,
+            approvedAt: new Date().toLocaleString(),
+            updatedAt: nowIso,
+          });
+        }
         const updatedNotifs = (current.pvNotifications || []).map(n =>
-          (n.pvNo && String(n.pvNo).toLowerCase() === String(pvNo).toLowerCase())
+          (pvMatchesRef(n, pvNo) || (n.pvNo && String(n.pvNo).toLowerCase() === String(pvNo).toLowerCase()))
             ? { ...n, read: true, status: statusText }
             : n
         );
+        try {
+          const q = JSON.parse(localStorage.getItem('official_pv_queue') || '[]');
+          if (Array.isArray(q) && q.length) {
+            localStorage.setItem('official_pv_queue', JSON.stringify(q.map((p) => (
+              pvMatchesRef(p, pvNo) ? { ...p, status: statusText, auditRemarks: remarks || p.auditRemarks, updatedAt: nowIso } : p
+            ))));
+          }
+        } catch (_) {}
+        try {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('rcis_pv_status_changed', {
+              detail: { pvNo, status: statusText, remarks }
+            }));
+          }
+        } catch (_) {}
         return {
           ...current,
-          paymentVouchers: updated,
+          paymentVouchers: deduplicatePaymentVouchers(updated),
           pvNotifications: updatedNotifs
         };
       });
@@ -4070,35 +4268,61 @@ export function PortalDataProvider({ children }) {
         plAccountCode: paymentDetails.plAccountCode || '',
         disbursementReference: paymentDetails.referenceNumber || `TXN-${Date.now().toString().slice(-6)}`,
         disbursementNotes: paymentDetails.notes || 'Payment processed & disbursed.',
+        updatedAt: new Date().toISOString(),
       };
 
       setData((current) => {
         const existing = current.paymentVouchers || [];
+        let found = false;
         const updated = existing.map(p => {
-          if (p.pvNo?.toLowerCase() === String(pvNo).toLowerCase() || p.id === pvNo) {
-            return {
-              ...p,
-              ...settlementRecord
-            };
+          if (!pvMatchesRef(p, pvNo) && !pvMatchesRef(p, existingVoucher?.id) && !pvMatchesRef(p, existingVoucher?.pvNo)) {
+            return p;
           }
-          return p;
+          found = true;
+          return {
+            ...p,
+            ...settlementRecord,
+            updatedAt: new Date().toISOString(),
+          };
         });
+        if (!found) {
+          updated.unshift({
+            ...(existingVoucher || {}),
+            pvNo: existingVoucher?.pvNo || pvNo,
+            id: existingVoucher?.id || pvNo,
+            ...settlementRecord,
+            updatedAt: new Date().toISOString(),
+          });
+        }
 
         try {
           const q = JSON.parse(localStorage.getItem('official_pv_queue') || '[]');
           if (Array.isArray(q)) {
             const updatedQ = q.map(p =>
-              (p.pvNo?.toLowerCase() === String(pvNo).toLowerCase() || p.id === pvNo)
-                ? { ...p, ...settlementRecord }
+              (pvMatchesRef(p, pvNo) || pvMatchesRef(p, existingVoucher?.pvNo) || pvMatchesRef(p, existingVoucher?.id))
+                ? { ...p, ...settlementRecord, updatedAt: new Date().toISOString() }
                 : p
             );
             localStorage.setItem('official_pv_queue', JSON.stringify(updatedQ));
           }
         } catch (_) {}
 
+        try {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('rcis_pv_status_changed', {
+              detail: { pvNo, status: 'DISBURSED' }
+            }));
+            if (typeof BroadcastChannel !== 'undefined') {
+              const ch = new BroadcastChannel('rcis_portal_data_sync');
+              ch.postMessage({ type: 'PV_STATUS_CHANGED', pvNo, status: 'DISBURSED' });
+              ch.close();
+            }
+          }
+        } catch (_) {}
+
         return {
           ...current,
-          paymentVouchers: updated
+          paymentVouchers: deduplicatePaymentVouchers(updated)
         };
       });
 

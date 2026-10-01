@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { CheckCircle2, Edit3, Save, Search, AlertCircle, FileCheck, RefreshCw, Filter, ArrowRight, ShieldCheck, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
-import { usePortalData } from '../../data/PortalStore';
+import { usePortalData, pvNosMatch } from '../../data/PortalStore';
 import { api } from '../../services/api';
 
 function normalizePvItemStatus(status) {
@@ -33,10 +33,31 @@ function payableTotalFromItems(items, fallbackTotal = 0) {
     .reduce((acc, i) => acc + (Number(i.totalAmount || i.total || 0) || 0), 0);
 }
 
+function voucherIdentityKey(v) {
+  const rawNo = String(v?.pvNo || v?.pv_number || '');
+  const tailMatch = rawNo.match(/(\d+)(?!.*\d)/);
+  const tail = tailMatch ? String(tailMatch[1]).replace(/^0+/, '') : '';
+  if (tail.length >= 4) return `no-${tail}`;
+  const id = String(v?.id || '').trim();
+  if (id && !/^pv-\d+$/i.test(id)) return `id-${id.toLowerCase()}`;
+  return `raw-${(rawNo || id).toLowerCase()}`;
+}
+
 export function parsePvItems(v) {
   if (!v) return [];
-  if (Array.isArray(v.items) && v.items.length > 0) {
-    return v.items.map((it, idx) => ({
+  const withMeta = (item) => ({
+    ...item,
+    datePrepared: item.datePrepared || item.date_prepared || v.datePrepared || v.tDate || '',
+  });
+
+  let sourceItems = Array.isArray(v.items) && v.items.length > 0 ? v.items : null;
+  if (sourceItems && sourceItems.length === 1) {
+    const desc = String(sourceItems[0].description || v.description || '').trim();
+    if (desc.includes(',')) sourceItems = null;
+  }
+
+  if (sourceItems) {
+    return sourceItems.map((it, idx) => withMeta({
       id: it.id || `it-${v.id || v.pvNo || 'pv'}-${idx + 1}`,
       description: it.description || it.particulars || `Line Item ${idx + 1}`,
       provider: it.provider || it.payee_name || v.provider || v.payee_name || 'Vendor',
@@ -63,7 +84,7 @@ export function parsePvItems(v) {
       const itemTotal = Number(equalSplit.toFixed(2));
       const itemCost = parsedQty > 0 ? Number((itemTotal / parsedQty).toFixed(2)) : itemTotal;
 
-      return {
+      return withMeta({
         id: `it-${v.id || v.pvNo || 'pv'}-${idx + 1}`,
         description: part,
         provider: v.provider || v.clientProvider || 'Vendor',
@@ -73,25 +94,73 @@ export function parsePvItems(v) {
         totalAmount: itemTotal,
         status: v.status || 'Pending approval',
         auditRemarks: v.auditRemarks || ''
-      };
+      });
     });
   }
 
-  const singleQty = Number(v.qty || v.quantity || 1);
-  const singleCost = Number(v.cost || v.costPerItem || v.unit_cost || 0);
-  const singleTotal = Number(v.total || v.totalAmount || v.amount || (singleQty * singleCost) || 0);
+  const qtyFromDesc = desc.match(/\((?:x|X)?\s*(\d+)\)/);
+  const parsedQty = qtyFromDesc ? parseInt(qtyFromDesc[1], 10) : 0;
+  const headerQty = Number(v.qty || v.quantity || 0);
+  const singleQty = headerQty > 1 ? headerQty : (parsedQty || headerQty || 1);
+  const singleTotal = Number(v.total || v.totalAmount || v.amount || 0);
+  const headerCost = Number(v.cost || v.costPerItem || v.unit_cost || 0);
+  const singleCost = (headerQty > 1 && headerCost)
+    ? headerCost
+    : (singleQty > 0 && singleTotal ? Number((singleTotal / singleQty).toFixed(2)) : headerCost);
 
-  return [{
+  return [withMeta({
     id: `it-${v.id || v.pvNo || 'pv'}-1`,
     description: desc || 'Expenditure Requisition',
     provider: v.provider || v.clientProvider || 'Vendor',
     providerId: v.providerId || '',
     qty: singleQty,
     costPerItem: singleCost || (singleTotal / singleQty),
-    totalAmount: singleTotal,
+    totalAmount: singleTotal || (singleQty * singleCost),
     status: v.status || 'Pending approval',
     auditRemarks: v.auditRemarks || ''
-  }];
+  })];
+}
+
+function collapseVoucherQueue(list = []) {
+  const mergedMap = new Map();
+  (Array.isArray(list) ? list : []).forEach((v) => {
+    if (!v) return;
+    let key = voucherIdentityKey(v);
+    const existingKey = [...mergedMap.keys()].find((k) => {
+      if (k === key) return true;
+      const ex = mergedMap.get(k);
+      return pvNosMatch(ex?.pvNo, v.pvNo)
+        || (ex?.id && v.id && String(ex.id) === String(v.id) && !/^pv-\d+$/i.test(String(v.id)));
+    });
+    if (existingKey) key = existingKey;
+    const existing = mergedMap.get(key) || {};
+    const parsedItems = parsePvItems({ ...existing, ...v, items: v.items?.length ? v.items : existing.items });
+    mergedMap.set(key, {
+      accountName: v.accountName || existing.accountName || 'Expenditure Account',
+      budget: v.budget || existing.budget || '0.00',
+      actuals: v.actuals || existing.actuals || '0.00',
+      batchNo: v.batchNo || existing.batchNo || 'BATCH-2026-01',
+      tDate: v.tDate || v.datePrepared || existing.tDate || new Date().toISOString().split('T')[0],
+      vDate: v.valuedDate || v.vDate || existing.vDate || new Date().toISOString().split('T')[0],
+      imputer: v.imputer || v.preparedBy || existing.imputer || 'Sub-Admin',
+      inputDate: v.inputDate || v.datePrepared || existing.inputDate || new Date().toISOString().split('T')[0],
+      company: v.company || existing.company || 'Remalj Carewell Inspirational School',
+      ...existing,
+      ...v,
+      items: parsedItems.length > 0 ? parsedItems : (existing.items || v.items || []),
+      status: v.status || existing.status || 'Pending approval',
+      id: (existing.id && !/^pv-\d+$/i.test(String(existing.id))) ? existing.id : (v.id || existing.id),
+      pvNo: (String(v.pvNo || '').length >= String(existing.pvNo || '').length) ? (v.pvNo || existing.pvNo) : (existing.pvNo || v.pvNo),
+      qty: (parsedItems.length === 1 && Number(parsedItems[0].qty) > Number(v.qty || existing.qty || 0))
+        ? parsedItems[0].qty
+        : (Number(existing.qty) > Number(v.qty || 0) ? existing.qty : (v.qty || existing.qty)),
+      cost: (parsedItems.length === 1 && Number(parsedItems[0].costPerItem) > 0 && Number(parsedItems[0].qty) > Number(v.qty || 0))
+        ? parsedItems[0].costPerItem
+        : (Number(existing.cost) > 0 && Number(v.qty || 0) <= 1 && Number(existing.qty) > 1 ? existing.cost : (v.cost || existing.cost)),
+      total: v.total || existing.total || parsedItems.reduce((sum, it) => sum + (Number(it.totalAmount || it.total || 0) || 0), 0)
+    });
+  });
+  return Array.from(mergedMap.values());
 }
 
 export default function ApprovePVForm({ setM = () => {} }) {
@@ -219,13 +288,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map(v => {
-            const items = parsePvItems(v);
-            return {
-              ...v,
-              items: items.length > 0 ? items : v.items
-            };
-          });
+          return collapseVoucherQueue(parsed);
         }
       }
     } catch (e) {}
@@ -234,37 +297,13 @@ export default function ApprovePVForm({ setM = () => {} }) {
 
   // Synchronize with portalStore paymentVouchers & localStorage
   useEffect(() => {
-    if (storeVouchers && storeVouchers.length > 0) {
-      setPvQueue((prev) => {
-        // Merge store vouchers with existing queue items
-        const mergedMap = new Map();
-        [...prev, ...storeVouchers].forEach(v => {
-          const key = (v.pvNo || v.id || '').toLowerCase();
-          const existing = mergedMap.get(key) || {};
-          const parsedItems = parsePvItems(v);
-          mergedMap.set(key, {
-            accountName: v.accountName || existing.accountName || 'Expenditure Account',
-            budget: v.budget || existing.budget || '0.00',
-            actuals: v.actuals || existing.actuals || '0.00',
-            batchNo: v.batchNo || existing.batchNo || 'BATCH-2026-01',
-            tDate: v.tDate || v.datePrepared || existing.tDate || new Date().toISOString().split('T')[0],
-            vDate: v.valuedDate || v.vDate || existing.vDate || new Date().toISOString().split('T')[0],
-            imputer: v.imputer || v.preparedBy || existing.imputer || 'Sub-Admin',
-            inputDate: v.inputDate || v.datePrepared || existing.inputDate || new Date().toISOString().split('T')[0],
-            company: v.company || existing.company || 'Remalj Carewell Inspirational School',
-            ...existing,
-            ...v,
-            items: parsedItems.length > 0 ? parsedItems : (v.items || existing.items),
-            status: v.status || existing.status || 'Pending approval'
-          });
-        });
-        const mergedList = Array.from(mergedMap.values());
-        try {
-          localStorage.setItem('official_pv_queue', JSON.stringify(mergedList));
-        } catch (e) {}
-        return mergedList;
-      });
-    }
+    setPvQueue((prev) => {
+      const mergedList = collapseVoucherQueue([...(prev || []), ...(storeVouchers || [])]);
+      try {
+        localStorage.setItem('official_pv_queue', JSON.stringify(mergedList));
+      } catch (e) {}
+      return mergedList;
+    });
   }, [storeVouchers]);
 
   // Selected Active Voucher for Editing/Audit
@@ -277,21 +316,29 @@ export default function ApprovePVForm({ setM = () => {} }) {
   // Form Fields State
   const [pvNo, setPvNo] = useState(pvQueue[0]?.pvNo || 'PV-2026-088');
   const [itemRequisitionNo, setItemRequisitionNo] = useState(pvQueue[0]?.requisitionNo || 'REQ-99412');
-  const [description, setDescription] = useState(pvQueue[0]?.description || 'Cost of Electricity Bill & Utility Substation Maintenance');
+  const [description, setDescription] = useState(() => {
+    const parsed = parsePvItems(pvQueue[0] || {});
+    return parsed[0]?.description || pvQueue[0]?.description || 'Cost of Electricity Bill & Utility Substation Maintenance';
+  });
   const [datePrepared, setDatePrepared] = useState(pvQueue[0]?.datePrepared || '2026-09-05');
   const [clientProvider, setClientProvider] = useState(pvQueue[0]?.provider || 'ELECTRICITY COMPANY OF GHANA (ECG)');
   const [providerId, setProviderId] = useState(pvQueue[0]?.providerId || 'ECG-99310');
-  const [qty, setQty] = useState(String(pvQueue[0]?.qty || 1));
-  const [costPerItem, setCostPerItem] = useState(String(pvQueue[0]?.cost || 3200.00));
+  const [qty, setQty] = useState(() => {
+    const parsed = parsePvItems(pvQueue[0] || {});
+    return String(parsed[0]?.qty || pvQueue[0]?.qty || 1);
+  });
+  const [costPerItem, setCostPerItem] = useState(() => {
+    const parsed = parsePvItems(pvQueue[0] || {});
+    return Number(parsed[0]?.costPerItem || pvQueue[0]?.cost || 3200).toFixed(2);
+  });
   const [auditRemarks, setAuditRemarks] = useState(pvQueue[0]?.auditRemarks || 'Pre-audited & verified against monthly meter consumption records.');
   const [valuedDate, setValuedDate] = useState(pvQueue[0]?.valuedDate || '2026-09-05');
 
   // Line items state for multi-item requests
   const [currentItems, setCurrentItems] = useState(() => {
+    const parsed = parsePvItems(pvQueue[0] || {});
+    if (parsed.length > 0) return parsed;
     const firstV = pvQueue[0];
-    if (firstV?.items && Array.isArray(firstV.items) && firstV.items.length > 0) {
-      return firstV.items;
-    }
     return [{
       id: 'it-088-1',
       description: firstV?.description || 'Cost of Electricity Bill & Utility Substation Maintenance',
@@ -380,6 +427,12 @@ export default function ApprovePVForm({ setM = () => {} }) {
     };
     setActionChoice(statusMap[v.status] || 'Validated');
     setIsParticularsOpen(true);
+  };
+
+  const openParticularsStation = () => {
+    const current = pvQueue.find((p) => p.id === selectedPvId || pvNosMatch(p.pvNo, pvNo)) || pvQueue[0];
+    if (current) populateFormWithVoucher(current);
+    else setIsParticularsOpen(true);
   };
 
   // Select a specific item from the itemized list to populate into the edit fields
@@ -487,6 +540,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
               valuedDate: backendMatch.date_prepared || backendMatch.valuedDate || new Date().toISOString().split('T')[0],
               auditRemarks: backendMatch.auditRemarks || backendMatch.pre_audited_by || 'Verified in backend records',
               status: backendMatch.status === 'PRE_AUDITED' ? 'Pre-Audited & Approved' : (backendMatch.status || 'Pending approval'),
+              items: backendMatch.items || [],
             };
           }
         } catch (_) {}
@@ -498,7 +552,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
           const freshPVs = await api.getPaymentVouchers();
           if (Array.isArray(freshPVs)) {
             const mappedFresh = freshPVs.map(p => ({
-              id: p.id || p.pv_number || `pv-${Date.now()}`,
+              id: p.id || p.pv_number || `pv-${p.pv_number || Date.now()}`,
               pvNo: p.pv_number || p.pvNo || p.id,
               requisitionNo: p.requisition_no || p.requisitionNo || '',
               provider: p.payee_name || p.provider || 'Vendor',
@@ -510,7 +564,8 @@ export default function ApprovePVForm({ setM = () => {} }) {
               datePrepared: p.date_prepared || p.datePrepared || new Date().toISOString().split('T')[0],
               valuedDate: p.date_prepared || p.valuedDate || new Date().toISOString().split('T')[0],
               auditRemarks: p.auditRemarks || p.pre_audited_by || 'Fetched from backend database',
-              status: p.status === 'PRE_AUDITED' ? 'Pre-Audited & Approved' : (p.status || 'Pending approval')
+              status: p.status === 'PRE_AUDITED' ? 'Pre-Audited & Approved' : (p.status || 'Pending approval'),
+              items: p.items || [],
             }));
             match = mappedFresh.find(matchesVoucher);
           }
@@ -519,10 +574,11 @@ export default function ApprovePVForm({ setM = () => {} }) {
 
       if (match) {
         // Ensure match is in pvQueue
-        setPvQueue(prev => {
-          const exists = prev.some(x => (x.pvNo && x.pvNo === match.pvNo) || (x.id && x.id === match.id));
-          return exists ? prev : [match, ...prev];
-        });
+        setPvQueue(prev => collapseVoucherQueue(
+          prev.some(x => pvNosMatch(x.pvNo, match.pvNo) || (x.id && match.id && String(x.id) === String(match.id)))
+            ? prev
+            : [match, ...prev]
+        ));
         populateFormWithVoucher(match);
         setBannerNotice(`🔍 ✅ Found & loaded PV #${match.pvNo || match.id} (Requisition: ${match.requisitionNo || 'N/A'}). Ready for pre-audit verification and approval.`);
       } else {
@@ -564,8 +620,8 @@ export default function ApprovePVForm({ setM = () => {} }) {
       setCurrentItems(updatedItems);
     }
 
-    const newCalculatedTotal = updatedItems.length > 1
-      ? updatedItems.reduce((acc, it) => acc + (it.totalAmount || it.total || 0), 0)
+    const newCalculatedTotal = updatedItems.length > 0
+      ? updatedItems.reduce((acc, it) => acc + (Number(it.totalAmount || it.total || 0) || 0), 0)
       : calculatedTotalAmount;
 
     const updatedFields = {
@@ -585,7 +641,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
     };
 
     const updatedQueue = pvQueue.map(p =>
-      (p.pvNo?.toLowerCase() === pvNo.toLowerCase() || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
+      (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
     );
 
     setPvQueue(updatedQueue);
@@ -656,7 +712,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
     };
 
     const updatedQueue = pvQueue.map(p =>
-      (p.pvNo?.toLowerCase() === pvNo.toLowerCase() || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
+      (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
     );
 
     setPvQueue(updatedQueue);
@@ -678,7 +734,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
   };
 
   const handleActionItemDirect = async (itemId, decision, voucherContext = null) => {
-    const v = voucherContext || pvQueue.find(p => p.pvNo?.toLowerCase() === pvNo.toLowerCase() || p.id === selectedPvId);
+    const v = voucherContext || pvQueue.find(p => pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId);
     if (!v) return;
     setIsActioning(true);
 
@@ -703,7 +759,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
     };
 
     const updatedQueue = pvQueue.map(p =>
-      (p.pvNo?.toLowerCase() === v.pvNo?.toLowerCase() || p.id === v.id) ? { ...p, ...updatedFields } : p
+      (pvNosMatch(p.pvNo, v.pvNo) || p.id === v.id) ? { ...p, ...updatedFields } : p
     );
     setPvQueue(updatedQueue);
     try { localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue)); } catch (e) {}
@@ -778,7 +834,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
     };
 
     const updatedQueue = pvQueue.map(p =>
-      (p.pvNo?.toLowerCase() === pvNo.toLowerCase() || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
+      (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
     );
 
     setPvQueue(updatedQueue);
@@ -807,7 +863,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
     } else {
       await handleActionSingleItem();
     }
-    const currentIndex = pvQueue.findIndex(p => p.pvNo?.toLowerCase() === pvNo.toLowerCase() || p.id === selectedPvId);
+    const currentIndex = pvQueue.findIndex(p => pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId);
     if (currentIndex >= 0 && currentIndex < pvQueue.length - 1) {
       const nextV = pvQueue[currentIndex + 1];
       populateFormWithVoucher(nextV);
@@ -890,7 +946,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
       
       {/* Top Banner Header - Click to Toggle Voucher Particulars & Calculations */}
       <div 
-        onClick={() => setIsParticularsOpen(prev => !prev)}
+        onClick={() => (isParticularsOpen ? setIsParticularsOpen(false) : openParticularsStation())}
         style={{
           background: '#0f3a4b',
           color: '#ffffff',
@@ -941,7 +997,8 @@ export default function ApprovePVForm({ setM = () => {} }) {
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              setIsParticularsOpen(prev => !prev);
+              if (isParticularsOpen) setIsParticularsOpen(false);
+              else openParticularsStation();
             }}
             style={{
               background: isParticularsOpen ? '#0284c7' : 'rgba(255,255,255,0.15)',
@@ -1220,7 +1277,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
       {/* CONDITIONAL STATION: Opens only when Payment Voucher (PV) Pre-Audit & Editing Station is clicked or a PV is selected */}
       {!isParticularsOpen ? (
         <div
-          onClick={() => setIsParticularsOpen(true)}
+          onClick={() => openParticularsStation()}
           style={{
             background: '#f8fafc',
             border: '1px solid #cbd5e1',
@@ -1248,6 +1305,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
               onClick={(e) => {
                 e.stopPropagation();
                 setIsParticularsOpen(true);
+                openParticularsStation();
               }}
               style={{
                 padding: '10px 22px',
@@ -1414,8 +1472,8 @@ export default function ApprovePVForm({ setM = () => {} }) {
           </div>
         </div>
 
-        {/* ITEMIZATION SECTION FOR MULTI-ITEM REQUESTS */}
-        {currentItems.length > 1 && (
+        {/* ITEMIZATION SECTION FOR VOUCHER LINE ITEMS */}
+        {currentItems.length > 0 && (
           <div style={{
             background: '#f0f9ff',
             border: '1.5px solid #0284c7',
@@ -1612,6 +1670,212 @@ export default function ApprovePVForm({ setM = () => {} }) {
             </div>
           </div>
         )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+          <div style={{ gridColumn: 'span 3' }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>
+              Description or Particulars <span style={{ color: '#dc2626' }}>* (Editable if wrong)</span>
+            </label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="e.g. Cost of Electricity Bill & Substation Maintenance"
+              style={{ width: '100%', padding: '7px 10px', borderRadius: 4, border: '1px solid #0284c7', fontSize: 12, background: '#fff', fontWeight: 700 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Date Prepared</label>
+            <input
+              type="date"
+              value={datePrepared}
+              onChange={(e) => setDatePrepared(e.target.value)}
+              style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
+            />
+            <div style={{ fontSize: 10, color: '#0284c7', fontWeight: 700, marginTop: 2 }}>
+              {formatDatePreview(datePrepared)}
+            </div>
+          </div>
+
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>
+              Select Client / Service Provider <span style={{ color: '#dc2626' }}>*</span>
+            </label>
+            <input
+              type="text"
+              value={clientProvider}
+              onChange={(e) => setClientProvider(e.target.value)}
+              placeholder="Vendor / Provider Name..."
+              style={{ width: '100%', padding: '6px 10px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff', fontWeight: 700 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Service Provider ID</label>
+            <input
+              type="text"
+              value={providerId}
+              onChange={(e) => setProviderId(e.target.value)}
+              placeholder="ID / Account #"
+              style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff', fontWeight: 700 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>
+              Qty. <span style={{ color: '#dc2626' }}>* (Edit if wrong)</span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #0284c7', fontSize: 12, background: '#fff', fontWeight: 800 }}
+            />
+          </div>
+
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>
+              Cost Per Item / Rate (GHS) <span style={{ color: '#dc2626' }}>* (Edit if wrong)</span>
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={costPerItem}
+              onChange={(e) => setCostPerItem(e.target.value)}
+              style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #0284c7', fontSize: 12, background: '#fff', fontWeight: 800 }}
+            />
+          </div>
+
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Total Amount (GHS)</label>
+            <input
+              type="text"
+              readOnly
+              value={`GHS ${calculatedTotalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #0284c7', fontSize: 13, fontWeight: 900, color: '#0369a1', background: '#f0f9ff' }}
+            />
+          </div>
+        </div>
+
+        <div style={{
+          background: '#f8fafc',
+          padding: 14,
+          borderRadius: 8,
+          border: '1px solid #cbd5e1',
+          marginBottom: 16
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 900, color: '#0f3a4b', borderBottom: '2px solid #0f3a4b', paddingBottom: 4, marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Executive Pre-Audit Verification & Decision</span>
+            <button
+              type="button"
+              onClick={handleSaveVoucherEdits}
+              style={{ padding: '4px 10px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #38bdf8', borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer' }}
+            >
+              💾 Save Corrections Only
+            </button>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Pre Audit Remarks & Comments</label>
+            <input
+              type="text"
+              placeholder="Enter audit verification comments or correction rationale..."
+              value={auditRemarks}
+              onChange={(e) => setAuditRemarks(e.target.value)}
+              style={{ width: '100%', padding: '7px 10px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Valued Date</label>
+              <input
+                type="date"
+                value={valuedDate}
+                onChange={(e) => setValuedDate(e.target.value)}
+                style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Approval Action Choice</label>
+              <select
+                value={actionChoice}
+                onChange={(e) => setActionChoice(e.target.value)}
+                style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff', fontWeight: 800, color: '#0f3a4b' }}
+              >
+                <option value="Validated">Validated (Pre-audit Approved)</option>
+                <option value="Pending approval">Pending approval</option>
+                <option value="Postponed">Postponed</option>
+                <option value="Declined">Declined</option>
+                <option value="Cancel PV">Cancel PV</option>
+                <option value="Non-accrual">Non-accrual</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: currentItems.length > 1 ? '1fr 1fr 1fr' : '1fr 1fr', gap: 10 }}>
+            <button
+              type="button"
+              onClick={handleActionSingleItem}
+              disabled={isActioning}
+              style={{
+                padding: '10px 14px', background: '#0f3a4b', color: '#fff', border: 'none',
+                borderRadius: 6, fontSize: 11.5, fontWeight: 800, cursor: isActioning ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                opacity: isActioning ? 0.75 : 1
+              }}
+            >
+              {isActioning ? <Loader2 size={14} className="animate-spin" /> : null}
+              {currentItems.length > 1
+                ? `Action Active Item (${currentItems[activeItemIndex]?.description?.substring(0, 14) || 'Item'}...)`
+                : `Action Single PV Item (#${pvNo})`}
+            </button>
+
+            {currentItems.length > 1 && (
+              <button
+                type="button"
+                onClick={handleBulkActionSelectedItems}
+                disabled={isActioning || selectedItemIds.length === 0}
+                style={{
+                  padding: '10px 14px',
+                  background: selectedItemIds.length > 0 ? '#16a34a' : '#94a3b8',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 11.5,
+                  fontWeight: 900,
+                  cursor: (isActioning || selectedItemIds.length === 0) ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  opacity: isActioning ? 0.75 : 1
+                }}
+              >
+                {isActioning ? <Loader2 size={14} className="animate-spin" /> : null}
+                Bulk Action Selected ({selectedItemIds.length})
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleActionNextOrAll}
+              disabled={isActioning}
+              style={{
+                padding: '10px 14px', background: '#0284c7', color: '#fff', border: 'none',
+                borderRadius: 6, fontSize: 11.5, fontWeight: 900, cursor: isActioning ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                opacity: isActioning ? 0.75 : 1
+              }}
+            >
+              {isActioning ? <Loader2 size={14} className="animate-spin" /> : null}
+              Action Next PV / All Items
+            </button>
+          </div>
+        </div>
 
 
       </div>
