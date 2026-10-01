@@ -938,10 +938,27 @@ export const api = {
   // Class teacher credentials (Super Admin issue + class-teacher sign-in)
   listClassTeacherCredentials: async () => {
     const res = await request('/auth/class-teachers');
-    const list = Array.isArray(res)
+    const rawList = Array.isArray(res)
       ? res
-      : (res?.credentials || res?.class_teachers || res?.data || res?.items || []);
-    return list.map(mapClassTeacherCredential).filter(Boolean);
+      : (Array.isArray(res?.credentials) ? res.credentials
+        : Array.isArray(res?.class_teachers) ? res.class_teachers
+        : Array.isArray(res?.data) ? res.data
+        : Array.isArray(res?.items) ? res.items
+        : []);
+    const demoKeys = new Set(
+      DEMO_CLASS_TEACHER_ACCOUNTS.flatMap((account) => [
+        account.email,
+        account.staffId,
+        account.email.split('@')[0],
+      ]).map((value) => String(value || '').trim().toLowerCase())
+    );
+    return rawList.map(mapClassTeacherCredential).filter((item) => {
+      if (!item) return false;
+      const staffId = String(item.staffId || '').trim().toLowerCase();
+      if (demoKeys.has(staffId)) return false;
+      if (item.passcode === 'ClassTeacher2026!') return false;
+      return true;
+    });
   },
 
   issueClassTeacherCredential: async (data) => {

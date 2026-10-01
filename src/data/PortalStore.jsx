@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { api, extractStudentList, getUserFullName, ensureDemoClassTeacherAccounts, hasLiveDatabaseSession } from '../services/api';
+import { api, extractStudentList, getUserFullName, hasLiveDatabaseSession } from '../services/api';
 import { cloudSync } from '../services/cloudSync';
 
 const STORAGE_KEY = 'remalj-portal-live-data-v3';
@@ -1313,103 +1313,6 @@ export const DEFAULT_SUBJECTS = [
   'Physics', 'Chemistry', 'Biology', 'Literature in English'
 ];
 
-export const DEFAULT_TEACHER_DIRECTORY = [
-  {
-    id: 'stf-1',
-    staffId: 'STF-2026-001',
-    name: 'Joseph Asamoah Arthur',
-    role: 'Class Teacher',
-    teacherDesignation: 'class_teacher',
-    subject: 'Pure Mathematics',
-    classAssigned: 'Basic 4',
-    email: 'j.arthur@remaljcarewell.edu.gh',
-    phone: '024 900 1101',
-    status: 'Active',
-    photo: '👨‍🏫',
-    joinedDate: '2024-01-15'
-  },
-  {
-    id: 'stf-2',
-    staffId: 'STF-2026-002',
-    name: 'Prof. Kwabena Mensah',
-    role: 'Department Head',
-    subject: 'Science / Physics',
-    classAssigned: 'Basic 7',
-    email: 'k.mensah@remaljcarewell.edu.gh',
-    phone: '024 900 1102',
-    status: 'Active',
-    photo: '👨‍🏫',
-    joinedDate: '2023-09-01'
-  },
-  {
-    id: 'stf-3',
-    staffId: 'STF-2026-003',
-    name: 'Mr. Samuel Amponsah',
-    role: 'Subject Teacher',
-    subject: 'ICT / Computing',
-    classAssigned: 'Basic 8',
-    email: 's.amponsah@remaljcarewell.edu.gh',
-    phone: '024 900 1100',
-    status: 'Active',
-    photo: '👨‍🏫',
-    joinedDate: '2024-02-10'
-  },
-  {
-    id: 'stf-4',
-    staffId: 'STF-2026-004',
-    name: 'Mrs. Abena Sarfo',
-    role: 'Class Teacher',
-    teacherDesignation: 'class_teacher',
-    subject: 'English Language',
-    classAssigned: 'Basic 2',
-    email: 'a.sarfo@remaljcarewell.edu.gh',
-    phone: '024 900 1104',
-    status: 'Active',
-    photo: '👩‍🏫',
-    joinedDate: '2024-03-01'
-  },
-  {
-    id: 'stf-ct-demo',
-    staffId: 'CT-2026-DEMO',
-    name: 'Ms. Efua Boateng',
-    role: 'Class Teacher',
-    teacherDesignation: 'class_teacher',
-    subject: 'General Education',
-    classAssigned: 'Basic 1',
-    email: 'classteacher@remaljcarewell.edu.gh',
-    phone: '024 900 2200',
-    status: 'Active',
-    photo: '👩‍🏫',
-    joinedDate: '2026-02-01'
-  },
-  {
-    id: 'stf-5',
-    staffId: 'STF-2026-005',
-    name: 'Mr. Emmanuel Darko',
-    role: 'Subject Teacher',
-    subject: 'Social Studies',
-    classAssigned: 'Basic 5',
-    email: 'e.darko@remaljcarewell.edu.gh',
-    phone: '024 900 1105',
-    status: 'Active',
-    photo: '👨‍🏫',
-    joinedDate: '2024-05-15'
-  },
-  {
-    id: 'stf-6',
-    staffId: 'STF-2026-006',
-    name: 'Madam Grace Anim-Ansah',
-    role: 'Subject Teacher',
-    subject: 'French',
-    classAssigned: 'Basic 6',
-    email: 'g.anim@remaljcarewell.edu.gh',
-    phone: '024 900 1106',
-    status: 'Active',
-    photo: '👩‍🏫',
-    joinedDate: '2023-11-20'
-  }
-];
-
 export const DEFAULT_TIMETABLE = [
   { id: 'tt-1', day: 'Monday', time: '08:00 AM', subject: 'Pure Mathematics', room: 'Room 402', lecturer: 'Prof. Mensah' },
   { id: 'tt-2', day: 'Wednesday', time: '08:00 AM', subject: 'Literature in English', room: 'Auditorium B', lecturer: 'Dr. Anane' },
@@ -1461,7 +1364,7 @@ const INITIAL_DATA = {
   },
   securityAlerts: [],
   onboardedStudents: [],
-  teacherDirectory: DEFAULT_TEACHER_DIRECTORY,
+  teacherDirectory: [],
   classLevels: DEFAULT_CLASS_LEVELS,
   subjects: DEFAULT_SUBJECTS,
   studentFees: [],
@@ -1494,14 +1397,13 @@ const PortalDataContext = createContext(null);
 
 function readData() {
   try {
-    ensureDemoClassTeacherAccounts();
     const saved = window.localStorage.getItem(STORAGE_KEY);
     if (!saved) return INITIAL_DATA;
     const parsed = JSON.parse(saved);
     return {
       ...INITIAL_DATA,
       ...parsed,
-      teacherDirectory: Array.isArray(parsed.teacherDirectory) && parsed.teacherDirectory.length > 0 ? parsed.teacherDirectory : DEFAULT_TEACHER_DIRECTORY,
+      teacherDirectory: [],
       classLevels: Array.isArray(parsed.classLevels) && parsed.classLevels.length > 0 ? parsed.classLevels : DEFAULT_CLASS_LEVELS,
       subjects: Array.isArray(parsed.subjects) && parsed.subjects.length > 0 ? parsed.subjects : DEFAULT_SUBJECTS,
       timetable: Array.isArray(parsed.timetable) && parsed.timetable.length > 0 ? parsed.timetable : DEFAULT_TIMETABLE,
@@ -1950,29 +1852,28 @@ export function PortalDataProvider({ children }) {
           }
         }
 
-        // Staff & Teacher Directory (Merged with DB / Backend API)
+        // Staff directory comes only from the database. An empty response clears the list.
         if (staffRes.status === 'fulfilled') {
           const sRaw = staffRes.value;
-          const staff = Array.isArray(sRaw) ? sRaw : (sRaw?.staff || sRaw?.teachers || sRaw?.data || []);
-          if (Array.isArray(staff) && staff.length > 0) {
-            const mapped = staff.map(s => ({
-              id: s.id || s.staffId || s.staff_id,
-              staffId: s.staffId || s.staff_id || `STF-2026-${String(s.id).padStart(3, '0')}`,
-              name: s.name || s.fullName || s.full_name,
-              role: s.role || s.designation || 'Subject Teacher',
-              subject: s.subject || 'General Education',
-              classAssigned: formatClassToBasic(s.classAssigned || s.class_assigned || s.level || 'Basic 1'),
-              email: s.email || s.contact_email,
-              phone: s.phone || s.phone_number || s.contact_phone,
-              status: s.status || (s.is_active === false ? 'Offboarded' : 'Active'),
-              photo: s.photo || (s.gender === 'Female' ? '👩‍🏫' : '👨‍🏫'),
-              joinedDate: s.joinedDate || s.created_at || s.joined_date || new Date().toISOString().split('T')[0]
-            }));
-            const mergedStaff = mergeByKey(current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY, mapped, s => s.staffId || s.id || s.email || s.name);
-            if (!isDeepEqual(current.teacherDirectory, mergedStaff)) {
-              updates.teacherDirectory = mergedStaff;
-              hasChanges = true;
-            }
+          const staff = Array.isArray(sRaw)
+            ? sRaw
+            : (Array.isArray(sRaw?.staff) ? sRaw.staff : Array.isArray(sRaw?.teachers) ? sRaw.teachers : Array.isArray(sRaw?.data) ? sRaw.data : []);
+          const mapped = staff.map(s => ({
+            id: s.id || s.staffId || s.staff_id,
+            staffId: s.staffId || s.staff_id || '',
+            name: s.name || s.fullName || s.full_name,
+            role: s.role || s.designation || 'Subject Teacher',
+            subject: s.subject || '',
+            classAssigned: formatClassToBasic(s.classAssigned || s.class_assigned || s.level || ''),
+            email: s.email || s.contact_email || '',
+            phone: s.phone || s.phone_number || s.contact_phone || '',
+            status: s.status || (s.is_active === false ? 'Offboarded' : 'Active'),
+            photo: s.photo || (s.gender === 'Female' ? '👩‍🏫' : '👨‍🏫'),
+            joinedDate: s.joinedDate || s.created_at || s.joined_date || ''
+          })).filter((s) => s.id || s.staffId || s.email || s.name);
+          if (!isDeepEqual(current.teacherDirectory, mapped)) {
+            updates.teacherDirectory = mapped;
+            hasChanges = true;
           }
         }
 
@@ -2043,13 +1944,6 @@ export function PortalDataProvider({ children }) {
             const merged = deduplicateStudents([...(updates.onboardedStudents || current.onboardedStudents || []), ...cloudData.onboardedStudents]);
             if (!isDeepEqual(current.onboardedStudents, merged)) {
               updates.onboardedStudents = merged;
-              hasChanges = true;
-            }
-          }
-          if (Array.isArray(cloudData.teacherDirectory)) {
-            const merged = mergeByKey(updates.teacherDirectory || current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY, cloudData.teacherDirectory, s => s.staffId || s.id || s.email || s.name);
-            if (!isDeepEqual(current.teacherDirectory, merged)) {
-              updates.teacherDirectory = merged;
               hasChanges = true;
             }
           }
@@ -4037,67 +3931,31 @@ export function PortalDataProvider({ children }) {
     },
     // Staff Onboarding & Management Methods
     addStaffMember: async (staffData) => {
-      let created = null;
-      try {
-        created = await api.createStaff({
-          ...staffData,
-          classAssigned: formatClassToBasic(staffData.classAssigned || 'Basic 1'),
-          role: staffData.role || 'Subject Teacher',
-          status: staffData.status || 'Active'
-        });
-      } catch (e) {
-        console.warn('Backend staff create fallback:', e);
-      }
-
+      const created = await api.createStaff({
+        ...staffData,
+        classAssigned: formatClassToBasic(staffData.classAssigned || ''),
+        role: staffData.role || 'Subject Teacher',
+        status: staffData.status || 'Active'
+      });
       const createdPayload = (created && typeof created === 'object') ? (created.staff || created.data || created) : null;
-
+      if (!createdPayload || typeof createdPayload !== 'object') {
+        throw new Error('The database did not save this staff member.');
+      }
+      const newStaff = {
+        ...createdPayload,
+        id: createdPayload.id || createdPayload.staffId || createdPayload.staff_id,
+        staffId: createdPayload.staffId || createdPayload.staff_id || staffData.staffId || '',
+        name: createdPayload.name || createdPayload.fullName || createdPayload.full_name || staffData.name,
+        classAssigned: formatClassToBasic(createdPayload.classAssigned || createdPayload.class_assigned || staffData.classAssigned || ''),
+        role: createdPayload.role || createdPayload.designation || staffData.role || 'Subject Teacher',
+        teacherDesignation: staffData.teacherDesignation || createdPayload.teacherDesignation || createdPayload.teacher_designation,
+        subject: createdPayload.subject || staffData.subject || '',
+        email: createdPayload.email || staffData.email || '',
+        phone: createdPayload.phone || staffData.phone || '',
+        status: createdPayload.status || 'Active'
+      };
       setData((current) => {
-        const currentList = current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY;
-        const staffId = staffData.staffId || `STF-2026-${String(currentList.length + 1).padStart(3, '0')}`;
-        const email = staffData.email || `${(staffData.name || 'staff').toLowerCase().replace(/[^\w]/g, '.')}@remaljcarewell.edu.gh`;
-        const defaultPassword = staffData.password || `StaffPass#${staffId}`;
-
-        const newStaff = (createdPayload && createdPayload.name) ? {
-          ...createdPayload,
-          id: createdPayload.id || crypto.randomUUID?.() || String(Date.now()),
-          staffId: createdPayload.staffId || staffId,
-          name: createdPayload.name || staffData.name,
-          classAssigned: formatClassToBasic(createdPayload.classAssigned || staffData.classAssigned || 'Basic 1'),
-          role: createdPayload.role || staffData.role || 'Subject Teacher',
-          teacherDesignation: staffData.teacherDesignation || createdPayload.teacherDesignation || createdPayload.teacher_designation,
-          status: createdPayload.status || 'Active'
-        } : {
-          id: crypto.randomUUID?.() || String(Date.now()),
-          staffId,
-          name: staffData.name,
-          subject: staffData.subject || 'General Education',
-          classAssigned: formatClassToBasic(staffData.classAssigned || 'Basic 1'),
-          email,
-          phone: staffData.phone || '024 900 1100',
-          role: staffData.role || 'Subject Teacher',
-          teacherDesignation: staffData.teacherDesignation,
-          status: staffData.status || 'Active',
-          joinedDate: staffData.joinedDate || new Date().toISOString().split('T')[0],
-          photo: staffData.photo || (staffData.gender === 'Female' ? '👩‍🏫' : '👨‍🏫'),
-          bio: staffData.bio || `${staffData.role || 'Teacher'} at REMALJ Carewell Inspirational School.`
-        };
-
-        try {
-          const raw = localStorage.getItem('registered_accounts');
-          const list = raw ? JSON.parse(raw) : {};
-          list[email.toLowerCase()] = {
-            id: newStaff.id,
-            email: email.toLowerCase(),
-            password: defaultPassword,
-            fullName: staffData.name,
-            role: staffData.teacherDesignation === 'class_teacher' ? 'class_teacher' : 'teacher',
-            teacherDesignation: staffData.teacherDesignation,
-            staffId,
-            phone: staffData.phone
-          };
-          localStorage.setItem('registered_accounts', JSON.stringify(list));
-        } catch (e) {}
-
+        const currentList = current.teacherDirectory || [];
         return {
           ...current,
           teacherDirectory: [newStaff, ...currentList.filter(t => t.id !== newStaff.id && t.staffId !== newStaff.staffId)]
@@ -4112,32 +3970,28 @@ export function PortalDataProvider({ children }) {
       await api.updateStaff(id, sanitizedUpdates);
       setData((current) => ({
         ...current,
-        teacherDirectory: (current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY).map((t) => (t.id === id || t.staffId === id) ? { ...t, ...sanitizedUpdates } : t)
+        teacherDirectory: (current.teacherDirectory || []).map((t) => (t.id === id || t.staffId === id) ? { ...t, ...sanitizedUpdates } : t)
       }));
     },
     offboardStaffMember: async (id) => {
       await api.offboardStaff(id);
       setData((current) => ({
         ...current,
-        teacherDirectory: (current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY).map((t) => (t.id === id || t.staffId === id) ? { ...t, status: 'Offboarded' } : t)
+        teacherDirectory: (current.teacherDirectory || []).map((t) => (t.id === id || t.staffId === id) ? { ...t, status: 'Offboarded' } : t)
       }));
     },
     reactivateStaffMember: async (id) => {
       await api.reactivateStaff(id);
       setData((current) => ({
         ...current,
-        teacherDirectory: (current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY).map((t) => (t.id === id || t.staffId === id) ? { ...t, status: 'Active' } : t)
+        teacherDirectory: (current.teacherDirectory || []).map((t) => (t.id === id || t.staffId === id) ? { ...t, status: 'Active' } : t)
       }));
     },
     deleteStaffMember: async (id) => {
-      try {
-        await api.deleteStaff(id);
-      } catch (e) {
-        console.warn('Backend staff delete fallback:', e);
-      }
+      await api.deleteStaff(id);
       setData((current) => ({
         ...current,
-        teacherDirectory: (current.teacherDirectory || DEFAULT_TEACHER_DIRECTORY).filter((t) => t.id !== id && t.staffId !== id)
+        teacherDirectory: (current.teacherDirectory || []).filter((t) => t.id !== id && t.staffId !== id)
       }));
     },
     // Dynamic Classes & Subjects Methods

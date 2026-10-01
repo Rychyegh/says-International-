@@ -18,7 +18,7 @@ import ApprovePVForm from '../components/Finance/ApprovePVForm';
 import PayPVForm from '../components/Finance/PayPVForm';
 import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
 import UserAccessControl from '../components/AccessControl/UserAccessControl';
-import { api, getAuthUser, getAuthToken } from '../services/api';
+import { api, getAuthUser } from '../services/api';
 import { getMappedSubClasses, formatDetailedClass } from '../data/classStructure';
 
 const ADMIN_BG = '#4a1d6e';
@@ -180,8 +180,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [issuedCTCredentials, setIssuedCTCredentials] = useState([]);
   const [ctCredentialsError, setCtCredentialsError] = useState('');
   const [isIssuingCT, setIsIssuingCT] = useState(false);
-  const [ctDemoProvisionMsg, setCtDemoProvisionMsg] = useState('');
-  const [isProvisioningCtDemos, setIsProvisioningCtDemos] = useState(false);
 
   const refreshClassTeacherCredentials = () => {
     api.listClassTeacherCredentials()
@@ -192,21 +190,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       .catch((err) => {
         setCtCredentialsError(err.message || 'Could not load class teacher credentials.');
       });
-  };
-
-  const provisionClassTeacherDemos = async () => {
-    setIsProvisioningCtDemos(true);
-    setCtDemoProvisionMsg('');
-    try {
-      const results = await api.provisionBackendClassTeacherDemos();
-      const ok = results.filter((row) => row.user !== 'error' && row.credential !== 'error').length;
-      setCtDemoProvisionMsg(`Saved ${ok} class teacher demo login(s) to the live database. They can now sign in from any device.`);
-      refreshClassTeacherCredentials();
-    } catch (err) {
-      setCtDemoProvisionMsg(err.message || 'Could not save class teacher demos to the database.');
-    } finally {
-      setIsProvisioningCtDemos(false);
-    }
   };
 
   useEffect(() => {
@@ -222,19 +205,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       .catch((err) => {
         if (!cancelled) setCtCredentialsError(err.message || 'Could not load class teacher credentials.');
       });
-    const token = getAuthToken();
-    if (token && String(token).startsWith('eyJ')) {
-      api.provisionBackendClassTeacherDemos()
-        .then((results) => {
-          if (cancelled) return;
-          const created = results.some((row) => row.user === 'created' || row.credential === 'issued');
-          if (created) {
-            setCtDemoProvisionMsg('Class teacher demo logins were saved to the live database.');
-            refreshClassTeacherCredentials();
-          }
-        })
-        .catch(() => {});
-    }
     return () => { cancelled = true; };
   }, [adminRole]);
 
@@ -2724,24 +2694,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       <p style={{ fontSize: 12, color: '#7e22ce', margin: '4px 0 0', fontWeight: 600 }}>
                         Generate and issue dedicated logins, Staff IDs, and 4-digit Security Passcodes specifically for Class Teachers (Form Tutors).
                       </p>
-                      {ctDemoProvisionMsg && (
-                        <p style={{ fontSize: 12, color: '#166534', margin: '8px 0 0', fontWeight: 800 }}>
-                          {ctDemoProvisionMsg}
-                        </p>
-                      )}
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        onClick={provisionClassTeacherDemos}
-                        disabled={isProvisioningCtDemos}
-                        style={{
-                          padding: '9px 16px', background: '#166534', color: '#fff', border: 'none',
-                          borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: isProvisioningCtDemos ? 'wait' : 'pointer'
-                        }}
-                      >
-                        {isProvisioningCtDemos ? 'Saving demos…' : '💾 Save demo class teachers to database'}
-                      </button>
                     <button
                       type="button"
                       onClick={() => setIsIssuingCTModal(true)}
@@ -3024,6 +2978,22 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </thead>
                   <tbody>
                     {(teacherDirectory || []).filter(t => {
+                      const matchesSearch = (t.name || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+                                            (t.staffId || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+                                            (t.subject || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+                                            (t.email || '').toLowerCase().includes(staffSearchQuery.toLowerCase());
+                      const matchesSubject = staffSubjectFilter === 'All' || (t.subject || '').toLowerCase().includes(staffSubjectFilter.toLowerCase());
+                      const matchesStatus = staffStatusFilter === 'All' ||
+                                            (staffStatusFilter === 'Active' && t.status !== 'Offboarded') ||
+                                            (staffStatusFilter === 'Offboarded' && t.status === 'Offboarded');
+                      return matchesSearch && matchesSubject && matchesStatus;
+                    }).length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ padding: '28px 16px', textAlign: 'center', color: 'var(--gray-500)', fontWeight: 700 }}>
+                          No teaching staff are stored in the database.
+                        </td>
+                      </tr>
+                    ) : (teacherDirectory || []).filter(t => {
                       const matchesSearch = (t.name || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
                                             (t.staffId || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
                                             (t.subject || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||

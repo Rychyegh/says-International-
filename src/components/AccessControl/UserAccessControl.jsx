@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
 import { api, getAuthUser, getAuthToken } from '../../services/api';
-import { cloudSync } from '../../services/cloudSync';
 import { CLASS_LEVELS, getMappedSubClasses } from '../../data/classStructure';
 
 const ROLES = [
@@ -96,106 +95,51 @@ function RoleSelect({ value, onChange }) {
   );
 }
 
-const DEFAULT_USERS_SEED = [
-  {
-    id: 'usr_admin_01',
-    fullName: 'Mr. Richmond Yaw Acquah',
-    email: 'headmaster@remaljcarewell.edu.gh',
-    phone: '024 499 8811',
-    role: 'admin',
-    status: 'Active',
-    staffId: 'ADMIN-2026-001',
-    password: 'AdminMaster2026!',
-    department: 'School Directorate',
-    createdAt: '2026-01-10',
-    lastLogin: '2026-09-29 16:45',
-    mustChangePassword: false,
-  },
-  {
-    id: 'usr_subadmin_01',
-    fullName: 'Dr. Frank Osei-Tutu',
-    email: 'viceheadmaster@remaljcarewell.edu.gh',
-    phone: '024 333 4455',
-    role: 'sub_admin',
-    status: 'Active',
-    staffId: 'ADMIN-2026-002',
-    password: 'SubAdmin2026!',
-    department: 'Academic Supervision',
-    createdAt: '2026-01-15',
-    lastLogin: '2026-09-28 09:12',
-    mustChangePassword: false,
-  },
-  {
-    id: 'usr_acc_01',
-    fullName: 'Mrs. Patience Mensah',
-    email: 'accountant@remaljcarewell.edu.gh',
-    phone: '054 112 3344',
-    role: 'accountant',
-    status: 'Active',
-    staffId: 'ACC-2026-001',
-    password: 'Accountant2026!',
-    department: 'Finance Office',
-    createdAt: '2026-01-12',
-    lastLogin: '2026-09-29 14:20',
-    mustChangePassword: false,
-  },
-  {
-    id: 'usr_tea_01',
-    fullName: 'Mr. Samuel Amponsah',
-    email: 'samuel.amponsah@remaljcarewell.edu.gh',
-    phone: '024 900 1100',
-    role: 'teacher',
-    status: 'Active',
-    staffId: 'CT-2026-001',
-    password: 'Teacher2026!',
-    department: 'Mathematics & Science',
-    assignedClass: 'Basic 4B',
-    createdAt: '2026-02-01',
-    lastLogin: '2026-09-29 11:05',
-    mustChangePassword: false,
-  },
-  {
-    id: 'usr_ct_demo_01',
-    fullName: 'Ms. Efua Boateng',
-    email: 'classteacher@remaljcarewell.edu.gh',
-    phone: '024 900 2200',
-    role: 'class_teacher',
-    teacherDesignation: 'class_teacher',
-    status: 'Active',
-    staffId: 'CT-2026-DEMO',
-    password: 'ClassTeacher2026!',
-    passcode: '2468',
-    department: 'Class Tutors',
-    assignedClass: 'Basic 1A',
-    classLevel: 'Basic 1',
-    subClass: 'Basic 1A',
-    createdAt: '2026-02-01',
-    lastLogin: 'Never',
-    mustChangePassword: false,
-  },
-  {
-    id: 'usr_ct_demo_02',
-    fullName: 'Mrs. Abena Sarfo',
-    email: 'a.sarfo@remaljcarewell.edu.gh',
-    phone: '024 900 1104',
-    role: 'class_teacher',
-    teacherDesignation: 'class_teacher',
-    status: 'Active',
-    staffId: 'STF-2026-004',
-    password: 'ClassTeacher2026!',
-    passcode: '1357',
-    department: 'English Language',
-    assignedClass: 'Basic 2A',
-    classLevel: 'Basic 2',
-    subClass: 'Basic 2A',
-    createdAt: '2026-03-01',
-    lastLogin: 'Never',
-    mustChangePassword: false,
-  },
-];
+function extractBackendUsers(res) {
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.users)) return res.users;
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res?.data?.users)) return res.data.users;
+  if (Array.isArray(res?.data?.data)) return res.data.data;
+  return [];
+}
+
+function mapBackendUser(item) {
+  if (!item || typeof item !== 'object') return null;
+  const email = String(item.email || '').trim();
+  const id = item.id || item._id || '';
+  if (!id && !email) return null;
+  const designation = item.teacherDesignation || item.teacher_designation || item.designation || '';
+  const isClassTeacher = designation === 'class_teacher'
+    || item.role === 'class_teacher'
+    || String(item.role || '').toLowerCase() === 'class teacher'
+    || item.is_class_teacher === true
+    || item.isClassTeacher === true;
+  const activeFlag = item.is_active !== false && item.isActive !== false;
+  return {
+    id: id || email,
+    fullName: item.fullName || item.full_name || item.name || 'User',
+    email,
+    phone: item.phone || item.phone_number || item.phoneNumber || '',
+    role: isClassTeacher ? 'class_teacher' : (item.role || 'student'),
+    teacherDesignation: isClassTeacher ? 'class_teacher' : (designation || ''),
+    passcode: item.passcode || '',
+    status: item.status || (activeFlag ? 'Active' : 'Suspended'),
+    staffId: item.staffId || item.staff_id || item.staff_code || '',
+    studentId: item.studentId || item.student_id || item.student_code || '',
+    password: item.password || '',
+    department: item.department || '',
+    assignedClass: item.assignedClass || item.assigned_class || item.class_assigned || '',
+    classLevel: item.classLevel || item.class_level || '',
+    subClass: item.subClass || item.sub_class || '',
+    createdAt: item.createdAt || item.created_at || '',
+    lastLogin: item.lastLogin || item.last_login || 'Never',
+    mustChangePassword: !!(item.mustChangePassword || item.must_change_password),
+  };
+}
 
 export default function UserAccessControl({ adminRole = 'head_admin' }) {
-  const { onboardedStudents, teacherDirectory, addStaffMember } = usePortalData();
+  const { addStaffMember } = usePortalData();
 
   const [activeTab, setActiveTab] = useState('users'); // 'users' | 'matrix' | 'audit'
   const [searchQuery, setSearchQuery] = useState('');
@@ -204,180 +148,32 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [backendError, setBackendError] = useState(null);
 
-  // Helper: merge backend user list with local seed and the canonical student roster
-  const buildUserList = (backendList = [], localMap = {}, roster = []) => {
-    const combinedMap = new Map();
-    DEFAULT_USERS_SEED.forEach(u => combinedMap.set(u.email.toLowerCase(), u));
-    // Local cache
-    Object.keys(localMap).forEach(key => {
-      const item = localMap[key];
-      if (item && item.email) {
-        const emailKey = item.email.toLowerCase();
-        const prev = combinedMap.get(emailKey) || {};
-        combinedMap.set(emailKey, {
-          id: item.id || prev.id || `usr_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-          fullName: item.fullName || item.full_name || item.name || prev.fullName || 'User',
-          email: item.email,
-          phone: item.phone || item.phone_number || item.phoneNumber || prev.phone || '024 000 0000',
-          role: item.role || prev.role || 'student',
-          teacherDesignation: item.teacherDesignation || item.teacher_designation || prev.teacherDesignation,
-          passcode: item.passcode || prev.passcode,
-          status: item.status || prev.status || 'Active',
-          staffId: item.staffId || item.staff_id || prev.staffId,
-          studentId: item.studentId || item.student_id || prev.studentId,
-          password: item.password || prev.password || 'Carewell2026!',
-          department: item.department || prev.department || 'General',
-          assignedClass: item.assignedClass || item.assigned_class || prev.assignedClass,
-          classLevel: item.classLevel || item.class_level || prev.classLevel,
-          subClass: item.subClass || item.sub_class || prev.subClass,
-          createdAt: item.createdAt || item.created_at || prev.createdAt || '2026-01-01',
-          lastLogin: item.lastLogin || item.last_login || prev.lastLogin || 'Never',
-          mustChangePassword: !!item.mustChangePassword,
-        });
-      }
-    });
-    // Backend records override/enrich the map
-    backendList.forEach(item => {
-      if (!item || !item.email) return;
-      const emailKey = item.email.toLowerCase();
-      const prev = combinedMap.get(emailKey) || {};
-      const backendDesignation = item.teacherDesignation || item.teacher_designation || item.designation || prev.teacherDesignation;
-      const isClassTeacher = backendDesignation === 'class_teacher'
-        || item.role === 'class_teacher'
-        || String(item.role || '').toLowerCase() === 'class teacher'
-        || prev.role === 'class_teacher'
-        || prev.teacherDesignation === 'class_teacher'
-        || item.is_class_teacher === true
-        || item.isClassTeacher === true;
-      combinedMap.set(emailKey, {
-        id: item.id || item._id || prev.id || `usr_${Date.now()}`,
-        fullName: item.fullName || item.full_name || item.name || prev.fullName || 'User',
-        email: item.email,
-        phone: item.phone || item.phone_number || prev.phone || '024 000 0000',
-        role: isClassTeacher ? 'class_teacher' : (item.role || prev.role || 'student'),
-        teacherDesignation: isClassTeacher ? 'class_teacher' : (backendDesignation || prev.teacherDesignation),
-        passcode: prev.passcode || item.passcode,
-        status: item.status || prev.status || 'Active',
-        staffId: item.staffId || item.staff_id || prev.staffId,
-        studentId: item.studentId || item.student_id || item.student_code || prev.studentId,
-        password: prev.password || 'Carewell2026!',
-        department: item.department || prev.department || 'General',
-        assignedClass: item.assignedClass || item.assigned_class || item.class_assigned || prev.assignedClass,
-        classLevel: item.classLevel || item.class_level || prev.classLevel,
-        subClass: item.subClass || item.sub_class || prev.subClass,
-        createdAt: item.createdAt || item.created_at || prev.createdAt || '2026-01-01',
-        lastLogin: item.lastLogin || item.last_login || prev.lastLogin || 'Never',
-        mustChangePassword: !!(item.mustChangePassword || item.must_change_password),
-      });
-    });
+  const [users, setUsers] = useState([]);
 
-    (roster || []).forEach((s) => {
-      const email = (s.studentEmail || '').toLowerCase().trim();
-      if (!email) return;
-      const prev = combinedMap.get(email) || {};
-      combinedMap.set(email, {
-        ...prev,
-        id: prev.id || s.id || `usr_${s.studentId || email}`,
-        fullName: s.fullName || prev.fullName || 'Student',
-        email,
-        phone: s.guardianPhone || prev.phone || '024 000 0000',
-        role: 'student',
-        status: s.status || prev.status || 'Active',
-        studentId: s.studentId || prev.studentId,
-        password: prev.password || s.defaultPassword || 'Carewell2026!',
-        assignedClass: [s.level, s.classSection].filter(Boolean).join(' · ') || prev.assignedClass,
-        createdAt: s.enrollmentDate || prev.createdAt || '2026-01-01',
-        lastLogin: prev.lastLogin || 'Never',
-        mustChangePassword: !!prev.mustChangePassword,
-      });
-    });
-
-    const collapsed = new Map();
-    Array.from(combinedMap.values()).forEach((user) => {
-      const sid = (user.studentId || '').toLowerCase().trim();
-      const collapseKey = user.role === 'student' && sid
-        ? `student:${sid}`
-        : `email:${(user.email || '').toLowerCase()}`;
-      const prev = collapsed.get(collapseKey);
-      if (!prev) {
-        collapsed.set(collapseKey, user);
-        return;
-      }
-      collapsed.set(collapseKey, {
-        ...prev,
-        ...user,
-        id: prev.id || user.id,
-        email: prev.email || user.email,
-        studentId: prev.studentId || user.studentId,
-        password: prev.password || user.password,
-        fullName: user.fullName || prev.fullName,
-      });
-    });
-    return Array.from(collapsed.values());
-  };
-
-  const [users, setUsers] = useState(() => {
-    try {
-      const raw = localStorage.getItem('registered_accounts');
-      const list = raw ? JSON.parse(raw) : {};
-      return buildUserList([], list, onboardedStudents);
-    } catch {
-      return DEFAULT_USERS_SEED;
-    }
-  });
-  const backendUsersRef = useRef([]);
-
-  // Fetch real users from backend on mount or retry
   const fetchBackendUsers = () => {
     const token = getAuthToken();
-    if (!token) {
-      // Running with local administrator session — load full local database records directly
-      try {
-        const raw = localStorage.getItem('registered_accounts');
-        const localMap = raw ? JSON.parse(raw) : {};
-        setUsers(buildUserList([], localMap, onboardedStudents));
-      } catch {
-        setUsers(buildUserList([], {}, onboardedStudents));
-      }
-      setBackendError(null);
+    if (!token || !String(token).startsWith('eyJ')) {
+      setUsers([]);
+      setBackendError('Sign in with a live database session to load accounts. Nothing is kept in this browser.');
       setIsLoadingUsers(false);
       return;
     }
 
     setIsLoadingUsers(true);
     api.getUsers()
-      .then(res => {
-        const backendList = Array.isArray(res) ? res : (res?.users || res?.data || []);
-        backendUsersRef.current = backendList;
-        try {
-          const raw = localStorage.getItem('registered_accounts');
-          const localMap = raw ? JSON.parse(raw) : {};
-          setUsers(buildUserList(backendList, localMap, onboardedStudents));
-          setBackendError(null);
-        } catch {
-          setUsers(buildUserList(backendList, {}, onboardedStudents));
-        }
-        if (String(token).startsWith('eyJ')) {
-          api.provisionBackendClassTeacherDemos().catch(() => {});
-        }
+      .then((res) => {
+        const backendList = extractBackendUsers(res).map(mapBackendUser).filter(Boolean);
+        setUsers(backendList);
+        setBackendError(null);
       })
-      .catch(err => {
-        console.warn('[UAC] Could not fetch users from backend — using local data:', err?.message || err);
+      .catch((err) => {
+        console.warn('[UAC] Could not fetch users from the database:', err?.message || err);
+        setUsers([]);
         const msg = String(err?.message || '').toLowerCase();
         if (msg.includes('credentials') || msg.includes('401') || msg.includes('unauthorized')) {
-          // Token expired or unauthenticated remote session — fallback cleanly to local records
-          try {
-            const raw = localStorage.getItem('registered_accounts');
-            const localMap = raw ? JSON.parse(raw) : {};
-            setUsers(buildUserList([], localMap, onboardedStudents));
-          } catch {
-            setUsers(buildUserList([], {}, onboardedStudents));
-          }
-          setBackendError(null);
-        } else if (msg.includes('failed to fetch') || msg.includes('network') || msg.includes('timeout')) {
-          setBackendError('Backend server is waking up or offline — showing local cached data.');
+          setBackendError('The database session has expired. Sign in again. Saved browser accounts are not shown.');
         } else {
-          setBackendError('Backend unavailable — showing cached data.');
+          setBackendError('The database could not be reached, so no accounts are shown.');
         }
       })
       .finally(() => {
@@ -390,27 +186,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('registered_accounts');
-      const localMap = raw ? JSON.parse(raw) : {};
-      setUsers(buildUserList(backendUsersRef.current, localMap, onboardedStudents));
-    } catch {
-      setUsers(buildUserList(backendUsersRef.current, {}, onboardedStudents));
-    }
-  }, [onboardedStudents]);
-
-  const [auditLogs, setAuditLogs] = useState(() => {
-    try {
-      const saved = localStorage.getItem('uac_audit_logs');
-      return saved ? JSON.parse(saved) : [
-        { id: 'log-1', action: 'System Init', targetUser: 'System Administrator', performedBy: 'Root', timestamp: '2026-09-01 08:00', details: 'Initialized Institutional Role-Based Access Control matrix.' },
-        { id: 'log-2', action: 'Account Created', targetUser: 'headmaster@remaljcarewell.edu.gh', performedBy: 'System', timestamp: '2026-09-01 08:05', details: 'Created Head Administrator account.' },
-      ];
-    } catch {
-      return [];
-    }
-  });
+  const [auditLogs, setAuditLogs] = useState([]);
 
   // Modals state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -477,27 +253,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       timestamp: new Date().toLocaleString(),
       details,
     };
-    const updated = [newLog, ...auditLogs].slice(0, 100);
-    setAuditLogs(updated);
-    try {
-      localStorage.setItem('uac_audit_logs', JSON.stringify(updated));
-    } catch (e) {}
-  };
-
-  // Persist to local cache only (used after backend confirms a write)
-  const cacheUsers = (updatedUsers) => {
-    setUsers(updatedUsers);
-    try {
-      const raw = localStorage.getItem('registered_accounts');
-      const list = raw ? JSON.parse(raw) : {};
-      updatedUsers.forEach(u => {
-        list[u.email.toLowerCase()] = u;
-        if (u.studentId) list[u.studentId.toLowerCase()] = u;
-        if (u.staffId) list[u.staffId.toLowerCase()] = u;
-      });
-      localStorage.setItem('registered_accounts', JSON.stringify(list));
-      cloudSync.pushLatestData({ registered_accounts: list, usersCount: updatedUsers.length });
-    } catch (e) {}
+    setAuditLogs((current) => [newLog, ...current].slice(0, 100));
   };
 
   const generateSecurePassword = (role = 'general') => {
@@ -557,58 +313,52 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       mustChangePassword: createForm.mustChangePassword,
     };
 
-    const updated = [newUser, ...users];
-    cacheUsers(updated);
-    addAuditLog('Account Created', newUser.email, `Created account for ${newUser.fullName} with role [${newUser.role.toUpperCase()}].`);
+    try {
+      const res = await api.createUserAccount({ ...newUser });
+      const remoteId = res?.id || res?._id || res?.user?.id || res?.data?.id;
+      const savedUser = { ...newUser, id: remoteId || newUser.id };
 
-    setIsCreateModalOpen(false);
-    setSlipUser(newUser);
-    triggerToast(`✅ User account for ${newUser.fullName} successfully created!`);
-
-    // Sync to the backend after the modal closes so a slow API never holds the overlay open
-    api.createUserAccount({ ...newUser })
-      .then(async (res) => {
-        const remoteId = res?.id || res?._id || res?.user?.id;
-        if (remoteId) {
-          setUsers((current) => current.map(u => (u.id === newUser.id ? { ...u, id: remoteId } : u)));
+      if (newUser.role === 'teacher' || newUser.role === 'class_teacher') {
+        try {
+          await addStaffMember({
+            name: newUser.fullName,
+            email: newUser.email,
+            phone: newUser.phone,
+            staffId: newUser.staffId,
+            role: newUser.role === 'class_teacher' ? 'Class Teacher' : 'Subject Teacher',
+            teacherDesignation: newUser.teacherDesignation,
+            classAssigned: newUser.classLevel || newUser.assignedClass,
+            password: newUser.password,
+            status: 'Active',
+          });
+        } catch (staffErr) {
+          console.warn('[UAC] Staff directory sync failed:', staffErr?.message || staffErr);
         }
+      }
 
-        if (newUser.role === 'teacher' || newUser.role === 'class_teacher') {
-          try {
-            await addStaffMember({
-              name: newUser.fullName,
-              email: newUser.email,
-              phone: newUser.phone,
-              staffId: newUser.staffId,
-              role: newUser.role === 'class_teacher' ? 'Class Teacher' : 'Subject Teacher',
-              teacherDesignation: newUser.teacherDesignation,
-              classAssigned: newUser.classLevel || newUser.assignedClass,
-              password: newUser.password,
-              status: 'Active',
-            });
-          } catch (staffErr) {
-            console.warn('[UAC] Staff directory sync failed:', staffErr?.message || staffErr);
-          }
+      if (newUser.role === 'class_teacher' && newUser.passcode) {
+        try {
+          await api.issueClassTeacherCredential({
+            teacherName: newUser.fullName,
+            classAssigned: newUser.assignedClass || newUser.classLevel,
+            staffId: newUser.staffId,
+            passcode: newUser.passcode,
+            phone: newUser.phone,
+          });
+        } catch (ctErr) {
+          console.warn('[UAC] Class teacher passcode issue failed:', ctErr?.message || ctErr);
         }
+      }
 
-        if (newUser.role === 'class_teacher' && newUser.passcode) {
-          try {
-            await api.issueClassTeacherCredential({
-              teacherName: newUser.fullName,
-              classAssigned: newUser.assignedClass || newUser.classLevel,
-              staffId: newUser.staffId,
-              passcode: newUser.passcode,
-              phone: newUser.phone,
-            });
-          } catch (ctErr) {
-            console.warn('[UAC] Class teacher passcode issue failed:', ctErr?.message || ctErr);
-          }
-        }
-      })
-      .catch((err) => {
-        console.warn('[UAC] Backend user create failed, saved locally:', err?.message || err);
-        triggerToast(`⚠️ ${newUser.fullName} was saved locally, but the database rejected the account: ${err?.message || 'request failed'}`);
-      });
+      addAuditLog('Account Created', newUser.email, `Created account for ${newUser.fullName} with role [${newUser.role.toUpperCase()}].`);
+      setIsCreateModalOpen(false);
+      setSlipUser(savedUser);
+      triggerToast(`User account for ${newUser.fullName} was saved in the database.`);
+      fetchBackendUsers();
+    } catch (err) {
+      alert(`The database did not save this account: ${err?.message || 'request failed'}`);
+      return;
+    }
 
     // Reset form
     setCreateForm({
@@ -630,24 +380,17 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     e.preventDefault();
     if (!editingUser) return;
 
-    // Attempt backend update first
     try {
       await api.updateUserAccount(editingUser.id, editingUser);
     } catch (err) {
-      console.warn('[UAC] Backend user update failed, saving locally:', err?.message || err);
+      alert(`The database did not update this account: ${err?.message || 'request failed'}`);
+      return;
     }
 
-    const updated = users.map(u => {
-      if (u.id === editingUser.id || u.email === editingUser.email) {
-        return { ...u, ...editingUser };
-      }
-      return u;
-    });
-
-    cacheUsers(updated);
     addAuditLog('Account Modified', editingUser.email, `Updated profile / role details for ${editingUser.fullName}.`);
     setEditingUser(null);
-    triggerToast(`✅ User record for ${editingUser.fullName} updated.`);
+    triggerToast(`User record for ${editingUser.fullName} was updated in the database.`);
+    fetchBackendUsers();
   };
 
   const handleDirectPasswordReset = async (e) => {
@@ -667,24 +410,12 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
         adminName: getAuthUser()?.fullName || 'Head Administrator',
       });
     } catch (err) {
-      console.warn('Backend admin password set fallback:', err);
+      alert(`The database did not reset this password: ${err?.message || 'request failed'}`);
+      return;
     }
 
-    const updated = users.map(u => {
-      if (u.id === resetPassUser.id || u.email === resetPassUser.email) {
-        return {
-          ...u,
-          password: newPasswordInput.trim(),
-          mustChangePassword: requireResetNextLogin,
-          lastPasswordResetAt: new Date().toLocaleString(),
-          lastPasswordResetBy: getAuthUser()?.fullName || 'Head Administrator',
-        };
-      }
-      return u;
-    });
-
-    cacheUsers(updated);
     addAuditLog('Password Reset', resetPassUser.email, `Password changed by administrator.`);
+    fetchBackendUsers();
     
     const targetWithNewPass = { ...resetPassUser, password: newPasswordInput.trim() };
     setResetPassUser(null);
@@ -696,23 +427,16 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
   const handleToggleAccountStatus = async (user) => {
     const newStatus = user.status === 'Active' ? 'Suspended' : 'Active';
 
-    // Attempt backend status toggle first
     try {
       await api.toggleUserAccountStatus(user.id, newStatus);
     } catch (err) {
-      console.warn('[UAC] Backend status toggle failed, saving locally:', err?.message || err);
+      alert(`The database did not change this account status: ${err?.message || 'request failed'}`);
+      return;
     }
 
-    const updated = users.map(u => {
-      if (u.id === user.id || u.email === user.email) {
-        return { ...u, status: newStatus };
-      }
-      return u;
-    });
-
-    cacheUsers(updated);
     addAuditLog(newStatus === 'Suspended' ? 'Account Suspended' : 'Account Re-activated', user.email, `Status changed to ${newStatus}.`);
     triggerToast(`Account for ${user.fullName} is now ${newStatus}.`);
+    fetchBackendUsers();
   };
 
   const handleDeleteUser = async (user) => {
@@ -725,17 +449,16 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       return;
     }
 
-    // Attempt backend delete first
     try {
       await api.deleteUserAccount(user.id);
     } catch (err) {
-      console.warn('[UAC] Backend user delete failed, removing locally:', err?.message || err);
+      alert(`The database did not remove this account: ${err?.message || 'request failed'}`);
+      return;
     }
 
-    const updated = users.filter(u => u.id !== user.id && u.email !== user.email);
-    cacheUsers(updated);
     addAuditLog('Account Deleted', user.email, `Account permanently revoked.`);
-    triggerToast(`🗑️ User account ${user.email} was removed.`);
+    triggerToast(`User account ${user.email} was removed from the database.`);
+    fetchBackendUsers();
   };
 
   const copyToClipboard = (text, id) => {
@@ -1074,7 +797,13 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                       <td colSpan={6} style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                           <UserX size={32} />
-                          <div style={{ fontWeight: 700, fontSize: 14 }}>No user accounts found matching your filter criteria.</div>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>
+                            {isLoadingUsers
+                              ? 'Loading accounts from the database...'
+                              : (searchQuery || roleFilter !== 'all' || statusFilter !== 'all')
+                                ? 'No database accounts match this filter.'
+                                : 'No accounts are stored in the database.'}
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -1165,10 +894,10 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <code style={{
                                 background: '#f1f5f9', padding: '4px 8px', borderRadius: 4,
-                                fontSize: 12, fontWeight: 700, letterSpacing: isPasswordShown ? 'normal' : '0.15em',
+                                fontSize: 12, fontWeight: 700, letterSpacing: user.password && !isPasswordShown ? '0.15em' : 'normal',
                                 color: '#334155'
                               }}>
-                                {isPasswordShown ? (user.password || 'Carewell2026!') : '••••••••'}
+                                {user.password ? (isPasswordShown ? user.password : '••••••••') : 'Stored in database'}
                               </code>
                               <button
                                 onClick={() => setShowPasswordMap(prev => ({ ...prev, [user.id]: !prev[user.id] }))}
@@ -1178,7 +907,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                                 {isPasswordShown ? <EyeOff size={14} /> : <Eye size={14} />}
                               </button>
                               <button
-                                onClick={() => copyToClipboard(user.password || 'Carewell2026!', `pass-${user.id}`)}
+                                onClick={() => user.password && copyToClipboard(user.password, `pass-${user.id}`)}
                                 title="Copy password"
                                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: copiedId === `pass-${user.id}` ? '#16a34a' : 'var(--text-muted)', padding: 2 }}
                               >
@@ -1367,6 +1096,11 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {auditLogs.length === 0 && (
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
+                No access-control actions have been recorded in this session. This list is not loaded from a saved copy on this device.
+              </p>
+            )}
             {auditLogs.map(log => (
               <div
                 key={log.id}
@@ -1831,7 +1565,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, background: '#f3e8ff', padding: '10px 12px', borderRadius: 6 }}>
                   <span style={{ color: '#6b21a8', fontWeight: 700 }}>Default Password:</span>
-                  <strong style={{ fontFamily: 'monospace', color: '#4a1d6e', fontSize: 14 }}>{slipUser.password || 'Carewell2026!'}</strong>
+                  <strong style={{ fontFamily: 'monospace', color: '#4a1d6e', fontSize: 14 }}>{slipUser.password || 'Stored in the database'}</strong>
                 </div>
 
                 {slipUser.passcode && (
@@ -1858,7 +1592,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                 <button
                   type="button"
                   onClick={() => {
-                    const text = `REMALJ CAREWELL ACCESS CREDENTIALS\nName: ${slipUser.fullName}\nRole: ${slipUser.role.toUpperCase()}\nLogin: ${slipUser.email}\nPassword: ${slipUser.password || 'Carewell2026!'}${slipUser.passcode ? `\nClass Teacher Passcode: ${slipUser.passcode}` : ''}\nStaff ID: ${slipUser.staffId || ''}\nPortal: http://localhost:5173`;
+                    const text = `REMALJ CAREWELL ACCESS CREDENTIALS\nName: ${slipUser.fullName}\nRole: ${slipUser.role.toUpperCase()}\nLogin: ${slipUser.email}\nPassword: ${slipUser.password || 'Stored in the database'}${slipUser.passcode ? `\nClass Teacher Passcode: ${slipUser.passcode}` : ''}\nStaff ID: ${slipUser.staffId || ''}\nPortal: http://localhost:5173`;
                     copyToClipboard(text, 'slip-full');
                   }}
                   style={{
