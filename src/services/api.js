@@ -111,10 +111,13 @@ async function request(endpoint, options = {}) {
 
 // Score sheet entries carry the full class-test breakdown so a saved sheet can be reopened and edited
 function scoreSheetPayload(entry) {
+  const subCls = entry.subClass || entry.sub_class || entry.subClassLevel || entry.classSection;
   return {
     entry_key: entry.entryKey || entry.entry_key,
     academic_year: entry.year || entry.academicYear || entry.academic_year,
     class_level: entry.classLevel || entry.class_level,
+    sub_class: subCls,
+    sub_class_level: entry.subClassLevel || subCls,
     term: entry.term,
     subject: entry.subject,
     category: entry.category,
@@ -128,6 +131,7 @@ function scoreSheetPayload(entry) {
         student_id: entry.studentId || entry.student_id,
         student_code: entry.studentId || entry.student_id,
         student_name: entry.studentName || entry.student_name,
+        sub_class: subCls,
         arrival_test: Number(entry.arrivalTest ?? 0),
         class_test_1: Number(entry.test1 ?? 0),
         class_test_2: Number(entry.test2 ?? 0),
@@ -147,12 +151,15 @@ function scoreSheetPayload(entry) {
 
 function mapScoreSheetEntry(raw = {}) {
   const score = Array.isArray(raw.scores) ? (raw.scores[0] || {}) : raw;
+  const subCls = raw.sub_class || raw.subClass || raw.sub_class_level || raw.subClassLevel || score.sub_class || score.subClass || '';
   return {
     id: raw.id || raw._id || score.id,
     entryKey: raw.entry_key || raw.entryKey,
     studentId: score.student_id || score.student_code || score.studentId,
     studentName: score.student_name || score.studentName,
     classLevel: raw.class_level || raw.classLevel,
+    subClass: subCls,
+    subClassLevel: subCls,
     subject: raw.subject,
     category: raw.category,
     instructor: raw.instructor,

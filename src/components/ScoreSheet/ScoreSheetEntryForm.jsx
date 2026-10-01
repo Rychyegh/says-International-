@@ -1,11 +1,51 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { usePortalData, scoreSheetEntryKey } from '../../data/PortalStore';
 import { getUserFullName } from '../../services/api';
+import { getMappedSubClasses } from '../Onboarding/OfficialApplicationForm';
 
 // Each of the four class tests is marked over 100, so the class test total is out of 400
 const CLASS_TEST_MAX = 100;
 const CLASS_TEST_COUNT = 4;
 const CLASS_TEST_TOTAL_MAX = CLASS_TEST_MAX * CLASS_TEST_COUNT;
+
+export const STANDARD_SUB_CLASSES = [
+  'Section A',
+  'Section B',
+  'Section C',
+  'Section D',
+  'Stream A',
+  'Stream B',
+  'Stream C',
+  'Gold Class',
+  'Diamond Class',
+  'Sunflower',
+  'Rose'
+];
+
+function detectStudentClassAndSub(student) {
+  if (!student) return { classLevel: 'Basic 1', subClassLevel: 'Basic 1A' };
+  let level = (student.level || student.classLevel || student.class || '').trim();
+  let sub = (student.classSection || student.subClass || student.stream || student.section || '').trim();
+
+  // If level contains e.g. "Basic 1A" or "JHS 3A"
+  const match = level.match(/^(Creche|Nursery \d|Kindergarten \d|KG \d|Basic \d|JHS \d)\s*([A-Z0-9]+)$/i);
+  if (match) {
+    level = match[1];
+    if (!sub) sub = `${match[1]} ${match[2]}`.trim();
+  }
+
+  // Normalize JHS to Basic
+  if (level.toUpperCase() === 'JHS 1') level = 'Basic 7';
+  if (level.toUpperCase() === 'JHS 2') level = 'Basic 8';
+  if (level.toUpperCase() === 'JHS 3') level = 'Basic 9';
+
+  if (!level) level = 'Basic 1';
+  if (!sub) {
+    const mapped = getMappedSubClasses(level);
+    sub = (mapped && mapped.length > 0) ? mapped[0] : `${level}A`;
+  }
+  return { classLevel: level, subClassLevel: sub };
+}
 
 export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
   const { academicSettings, onboardedStudents, saveScoreSheetEntry, results } = usePortalData();
@@ -13,8 +53,15 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
 
   const [studentSearch, setStudentSearch] = useState('');
   const [studentSort, setStudentSort] = useState('AZ'); // 'AZ' | 'ZA' | 'Class'
-  const [selectedStudent, setSelectedStudent] = useState(students[0] || { fullName: 'NANA ADJOA ASARI SEREBOUR', studentId: '421270' });
-  const [cls, setCls] = useState('Basic 1');
+
+  const initialStudent = students[0] || { fullName: 'NANA ADJOA ASARI SEREBOUR', studentId: '421270' };
+  const initialDetected = detectStudentClassAndSub(initialStudent);
+
+  const [selectedStudent, setSelectedStudent] = useState(initialStudent);
+  const [cls, setCls] = useState(initialDetected.classLevel || 'Basic 1');
+  const [subClass, setSubClass] = useState(initialDetected.subClassLevel || 'Basic 1A');
+  const [customSubClasses, setCustomSubClasses] = useState([]);
+
   const [year, setYear] = useState(academicSettings?.academicYear || '2025/2026');
   const [term, setTerm] = useState(academicSettings?.academicTerm || 'Term 3');
   const [subject, setSubject] = useState('Mathematics');
@@ -31,6 +78,62 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
   const [teacherNote, setTeacherNote] = useState('');
   const [savedAt, setSavedAt] = useState('');
 
+  const availableSubClasses = useMemo(() => {
+    const list = [];
+    const add = (val) => {
+      const v = (val || '').trim();
+      if (v && !list.includes(v)) list.push(v);
+    };
+
+    // 1. Mapped subclasses for the chosen class (e.g. Basic 1A, Basic 1B)
+    const mapped = getMappedSubClasses(cls);
+    (mapped || []).forEach(add);
+
+    // 2. Class-prefixed standard variants
+    const norm = (cls || '').trim();
+    add(`${norm}A`);
+    add(`${norm}B`);
+    add(`${norm}C`);
+
+    // 3. Current subClass and custom subclasses
+    if (subClass) add(subClass);
+    customSubClasses.forEach(add);
+
+    // 4. Student's specific subclass if defined
+    const stuSub = selectedStudent?.classSection || selectedStudent?.subClass || selectedStudent?.stream || selectedStudent?.section;
+    if (stuSub) add(stuSub);
+
+    // 5. Standard sections & streams
+    STANDARD_SUB_CLASSES.forEach(add);
+
+    return list;
+  }, [cls, subClass, customSubClasses, selectedStudent]);
+
+  const handleClassChange = (newCls) => {
+    setCls(newCls);
+    // Smoothly convert subclass if it matched old class prefix (e.g. Basic 1A -> Basic 2A)
+    const oldClean = cls.replace(/\s+/g, '').toLowerCase();
+    const subClean = subClass.replace(/\s+/g, '').toLowerCase();
+    if (subClean.startsWith(oldClean)) {
+      const suffix = subClean.slice(oldClean.length).toUpperCase() || 'A';
+      setSubClass(`${newCls}${suffix.length === 1 ? suffix : ` ${suffix}`}`);
+    } else {
+      const isGeneral = STANDARD_SUB_CLASSES.some(s => s.toLowerCase() === subClass.toLowerCase());
+      if (!isGeneral) {
+        const mapped = getMappedSubClasses(newCls);
+        setSubClass((mapped && mapped[0]) || `${newCls}A`);
+      }
+    }
+  };
+
+  const handleStudentSelect = (studentObj) => {
+    if (!studentObj) return;
+    setSelectedStudent(studentObj);
+    const { classLevel, subClassLevel } = detectStudentClassAndSub(studentObj);
+    if (classLevel) setCls(classLevel);
+    if (subClassLevel) setSubClass(subClassLevel);
+  };
+
   const filteredStudents = useMemo(() => {
     let list = [...(students || [])];
     if (studentSearch.trim()) {
@@ -38,7 +141,8 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
       list = list.filter(s =>
         (s.fullName || s.name || '').toLowerCase().includes(q) ||
         (s.studentId || s.id || '').toLowerCase().includes(q) ||
-        (s.level || '').toLowerCase().includes(q)
+        (s.level || '').toLowerCase().includes(q) ||
+        (s.classSection || s.subClass || '').toLowerCase().includes(q)
       );
     }
     list.sort((a, b) => {
@@ -65,6 +169,12 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
     setExamsScore(savedEntry?.examScore ?? 0);
     setTeacherNote(savedEntry?.teacherNote ?? '');
     setSavedAt(savedEntry?.updatedAt || '');
+    if (savedEntry?.classLevel) {
+      setCls(savedEntry.classLevel);
+    }
+    if (savedEntry?.subClass || savedEntry?.subClassLevel || savedEntry?.classSection) {
+      setSubClass(savedEntry.subClass || savedEntry.subClassLevel || savedEntry.classSection);
+    }
   }, [savedEntry]);
 
   const clampTest = (value) => {
@@ -94,7 +204,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
   return (
     <div style={{ background: '#f0f4f8', padding: 16, borderRadius: 6, fontSize: 12, boxSizing: 'border-box', overflowX: 'hidden', width: '100%' }}>
       <div style={{ background: '#38bdf8', color: '#0f172a', padding: '8px 14px', borderRadius: '4px 4px 0 0', fontWeight: 900, fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>Score Sheet [Entry]</span>
+        <span>Score Sheet [Entry] 📝 <span style={{ fontSize: 11.5, opacity: 0.9, fontWeight: 700, marginLeft: 8 }}>({cls} · {subClass})</span></span>
         <span>REMALJ Carewell Inspirational School</span>
       </div>
 
@@ -102,8 +212,33 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
         <div style={{ borderRight: '1px solid #e2e8f0', paddingRight: 14 }}>
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Class</label>
-            <select value={cls} onChange={(e) => setCls(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }}>
+            <select value={cls} onChange={(e) => handleClassChange(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }}>
               <option>Creche</option><option>Nursery 1</option><option>Nursery 2</option><option>KG 1</option><option>KG 2</option><option>Basic 1</option><option>Basic 2</option><option>Basic 3</option><option>Basic 4</option><option>Basic 5</option><option>Basic 6</option><option>Basic 7</option><option>Basic 8</option><option>Basic 9</option>
+            </select>
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Sub class level</label>
+            <select
+              value={subClass}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '__ADD_NEW__') {
+                  const custom = window.prompt(`Enter new custom Sub-Class Level for ${cls} (e.g. ${cls}C, Section C, Stream B):`);
+                  if (custom && custom.trim()) {
+                    const clean = custom.trim();
+                    setCustomSubClasses(prev => [...prev, clean]);
+                    setSubClass(clean);
+                  }
+                } else {
+                  setSubClass(val);
+                }
+              }}
+              style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1', fontWeight: 600, color: '#0f3a4b' }}
+            >
+              {availableSubClasses.map(sc => (
+                <option key={sc} value={sc}>{sc}</option>
+              ))}
+              <option value="__ADD_NEW__">➕ Add Custom Sub-Class...</option>
             </select>
           </div>
           <div style={{ marginBottom: 8 }}>
@@ -182,11 +317,22 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
                 onChange={(e) => setStudentSearch(e.target.value)}
                 style={{ width: '100%', padding: '3px 6px', border: '1px solid #0f3a4b', borderRadius: 4, fontSize: 11, marginBottom: 4, background: '#f8fafc' }}
               />
-              <select value={selectedStudent.fullName} onChange={(e) => {
-                const s = students.find(x => x.fullName === e.target.value);
-                if (s) setSelectedStudent(s);
-              }} style={{ width: '100%', minWidth: 220, padding: '5px 8px', border: '1px solid #0f3a4b', borderRadius: 4, fontWeight: 800, fontSize: 12, background: '#ffffff', color: '#0f3a4b' }}>
-                {filteredStudents.map(s => <option key={s.id} value={s.fullName}>{s.fullName} ({s.studentId || s.id})</option>)}
+              <select
+                value={selectedStudent.fullName || selectedStudent.name}
+                onChange={(e) => {
+                  const s = students.find(x => (x.fullName || x.name) === e.target.value);
+                  if (s) handleStudentSelect(s);
+                }}
+                style={{ width: '100%', minWidth: 220, padding: '5px 8px', border: '1px solid #0f3a4b', borderRadius: 4, fontWeight: 800, fontSize: 12, background: '#ffffff', color: '#0f3a4b' }}
+              >
+                {filteredStudents.map(s => {
+                  const subTag = s.classSection || s.subClass ? ` · ${s.classSection || s.subClass}` : (s.level ? ` · ${s.level}` : '');
+                  return (
+                    <option key={s.id || s.studentId} value={s.fullName || s.name}>
+                      {s.fullName || s.name} ({s.studentId || s.id}){subTag}
+                    </option>
+                  );
+                })}
               </select>
             </div>
             <div>
@@ -275,8 +421,11 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
                     if (typeof saveScoreSheetEntry === 'function') {
                       saveScoreSheetEntry({
                         studentId: selectedStudent.studentId || selectedStudent.id,
-                        studentName: selectedStudent.fullName,
+                        studentName: selectedStudent.fullName || selectedStudent.name,
                         classLevel: cls,
+                        subClass,
+                        subClassLevel: subClass,
+                        classSection: subClass,
                         subject,
                         category,
                         examDate,
@@ -301,13 +450,17 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
                       });
                     }
                     setSavedAt(new Date().toLocaleString());
-                    alert(`${savedEntry ? 'Updated' : 'Saved'} score entry for ${selectedStudent.fullName} (${subject}).\nClass tests: ${totalTest}/400 → ${test50}/50 | Exam: ${exams50}/50 | Total: ${totalScore}%\n\nSent to Admin and Sub-Admin for approval. You can reopen this student to edit and save again.`);
+                    alert(`${savedEntry ? 'Updated' : 'Saved'} score entry for ${selectedStudent.fullName || selectedStudent.name} (${cls} · ${subClass}, ${subject}).\nClass tests: ${totalTest}/400 → ${test50}/50 | Exam: ${exams50}/50 | Total: ${totalScore}%\n\nSent to Admin and Sub-Admin for approval. You can reopen this student to edit and save again.`);
                   }}
                   style={{ padding: '6px 12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 4, fontWeight: 800, color: '#3730a3', cursor: 'pointer' }}
                 >
                   {savedEntry ? 'Update saved scores' : '+ Submit scores'}
                 </button>
-                <button type="button" onClick={() => alert(`Test Roll for ${cls} (${subject}): ${selectedStudent.fullName} - Score ${totalScore}% (Grade ${grade})`)} style={{ padding: '6px 12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 4, fontWeight: 800, color: '#3730a3', cursor: 'pointer' }}>
+                <button
+                  type="button"
+                  onClick={() => alert(`Test Roll for ${cls} · ${subClass} (${subject}): ${selectedStudent.fullName || selectedStudent.name} - Score ${totalScore}% (Grade ${grade})`)}
+                  style={{ padding: '6px 12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 4, fontWeight: 800, color: '#3730a3', cursor: 'pointer' }}
+                >
                   View Test Roll
                 </button>
               </div>
@@ -330,10 +483,16 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
           </div>
 
           <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="button" onClick={() => {
-              const idx = students.findIndex(s => s.fullName === selectedStudent.fullName);
-              if (idx < students.length - 1) setSelectedStudent(students[idx + 1]);
-            }} style={{ padding: '10px 24px', background: '#e2e8f0', border: '1px solid #94a3b8', borderRadius: 4, fontWeight: 900, fontSize: 13, cursor: 'pointer' }}>
+            <button
+              type="button"
+              onClick={() => {
+                const idx = students.findIndex(s => (s.fullName || s.name) === (selectedStudent.fullName || selectedStudent.name));
+                if (idx < students.length - 1) {
+                  handleStudentSelect(students[idx + 1]);
+                }
+              }}
+              style={{ padding: '10px 24px', background: '#e2e8f0', border: '1px solid #94a3b8', borderRadius: 4, fontWeight: 900, fontSize: 13, cursor: 'pointer' }}
+            >
               Next &gt;&gt;
             </button>
           </div>
