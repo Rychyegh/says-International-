@@ -77,8 +77,6 @@ const NON_TEACHING_DUTIES = [
   'Maintenance',
 ];
 
-const STAFF_ROLE_OPTIONS = [...TEACHING_STAFF_ROLES, ...NON_TEACHING_STAFF_ROLES];
-
 function isTeachingStaffMember(person = {}) {
   const role = String(person.role || person.designation || '').trim().toLowerCase();
   if (NON_TEACHING_STAFF_ROLES.some((item) => item.toLowerCase() === role)) return false;
@@ -3049,13 +3047,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     <option value="Offboarded">Offboarded Staff</option>
                   </select>
 
-                  {(staffSearchQuery || staffSubjectFilter !== 'All' || staffStatusFilter !== 'All') && (
+                  {(staffSearchQuery || staffSubjectFilter !== 'All' || staffStatusFilter !== 'All' || staffKindFilter !== 'all') && (
                     <button
                       type="button"
                       onClick={() => {
                         setStaffSearchQuery('');
                         setStaffSubjectFilter('All');
                         setStaffStatusFilter('All');
+                        setStaffKindFilter('all');
                       }}
                       style={{ padding: '9px 14px', borderRadius: 8, border: '1px solid #fecaca', background: '#fef2f2', color: '#b91c1c', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
                     >
@@ -3080,33 +3079,17 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {(teacherDirectory || []).filter(t => {
-                      const matchesSearch = (t.name || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
-                                            (t.staffId || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
-                                            (t.subject || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
-                                            (t.email || '').toLowerCase().includes(staffSearchQuery.toLowerCase());
-                      const matchesSubject = staffSubjectFilter === 'All' || (t.subject || '').toLowerCase().includes(staffSubjectFilter.toLowerCase());
-                      const matchesStatus = staffStatusFilter === 'All' ||
-                                            (staffStatusFilter === 'Active' && t.status !== 'Offboarded') ||
-                                            (staffStatusFilter === 'Offboarded' && t.status === 'Offboarded');
-                      return matchesSearch && matchesSubject && matchesStatus;
-                    }).length === 0 ? (
+                    {visibleStaff.length === 0 ? (
                       <tr>
                         <td colSpan={7} style={{ padding: '28px 16px', textAlign: 'center', color: 'var(--gray-500)', fontWeight: 700 }}>
-                          No teaching staff are stored in the database.
+                          {staffKindFilter === 'teaching'
+                            ? 'No teaching staff are stored in the database.'
+                            : staffKindFilter === 'non_teaching'
+                              ? 'No drivers or other non-teaching staff are stored in the database.'
+                              : 'No staff are stored in the database.'}
                         </td>
                       </tr>
-                    ) : (teacherDirectory || []).filter(t => {
-                      const matchesSearch = (t.name || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
-                                            (t.staffId || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
-                                            (t.subject || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
-                                            (t.email || '').toLowerCase().includes(staffSearchQuery.toLowerCase());
-                      const matchesSubject = staffSubjectFilter === 'All' || (t.subject || '').toLowerCase().includes(staffSubjectFilter.toLowerCase());
-                      const matchesStatus = staffStatusFilter === 'All' ||
-                                            (staffStatusFilter === 'Active' && t.status !== 'Offboarded') ||
-                                            (staffStatusFilter === 'Offboarded' && t.status === 'Offboarded');
-                      return matchesSearch && matchesSubject && matchesStatus;
-                    }).map((t) => (
+                    ) : visibleStaff.map((t) => (
                       <tr key={t.id || t.staffId} style={{ opacity: t.status === 'Offboarded' ? 0.6 : 1 }}>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -3241,25 +3224,37 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Designation / Role</span>
                       <select
                         value={newStaffForm.role}
-                        onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value })}
+                        onChange={(e) => {
+                          const role = e.target.value;
+                          const teaching = isTeachingStaffMember({ role });
+                          setNewStaffForm({
+                            ...newStaffForm,
+                            role,
+                            subject: teaching
+                              ? (SUBJECT_OPTIONS.includes(newStaffForm.subject) ? newStaffForm.subject : (SUBJECT_OPTIONS[0] || ''))
+                              : (NON_TEACHING_DUTIES.includes(newStaffForm.subject) ? newStaffForm.subject : 'Transport'),
+                            classAssigned: teaching ? (newStaffForm.classAssigned || 'Basic 1') : '',
+                          });
+                        }}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
                       >
-                        <option>Subject Teacher</option>
-                        <option>Form Master / Class Tutor</option>
-                        <option>Department Head</option>
-                        <option>Senior Tutor</option>
-                        <option>ICT Administrator</option>
+                        <optgroup label="Teaching staff">
+                          {TEACHING_STAFF_ROLES.map((role) => <option key={role}>{role}</option>)}
+                        </optgroup>
+                        <optgroup label="Non-teaching staff">
+                          {NON_TEACHING_STAFF_ROLES.map((role) => <option key={role}>{role}</option>)}
+                        </optgroup>
                       </select>
                     </label>
 
                     <label>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Primary Subject</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>{isTeachingStaffMember(newStaffForm) ? 'Primary Subject' : 'Duty area'}</span>
                       <select
                         value={newStaffForm.subject}
                         onChange={(e) => setNewStaffForm({ ...newStaffForm, subject: e.target.value })}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, appearance: 'auto' }}
                       >
-                        {SUBJECT_OPTIONS.map((s) => (
+                        {(isTeachingStaffMember(newStaffForm) ? SUBJECT_OPTIONS : NON_TEACHING_DUTIES).map((s) => (
                           <option key={s} value={s}>{s}</option>
                         ))}
                       </select>
@@ -3268,12 +3263,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <label>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Assigned Class</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>{isTeachingStaffMember(newStaffForm) ? 'Assigned Class' : 'Assigned class (optional)'}</span>
                       <select
                         value={newStaffForm.classAssigned}
                         onChange={(e) => setNewStaffForm({ ...newStaffForm, classAssigned: e.target.value })}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
                       >
+                        {!isTeachingStaffMember(newStaffForm) && <option value="">Not assigned to a class</option>}
                         {LEVEL_OPTIONS.map((l) => (
                           <option key={l}>{l}</option>
                         ))}
@@ -3370,25 +3366,36 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Designation / Role</span>
                       <select
                         value={editingStaff.role || 'Subject Teacher'}
-                        onChange={(e) => setEditingStaff({ ...editingStaff, role: e.target.value })}
+                        onChange={(e) => {
+                          const role = e.target.value;
+                          const teaching = isTeachingStaffMember({ role });
+                          setEditingStaff({
+                            ...editingStaff,
+                            role,
+                            subject: teaching
+                              ? (SUBJECT_OPTIONS.includes(editingStaff.subject) ? editingStaff.subject : (SUBJECT_OPTIONS[0] || ''))
+                              : (NON_TEACHING_DUTIES.includes(editingStaff.subject) ? editingStaff.subject : 'Transport'),
+                          });
+                        }}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, appearance: 'auto' }}
                       >
-                        <option>Subject Teacher</option>
-                        <option>Form Master / Class Tutor</option>
-                        <option>Department Head</option>
-                        <option>Senior Tutor</option>
-                        <option>ICT Administrator</option>
+                        <optgroup label="Teaching staff">
+                          {TEACHING_STAFF_ROLES.map((role) => <option key={role}>{role}</option>)}
+                        </optgroup>
+                        <optgroup label="Non-teaching staff">
+                          {NON_TEACHING_STAFF_ROLES.map((role) => <option key={role}>{role}</option>)}
+                        </optgroup>
                       </select>
                     </label>
 
                     <label>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Primary Subject</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>{isTeachingStaffMember(editingStaff) ? 'Primary Subject' : 'Duty area'}</span>
                       <select
-                        value={editingStaff.subject || 'Pure Mathematics'}
+                        value={editingStaff.subject || (isTeachingStaffMember(editingStaff) ? 'Pure Mathematics' : 'Transport')}
                         onChange={(e) => setEditingStaff({ ...editingStaff, subject: e.target.value })}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, appearance: 'auto' }}
                       >
-                        {SUBJECT_OPTIONS.map((s) => (
+                        {(isTeachingStaffMember(editingStaff) ? SUBJECT_OPTIONS : NON_TEACHING_DUTIES).map((s) => (
                           <option key={s} value={s}>{s}</option>
                         ))}
                       </select>
