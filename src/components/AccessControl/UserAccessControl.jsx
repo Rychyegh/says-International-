@@ -162,7 +162,7 @@ const DEFAULT_USERS_SEED = [
 ];
 
 export default function UserAccessControl({ adminRole = 'head_admin' }) {
-  const { onboardedStudents, teacherDirectory } = usePortalData();
+  const { onboardedStudents, teacherDirectory, addStaffMember } = usePortalData();
 
   const [activeTab, setActiveTab] = useState('users'); // 'users' | 'matrix' | 'audit'
   const [searchQuery, setSearchQuery] = useState('');
@@ -440,12 +440,20 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       return;
     }
 
+    const isClassTeacher = createForm.role === 'class_teacher';
+    if (isClassTeacher && !createForm.assignedClass) {
+      alert('Assign a class before creating a class teacher.');
+      return;
+    }
+
     const finalPass = createForm.password.trim() || generateSecurePassword(createForm.role);
     const autoStaffId = createForm.staffId.trim() || (
       (createForm.role === 'teacher' || createForm.role === 'class_teacher') ? `CT-2026-${String(users.length + 1).padStart(3, '0')}` :
       createForm.role === 'accountant' ? `ACC-2026-${String(users.length + 1).padStart(3, '0')}` :
       createForm.role === 'admin' ? `ADM-2026-${String(users.length + 1).padStart(3, '0')}` : undefined
     );
+    const classPasscode = isClassTeacher ? String(Math.floor(1000 + Math.random() * 9000)) : undefined;
+    const assignedClass = [createForm.assignedClass, createForm.subClass].filter(Boolean).join(' · ') || undefined;
 
     const newUser = {
       id: `usr_${createForm.role}_${Date.now()}`,
@@ -453,13 +461,15 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       email: emailKey,
       phone: createForm.phone.trim() || '024 000 0000',
       role: createForm.role,
+      teacherDesignation: isClassTeacher ? 'class_teacher' : undefined,
       status: createForm.status || 'Active',
       staffId: autoStaffId,
       studentId: createForm.studentId.trim() || undefined,
-      assignedClass: [createForm.assignedClass, createForm.subClass].filter(Boolean).join(' · ') || undefined,
+      assignedClass,
       classLevel: createForm.assignedClass || undefined,
       subClass: createForm.subClass || undefined,
       password: finalPass,
+      passcode: classPasscode,
       createdAt: new Date().toISOString().split('T')[0],
       lastLogin: 'Never',
       mustChangePassword: createForm.mustChangePassword,
@@ -475,13 +485,47 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
 
     // Sync to the backend after the modal closes so a slow API never holds the overlay open
     api.createUserAccount({ ...newUser })
-      .then((res) => {
-        const remoteId = res?.id || res?._id;
-        if (!remoteId) return;
-        setUsers((current) => current.map(u => (u.id === newUser.id ? { ...u, id: remoteId } : u)));
+      .then(async (res) => {
+        const remoteId = res?.id || res?._id || res?.user?.id;
+        if (remoteId) {
+          setUsers((current) => current.map(u => (u.id === newUser.id ? { ...u, id: remoteId } : u)));
+        }
+
+        if (newUser.role === 'teacher' || newUser.role === 'class_teacher') {
+          try {
+            await addStaffMember({
+              name: newUser.fullName,
+              email: newUser.email,
+              phone: newUser.phone,
+              staffId: newUser.staffId,
+              role: newUser.role === 'class_teacher' ? 'Class Teacher' : 'Subject Teacher',
+              teacherDesignation: newUser.teacherDesignation,
+              classAssigned: newUser.classLevel || newUser.assignedClass,
+              password: newUser.password,
+              status: 'Active',
+            });
+          } catch (staffErr) {
+            console.warn('[UAC] Staff directory sync failed:', staffErr?.message || staffErr);
+          }
+        }
+
+        if (newUser.role === 'class_teacher' && newUser.passcode) {
+          try {
+            await api.issueClassTeacherCredential({
+              teacherName: newUser.fullName,
+              classAssigned: newUser.assignedClass || newUser.classLevel,
+              staffId: newUser.staffId,
+              passcode: newUser.passcode,
+              phone: newUser.phone,
+            });
+          } catch (ctErr) {
+            console.warn('[UAC] Class teacher passcode issue failed:', ctErr?.message || ctErr);
+          }
+        }
       })
       .catch((err) => {
         console.warn('[UAC] Backend user create failed, saved locally:', err?.message || err);
+        triggerToast(`⚠️ ${newUser.fullName} was saved locally, but the database rejected the account: ${err?.message || 'request failed'}`);
       });
 
     // Reset form
@@ -1343,7 +1387,9 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Assigned Class (Optional)</label>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                    Assigned Class {createForm.role === 'class_teacher' ? '*' : '(Optional)'}
+                  </label>
                   <select
                     value={createForm.assignedClass}
                     onChange={(e) => setCreateForm(prev => ({ ...prev, assignedClass: e.target.value }))}
@@ -1671,6 +1717,13 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                   <strong style={{ fontFamily: 'monospace', color: '#4a1d6e', fontSize: 14 }}>{slipUser.password || 'Carewell2026!'}</strong>
                 </div>
 
+                {slipUser.passcode && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, background: '#dcfce7', padding: '10px 12px', borderRadius: 6 }}>
+                    <span style={{ color: '#166534', fontWeight: 700 }}>Class Teacher Passcode:</span>
+                    <strong style={{ fontFamily: 'monospace', color: '#14532d', fontSize: 14 }}>{slipUser.passcode}</strong>
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span style={{ color: 'var(--text-muted)' }}>Portal URL:</span>
                   <span style={{ fontSize: 12, fontWeight: 700, color: '#0369a1' }}>http://localhost:5173</span>
@@ -1688,7 +1741,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                 <button
                   type="button"
                   onClick={() => {
-                    const text = `REMALJ CAREWELL ACCESS CREDENTIALS\nName: ${slipUser.fullName}\nRole: ${slipUser.role.toUpperCase()}\nLogin: ${slipUser.email}\nPassword: ${slipUser.password || 'Carewell2026!'}\nPortal: http://localhost:5173`;
+                    const text = `REMALJ CAREWELL ACCESS CREDENTIALS\nName: ${slipUser.fullName}\nRole: ${slipUser.role.toUpperCase()}\nLogin: ${slipUser.email}\nPassword: ${slipUser.password || 'Carewell2026!'}${slipUser.passcode ? `\nClass Teacher Passcode: ${slipUser.passcode}` : ''}\nStaff ID: ${slipUser.staffId || ''}\nPortal: http://localhost:5173`;
                     copyToClipboard(text, 'slip-full');
                   }}
                   style={{

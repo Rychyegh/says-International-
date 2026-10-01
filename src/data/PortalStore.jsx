@@ -2671,6 +2671,7 @@ export function PortalDataProvider({ children }) {
           name: createdPayload.name || staffData.name,
           classAssigned: formatClassToBasic(createdPayload.classAssigned || staffData.classAssigned || 'Basic 1'),
           role: createdPayload.role || staffData.role || 'Subject Teacher',
+          teacherDesignation: staffData.teacherDesignation || createdPayload.teacherDesignation || createdPayload.teacher_designation,
           status: createdPayload.status || 'Active'
         } : {
           id: crypto.randomUUID?.() || String(Date.now()),
@@ -2681,6 +2682,7 @@ export function PortalDataProvider({ children }) {
           email,
           phone: staffData.phone || '024 900 1100',
           role: staffData.role || 'Subject Teacher',
+          teacherDesignation: staffData.teacherDesignation,
           status: staffData.status || 'Active',
           joinedDate: staffData.joinedDate || new Date().toISOString().split('T')[0],
           photo: staffData.photo || (staffData.gender === 'Female' ? '👩‍🏫' : '👨‍🏫'),
@@ -2695,7 +2697,8 @@ export function PortalDataProvider({ children }) {
             email: email.toLowerCase(),
             password: defaultPassword,
             fullName: staffData.name,
-            role: 'teacher',
+            role: staffData.teacherDesignation === 'class_teacher' ? 'class_teacher' : 'teacher',
+            teacherDesignation: staffData.teacherDesignation,
             staffId,
             phone: staffData.phone
           };

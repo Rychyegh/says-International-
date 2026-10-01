@@ -915,9 +915,24 @@ export const api = {
   },
 
   createStaff: async (staffData) => {
+    const isClassTeacher = staffData.teacherDesignation === 'class_teacher'
+      || staffData.teacher_designation === 'class_teacher'
+      || staffData.role === 'class_teacher'
+      || staffData.role === 'Class Teacher';
+    const payload = {
+      ...staffProfilePayload(staffData),
+      name: staffData.name || staffData.fullName || staffData.full_name,
+      staff_id: staffData.staffId || staffData.staff_id || staffData.staff_code,
+      role: isClassTeacher ? 'Class Teacher' : (staffData.role || 'Subject Teacher'),
+      teacher_designation: isClassTeacher ? 'class_teacher' : (staffData.teacher_designation || staffData.teacherDesignation),
+      is_class_teacher: isClassTeacher || undefined,
+      status: staffData.status || 'Active',
+      is_active: staffData.status !== 'Offboarded',
+    };
+    Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
     return await request('/staff', {
       method: 'POST',
-      body: JSON.stringify(staffData),
+      body: JSON.stringify(payload),
     });
   },
 
@@ -1274,12 +1289,17 @@ export const api = {
 
   createUserAccount: async (userData) => {
     // POST /api/v1/users — exact schema from API docs
-    // Fields: email, username, password, full_name, name, role,
-    //         phone_number, phone, card_id, photo_url, is_active, status
+    // Class teacher is stored as role=teacher + teacher_designation=class_teacher
     const fullName = (userData.fullName || userData.full_name || userData.name || '').trim();
     const email    = (userData.email || '').trim().toLowerCase();
     const phone    = (userData.phone || userData.phone_number || '').trim();
-    const role     = userData.role || 'teacher';
+    const uiRole   = userData.role || 'teacher';
+    const isClassTeacher = uiRole === 'class_teacher'
+      || userData.teacherDesignation === 'class_teacher'
+      || userData.teacher_designation === 'class_teacher';
+    const role = isClassTeacher ? 'teacher' : uiRole;
+    const classAssigned = userData.classLevel || userData.class_level || userData.assignedClass || userData.class_assigned || undefined;
+    const subClass = userData.subClass || userData.sub_class || undefined;
 
     const payload = {
       email,
@@ -1296,9 +1316,16 @@ export const api = {
       status:       userData.status || 'Active',
       staff_code:   userData.staffId || userData.staff_id || undefined,
       student_code: userData.studentId || userData.student_id || undefined,
-      class_assigned: userData.classLevel || userData.class_level || userData.assignedClass || undefined,
-      sub_class:    userData.subClass || userData.sub_class || undefined,
+      class_assigned: classAssigned,
+      sub_class:    subClass,
     };
+
+    if (isClassTeacher) {
+      payload.teacher_designation = 'class_teacher';
+      payload.teacherDesignation = 'class_teacher';
+      payload.is_class_teacher = true;
+      payload.requires_class_teacher_passcode = true;
+    }
 
     // Strip undefined fields so the backend validator doesn't reject them
     Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
