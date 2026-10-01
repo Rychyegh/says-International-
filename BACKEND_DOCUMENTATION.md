@@ -88,7 +88,7 @@ STORAGE_BASE_PATH=./uploads
 ### 3.1 Authentication, Users & Security (`users`, `sims_sessions`, `security_alerts`)
 ```sql
 CREATE TYPE user_role AS ENUM (
-  'ACCOUNTANT', 'HEADMASTER_PRE_AUDITOR', 'SIMS_ADMIN', 'TEACHER', 'PARENT', 'STUDENT'
+  'ACCOUNTANT', 'HEADMASTER_PRE_AUDITOR', 'SIMS_ADMIN', 'TEACHER', 'CLASS_TEACHER', 'PARENT', 'STUDENT'
 );
 
 CREATE TABLE users (
@@ -588,6 +588,20 @@ CREATE TABLE bus_routes (
 - **Endpoint**: `GET /api/v1/auth/security-alerts`
 - **Access**: `SIMS_ADMIN`
 - **Response `200 OK`**: Returns array of `security_alerts` records.
+
+#### 11. Class Teacher role
+The staff portal already calls the class teacher credential, passcode, and dashboard routes. The implementation contract, database table, sign-in sequence, and acceptance checks are in [`docs/CLASS_TEACHER_BACKEND.md`](docs/CLASS_TEACHER_BACKEND.md). Summary of the routes:
+
+| Method | Path | Who |
+|---|---|---|
+| `GET` | `/api/v1/auth/class-teachers` | Head admin lists issued passcodes |
+| `POST` | `/api/v1/auth/class-teachers` | Head admin issues a passcode |
+| `GET` | `/api/v1/auth/class-teacher/me` | Signed-in teacher; tells the portal whether the passcode step is required |
+| `POST` | `/api/v1/auth/class-teacher/verify` | Class teacher passcode after email and password |
+| `POST` | `/api/v1/auth/class-teacher/login` | Direct staff-ID login supported by the client |
+| `GET` | `/api/v1/class-teachers/dashboard` | Verified class teacher home screen, scoped to the assigned class |
+
+A class teacher uses `role: teacher` plus `teacher_designation: class_teacher`. Class-teacher-only routes require `passcode_verified: true` on the JWT.
 
 ---
 

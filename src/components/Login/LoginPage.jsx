@@ -1111,14 +1111,6 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                 )}
               </form>
 
-              {/* Universal Sign Up prompt */}
-              <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--gray-600)', marginTop: 24 }}>
-                Don't have an account?{' '}
-                <button type="button" onClick={() => switchView('signup')} className="form-forgot" style={{ fontWeight: 800 }}>
-                  Sign Up
-                </button>
-              </div>
-
               {portal === 'teacher' ? (
                 <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 14, padding: '10px 14px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 10, border: '1px solid #bae6fd' }}>
                   💡 <strong>Teacher Notice:</strong> Teacher account credentials are created and assigned by the System Administrator.
@@ -1129,11 +1121,11 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                 </div>
               ) : portal === 'parent' ? (
                 <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 14, padding: '10px 14px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 10, border: '1px solid #bae6fd' }}>
-                  💡 <strong>Parent Notice:</strong> Parents can self-register above or use credentials dispatched via SMS by the school.
+                  💡 <strong>Parent Notice:</strong> Parent account credentials are dispatched via SMS by the school.
                 </div>
               ) : portal === 'student' ? (
                 <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 14, padding: '10px 14px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 10, border: '1px solid #bae6fd' }}>
-                  💡 <strong>Student Notice:</strong> Students can self-register or sign in using their assigned Student ID & Card.
+                  💡 <strong>Student Notice:</strong> Students sign in using their assigned Student ID and card.
                 </div>
               ) : (
                 <div style={{ textAlign: 'center', fontSize: 12, color: '#0c4a6e', marginTop: 14, padding: '10px 14px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderRadius: 10, border: '1px solid #bae6fd' }}>

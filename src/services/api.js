@@ -94,6 +94,77 @@ async function request(endpoint, options = {}) {
   }
 }
 
+function mapClassTeacherDashboard(res) {
+  if (!res || typeof res !== 'object') return null;
+  const teacherRaw = res.teacher || res.profile || {};
+  const statsRaw = res.stats || {};
+  const studentList = Array.isArray(res.students) ? res.students : (res.roster || []);
+  const activityList = Array.isArray(res.activity) ? res.activity : (res.recent_activity || []);
+  const subjectList = Array.isArray(res.subjects) ? res.subjects : (res.subject_performance || []);
+  const transportRaw = res.transport || null;
+
+  return {
+    teacher: {
+      fullName: teacherRaw.fullName || teacherRaw.full_name || teacherRaw.name || '',
+      staffId: teacherRaw.staffId || teacherRaw.staff_id || '',
+      classAssigned: teacherRaw.classAssigned || teacherRaw.class_assigned || '',
+      designation: teacherRaw.designation || teacherRaw.teacher_designation || 'class_teacher',
+    },
+    stats: {
+      totalStudents: statsRaw.totalStudents ?? statsRaw.total_students,
+      classesToday: statsRaw.classesToday ?? statsRaw.classes_today,
+      classesRemaining: statsRaw.classesRemaining ?? statsRaw.classes_remaining,
+      assignmentsDue: statsRaw.assignmentsDue ?? statsRaw.assignments_due,
+      assignmentsUngraded: statsRaw.assignmentsUngraded ?? statsRaw.assignments_ungraded,
+      averageClassScore: statsRaw.averageClassScore ?? statsRaw.average_class_score,
+      averageScoreDelta: statsRaw.averageScoreDelta ?? statsRaw.average_score_delta,
+    },
+    students: studentList.map((student) => {
+      if (!student || typeof student !== 'object') return null;
+      const name = student.fullName || student.full_name || student.name || '';
+      if (!name) return null;
+      return {
+        name,
+        class: student.classLevel || student.class_level || student.level || student.class || '',
+        id: student.studentId || student.student_id || student.id || '',
+        attendance: Number(student.attendancePercent ?? student.attendance_percent ?? student.attendance ?? 0),
+        mathGrade: student.mathGrade || student.math_grade || '—',
+        sciGrade: student.scienceGrade || student.science_grade || student.sciGrade || '—',
+        email: student.email || student.studentEmail || student.student_email || '',
+        status: student.status || 'Enrolled',
+      };
+    }).filter(Boolean),
+    activity: activityList.map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const text = item.text || item.message || '';
+      if (!text) return null;
+      return {
+        text,
+        time: item.time || item.time_label || item.occurred_at || '',
+        tone: item.tone || item.severity || 'success',
+      };
+    }).filter(Boolean),
+    subjects: subjectList.map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const subject = item.subject || item.name || '';
+      if (!subject) return null;
+      return {
+        subject,
+        pct: Number(item.percent ?? item.pct ?? item.average ?? 0),
+      };
+    }).filter(Boolean),
+    transport: transportRaw ? {
+      routeLabel: transportRaw.routeLabel || transportRaw.route_label || transportRaw.name || '',
+      studentsOnBoard: transportRaw.studentsOnBoard ?? transportRaw.students_on_board ?? 0,
+      capacity: transportRaw.capacity ?? 0,
+      nextStop: transportRaw.nextStop || transportRaw.next_stop || '',
+      eta: transportRaw.eta || '',
+      progressPercent: Number(transportRaw.progressPercent ?? transportRaw.progress_percent ?? 0),
+      stopsLeft: transportRaw.stopsLeft ?? transportRaw.stops_left ?? 0,
+    } : null,
+  };
+}
+
 function mapClassTeacherCredential(item) {
   if (!item || typeof item !== 'object') return null;
   return {
@@ -373,6 +444,11 @@ export const api = {
     if (res && res.token) setAuthToken(res.token);
     if (res && res.user) setAuthUser(res.user);
     return res;
+  },
+
+  getClassTeacherDashboard: async () => {
+    const res = await request('/class-teachers/dashboard');
+    return mapClassTeacherDashboard(res);
   },
 
   // --- Health Check ---

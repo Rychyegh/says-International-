@@ -15,7 +15,7 @@ import { PortalSettings, StaffAssignments, StaffCalendar } from '../components/S
 import { AdmissionsRegister } from '../components/Onboarding/Onboarding';
 import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
 import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
-import { getAuthUser } from '../services/api';
+import { api, getAuthUser } from '../services/api';
 import { usePortalData } from '../data/PortalStore';
 
 const TEACHER_GREEN = '#204d2d';
@@ -63,6 +63,24 @@ const SUBJECTS = [
   { subject: 'ICT',             pct: 82, color: '#7c3ac8'      },
 ];
 
+const SUBJECT_COLORS = [TEACHER_ACCENT, '#3a72c8', '#c89a3a', '#c8703a', '#7c3ac8'];
+const ACTIVITY_COLORS = {
+  success: TEACHER_ACCENT,
+  info: '#3a72c8',
+  warning: '#c89a3a',
+  danger: '#c84a4a',
+};
+
+const FALLBACK_TRANSPORT = {
+  routeLabel: 'Bus 01 – Route A',
+  studentsOnBoard: 22,
+  capacity: 25,
+  nextStop: 'Anikoko',
+  eta: '15:45',
+  progressPercent: 62,
+  stopsLeft: 3,
+};
+
 export default function TeacherPortal() {
   const store = usePortalData();
   const onboardedStudents = store?.onboardedStudents || [];
@@ -70,8 +88,19 @@ export default function TeacherPortal() {
 
   const authUser = getAuthUser();
   const isClassTeacher = authUser?.teacherDesignation === 'class_teacher' || authUser?.teacher_designation === 'class_teacher';
-  const teacherRole = isClassTeacher ? 'class_teacher' : 'subject_teacher';
-  const staffId = isClassTeacher ? (authUser?.staffId || 'CT-2026-001') : (authUser?.staffId || 'STF-2026-003');
+  const [classDashboard, setClassDashboard] = useState(null);
+  const staffId = authUser?.staffId || authUser?.staff_id || classDashboard?.teacher?.staffId || '';
+
+  useEffect(() => {
+    if (!isClassTeacher) return undefined;
+    let cancelled = false;
+    api.getClassTeacherDashboard()
+      .then((data) => {
+        if (!cancelled && data) setClassDashboard(data);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isClassTeacher]);
 
   const SUBJECT_RESTRICTED = ['Students', 'Admissions', 'Transport', 'Messages', 'Operations', 'Settings'];
 
@@ -109,7 +138,32 @@ export default function TeacherPortal() {
     return () => window.removeEventListener('says_navigate', handleNavEvent);
   }, [isClassTeacher]);
 
-  const displayStudents = onboardedStudents.length > 0 ? onboardedStudents.map(s => ({
+  const teacherName = classDashboard?.teacher?.fullName || authUser?.fullName || authUser?.name || 'Staff';
+  const classAssignedLabel = classDashboard?.teacher?.classAssigned || authUser?.classAssigned || authUser?.class_assigned || '';
+  const dashboardStats = classDashboard?.stats || {};
+  const classesToday = dashboardStats.classesToday ?? 6;
+  const classesRemaining = dashboardStats.classesRemaining ?? 2;
+  const assignmentsDue = dashboardStats.assignmentsDue ?? 11;
+  const assignmentsUngraded = dashboardStats.assignmentsUngraded ?? 3;
+  const averageClassScore = dashboardStats.averageClassScore ?? 78;
+  const averageScoreDelta = dashboardStats.averageScoreDelta ?? 2.4;
+  const liveTransport = (isClassTeacher && classDashboard?.transport) ? classDashboard.transport : FALLBACK_TRANSPORT;
+  const activityFeed = classDashboard?.activity?.length
+    ? classDashboard.activity.map((item) => ({
+      text: item.text,
+      time: item.time,
+      color: ACTIVITY_COLORS[item.tone] || TEACHER_ACCENT,
+    }))
+    : ACTIVITY;
+  const subjectRows = classDashboard?.subjects?.length
+    ? classDashboard.subjects.map((row, index) => ({
+      subject: row.subject,
+      pct: row.pct,
+      color: SUBJECT_COLORS[index % SUBJECT_COLORS.length],
+    }))
+    : SUBJECTS;
+
+  const rosterFromStore = onboardedStudents.length > 0 ? onboardedStudents.map(s => ({
     name: s.fullName,
     class: s.level,
     score: 85,
@@ -118,14 +172,24 @@ export default function TeacherPortal() {
     mathGrade: 'A',
     sciGrade: 'A-',
     color: TEACHER_GREEN,
-    email: s.studentEmail || `${s.fullName.toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`
+    email: s.studentEmail || `${(s.fullName || '').toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`,
+    status: 'Enrolled',
   })) : FALLBACK_STUDENTS;
 
+  const assignedKey = classAssignedLabel.trim().toLowerCase();
+  const classRoster = assignedKey
+    ? rosterFromStore.filter((student) => String(student.class || '').trim().toLowerCase() === assignedKey)
+    : [];
+  const displayStudents = classDashboard?.students?.length
+    ? classDashboard.students.map((student) => ({ ...student, color: TEACHER_GREEN }))
+    : (classRoster.length ? classRoster : rosterFromStore);
+  const usingLiveRoster = Boolean(classDashboard?.students?.length) || onboardedStudents.length > 0;
+
   const STATS = [
-    { label: 'Total Students',  value: String(displayStudents.length), trend: 'Active enrolled roster',  up: true,  icon: '👥', bg: '#dcfce7', ic: '#166534' },
-    { label: 'Classes Today',   value: '6',   trend: '2 remaining',   up: true,  icon: '📚', bg: '#dbeafe', ic: '#1e3a8a' },
-    { label: 'Assignments Due', value: '11',  trend: '3 not graded',  up: false, icon: '📋', bg: '#fef9c3', ic: '#78350f' },
-    { label: 'Avg Class Score', value: '78%', trend: '+2.4% vs last', up: true,  icon: '📈', bg: '#dcfce7', ic: '#166534' },
+    { label: 'Total Students',  value: String(dashboardStats.totalStudents ?? displayStudents.length), trend: 'Active enrolled roster',  up: true,  icon: '👥', bg: '#dcfce7', ic: '#166534' },
+    { label: 'Classes Today',   value: String(classesToday),   trend: `${classesRemaining} remaining`,   up: true,  icon: '📚', bg: '#dbeafe', ic: '#1e3a8a' },
+    { label: 'Assignments Due', value: String(assignmentsDue),  trend: `${assignmentsUngraded} not graded`,  up: false, icon: '📋', bg: '#fef9c3', ic: '#78350f' },
+    { label: 'Avg Class Score', value: `${averageClassScore}%`, trend: `${Number(averageScoreDelta) >= 0 ? '+' : ''}${averageScoreDelta}% vs last`, up: Number(averageScoreDelta) >= 0,  icon: '📈', bg: '#dcfce7', ic: '#166534' },
   ];
 
   return (
@@ -141,10 +205,10 @@ export default function TeacherPortal() {
               </span>
             </div>
             <div style={{ fontSize: 11, color: '#4a7a5a', marginTop: 4, fontWeight: 600 }}>
-              {authUser?.fullName || authUser?.name || 'Mr. Samuel Amponsah'} (ID: <code>{staffId}</code>)
+              {teacherName}{staffId ? <> (ID: <code>{staffId}</code>)</> : null}
             </div>
             <div style={{ fontSize: 11, color: '#166534', marginTop: 4, fontWeight: 700 }}>
-              {isClassTeacher ? 'Form Tutor • Grade 4 Section B' : 'Subject Instructor • Pure Mathematics'}
+              {isClassTeacher ? `Form Tutor${classAssignedLabel ? ` • ${classAssignedLabel}` : ''}` : 'Subject Instructor'}
             </div>
           </div>
           <span className="sidebar-section-label">Navigation</span>
@@ -243,10 +307,11 @@ export default function TeacherPortal() {
                 <p className="page-header__eyebrow" style={{ color: TEACHER_ACCENT }}>
                   <span style={{ background: TEACHER_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #c4dfc9' }}>Staff Portal — REMALJ Carewell</span>
                 </p>
-                <h1 className="page-header__title">Good morning, Mr. Amponsah 👋</h1>
+                <h1 className="page-header__title">Good morning, {teacherName} 👋</h1>
                 <p className="page-header__subtitle">
-                  You have <strong style={{ color: TEACHER_ACCENT }}>6 classes</strong> today and{' '}
-                  <strong style={{ color: '#c89a3a' }}>3 assignments</strong> pending review.
+                  You have <strong style={{ color: TEACHER_ACCENT }}>{classesToday} classes</strong> today and{' '}
+                  <strong style={{ color: '#c89a3a' }}>{assignmentsUngraded} assignments</strong> pending review.
+                  {isClassTeacher && classAssignedLabel ? <> Form class: <strong style={{ color: TEACHER_ACCENT }}>{classAssignedLabel}</strong>.</> : null}
                 </p>
               </div>
               <div className="stats-grid">
@@ -262,7 +327,7 @@ export default function TeacherPortal() {
                 {/* Students table */}
                 <div className="panel">
                   <div className="panel__header">
-                    <h2 className="panel__title">Grade 10-A Student Ledger</h2>
+                    <h2 className="panel__title">{classAssignedLabel ? `${classAssignedLabel} Student Ledger` : 'Class Student Ledger'}</h2>
                     <button style={{ padding: '6px 14px', fontSize: 11, border: `1.5px solid ${TEACHER_GREEN}`, color: TEACHER_GREEN, borderRadius: 6, background: 'transparent', cursor: 'pointer', fontWeight: 700 }}>+ Add Student</button>
                   </div>
                   <table className="data-table">
@@ -275,7 +340,7 @@ export default function TeacherPortal() {
                               <div className="avatar" style={{ background: s.color }}>{s.name.charAt(0)}</div>
                               <div>
                                 <div style={{ fontWeight: 600, color: 'var(--gray-900)' }}>{s.name}</div>
-                                <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{s.name.toLowerCase().replace(' ', '.')}@remaljcarewell.edu.gh</div>
+                                <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{s.email || `${s.name.toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`}</div>
                               </div>
                             </div>
                           </td>
@@ -295,9 +360,11 @@ export default function TeacherPortal() {
                       ))}
                     </tbody>
                   </table>
-                  <div style={{ padding: '14px', textAlign: 'center', borderTop: '1px solid var(--gray-100)' }}>
-                    <button style={{ fontSize: 13, color: TEACHER_ACCENT, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}>Load {148 - 5} more students...</button>
-                  </div>
+                  {!usingLiveRoster && (
+                    <div style={{ padding: '14px', textAlign: 'center', borderTop: '1px solid var(--gray-100)' }}>
+                      <span style={{ fontSize: 13, color: 'var(--gray-400)', fontWeight: 600 }}>Sample class list until the class teacher dashboard is available.</span>
+                    </div>
+                  )}
                 </div>
                 {/* Activity */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -305,7 +372,7 @@ export default function TeacherPortal() {
                     <div className="panel__header"><h2 className="panel__title">Recent Activity</h2><Bell size={15} color="var(--gray-400)"/></div>
                     <div className="panel__body">
                       <div className="activity-feed">
-                        {ACTIVITY.map((a, i) => (
+                        {activityFeed.map((a, i) => (
                           <div className="activity-item" key={i}>
                             <div className="activity-item__dot" style={{ background: a.color }}/>
                             <div className="activity-item__content">
@@ -325,22 +392,22 @@ export default function TeacherPortal() {
                     title="View full transport tracker"
                   >
                     <div className="transport-widget__label">Transport — Live</div>
-                    <div className="transport-widget__route">Bus 01 – Route A &nbsp;•&nbsp; 22/25 students</div>
+                    <div className="transport-widget__route">{liveTransport.routeLabel} &nbsp;•&nbsp; {liveTransport.studentsOnBoard}/{liveTransport.capacity} students</div>
                     <div className="transport-widget__row">
                       <div>
                         <div className="transport-widget__stop-label">Next Stop</div>
-                        <div className="transport-widget__stop">🚌 Anikoko</div>
+                        <div className="transport-widget__stop">🚌 {liveTransport.nextStop}</div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div className="transport-widget__eta">15:45</div>
+                        <div className="transport-widget__eta">{liveTransport.eta}</div>
                         <div className="transport-widget__eta-label">ETA</div>
                       </div>
                     </div>
                     <div className="transport-track">
-                      <div className="transport-track__fill" style={{ width: '62%' }}/>
-                      <div className="transport-track__bus" style={{ left: 'calc(62% - 7px)' }}/>
+                      <div className="transport-track__fill" style={{ width: `${liveTransport.progressPercent}%` }}/>
+                      <div className="transport-track__bus" style={{ left: `calc(${liveTransport.progressPercent}% - 7px)` }}/>
                     </div>
-                    <div className="transport-stops"><span>School</span><span>3 stops left</span><span>Anikoko</span></div>
+                    <div className="transport-stops"><span>School</span><span>{liveTransport.stopsLeft} stops left</span><span>{liveTransport.nextStop}</span></div>
                     <div style={{ marginTop: 10, fontSize: 11, color: 'rgba(255,255,255,.5)', textAlign: 'center' }}>Click to open full tracker →</div>
                   </div>
                 </div>
@@ -349,7 +416,7 @@ export default function TeacherPortal() {
               <div className="panel" style={{ marginTop: 18 }}>
                 <div className="panel__header"><h2 className="panel__title">Class Subject Performance</h2></div>
                 <div className="panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {SUBJECTS.map((row) => (
+                  {subjectRows.map((row) => (
                     <div className="progress-bar-wrap" key={row.subject}>
                       <div className="progress-bar-label"><span>{row.subject}</span><span style={{ color: row.color, fontWeight: 700 }}>{row.pct}%</span></div>
                       <div className="progress-bar"><div className="progress-bar__fill" style={{ width: `${row.pct}%`, background: row.color }}/></div>
