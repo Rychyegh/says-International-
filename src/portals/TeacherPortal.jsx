@@ -221,6 +221,9 @@ export default function TeacherPortal() {
     return saved;
   });
 
+  const [gradesTarget, setGradesTarget] = useState(null);
+  const [scoreSheetTarget, setScoreSheetTarget] = useState(null);
+
   const setActiveNav = (nav) => {
     setActiveNavState(nav);
     try {
@@ -553,7 +556,14 @@ export default function TeacherPortal() {
                   Enter student progressive evaluation scores for arrival test, class tests (1, 2, 3), and end-of-term examinations. Converts continuous assessment and exams to 50% weighting each.
                 </p>
               </div>
-              <ScoreSheetEntryForm students={onboardedStudents} />
+              <ScoreSheetEntryForm
+                students={onboardedStudents}
+                initialTarget={scoreSheetTarget}
+                onViewTestRoll={(target) => {
+                  setGradesTarget(target);
+                  setActiveNav('Grades');
+                }}
+              />
             </div>
           )}
 
@@ -562,13 +572,22 @@ export default function TeacherPortal() {
             <div className="animate-fade-up">
               <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
                 <button
-                  onClick={() => setActiveNav('Score Sheet [Entry]')}
+                  onClick={() => {
+                    setScoreSheetTarget(null);
+                    setActiveNav('Score Sheet [Entry]');
+                  }}
                   style={{ padding: '8px 16px', background: TEACHER_GREEN, color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                 >
                   📝 Open Score Sheet [Entry] Form
                 </button>
               </div>
-              <LecturerGrades />
+              <LecturerGrades
+                initialTarget={gradesTarget}
+                onOpenScoreSheet={(target) => {
+                  setScoreSheetTarget(target);
+                  setActiveNav('Score Sheet [Entry]');
+                }}
+              />
             </div>
           )}
           {activeNav === 'Messages' && isClassTeacher && <TeacherMessages />}

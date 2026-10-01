@@ -47,7 +47,7 @@ function detectStudentClassAndSub(student) {
   return { classLevel: level, subClassLevel: sub };
 }
 
-export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
+export default function ScoreSheetEntryForm({ setM, students: propStudents, onViewTestRoll, initialTarget }) {
   const { academicSettings, onboardedStudents, saveScoreSheetEntry, results } = usePortalData();
   const students = (propStudents && propStudents.length > 0) ? propStudents : (onboardedStudents || []);
 
@@ -61,6 +61,21 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
   const [cls, setCls] = useState(initialDetected.classLevel || 'Basic 1');
   const [subClass, setSubClass] = useState(initialDetected.subClassLevel || 'Basic 1A');
   const [customSubClasses, setCustomSubClasses] = useState([]);
+
+  // Sync when initialTarget is passed (e.g. from Grades view "Edit in Score Sheet")
+  useEffect(() => {
+    if (!initialTarget) return;
+    if (initialTarget.classLevel) setCls(initialTarget.classLevel);
+    if (initialTarget.subClass) setSubClass(initialTarget.subClass);
+    if (initialTarget.subject) setSubject(initialTarget.subject);
+    if (initialTarget.studentId || initialTarget.studentName) {
+      const match = students.find(s =>
+        (initialTarget.studentId && (s.studentId === initialTarget.studentId || s.id === initialTarget.studentId)) ||
+        (initialTarget.studentName && (s.fullName === initialTarget.studentName || s.name === initialTarget.studentName))
+      );
+      if (match) setSelectedStudent(match);
+    }
+  }, [initialTarget, students]);
 
   const [year, setYear] = useState(academicSettings?.academicYear || '2025/2026');
   const [term, setTerm] = useState(academicSettings?.academicTerm || 'Term 3');
@@ -458,10 +473,25 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => alert(`Test Roll for ${cls} · ${subClass} (${subject}): ${selectedStudent.fullName || selectedStudent.name} - Score ${totalScore}% (Grade ${grade})`)}
-                  style={{ padding: '6px 12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 4, fontWeight: 800, color: '#3730a3', cursor: 'pointer' }}
+                  onClick={() => {
+                    if (typeof onViewTestRoll === 'function') {
+                      onViewTestRoll({
+                        classLevel: cls,
+                        subClass,
+                        studentId: selectedStudent.studentId || selectedStudent.id,
+                        studentName: selectedStudent.fullName || selectedStudent.name,
+                        subject,
+                        term,
+                        year
+                      });
+                    } else {
+                      alert(`Test Roll for ${cls} · ${subClass} (${subject}): ${selectedStudent.fullName || selectedStudent.name} - Score ${totalScore}% (Grade ${grade})`);
+                    }
+                  }}
+                  title="View test roll and student grades for this class"
+                  style={{ padding: '6px 12px', background: '#312e81', border: '1px solid #4338ca', borderRadius: 4, fontWeight: 800, color: '#ffffff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                 >
-                  View Test Roll
+                  📊 View Test Roll
                 </button>
               </div>
             </div>

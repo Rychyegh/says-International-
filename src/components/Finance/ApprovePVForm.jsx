@@ -33,6 +33,67 @@ function payableTotalFromItems(items, fallbackTotal = 0) {
     .reduce((acc, i) => acc + (Number(i.totalAmount || i.total || 0) || 0), 0);
 }
 
+export function parsePvItems(v) {
+  if (!v) return [];
+  if (Array.isArray(v.items) && v.items.length > 0) {
+    return v.items.map((it, idx) => ({
+      id: it.id || `it-${v.id || v.pvNo || 'pv'}-${idx + 1}`,
+      description: it.description || it.particulars || `Line Item ${idx + 1}`,
+      provider: it.provider || it.payee_name || v.provider || v.payee_name || 'Vendor',
+      providerId: it.providerId || it.payee_id || v.providerId || '',
+      qty: Number(it.qty !== undefined ? it.qty : (it.quantity !== undefined ? it.quantity : 1)),
+      costPerItem: Number(it.costPerItem !== undefined ? it.costPerItem : (it.unit_cost !== undefined ? it.unit_cost : (it.cost || 0))),
+      totalAmount: Number(it.totalAmount !== undefined ? it.totalAmount : (it.total !== undefined ? it.total : (it.amount || 0))),
+      status: it.status || v.status || 'Pending approval',
+      auditRemarks: it.auditRemarks || it.remarks || v.auditRemarks || ''
+    }));
+  }
+
+  // Parse comma-separated or composite items from description e.g. "BUS TYRE (x11), BUS TYRE (x11)"
+  const desc = String(v.description || '').trim();
+  const rawParts = desc.includes(',') ? desc.split(',').map(s => s.trim()).filter(Boolean) : (desc ? [desc] : []);
+
+  if (rawParts.length > 1) {
+    const totalAmount = Number(v.total || v.amount || v.cost || 0);
+    const equalSplit = rawParts.length > 0 ? totalAmount / rawParts.length : totalAmount;
+
+    return rawParts.map((part, idx) => {
+      const qtyMatch = part.match(/\((?:x|X)?\s*(\d+)\)/);
+      const parsedQty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
+      const itemTotal = Number(equalSplit.toFixed(2));
+      const itemCost = parsedQty > 0 ? Number((itemTotal / parsedQty).toFixed(2)) : itemTotal;
+
+      return {
+        id: `it-${v.id || v.pvNo || 'pv'}-${idx + 1}`,
+        description: part,
+        provider: v.provider || v.clientProvider || 'Vendor',
+        providerId: v.providerId || '',
+        qty: parsedQty,
+        costPerItem: itemCost,
+        totalAmount: itemTotal,
+        status: v.status || 'Pending approval',
+        auditRemarks: v.auditRemarks || ''
+      };
+    });
+  }
+
+  const singleQty = Number(v.qty || v.quantity || 1);
+  const singleCost = Number(v.cost || v.costPerItem || v.unit_cost || 0);
+  const singleTotal = Number(v.total || v.totalAmount || v.amount || (singleQty * singleCost) || 0);
+
+  return [{
+    id: `it-${v.id || v.pvNo || 'pv'}-1`,
+    description: desc || 'Expenditure Requisition',
+    provider: v.provider || v.clientProvider || 'Vendor',
+    providerId: v.providerId || '',
+    qty: singleQty,
+    costPerItem: singleCost || (singleTotal / singleQty),
+    totalAmount: singleTotal,
+    status: v.status || 'Pending approval',
+    auditRemarks: v.auditRemarks || ''
+  }];
+}
+
 export default function ApprovePVForm({ setM = () => {} }) {
   const portalData = usePortalData();
   const storeVouchers = portalData?.paymentVouchers || [];
@@ -41,6 +102,34 @@ export default function ApprovePVForm({ setM = () => {} }) {
 
   // Default seed queue if store is empty
   const DEFAULT_PVS = [
+    {
+      id: 'pv-593406',
+      pvNo: 'PV-2026-593406',
+      accountName: 'Expenditure Account',
+      budget: '0.00',
+      actuals: '0.00',
+      batchNo: 'BATCH-2026-01',
+      tDate: '2026-10-01',
+      vDate: '2026-10-01',
+      requisitionNo: 'REQ-2026-901',
+      provider: 'AUNTI LIZZY',
+      providerId: '931001',
+      description: 'BUS TYRE (x11), BUS TYRE (x11)',
+      qty: 22,
+      cost: 10.00,
+      total: 220.00,
+      items: [
+        { id: 'it-593406-1', description: 'BUS TYRE (x11)', provider: 'AUNTI LIZZY', providerId: '931001', qty: 11, costPerItem: 10.00, totalAmount: 110.00, status: 'Pending approval' },
+        { id: 'it-593406-2', description: 'BUS TYRE (x11)', provider: 'AUNTI LIZZY', providerId: '931001', qty: 11, costPerItem: 10.00, totalAmount: 110.00, status: 'Pending approval' }
+      ],
+      datePrepared: '2026-10-01',
+      valuedDate: '2026-10-01',
+      auditRemarks: 'Registered in system',
+      imputer: 'Sub-Admin / Accounts',
+      inputDate: '2026-10-01 08:30',
+      status: 'Pending approval',
+      company: 'Remalj Carewell Inspirational School'
+    },
     {
       id: 'pv-088',
       pvNo: 'PV-2026-088',
@@ -129,7 +218,15 @@ export default function ApprovePVForm({ setM = () => {} }) {
       const saved = localStorage.getItem('official_pv_queue');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(v => {
+            const items = parsePvItems(v);
+            return {
+              ...v,
+              items: items.length > 0 ? items : v.items
+            };
+          });
+        }
       }
     } catch (e) {}
     return DEFAULT_PVS;
@@ -144,6 +241,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
         [...prev, ...storeVouchers].forEach(v => {
           const key = (v.pvNo || v.id || '').toLowerCase();
           const existing = mergedMap.get(key) || {};
+          const parsedItems = parsePvItems(v);
           mergedMap.set(key, {
             accountName: v.accountName || existing.accountName || 'Expenditure Account',
             budget: v.budget || existing.budget || '0.00',
@@ -156,6 +254,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
             company: v.company || existing.company || 'Remalj Carewell Inspirational School',
             ...existing,
             ...v,
+            items: parsedItems.length > 0 ? parsedItems : (v.items || existing.items),
             status: v.status || existing.status || 'Pending approval'
           });
         });
@@ -230,61 +329,41 @@ export default function ApprovePVForm({ setM = () => {} }) {
     return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
   };
 
-  // Populate Form from Voucher object
-  const populateFormWithVoucher = (v) => {
+  // Populate Form from Voucher object (with optional specific line item index)
+  const populateFormWithVoucher = (v, targetItemIndex = 0) => {
     if (!v) return;
     setSelectedPvId(v.id || v.pvNo);
     setPvNo(v.pvNo || '');
     setItemRequisitionNo(v.requisitionNo || v.itemRequisitionNo || '');
     setClientProvider(v.provider || v.clientProvider || '');
     setProviderId(v.providerId || '');
-    setDescription(v.description || '');
-    setQty(String(v.qty || 1));
-    setCostPerItem(Number(v.cost || v.costPerItem || 0).toFixed(2));
     setDatePrepared(v.datePrepared || v.tDate || new Date().toISOString().split('T')[0]);
     setValuedDate(v.valuedDate || v.vDate || new Date().toISOString().split('T')[0]);
     setAuditRemarks(v.auditRemarks || 'Pre-audited & verified by Headmaster.');
 
     // Process line items for multi-item support
-    let parsedItems = [];
-    if (Array.isArray(v.items) && v.items.length > 0) {
-      parsedItems = v.items.map((it, idx) => ({
-        id: it.id || `it-${idx + 1}`,
-        description: it.description || v.description || `Line Item ${idx + 1}`,
-        provider: it.provider || v.provider || 'Vendor',
-        providerId: it.providerId || v.providerId || '',
-        qty: Number(it.qty !== undefined ? it.qty : 1),
-        cost: Number(it.costPerItem !== undefined ? it.costPerItem : (it.cost !== undefined ? it.cost : (v.cost || 0))),
-        costPerItem: Number(it.costPerItem !== undefined ? it.costPerItem : (it.cost !== undefined ? it.cost : (v.cost || 0))),
-        total: Number(it.totalAmount !== undefined ? it.totalAmount : (it.total !== undefined ? it.total : (Number(it.qty || 1) * Number(it.costPerItem || it.cost || 0)))),
-        totalAmount: Number(it.totalAmount !== undefined ? it.totalAmount : (it.total !== undefined ? it.total : (Number(it.qty || 1) * Number(it.costPerItem || it.cost || 0)))),
-        status: it.status || v.status || 'Pending approval'
-      }));
-    } else {
-      parsedItems = [{
-        id: `it-${v.id || v.pvNo || '1'}-single`,
-        description: v.description || 'Expenditure Requisition',
-        provider: v.provider || v.clientProvider || 'Vendor',
-        providerId: v.providerId || '',
-        qty: Number(v.qty) || 1,
-        cost: Number(v.cost || v.costPerItem) || 0,
-        costPerItem: Number(v.cost || v.costPerItem) || 0,
-        total: Number(v.total || v.cost) || 0,
-        totalAmount: Number(v.total || v.cost) || 0,
-        status: v.status || 'Pending approval'
-      }];
-    }
+    const parsedItems = parsePvItems(v);
     setCurrentItems(parsedItems);
     setSelectedItemIds(parsedItems.map(it => it.id));
-    setActiveItemIndex(0);
 
-    // If first item has description, populate active item details
-    if (parsedItems.length > 0) {
-      setDescription(parsedItems[0].description || v.description || '');
-      setQty(String(parsedItems[0].qty || 1));
-      setCostPerItem(Number(parsedItems[0].costPerItem || parsedItems[0].cost || 0).toFixed(2));
-      if (parsedItems[0].provider) setClientProvider(parsedItems[0].provider);
-      if (parsedItems[0].providerId) setProviderId(parsedItems[0].providerId);
+    const itemIdx = (targetItemIndex != null && targetItemIndex >= 0 && targetItemIndex < parsedItems.length)
+      ? targetItemIndex
+      : 0;
+    setActiveItemIndex(itemIdx);
+
+    // If specific item selected or first item exists, populate active item details
+    if (parsedItems.length > 0 && parsedItems[itemIdx]) {
+      const active = parsedItems[itemIdx];
+      setDescription(active.description || v.description || '');
+      setQty(String(active.qty || 1));
+      const activeUnitCost = Number(active.costPerItem || active.cost || (active.totalAmount ? (active.totalAmount / (active.qty || 1)) : 0) || 0);
+      setCostPerItem(activeUnitCost.toFixed(2));
+      if (active.provider) setClientProvider(active.provider);
+      if (active.providerId) setProviderId(active.providerId);
+    } else {
+      setDescription(v.description || '');
+      setQty(String(v.qty || 1));
+      setCostPerItem(Number(v.cost || v.costPerItem || 0).toFixed(2));
     }
     
     // Normalize status for Action Choice
@@ -598,50 +677,54 @@ export default function ApprovePVForm({ setM = () => {} }) {
     }
   };
 
-  const handleActionItemDirect = async (itemId, decision) => {
-    if (!pvNo.trim()) return;
+  const handleActionItemDirect = async (itemId, decision, voucherContext = null) => {
+    const v = voucherContext || pvQueue.find(p => p.pvNo?.toLowerCase() === pvNo.toLowerCase() || p.id === selectedPvId);
+    if (!v) return;
     setIsActioning(true);
-    const updatedItems = currentItems.map((item) => (
-      item.id === itemId ? { ...item, status: decision } : item
+
+    const baseItems = parsePvItems(v);
+    const updatedItems = baseItems.map((item) => (
+      item.id === itemId ? { ...item, status: decision, auditRemarks } : item
     ));
-    setCurrentItems(updatedItems);
+
+    if (v.pvNo === pvNo || v.id === selectedPvId) {
+      setCurrentItems(updatedItems);
+    }
+
     const overallStatus = summarizePvStatusFromItems(updatedItems, decision);
-    const newCalculatedTotal = payableTotalFromItems(updatedItems, calculatedTotalAmount);
+    const newCalculatedTotal = payableTotalFromItems(updatedItems, v.total || calculatedTotalAmount);
     const updatedFields = {
-      pvNo,
-      requisitionNo: itemRequisitionNo,
-      provider: clientProvider,
-      providerId,
+      ...v,
       items: updatedItems,
       total: newCalculatedTotal,
-      datePrepared,
-      valuedDate,
-      auditRemarks,
       status: overallStatus,
+      auditRemarks: auditRemarks || v.auditRemarks,
       editedByHeadmaster: true
     };
+
     const updatedQueue = pvQueue.map(p =>
-      (p.pvNo?.toLowerCase() === pvNo.toLowerCase() || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
+      (p.pvNo?.toLowerCase() === v.pvNo?.toLowerCase() || p.id === v.id) ? { ...p, ...updatedFields } : p
     );
     setPvQueue(updatedQueue);
     try { localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue)); } catch (e) {}
+
     try {
       if (approvePaymentVoucher) {
-        await approvePaymentVoucher(pvNo, overallStatus, auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
+        await approvePaymentVoucher(v.pvNo, overallStatus, auditRemarks || v.auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
       }
       const acted = updatedItems.find((i) => i.id === itemId);
       try {
-        const uuid = (pvQueue.find((p) => p.pvNo === pvNo || p.id === selectedPvId) || {}).id;
+        const uuid = v.id;
         if (uuid) {
           await api.updatePaymentVoucherItem(uuid, itemId, {
             status: decision,
-            audit_notes: auditRemarks,
+            audit_notes: auditRemarks || v.auditRemarks,
           });
         }
       } catch (e) {
         console.warn('Backend PV item patch fallback:', e);
       }
-      setBannerNotice(`✅ ${decision === 'Validated' ? 'Approved' : 'Rejected'} "${acted?.description || 'item'}" in PV #${pvNo}. Other lines in this voucher are unchanged.`);
+      setBannerNotice(`✅ ${decision === 'Validated' ? 'Approved' : (decision === 'Declined' ? 'Rejected' : decision)} "${acted?.description || 'item'}" in PV #${v.pvNo}. Other lines in this voucher remain unchanged.`);
     } catch (err) {
       setBannerNotice(`⚠️ Item action recorded locally (${err.message || 'offline'})`);
     } finally {
@@ -957,43 +1040,184 @@ export default function ApprovePVForm({ setM = () => {} }) {
             <tbody>
               {filteredQueue.map((item, idx) => {
                 const isSelected = selectedPvId === item.id || selectedPvId === item.pvNo;
+                const parsedItems = parsePvItems(item);
+                const hasMultiple = parsedItems && parsedItems.length > 1;
+
                 return (
-                  <tr
-                    key={item.id || idx}
-                    onClick={() => populateFormWithVoucher(item)}
-                    style={{
-                      background: isSelected ? '#0284c7' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc'),
-                      color: isSelected ? '#ffffff' : '#0f172a',
-                      cursor: 'pointer',
-                      borderBottom: '1px solid #cbd5e1'
-                    }}
-                  >
-                    <td style={{ padding: '5px 8px', fontWeight: 800 }}>{item.accountName || item.description?.substring(0, 20)}</td>
-                    <td style={{ padding: '5px 8px', textAlign: 'right' }}>{Number(item.budget || 0).toFixed(2)}</td>
-                    <td style={{ padding: '5px 8px', textAlign: 'right' }}>{Number(item.actuals || 0).toFixed(2)}</td>
-                    <td style={{ padding: '5px 8px' }}>{item.batchNo || 'BATCH-2026-01'}</td>
-                    <td style={{ padding: '5px 8px' }}>{item.tDate || item.datePrepared}</td>
-                    <td style={{ padding: '5px 8px' }}>{item.vDate || item.valuedDate}</td>
-                    <td style={{ padding: '5px 8px', fontWeight: 700 }}>{item.provider || item.clientProvider}</td>
-                    <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 900 }}>{Number(item.total || item.cost || 0).toFixed(2)}</td>
-                    <td style={{ padding: '5px 8px' }}>{item.description}</td>
-                    <td style={{ padding: '5px 8px' }}>{item.auditRemarks}</td>
-                    <td style={{ padding: '5px 8px', fontWeight: 700 }}>{item.imputer || item.preparedBy || 'Sub-Admin'}</td>
-                    <td style={{ padding: '5px 8px' }}>{item.inputDate || item.datePrepared}</td>
-                    <td style={{ padding: '5px 8px', textAlign: 'center' }}>
-                      <span style={{
-                        padding: '2px 8px',
-                        borderRadius: 4,
-                        fontSize: 10,
-                        fontWeight: 900,
-                        background: isSelected ? '#ffffff' : (item.status === 'Validated' ? '#dcfce7' : (item.status === 'Declined' || item.status === 'Cancel PV' ? '#fee2e2' : '#fef3c7')),
-                        color: isSelected ? '#0369a1' : (item.status === 'Validated' ? '#166534' : (item.status === 'Declined' || item.status === 'Cancel PV' ? '#dc2626' : '#b45309'))
-                      }}>
-                        {item.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: '5px 8px' }}>{item.company || 'Remalj Carewell'}</td>
-                  </tr>
+                  <React.Fragment key={item.id || item.pvNo || idx}>
+                    {/* Main Voucher Row */}
+                    <tr
+                      onClick={() => populateFormWithVoucher(item, 0)}
+                      style={{
+                        background: isSelected ? '#0284c7' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc'),
+                        color: isSelected ? '#ffffff' : '#0f172a',
+                        cursor: 'pointer',
+                        borderBottom: hasMultiple ? '1px dashed #cbd5e1' : '1px solid #cbd5e1'
+                      }}
+                      title={hasMultiple ? `PV contains ${parsedItems.length} individual items. Click to open and audit.` : 'Click to audit voucher'}
+                    >
+                      <td style={{ padding: '5px 8px', fontWeight: 800 }}>
+                        {item.accountName || item.description?.substring(0, 20)}
+                        {hasMultiple && (
+                          <span style={{
+                            marginLeft: 6,
+                            fontSize: 9.5,
+                            background: isSelected ? 'rgba(255,255,255,0.25)' : '#e0f2fe',
+                            color: isSelected ? '#fff' : '#0369a1',
+                            padding: '1px 6px',
+                            borderRadius: 10,
+                            fontWeight: 900
+                          }}>
+                            {parsedItems.length} items
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '5px 8px', textAlign: 'right' }}>{Number(item.budget || 0).toFixed(2)}</td>
+                      <td style={{ padding: '5px 8px', textAlign: 'right' }}>{Number(item.actuals || 0).toFixed(2)}</td>
+                      <td style={{ padding: '5px 8px' }}>{item.batchNo || 'BATCH-2026-01'}</td>
+                      <td style={{ padding: '5px 8px' }}>{item.tDate || item.datePrepared}</td>
+                      <td style={{ padding: '5px 8px' }}>{item.vDate || item.valuedDate}</td>
+                      <td style={{ padding: '5px 8px', fontWeight: 700 }}>{item.provider || item.clientProvider}</td>
+                      <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 900 }}>{Number(item.total || item.cost || 0).toFixed(2)}</td>
+                      <td style={{ padding: '5px 8px' }}>
+                        {item.description}
+                      </td>
+                      <td style={{ padding: '5px 8px' }}>{item.auditRemarks}</td>
+                      <td style={{ padding: '5px 8px', fontWeight: 700 }}>{item.imputer || item.preparedBy || 'Sub-Admin'}</td>
+                      <td style={{ padding: '5px 8px' }}>{item.inputDate || item.datePrepared}</td>
+                      <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                        <span style={{
+                          padding: '2px 8px',
+                          borderRadius: 4,
+                          fontSize: 10,
+                          fontWeight: 900,
+                          background: isSelected ? '#ffffff' : (item.status === 'Validated' ? '#dcfce7' : (item.status === 'Declined' || item.status === 'Cancel PV' ? '#fee2e2' : '#fef3c7')),
+                          color: isSelected ? '#0369a1' : (item.status === 'Validated' ? '#166534' : (item.status === 'Declined' || item.status === 'Cancel PV' ? '#dc2626' : '#b45309'))
+                        }}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '5px 8px' }}>{item.company || 'Remalj Carewell'}</td>
+                    </tr>
+
+                    {/* Split Individual PV Items (Shown separately but within the same PV) */}
+                    {hasMultiple && parsedItems.map((subItem, sIdx) => {
+                      const isSubActive = isSelected && activeItemIndex === sIdx;
+                      const subTotal = Number(subItem.totalAmount || (subItem.costPerItem * subItem.qty) || subItem.cost || 0);
+
+                      return (
+                        <tr
+                          key={`${item.id || item.pvNo || idx}_sub_${subItem.id || sIdx}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            populateFormWithVoucher(item, sIdx);
+                          }}
+                          style={{
+                            background: isSubActive ? '#dbeafe' : (isSelected ? '#f0f9ff' : (sIdx % 2 === 0 ? '#fbfcfe' : '#f8fafc')),
+                            color: '#0f172a',
+                            cursor: 'pointer',
+                            borderBottom: sIdx === parsedItems.length - 1 ? '1px solid #94a3b8' : '1px dashed #e2e8f0',
+                            fontSize: 10.5
+                          }}
+                          title={`Click to inspect / edit Item ${sIdx + 1} (${subItem.description}) in PV #${item.pvNo || item.id}`}
+                        >
+                          <td style={{ padding: '4px 8px 4px 20px', fontWeight: 800, color: '#0369a1' }}>
+                            ↳ Item {sIdx + 1}:
+                          </td>
+                          <td style={{ padding: '4px 8px', textAlign: 'right', color: '#94a3b8' }}>-</td>
+                          <td style={{ padding: '4px 8px', textAlign: 'right', color: '#94a3b8' }}>-</td>
+                          <td style={{ padding: '4px 8px', color: '#64748b' }}>{item.batchNo || 'BATCH-2026-01'}</td>
+                          <td style={{ padding: '4px 8px', color: '#64748b' }}>{item.tDate || item.datePrepared}</td>
+                          <td style={{ padding: '4px 8px', color: '#64748b' }}>{item.vDate || item.valuedDate}</td>
+                          <td style={{ padding: '4px 8px', fontWeight: 600, color: '#334155' }}>
+                            {subItem.provider || item.provider || item.clientProvider}
+                          </td>
+                          <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 900, color: '#0369a1' }}>
+                            {subTotal.toFixed(2)}
+                          </td>
+                          <td style={{ padding: '4px 8px', fontWeight: 700, color: '#0f172a' }}>
+                            <span style={{
+                              background: '#e0f2fe',
+                              color: '#0284c7',
+                              padding: '1px 5px',
+                              borderRadius: 3,
+                              fontSize: 9.5,
+                              marginRight: 6,
+                              fontWeight: 900
+                            }}>
+                              x{subItem.qty}
+                            </span>
+                            <span>{subItem.description}</span>
+                            {isSubActive && (
+                              <span style={{ marginLeft: 6, fontSize: 9.5, color: '#16a34a', fontWeight: 900 }}>
+                                ● Active in station
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '4px 8px', color: '#64748b', fontSize: 10 }}>
+                            {subItem.auditRemarks || item.auditRemarks || 'Line item in voucher'}
+                          </td>
+                          <td style={{ padding: '4px 8px', color: '#64748b' }}>{item.imputer || 'Sub-Admin'}</td>
+                          <td style={{ padding: '4px 8px', color: '#64748b' }}>{item.inputDate || item.datePrepared}</td>
+                          <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+                            <span style={{
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                              fontSize: 9.5,
+                              fontWeight: 900,
+                              background: subItem.status === 'Validated' || subItem.status?.includes('Approved') ? '#dcfce7' : (subItem.status === 'Declined' || subItem.status === 'Cancel PV' ? '#fee2e2' : '#fef3c7'),
+                              color: subItem.status === 'Validated' || subItem.status?.includes('Approved') ? '#166534' : (subItem.status === 'Declined' || subItem.status === 'Cancel PV' ? '#dc2626' : '#b45309')
+                            }}>
+                              {subItem.status || 'Pending'}
+                            </span>
+                            <span style={{ marginLeft: 6, display: 'inline-flex', gap: 3 }}>
+                              <button
+                                type="button"
+                                title={`Approve ${subItem.description}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleActionItemDirect(subItem.id, 'Validated', item);
+                                }}
+                                style={{
+                                  padding: '2px 5px',
+                                  background: '#166534',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: 3,
+                                  fontSize: 9.5,
+                                  fontWeight: 900,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                ✓
+                              </button>
+                              <button
+                                type="button"
+                                title={`Decline / Reject ${subItem.description}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleActionItemDirect(subItem.id, 'Declined', item);
+                                }}
+                                style={{
+                                  padding: '2px 5px',
+                                  background: '#dc2626',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: 3,
+                                  fontSize: 9.5,
+                                  fontWeight: 900,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                ✗
+                              </button>
+                            </span>
+                          </td>
+                          <td style={{ padding: '4px 8px', color: '#64748b' }}>{item.company || 'Remalj Carewell'}</td>
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
                 );
               })}
             </tbody>

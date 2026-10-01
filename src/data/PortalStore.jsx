@@ -550,6 +550,7 @@ const INITIAL_DATA = {
   examRegistrations: [],
   paymentVouchers: [],
   pvNotifications: [],
+  serviceProviders: [],
   ledgerLogs: [],
   academicSettings: {
     academicYear: '2025/2026',
@@ -594,6 +595,14 @@ function readData() {
       // Always ensure these arrays exist even in old localStorage snapshots
       pvNotifications: Array.isArray(parsed.pvNotifications) ? parsed.pvNotifications : [],
       paymentVouchers: Array.isArray(parsed.paymentVouchers) ? parsed.paymentVouchers : [],
+      serviceProviders: Array.isArray(parsed.serviceProviders) && parsed.serviceProviders.length > 0
+        ? parsed.serviceProviders
+        : (() => {
+            try {
+              const sp = localStorage.getItem('says_service_providers');
+              return sp ? JSON.parse(sp) : [];
+            } catch (_) { return []; }
+          })(),
     };
   } catch {
     return INITIAL_DATA;
@@ -727,7 +736,8 @@ export function PortalDataProvider({ children }) {
         pvsRes,
         semRegsRes,
         examRegsRes,
-        scoreSheetsRes
+        scoreSheetsRes,
+        providersRes
       ] = await Promise.allSettled([
         cloudSync.pullLatestData(),
         api.getBusRoutes(),
@@ -746,7 +756,8 @@ export function PortalDataProvider({ children }) {
         api.getPaymentVouchers(),
         api.getSemesterRegistrations(),
         api.getExamRegistrations(),
-        api.getScoreSheetEntries()
+        api.getScoreSheetEntries(),
+        api.getServiceProviders ? api.getServiceProviders() : Promise.resolve([])
       ]);
 
       const cloudData = (cloudRes.status === 'fulfilled' && cloudRes.value && typeof cloudRes.value === 'object') ? cloudRes.value : null;
@@ -1098,6 +1109,27 @@ export function PortalDataProvider({ children }) {
           if (!isDeepEqual(current.examRegistrations, examRegsRes.value)) {
             updates.examRegistrations = examRegsRes.value;
             hasChanges = true;
+          }
+        }
+
+        // Service Providers
+        if (providersRes?.status === 'fulfilled') {
+          const raw = providersRes.value;
+          const list = Array.isArray(raw) ? raw : (raw?.data || raw?.providers || raw?.records || []);
+          if (Array.isArray(list) && list.length > 0) {
+            const mapped = list.map(p => ({
+              id: String(p.id || p.provider_id),
+              name: p.name || p.provider_name,
+              address: p.address || 'Bogoso',
+              email: p.email || '',
+              phone: p.phone || p.telephone || ''
+            }));
+            const merged = mergeByKey(current.serviceProviders || [], mapped, p => p.id || p.name);
+            if (!isDeepEqual(current.serviceProviders, merged)) {
+              updates.serviceProviders = merged;
+              hasChanges = true;
+              try { localStorage.setItem('says_service_providers', JSON.stringify(merged)); } catch (_) {}
+            }
           }
         }
 
@@ -2899,6 +2931,73 @@ export function PortalDataProvider({ children }) {
           paymentVouchers: [newPV, ...existing],
           pvNotifications: [newNotif, ...existingNotifs],
         };
+      });
+    },
+    // Service Providers CRUD with DB & Local Storage Persistence
+    createServiceProvider: async (providerData) => {
+      let created = null;
+      try {
+        if (api.createServiceProvider) {
+          const res = await api.createServiceProvider(providerData);
+          if (res && typeof res === 'object') {
+            created = {
+              id: String(res.id || res.provider_id || providerData.id),
+              name: res.name || providerData.name,
+              address: res.address || providerData.address,
+              email: res.email || providerData.email,
+              phone: res.phone || providerData.phone || providerData.telephone
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('Backend create service provider fallback:', e);
+      }
+      const itemToSave = created || {
+        ...providerData,
+        id: String(providerData.id || Date.now()),
+        address: providerData.address || 'Bogoso',
+        phone: providerData.phone || providerData.telephone || ''
+      };
+
+      setData((current) => {
+        const list = current.serviceProviders || [];
+        const next = [itemToSave, ...list.filter(p => p.id !== itemToSave.id && p.name !== itemToSave.name)];
+        try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
+        return {
+          ...current,
+          serviceProviders: next
+        };
+      });
+      return itemToSave;
+    },
+    updateServiceProvider: async (id, providerData) => {
+      try {
+        if (api.updateServiceProvider) {
+          await api.updateServiceProvider(id, providerData);
+        }
+      } catch (e) {
+        console.warn('Backend update service provider fallback:', e);
+      }
+      setData((current) => {
+        const list = current.serviceProviders || [];
+        const next = list.map(p => p.id === id ? { ...p, ...providerData } : p);
+        try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
+        return { ...current, serviceProviders: next };
+      });
+    },
+    deleteServiceProvider: async (id) => {
+      try {
+        if (api.deleteServiceProvider) {
+          await api.deleteServiceProvider(id);
+        }
+      } catch (e) {
+        console.warn('Backend delete service provider fallback:', e);
+      }
+      setData((current) => {
+        const list = current.serviceProviders || [];
+        const next = list.filter(p => p.id !== id);
+        try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
+        return { ...current, serviceProviders: next };
       });
     },
     // Alias so SubmitPVRequest can call createPaymentVoucher too
