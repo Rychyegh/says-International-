@@ -278,13 +278,11 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
   });
   const backendUsersRef = useRef([]);
 
-  // Fetch real users from backend on mount
-  useEffect(() => {
-    let cancelled = false;
+  // Fetch real users from backend on mount or retry
+  const fetchBackendUsers = () => {
     setIsLoadingUsers(true);
     api.getUsers()
       .then(res => {
-        if (cancelled) return;
         const backendList = Array.isArray(res) ? res : (res?.users || res?.data || []);
         backendUsersRef.current = backendList;
         try {
@@ -297,14 +295,23 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
         }
       })
       .catch(err => {
-        if (cancelled) return;
         console.warn('[UAC] Could not fetch users from backend — using local data:', err?.message || err);
-        setBackendError('Backend unavailable — showing cached data.');
+        const msg = String(err?.message || '').toLowerCase();
+        if (msg.includes('credentials') || msg.includes('401') || msg.includes('unauthorized')) {
+          setBackendError('Backend session unauthenticated (401) — showing local database records.');
+        } else if (msg.includes('failed to fetch') || msg.includes('network') || msg.includes('timeout')) {
+          setBackendError('Backend server is waking up or offline — showing local cached data.');
+        } else {
+          setBackendError('Backend unavailable — showing cached data.');
+        }
       })
       .finally(() => {
-        if (!cancelled) setIsLoadingUsers(false);
+        setIsLoadingUsers(false);
       });
-    return () => { cancelled = true; };
+  };
+
+  useEffect(() => {
+    fetchBackendUsers();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -704,10 +711,32 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
         <div style={{
           padding: '10px 16px', background: '#fffbeb', border: '1px solid #fcd34d',
           color: '#92400e', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: 13,
-          display: 'flex', alignItems: 'center', gap: 8,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+          flexWrap: 'wrap'
         }}>
-          <AlertTriangle size={14} />
-          {backendError}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+            <span>{backendError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={fetchBackendUsers}
+            style={{
+              padding: '4px 12px',
+              background: '#b45309',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 4,
+              fontSize: 11,
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4
+            }}
+          >
+            <RefreshCw size={11} /> Retry Connection
+          </button>
         </div>
       )}
       {/* Toast Notification */}
