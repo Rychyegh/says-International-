@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Download, Plus, Save, CheckCircle2 } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
-import { getUserFullName } from '../../services/api';
+import { getAuthUser, getUserFullName } from '../../services/api';
 import { downloadPublishedReport } from '../../data/reportDownload';
 import RegisterForExamsForm from '../RegisterForExams/RegisterForExamsForm';
 import AcademicSettingsManager from './AcademicSettingsManager';
