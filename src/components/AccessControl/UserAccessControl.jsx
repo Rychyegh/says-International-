@@ -7,7 +7,7 @@ import {
   FileText, Download, X, Plus, Sparkles, Building, Check, Layers
 } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
-import { api, getAuthUser } from '../../services/api';
+import { api, getAuthUser, getAuthToken } from '../../services/api';
 import { cloudSync } from '../../services/cloudSync';
 
 const ROLES = [
@@ -280,6 +280,21 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
 
   // Fetch real users from backend on mount or retry
   const fetchBackendUsers = () => {
+    const token = getAuthToken();
+    if (!token) {
+      // Running with local administrator session — load full local database records directly
+      try {
+        const raw = localStorage.getItem('registered_accounts');
+        const localMap = raw ? JSON.parse(raw) : {};
+        setUsers(buildUserList([], localMap, onboardedStudents));
+      } catch {
+        setUsers(buildUserList([], {}, onboardedStudents));
+      }
+      setBackendError(null);
+      setIsLoadingUsers(false);
+      return;
+    }
+
     setIsLoadingUsers(true);
     api.getUsers()
       .then(res => {
@@ -298,7 +313,15 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
         console.warn('[UAC] Could not fetch users from backend — using local data:', err?.message || err);
         const msg = String(err?.message || '').toLowerCase();
         if (msg.includes('credentials') || msg.includes('401') || msg.includes('unauthorized')) {
-          setBackendError('Backend session unauthenticated (401) — showing local database records.');
+          // Token expired or unauthenticated remote session — fallback cleanly to local records
+          try {
+            const raw = localStorage.getItem('registered_accounts');
+            const localMap = raw ? JSON.parse(raw) : {};
+            setUsers(buildUserList([], localMap, onboardedStudents));
+          } catch {
+            setUsers(buildUserList([], {}, onboardedStudents));
+          }
+          setBackendError(null);
         } else if (msg.includes('failed to fetch') || msg.includes('network') || msg.includes('timeout')) {
           setBackendError('Backend server is waking up or offline — showing local cached data.');
         } else {
@@ -718,25 +741,43 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
             <AlertTriangle size={15} style={{ flexShrink: 0 }} />
             <span>{backendError}</span>
           </div>
-          <button
-            type="button"
-            onClick={fetchBackendUsers}
-            style={{
-              padding: '4px 12px',
-              background: '#b45309',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: 4,
-              fontSize: 11,
-              fontWeight: 800,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4
-            }}
-          >
-            <RefreshCw size={11} /> Retry Connection
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              onClick={fetchBackendUsers}
+              style={{
+                padding: '4px 12px',
+                background: '#b45309',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 4,
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+            >
+              <RefreshCw size={11} /> Retry Connection
+            </button>
+            <button
+              type="button"
+              onClick={() => setBackendError(null)}
+              style={{
+                padding: '4px 8px',
+                background: 'transparent',
+                color: '#92400e',
+                border: 'none',
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+              title="Dismiss notice"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
       {/* Toast Notification */}

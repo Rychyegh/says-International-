@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   FileText, Plus, Search, RotateCcw, Printer, Trash2, Edit, CheckCircle2,
   AlertCircle, ChevronRight, X, Building2, User, Phone, Mail, MapPin, Sparkles, DollarSign,
