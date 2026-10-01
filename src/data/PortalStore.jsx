@@ -514,6 +514,18 @@ export const DEFAULT_TIMETABLE = [
   { id: 'tt-11', day: 'Friday', time: '01:00 PM', subject: 'English Essay', room: 'Auditorium B', lecturer: 'Dr. Anane' },
 ];
 
+export const DEFAULT_SERVICE_PROVIDERS = [
+  { id: '931001', name: 'AUNTI LIZZY', address: 'Bogoso Main Market', phone: '024 456 7890', email: 'auntilizzy@gmail.com' },
+  { id: '931002', name: 'Electricity Company of Ghana (ECG)', address: 'Bogoso District Office', phone: '0302-611611', email: 'callcenter@ecggh.com' },
+  { id: '931003', name: 'Ghana Water Company Limited (GWCL)', address: 'Bogoso Water Works', phone: '0800 40000', email: 'customercare@gwcl.com.gh' },
+  { id: '931004', name: 'Telecel Ghana (Telecom & Internet)', address: 'Takoradi Regional Office', phone: '020 000 0100', email: 'business@telecel.com.gh' },
+  { id: '931005', name: 'Distrikt 24 Ghana Limited (Stationery & Office)', address: 'Accra / Bogoso Depot', phone: '024 111 2233', email: 'supplies@distrikt24.com' },
+  { id: '931006', name: 'Modern Lab & Science Equipment', address: 'Kumasi Tech Center', phone: '024 555 6677', email: 'sales@modernlab.edu.gh' },
+  { id: '931007', name: 'Isaac Addae Transport & Fleet Care', address: 'Bogoso Central Garage', phone: '024 888 9900', email: 'i.addae.transport@gmail.com' },
+  { id: '931008', name: 'Accra Book Depot & Publishing Ltd', address: 'Barnes Road, Accra', phone: '0302 223344', email: 'orders@accrabooks.com' },
+  { id: '931009', name: 'Market Depot (Hardware & General Repairs)', address: 'Bogoso High Street', phone: '024 332 2110', email: 'marketdepot.bogoso@gmail.com' },
+];
+
 const INITIAL_DATA = {
   timetable: DEFAULT_TIMETABLE,
   results: [],
@@ -550,7 +562,7 @@ const INITIAL_DATA = {
   examRegistrations: [],
   paymentVouchers: [],
   pvNotifications: [],
-  serviceProviders: [],
+  serviceProviders: DEFAULT_SERVICE_PROVIDERS,
   ledgerLogs: [],
   academicSettings: {
     academicYear: '2025/2026',
@@ -595,14 +607,19 @@ function readData() {
       // Always ensure these arrays exist even in old localStorage snapshots
       pvNotifications: Array.isArray(parsed.pvNotifications) ? parsed.pvNotifications : [],
       paymentVouchers: Array.isArray(parsed.paymentVouchers) ? parsed.paymentVouchers : [],
-      serviceProviders: Array.isArray(parsed.serviceProviders) && parsed.serviceProviders.length > 0
-        ? parsed.serviceProviders
-        : (() => {
-            try {
-              const sp = localStorage.getItem('says_service_providers');
-              return sp ? JSON.parse(sp) : [];
-            } catch (_) { return []; }
-          })(),
+      serviceProviders: (() => {
+        try {
+          const list = Array.isArray(parsed.serviceProviders) && parsed.serviceProviders.length > 0
+            ? parsed.serviceProviders
+            : (() => {
+                const sp = localStorage.getItem('says_service_providers');
+                return sp ? JSON.parse(sp) : [];
+              })();
+          return mergeByKey(DEFAULT_SERVICE_PROVIDERS, list, p => p.id || p.name);
+        } catch (_) {
+          return DEFAULT_SERVICE_PROVIDERS;
+        }
+      })(),
     };
   } catch {
     return INITIAL_DATA;
@@ -673,6 +690,7 @@ export function PortalDataProvider({ children }) {
     window.addEventListener('storage', sync);
 
     let channel = null;
+    let unsubRealtime = null;
     try {
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
         channel = new BroadcastChannel('rcis_portal_data_sync');
@@ -697,14 +715,40 @@ export function PortalDataProvider({ children }) {
                 };
               });
             }
+          } else if (event.data && event.data.type === 'NEW_SERVICE_PROVIDER' && event.data.provider) {
+            const newP = event.data.provider;
+            setData(current => {
+              const list = current.serviceProviders || DEFAULT_SERVICE_PROVIDERS;
+              if (list.some(p => p.id === newP.id || p.name?.toLowerCase() === newP.name?.toLowerCase())) return current;
+              const next = [newP, ...list];
+              try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
+              return { ...current, serviceProviders: next };
+            });
           }
         };
+      }
+
+      // Live Server-Sent Events subscription for cross-device instant sync
+      if (cloudSync.initRealtimeSubscription) {
+        unsubRealtime = cloudSync.initRealtimeSubscription((liveProvider) => {
+          if (!liveProvider || !liveProvider.name) return;
+          setData(current => {
+            const list = current.serviceProviders || DEFAULT_SERVICE_PROVIDERS;
+            if (list.some(p => p.id === liveProvider.id || p.name?.toLowerCase() === liveProvider.name?.toLowerCase())) {
+              return current;
+            }
+            const next = [liveProvider, ...list];
+            try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
+            return { ...current, serviceProviders: next };
+          });
+        });
       }
     } catch (e) {}
 
     return () => {
       window.removeEventListener('storage', sync);
       if (channel) channel.close();
+      if (typeof unsubRealtime === 'function') unsubRealtime();
     };
   }, []);
 
@@ -1168,6 +1212,14 @@ export function PortalDataProvider({ children }) {
             if (!isDeepEqual(current.studentFees, merged)) {
               updates.studentFees = merged;
               hasChanges = true;
+            }
+          }
+          if (Array.isArray(cloudData.serviceProviders) && cloudData.serviceProviders.length > 0) {
+            const mergedProviders = mergeByKey(updates.serviceProviders || current.serviceProviders || DEFAULT_SERVICE_PROVIDERS, cloudData.serviceProviders, p => p.id || p.name);
+            if (!isDeepEqual(current.serviceProviders, mergedProviders)) {
+              updates.serviceProviders = mergedProviders;
+              hasChanges = true;
+              try { localStorage.setItem('says_service_providers', JSON.stringify(mergedProviders)); } catch (_) {}
             }
           }
         }
@@ -2228,7 +2280,7 @@ export function PortalDataProvider({ children }) {
         paymentDate: (feeRecord.paidAmount || 0) > 0 ? (feeRecord.paymentDate || new Date().toISOString().split('T')[0]) : null,
       }, ...(current.studentFees || [])],
     })),
-    postAcademicBill: async ({ studentId, studentName, classLevel, items, totalAmount, term = 'Term 1 · 2026' }) => {
+    postAcademicBill: async ({ studentId, studentName, classLevel, items, totalAmount, term = 'Term 1 · 2026', targetStudents: requestedStudents } = {}) => {
       try {
         await api.postAcademicBill({
           student_id: studentId,
@@ -2244,23 +2296,35 @@ export function PortalDataProvider({ children }) {
       setData((current) => {
       const amountToPost = Number(totalAmount) || 0;
       let targetStudents = [];
-      if (studentId) {
+      if (Array.isArray(requestedStudents) && requestedStudents.length > 0) {
+        targetStudents = requestedStudents.map((req) => (
+          findMatchingStudent(current.onboardedStudents || [], req) || req
+        )).filter((s) => s && (s.studentId || s.id || s.fullName || s.name));
+      } else if (studentId) {
         targetStudents = (current.onboardedStudents || []).filter(s => s.studentId === studentId || s.id === studentId || s.fullName === studentName);
+      } else if (studentName) {
+        const n = String(studentName).toLowerCase().trim();
+        targetStudents = (current.onboardedStudents || []).filter((s) => {
+          const full = String(s.fullName || s.name || '').toLowerCase().trim();
+          return full === n || (n && full.includes(n));
+        });
+        if (targetStudents.length === 0) {
+          targetStudents = [{
+            studentId: studentId || null,
+            fullName: studentName,
+            name: studentName,
+            level: classLevel,
+          }];
+        }
       } else if (classLevel && classLevel !== 'All Classes') {
         const cleanClass = classLevel.toLowerCase();
         targetStudents = (current.onboardedStudents || []).filter(s => {
           const sLvl = (s.level || '').toLowerCase();
-          return sLvl.includes(cleanClass) || cleanClass.includes(sLvl) ||
-                 (cleanClass.includes('jhs') && sLvl.includes('jhs')) ||
-                 (cleanClass.includes('nursery') && (sLvl.includes('nursery') || sLvl.includes('creche'))) ||
-                 (cleanClass.includes('basic') && sLvl.includes('basic')) ||
-                 (cleanClass.includes('primary') && (sLvl.includes('primary') || sLvl.includes('grade')));
+          return sLvl.includes(cleanClass) || cleanClass.includes(sLvl);
         });
       }
 
-      if (targetStudents.length === 0) {
-        targetStudents = current.onboardedStudents || [];
-      }
+      if (targetStudents.length === 0) return current;
 
       const updatedFees = [...(current.studentFees || [])];
       const updatedFeeAccounts = [...(current.feeAccounts || [])];
@@ -2280,6 +2344,8 @@ export function PortalDataProvider({ children }) {
             status: newStatus,
             lastBillPostedAt: new Date().toLocaleString(),
             itemsBreakdown: items || existing.itemsBreakdown,
+            guardianName: stu.guardianName || existing.guardianName,
+            guardianEmail: stu.guardianEmail || existing.guardianEmail,
           };
         } else {
           const newFee = {
@@ -2300,7 +2366,9 @@ export function PortalDataProvider({ children }) {
           updatedFees.unshift(newFee);
         }
 
-        const accIndex = updatedFeeAccounts.findIndex(a => a.child === stu.fullName);
+        const accIndex = updatedFeeAccounts.findIndex(a =>
+          (stu.studentId && a.studentId === stu.studentId) || a.child === stu.fullName || a.child === stu.name
+        );
         if (accIndex >= 0) {
           const existingAcc = updatedFeeAccounts[accIndex];
           const newBilled = (existingAcc.billed || 0) + amountToPost;
@@ -2309,11 +2377,15 @@ export function PortalDataProvider({ children }) {
             ...existingAcc,
             billed: newBilled,
             status: (newBilled - newPaid) <= 0 ? 'Paid' : 'Balance due',
+            guardianEmail: stu.guardianEmail || existingAcc.guardianEmail,
+            studentId: stu.studentId || existingAcc.studentId,
           };
         } else {
           updatedFeeAccounts.unshift({
             id: `fee-acc-${stu.id || Date.now()}`,
             child: stu.fullName,
+            studentId: stu.studentId,
+            guardianEmail: stu.guardianEmail,
             school: 'REMALJ Carewell Inspirational School',
             term,
             billed: amountToPost,
@@ -2963,14 +3035,27 @@ export function PortalDataProvider({ children }) {
       };
 
       setData((current) => {
-        const list = current.serviceProviders || [];
+        const list = current.serviceProviders || DEFAULT_SERVICE_PROVIDERS;
         const next = [itemToSave, ...list.filter(p => p.id !== itemToSave.id && p.name !== itemToSave.name)];
         try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
+        // Broadcast across tabs
+        if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+          try {
+            const ch = new BroadcastChannel('rcis_portal_data_sync');
+            ch.postMessage({ type: 'NEW_SERVICE_PROVIDER', provider: itemToSave });
+            ch.close();
+          } catch (_) {}
+        }
         return {
           ...current,
           serviceProviders: next
         };
       });
+
+      // Real-time Cloud Hub Push for immediate delivery across all devices
+      if (cloudSync.pushServiceProvider) {
+        cloudSync.pushServiceProvider(itemToSave);
+      }
       return itemToSave;
     },
     updateServiceProvider: async (id, providerData) => {
@@ -2982,9 +3067,13 @@ export function PortalDataProvider({ children }) {
         console.warn('Backend update service provider fallback:', e);
       }
       setData((current) => {
-        const list = current.serviceProviders || [];
+        const list = current.serviceProviders || DEFAULT_SERVICE_PROVIDERS;
         const next = list.map(p => p.id === id ? { ...p, ...providerData } : p);
         try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
+        if (cloudSync.pushServiceProvider) {
+          const updated = next.find(p => p.id === id);
+          if (updated) cloudSync.pushServiceProvider(updated);
+        }
         return { ...current, serviceProviders: next };
       });
     },
@@ -2997,7 +3086,7 @@ export function PortalDataProvider({ children }) {
         console.warn('Backend delete service provider fallback:', e);
       }
       setData((current) => {
-        const list = current.serviceProviders || [];
+        const list = current.serviceProviders || DEFAULT_SERVICE_PROVIDERS;
         const next = list.filter(p => p.id !== id);
         try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
         return { ...current, serviceProviders: next };

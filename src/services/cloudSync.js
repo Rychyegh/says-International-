@@ -3,11 +3,12 @@
  * Connects all admin users, teachers, accountants, and parents globally across all devices.
  */
 
-const CLOUD_SYNC_OBJECT_ID = 'ff808181a09d98f701a0ee1d85734423';
-const CLOUD_SYNC_ENDPOINT = `https://api.restful-api.dev/objects/${CLOUD_SYNC_OBJECT_ID}`;
+const NTFY_SYNC_TOPIC = 'https://ntfy.sh/rcis_carewell_sync_providers_v2';
+const NTFY_DATA_HUB_TOPIC = 'https://ntfy.sh/rcis_carewell_sync_hub_v2';
 
 let isPushing = false;
 let lastPushedSignature = '';
+let activeEventSource = null;
 
 function createDataSignature(data) {
   if (!data) return '';
@@ -19,22 +20,71 @@ function createDataSignature(data) {
   const staffSig = (data.teacherDirectory || []).map(t => `${t.id || t.staffId}_${t.name}_${t.subject}_${t.classAssigned}_${t.status}`).join('|');
   const classSig = (data.classLevels || []).join(',');
   const subSig = (data.subjects || []).join(',');
-  return `${appsSig}#${stuSig}#${feeSig}#${pvSig}#${notifSig}#${staffSig}#${classSig}#${subSig}`;
+  const provSig = (data.serviceProviders || []).map(p => `${p.id}_${p.name}_${p.phone || ''}`).join('|');
+  return `${appsSig}#${stuSig}#${feeSig}#${pvSig}#${notifSig}#${staffSig}#${classSig}#${subSig}#${provSig}`;
 }
 
 export const cloudSync = {
   // 1. Pull the unified data state from the cloud hub
   pullLatestData: async () => {
     try {
-      const response = await fetch(CLOUD_SYNC_ENDPOINT, {
+      let combinedData = null;
+
+      // Check Hub Topic for overall state snapshot
+      const hubRes = await fetch(`${NTFY_DATA_HUB_TOPIC}/json?poll=1`, {
         headers: { 'Accept': 'application/json' },
       });
-      if (!response.ok) return null;
-      const res = await response.json();
-      if (res && res.data && typeof res.data === 'object') {
-        return res.data;
+      if (hubRes.ok) {
+        const text = await hubRes.text();
+        const lines = text.trim().split('\n').filter(Boolean);
+        for (let i = lines.length - 1; i >= 0; i--) {
+          try {
+            const entry = JSON.parse(lines[i]);
+            if (entry.message) {
+              const parsed = JSON.parse(entry.message);
+              if (parsed && typeof parsed === 'object') {
+                combinedData = parsed.data || parsed;
+                break;
+              }
+            }
+          } catch (_) {}
+        }
       }
-      return null;
+
+      // Check Service Providers dedicated channel for real-time provider announcements
+      const provRes = await fetch(`${NTFY_SYNC_TOPIC}/json?poll=1`, {
+        headers: { 'Accept': 'application/json' },
+      });
+      if (provRes.ok) {
+        const text = await provRes.text();
+        const lines = text.trim().split('\n').filter(Boolean);
+        const pulledProviders = [];
+
+        lines.forEach(line => {
+          try {
+            const entry = JSON.parse(line);
+            if (entry.message) {
+              const parsed = JSON.parse(entry.message);
+              if (parsed.type === 'NEW_PROVIDER' && parsed.provider) {
+                pulledProviders.push(parsed.provider);
+              } else if (Array.isArray(parsed.serviceProviders)) {
+                pulledProviders.push(...parsed.serviceProviders);
+              }
+            }
+          } catch (_) {}
+        });
+
+        if (pulledProviders.length > 0) {
+          if (!combinedData) combinedData = {};
+          const currentProv = combinedData.serviceProviders || [];
+          const map = new Map();
+          currentProv.forEach(p => map.set(String(p.id || p.name).toLowerCase(), p));
+          pulledProviders.forEach(p => map.set(String(p.id || p.name).toLowerCase(), p));
+          combinedData.serviceProviders = Array.from(map.values());
+        }
+      }
+
+      return combinedData;
     } catch (err) {
       console.warn('[Cloud Sync Warning] Failed to pull latest state:', err.message);
       return null;
@@ -59,6 +109,7 @@ export const cloudSync = {
           definedBills: data.definedBills || [],
           paymentVouchers: data.paymentVouchers || [],
           pvNotifications: data.pvNotifications || [],
+          serviceProviders: data.serviceProviders || [],
           timetable: data.timetable || [],
           results: data.results || [],
           examRegistrations: data.examRegistrations || [],
@@ -71,11 +122,11 @@ export const cloudSync = {
         }
       };
 
-      await fetch(CLOUD_SYNC_ENDPOINT, {
-        method: 'PATCH',
+      await fetch(NTFY_DATA_HUB_TOPIC, {
+        method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Title': 'RCIS Universal Cloud Sync',
+          'Priority': 'default'
         },
         body: JSON.stringify(payload)
       });
@@ -85,5 +136,72 @@ export const cloudSync = {
     } finally {
       isPushing = false;
     }
+  },
+
+  // 3. Instant push of a newly added or updated service provider across all active devices
+  pushServiceProvider: async (provider) => {
+    if (!provider || !provider.name) return;
+    try {
+      const payload = {
+        type: 'NEW_PROVIDER',
+        provider: {
+          id: String(provider.id || Date.now()),
+          name: provider.name.trim(),
+          address: provider.address || 'Bogoso',
+          email: provider.email || '',
+          phone: provider.phone || provider.telephone || ''
+        },
+        timestamp: Date.now()
+      };
+
+      await fetch(NTFY_SYNC_TOPIC, {
+        method: 'POST',
+        headers: {
+          'Title': `New Service Provider: ${provider.name}`,
+          'Priority': 'high',
+          'Tags': 'building_construction,white_check_mark'
+        },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      console.warn('[Cloud Sync Warning] Instant provider push fallback:', e.message);
+    }
+  },
+
+  // 4. Live Server-Sent Events (SSE) listener for instantaneous multi-device updates
+  initRealtimeSubscription: (onProviderReceived) => {
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') return () => {};
+    if (activeEventSource) {
+      try { activeEventSource.close(); } catch (_) {}
+    }
+
+    try {
+      const es = new EventSource(`${NTFY_SYNC_TOPIC}/sse`);
+      activeEventSource = es;
+
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data && data.message) {
+            const parsed = JSON.parse(data.message);
+            if (parsed.type === 'NEW_PROVIDER' && parsed.provider && typeof onProviderReceived === 'function') {
+              onProviderReceived(parsed.provider);
+            }
+          }
+        } catch (_) {}
+      };
+
+      es.onerror = () => {
+        // EventSource will auto-retry reconnecting in background
+      };
+
+      return () => {
+        try { es.close(); } catch (_) {}
+        activeEventSource = null;
+      };
+    } catch (_) {
+      return () => {};
+    }
   }
 };
+

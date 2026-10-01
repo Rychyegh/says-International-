@@ -57,6 +57,44 @@ const TEACHER_UPDATES = [
   { teacher: 'Mr. Kofi Appiah',  time: 'Yesterday', subject: 'Mathematics',   note: 'Math homework on equations was perfect. Great attention to detail shown.'  },
 ];
 
+function readRegisteredAccounts() {
+  try {
+    const raw = localStorage.getItem('registered_accounts');
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function resolveParentIdentity() {
+  const user = getAuthUser() || {};
+  const email = String(user.email || user.username || '').toLowerCase().trim();
+  const accounts = readRegisteredAccounts();
+  const stored = email && accounts[email] ? accounts[email] : null;
+  const linkedStudentIds = [
+    ...(Array.isArray(user.linkedStudentIds) ? user.linkedStudentIds : []),
+    ...(Array.isArray(stored?.linkedStudentIds) ? stored.linkedStudentIds : []),
+  ].filter(Boolean).map(String);
+  return {
+    email,
+    name: String(user.fullName || user.name || stored?.fullName || '').toLowerCase().trim(),
+    linkedStudentIds,
+  };
+}
+
+function studentBelongsToParent(student, parent) {
+  if (!student || !parent) return false;
+  const sid = String(student.studentId || student.id || '');
+  if (parent.linkedStudentIds.length && parent.linkedStudentIds.includes(sid)) return true;
+  const guardianEmail = String(student.guardianEmail || student.guardian_email || '').toLowerCase().trim();
+  if (parent.email && guardianEmail && parent.email === guardianEmail) return true;
+  const guardianName = String(student.guardianName || student.guardian_name || '').toLowerCase().trim();
+  if (parent.name && guardianName && (guardianName === parent.name || guardianName.includes(parent.name) || parent.name.includes(guardianName))) {
+    return true;
+  }
+  return false;
+}
+
 export default function ParentPortal() {
   const [activeNav, setActiveNavState] = useState(() => {
     return localStorage.getItem('says_parent_active_nav') || 'Dashboard';
@@ -83,23 +121,29 @@ export default function ParentPortal() {
   const [activeChild, setActiveChild] = useState(0);
   const { onboardedStudents = [], results: staffResults = [], studentFees = [], messages = [] } = usePortalData();
 
+  const parentIdentity = useMemo(() => resolveParentIdentity(), [onboardedStudents, studentFees]);
+
   const childrenList = useMemo(() => {
-    if (onboardedStudents && onboardedStudents.length > 0) {
-      return onboardedStudents.map((s, idx) => ({
-        name: s.fullName || s.name || `Student ${idx + 1}`,
-        studentId: s.studentId || s.id,
-        grade: `${s.level || 'Grade 4'}${s.classSection ? ' • Section ' + s.classSection : ''}`,
-        gpa: '3.8',
-        attendance: 96,
-        photo: s.gender === 'Female' ? '👧' : '👦',
-        bio: `${s.fullName || s.name} is enrolled in ${s.level || 'Class'} at REMALJ Carewell Inspirational School.`
-      }));
-    }
-    return [];
-  }, [onboardedStudents]);
+    const roster = Array.isArray(onboardedStudents) ? onboardedStudents : [];
+    const mine = roster.filter((s) => studentBelongsToParent(s, parentIdentity));
+    return mine.map((s, idx) => ({
+      name: s.fullName || s.name || `Student ${idx + 1}`,
+      studentId: s.studentId || s.id,
+      grade: `${s.level || 'Grade 4'}${s.classSection ? ' • Section ' + s.classSection : ''}`,
+      gpa: '3.8',
+      attendance: 96,
+      photo: s.gender === 'Female' ? '👧' : '👦',
+      bio: `${s.fullName || s.name} is enrolled in ${s.level || 'Class'} at REMALJ Carewell Inspirational School.`,
+    }));
+  }, [onboardedStudents, parentIdentity]);
+
+  useEffect(() => {
+    if (activeChild >= childrenList.length) setActiveChild(0);
+  }, [childrenList.length, activeChild]);
 
   const child = childrenList[activeChild] || childrenList[0] || {
     name: 'Student',
+    studentId: '',
     grade: 'Grade Level',
     gpa: '0.0',
     attendance: 0,
@@ -107,14 +151,22 @@ export default function ParentPortal() {
     bio: 'No student record found.'
   };
 
-  const currentFee = (studentFees || []).find((f) => f.studentName?.toLowerCase() === (child.name || '').toLowerCase() || f.studentId === child.studentId) || { balance: 0 };
-  const dynamicFeeValue = `GHS ${(currentFee.balance || 0).toLocaleString()}`;
-  const dynamicFeeTrend = currentFee.balance > 0 ? 'Balance due' : 'All paid';
+  const feeForChild = (entry) => (studentFees || []).find((f) =>
+    (entry?.studentId && String(f.studentId) === String(entry.studentId))
+    || f.studentName?.toLowerCase() === (entry?.name || '').toLowerCase()
+  ) || { billedAmount: 0, paidAmount: 0, balance: 0, status: 'No bill posted' };
+
+  const currentFee = feeForChild(child);
+  const householdOutstanding = childrenList.reduce((sum, c) => sum + Number(feeForChild(c).balance || 0), 0);
+  const dynamicFeeValue = `GHS ${householdOutstanding.toLocaleString()}`;
+  const dynamicFeeTrend = householdOutstanding > 0
+    ? (childrenList.length > 1 ? `${childrenList.length} children · balance due` : 'Balance due')
+    : 'All paid';
 
   const DYNAMIC_STATS = [
     { label: 'Children Enrolled', value: String(childrenList.length), trend: childrenList.length > 0 ? 'Active in system' : 'None registered', up: childrenList.length > 0, icon: '👨‍👩‍👦', bg: '#dbeafe', ic: '#1e3a8a' },
     { label: 'Attendance Rate', value: childrenList.length > 0 ? '96%' : '0%', trend: 'Database synced', up: true, icon: '✅', bg: '#dcfce7', ic: '#166534' },
-    { label: 'Fees Outstanding', value: dynamicFeeValue, trend: dynamicFeeTrend, up: currentFee.balance === 0, icon: '💳', bg: currentFee.balance > 0 ? '#fee2e2' : '#dcfce7', ic: currentFee.balance > 0 ? '#b91c1c' : '#166534' },
+    { label: 'Fees Outstanding', value: dynamicFeeValue, trend: dynamicFeeTrend, up: householdOutstanding === 0, icon: '💳', bg: householdOutstanding > 0 ? '#fee2e2' : '#dcfce7', ic: householdOutstanding > 0 ? '#b91c1c' : '#166534' },
     { label: 'Upcoming Events', value: '3', trend: 'Next: Sports Day', up: null, icon: '📅', bg: '#fef9c3', ic: '#78350f' },
   ];
 
@@ -128,16 +180,19 @@ export default function ParentPortal() {
             <div style={{ fontSize: 11, color: '#3a5a8a', marginTop: 2 }}>{getAuthUser()?.fullName || getAuthUser()?.name || 'Mrs. Angela Edwards'}</div>
           </div>
           <span className="sidebar-section-label">Navigation</span>
-          {NAV.slice(0, 5).map((item) => (
+          {NAV.slice(0, 5).map((item) => {
+            const badge = item.label === 'My Children' ? String(childrenList.length) : item.badge;
+            return (
             <button key={item.label}
               className={`sidebar-item${activeNav === item.label ? ' active' : ''}`}
               style={activeNav === item.label ? { background: PARENT_BG } : {}}
               onClick={() => setActiveNav(item.label)}>
               <span className="sidebar-item__icon">{item.icon}</span>
               {item.label}
-              {item.badge && <span className="sidebar-item__badge" style={{ background: PARENT_BG, color: '#fff' }}>{item.badge}</span>}
+              {badge ? <span className="sidebar-item__badge" style={{ background: PARENT_BG, color: '#fff' }}>{badge}</span> : null}
             </button>
-          ))}
+            );
+          })}
           <span className="sidebar-section-label">Transport</span>
           <button className={`sidebar-item${activeNav === 'Transport' ? ' active' : ''}`}
             style={activeNav === 'Transport' ? { background: PARENT_BG } : {}}
@@ -214,7 +269,12 @@ export default function ParentPortal() {
               {/* Stats */}
               <div className="stats-grid">
                 {DYNAMIC_STATS.map((s, i) => (
-                  <div className="stat-card" key={s.label} style={{ animationDelay: `${i * 70}ms` }}>
+                  <div
+                    className="stat-card"
+                    key={s.label}
+                    style={{ animationDelay: `${i * 70}ms`, cursor: s.label === 'Fees Outstanding' ? 'pointer' : undefined }}
+                    onClick={s.label === 'Fees Outstanding' ? () => setActiveNav('Fees') : undefined}
+                  >
                     <div className="stat-card__icon" style={{ background: s.bg, color: s.ic, fontSize: 20 }}>{s.icon}</div>
                     <div><div className="stat-card__value">{s.value}</div><div className="stat-card__label">{s.label}</div></div>
                     {s.up !== null
@@ -240,6 +300,11 @@ export default function ParentPortal() {
                         <div style={{ fontWeight: 800, color: 'var(--gray-900)', fontSize: 14 }}>{c.name}</div>
                         <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{c.grade} • GPA {c.gpa}</div>
                       </div>
+                      {Number(feeForChild(c).balance || 0) > 0 && (
+                        <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 99, fontSize: 10, fontWeight: 800, background: '#fee2e2', color: '#b91c1c' }}>
+                          GHS {Number(feeForChild(c).balance).toLocaleString()} due
+                        </span>
+                      )}
                       <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 99, fontSize: 10, fontWeight: 800, background: activeChild === i ? `${PARENT_ACCENT}20` : 'var(--gray-100)', color: activeChild === i ? PARENT_ACCENT : 'var(--gray-400)' }}>
                         {activeChild === i ? 'VIEWING' : 'SELECT'}
                       </span>
@@ -248,7 +313,7 @@ export default function ParentPortal() {
                 </div>
               ) : (
                 <div style={{ padding: '16px 20px', background: 'var(--gray-50)', border: '1px dashed var(--gray-300)', borderRadius: 'var(--radius-lg)', marginBottom: 20, color: 'var(--gray-600)', fontSize: 13 }}>
-                  ℹ️ No registered student records in database yet. Once enrolled in Admissions or Student Onboarding, students will appear here.
+                  ℹ️ No children are linked to this parent account yet. Posted bills appear here for students onboarded with this guardian email.
                 </div>
               )}
 
@@ -269,6 +334,13 @@ export default function ParentPortal() {
                       <div style={{ background: 'rgba(255,255,255,.1)', borderRadius: 'var(--radius-md)', padding: '14px 20px', textAlign: 'center' }}>
                         <div style={{ fontSize: 24, fontWeight: 800 }}>{child.gpa}</div>
                         <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.07em', color: 'rgba(255,255,255,.5)', marginTop: 2 }}>Current GPA</div>
+                      </div>
+                      <div
+                        onClick={() => setActiveNav('Fees')}
+                        style={{ background: Number(currentFee.balance || 0) > 0 ? '#b91c1c' : '#16a34a', borderRadius: 'var(--radius-md)', padding: '14px 20px', textAlign: 'center', cursor: 'pointer' }}
+                      >
+                        <div style={{ fontSize: 20, fontWeight: 800 }}>GHS {Number(currentFee.balance || 0).toLocaleString()}</div>
+                        <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.07em', color: 'rgba(255,255,255,.8)', marginTop: 2 }}>This child fees</div>
                       </div>
                       <div style={{ background: '#16a34a', borderRadius: 'var(--radius-md)', padding: '14px 20px', textAlign: 'center' }}>
                         <div style={{ fontSize: 24, fontWeight: 800 }}>{child.attendance}%</div>
@@ -406,15 +478,64 @@ export default function ParentPortal() {
             </>
           )}
 
+          {activeNav === 'My Children' && (
+            <div className="animate-fade-up">
+              <div className="page-header">
+                <p className="page-header__eyebrow" style={{ color: PARENT_ACCENT }}>
+                  <span style={{ background: PARENT_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #b0ccee' }}>Parent Portal — My Children</span>
+                </p>
+                <h1 className="page-header__title">My Children</h1>
+                <p className="page-header__subtitle">Each linked child and the academic bill posted to their ledger. Household outstanding: GHS {householdOutstanding.toLocaleString()}.</p>
+              </div>
+              {childrenList.length === 0 ? (
+                <div className="panel"><div className="panel__body" style={{ color: 'var(--gray-600)', fontSize: 13 }}>No children are linked to this parent account yet.</div></div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {childrenList.map((c, i) => {
+                    const fee = feeForChild(c);
+                    const due = Number(fee.balance || 0);
+                    return (
+                      <button
+                        key={c.studentId || c.name}
+                        onClick={() => { setActiveChild(i); setActiveNav('Fees'); }}
+                        style={{
+                          textAlign: 'left', display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px',
+                          background: 'var(--white)', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius-lg)', cursor: 'pointer',
+                        }}
+                      >
+                        <span style={{ fontSize: 28 }}>{c.photo}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 800, color: 'var(--gray-900)', fontSize: 15 }}>{c.name}</div>
+                          <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 2 }}>{c.grade}{c.studentId ? ` · ${c.studentId}` : ''}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 16, fontWeight: 800, color: due > 0 ? '#b91c1c' : '#166534' }}>GHS {due.toLocaleString()}</div>
+                          <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{due > 0 ? 'Outstanding' : (Number(fee.billedAmount || fee.billed || 0) > 0 ? 'Paid' : 'No bill posted')}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {(activeNav === 'Teachers' || activeNav === 'Messages') && <ParentCommunication child={child} />}
           {activeNav === 'Progress' && <ParentProgress childName={child.name} />}
           {activeNav === 'Calendar' && <ParentProgress childName={child.name} />}
-          {activeNav === 'Fees' && <ParentFees childName={child.name} />}
+          {activeNav === 'Fees' && (
+            <ParentFees
+              childName={child.name}
+              studentId={child.studentId}
+              householdOutstanding={householdOutstanding}
+              childrenCount={childrenList.length}
+            />
+          )}
           {activeNav === 'Contacts' && <ContactDirectory parentMode />}
           {activeNav === 'Reports' && <ParentReports child={child} />}
 
           {/* Other nav placeholders */}
-          {!['Dashboard', 'Transport', 'Teachers', 'Messages', 'Progress', 'Calendar', 'Fees', 'Contacts', 'Reports'].includes(activeNav) && (
+          {!['Dashboard', 'Transport', 'My Children', 'Teachers', 'Messages', 'Progress', 'Calendar', 'Fees', 'Contacts', 'Reports'].includes(activeNav) && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 12 }}>
               <div style={{ fontSize: 48 }}>🚧</div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--gray-700)' }}>{activeNav} — Coming Soon</h2>

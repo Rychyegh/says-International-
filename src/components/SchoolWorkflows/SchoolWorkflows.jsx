@@ -22,23 +22,93 @@ export function ParentProgress({ childName = 'Benjamin Edwards' }) {
   return <div className="workflow animate-fade-up"><div className="page-header"><h1 className="page-header__title">Progress & academic calendar</h1><p className="page-header__subtitle">Results and dates below are published by teaching staff. Parents can view them but cannot edit them.</p></div><div className="workflow-grid"><section className="panel"><div className="panel__header"><h2 className="panel__title">Staff-published progress · {childName}</h2><span className="status-pill status-pill--success">Verified</span></div><table className="data-table"><thead><tr><th>Subject</th><th>Score</th><th>Grade</th><th>Lecturer</th><th>Published</th></tr></thead><tbody>{results.map((r) => <tr key={r.id}><td>{r.subject}</td><td>{r.score}%</td><td><span className="status-pill status-pill--success">{r.grade}</span></td><td>{r.lecturer}</td><td>{r.updatedAt}</td></tr>)}</tbody></table></section><section className="panel"><div className="panel__header"><h2 className="panel__title">Academic calendar</h2></div><CalendarList items={academicCalendar}/></section></div></div>;
 }
 
-export function ParentFees({ childName = 'Benjamin Edwards' }) {
+export function ParentFees({ childName = '', studentId = '', householdOutstanding = 0, childrenCount = 1 }) {
   const { studentFees, feeAccounts, messages, accountantMessages } = usePortalData();
-  const feeRecord = (studentFees || []).find((item) => item.studentName?.toLowerCase() === childName.toLowerCase()) ||
-                    (feeAccounts || []).find((item) => item.child?.toLowerCase() === childName.toLowerCase()) ||
-                    { billedAmount: 4800, paidAmount: 4800, balance: 0, status: 'Paid', term: 'Term 1 · 2026', child: childName, school: 'REMALJ Carewell Inspirational School' };
-  
-  const billed = feeRecord.billedAmount ?? feeRecord.billed ?? 4800;
-  const paid = feeRecord.paidAmount ?? feeRecord.paid ?? 0;
-  const balance = feeRecord.balance ?? Math.max(0, billed - paid);
-  const status = feeRecord.status ?? (balance <= 0 ? 'Paid' : 'Balance Due');
+  const feeRecord = (studentFees || []).find((item) =>
+      (studentId && String(item.studentId) === String(studentId))
+      || (childName && item.studentName?.toLowerCase() === childName.toLowerCase())
+    ) || (feeAccounts || []).find((item) =>
+      (studentId && String(item.studentId) === String(studentId))
+      || (childName && item.child?.toLowerCase() === childName.toLowerCase())
+    ) || {
+      billedAmount: 0,
+      paidAmount: 0,
+      balance: 0,
+      status: 'No bill posted',
+      term: 'Term 1 · 2026',
+      child: childName,
+      school: 'REMALJ Carewell Inspirational School',
+      itemsBreakdown: [],
+    };
+
+  const billed = Number(feeRecord.billedAmount ?? feeRecord.billed ?? 0);
+  const paid = Number(feeRecord.paidAmount ?? feeRecord.paid ?? 0);
+  const balance = Number(feeRecord.balance ?? Math.max(0, billed - paid));
+  const status = feeRecord.status ?? (billed <= 0 ? 'No bill posted' : (balance <= 0 ? 'Paid' : 'Balance Due'));
+  const postedItems = Array.isArray(feeRecord.itemsBreakdown) ? feeRecord.itemsBreakdown : [];
 
   const reminders = [...(accountantMessages || []), ...(messages || [])].filter((m) =>
     (m.to === 'Parents' || m.to === childName || m.recipientEmail || m.recipient?.includes(childName) || m.studentName === childName) &&
     (/fee|payment|balance|owing|outstanding|notice/i.test(`${m.subject} ${m.body}`))
   );
 
-  return <div className="workflow animate-fade-up"><div className="page-header"><h1 className="page-header__title">Fees & account statement</h1><p className="page-header__subtitle">This account is maintained by the school accounts team. Real-time payment status and accountant reminders are shown for {childName}.</p></div><div className="workflow-grid"><section className="panel"><div className="panel__header"><h2 className="panel__title">{childName} · REMALJ Carewell Inspirational School</h2><span className={`status-pill ${balance > 0 ? 'status-pill--warn' : 'status-pill--success'}`}>{status}</span></div><div className="panel__body fee-summary"><div><span>Term billed</span><strong>GHS {billed.toLocaleString()}</strong></div><div><span>Payments received</span><strong style={{ color: '#16a34a' }}>GHS {paid.toLocaleString()}</strong></div><div><span>Outstanding balance</span><strong className={balance > 0 ? 'fee-balance' : ''}>GHS {balance.toLocaleString()}</strong></div><p>Account source: School Finance & Accounts Office · {feeRecord.term || 'Term 1 · 2026'}. Contact Accounts for receipts, corrections or payment arrangements.</p></div></section><section className="panel"><div className="panel__header"><h2 className="panel__title"><MessageSquare size={16}/> Accountant & Fee Notices</h2></div><div className="workflow-list">{reminders.length ? reminders.map((m) => <article key={m.id}><strong>{m.subject}</strong><span>{m.from} ({m.senderRole || 'Accounts'}) · {m.sentAt}</span><p style={{ whiteSpace: 'pre-line' }}>{m.body}</p></article>) : <p className="workflow-empty">No fee reminders or notices have been sent for this account.</p>}</div></section></div></div>;
+  return (
+    <div className="workflow animate-fade-up">
+      <div className="page-header">
+        <h1 className="page-header__title">Fees & account statement</h1>
+        <p className="page-header__subtitle">
+          Posted academic bills appear here for {childName || 'this child'} and on the parent dashboard. Household outstanding across {childrenCount} {childrenCount === 1 ? 'child' : 'children'}: GHS {Number(householdOutstanding || 0).toLocaleString()}.
+        </p>
+      </div>
+      <div className="workflow-grid">
+        <section className="panel">
+          <div className="panel__header">
+            <h2 className="panel__title">{childName || 'Child'} · REMALJ Carewell Inspirational School</h2>
+            <span className={`status-pill ${balance > 0 ? 'status-pill--warn' : 'status-pill--success'}`}>{status}</span>
+          </div>
+          <div className="panel__body fee-summary">
+            <div><span>Term billed</span><strong>GHS {billed.toLocaleString()}</strong></div>
+            <div><span>Payments received</span><strong style={{ color: '#16a34a' }}>GHS {paid.toLocaleString()}</strong></div>
+            <div><span>Outstanding balance</span><strong className={balance > 0 ? 'fee-balance' : ''}>GHS {balance.toLocaleString()}</strong></div>
+            {postedItems.length > 0 && (
+              <div style={{ gridColumn: '1 / -1', padding: 0, border: 'none', background: 'transparent' }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>Posted bill items</div>
+                <table className="data-table">
+                  <thead><tr><th>Item</th><th style={{ textAlign: 'right' }}>Amount</th></tr></thead>
+                  <tbody>
+                    {postedItems.map((item, idx) => (
+                      <tr key={`${item.details || item.name || 'item'}-${idx}`}>
+                        <td>{item.details || item.name || 'Fee item'}</td>
+                        <td style={{ textAlign: 'right' }}>GHS {Number(item.amount || 0).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p>
+              {feeRecord.lastBillPostedAt ? `Last bill posted ${feeRecord.lastBillPostedAt}. ` : ''}
+              Account source: School Finance & Accounts Office · {feeRecord.term || 'Term 1 · 2026'}. Contact Accounts for receipts, corrections or payment arrangements.
+            </p>
+          </div>
+        </section>
+        <section className="panel">
+          <div className="panel__header">
+            <h2 className="panel__title"><MessageSquare size={16}/> Accountant & Fee Notices</h2>
+          </div>
+          <div className="workflow-list">
+            {reminders.length ? reminders.map((m) => (
+              <article key={m.id}>
+                <strong>{m.subject}</strong>
+                <span>{m.from} ({m.senderRole || 'Accounts'}) · {m.sentAt}</span>
+                <p style={{ whiteSpace: 'pre-line' }}>{m.body}</p>
+              </article>
+            )) : <p className="workflow-empty">No fee reminders or notices have been sent for this account.</p>}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
 }
 
 export function StudentMessagesAssignments({ showMessages = false }) {

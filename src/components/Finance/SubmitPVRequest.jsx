@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
 import { api } from '../../services/api';
+import { cloudSync } from '../../services/cloudSync';
 import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
 
 export default function SubmitPVRequest({ setM = () => {} }) {
@@ -48,6 +49,17 @@ export default function SubmitPVRequest({ setM = () => {} }) {
     email: '',
     telephone: ''
   });
+
+  // Modal State for instant Quick-Add Provider right from the dropdown
+  const [showAddProviderModal, setShowAddProviderModal] = useState(false);
+  const [quickProviderForm, setQuickProviderForm] = useState({
+    name: '',
+    id: '',
+    address: 'Bogoso',
+    phone: '',
+    email: ''
+  });
+  const [isSubmittingQuickProvider, setIsSubmittingQuickProvider] = useState(false);
 
   // Form Fields State with clean placeholders (no hardcoded defaults)
   const [pvNo, setPvNo] = useState('');
@@ -170,6 +182,18 @@ export default function SubmitPVRequest({ setM = () => {} }) {
 
   // Synchronize Provider ID when Provider dropdown changes
   const handleProviderSelectChange = (name) => {
+    if (name === '__NEW_PROVIDER__') {
+      const nextId = String(931000 + serviceProviders.length + 1);
+      setQuickProviderForm({
+        name: '',
+        id: `VEN-${nextId}`,
+        address: 'Bogoso',
+        phone: '',
+        email: ''
+      });
+      setShowAddProviderModal(true);
+      return;
+    }
     setSelectedProviderName(name);
     const match = serviceProviders.find(p => p.name === name);
     if (match) {
@@ -181,6 +205,8 @@ export default function SubmitPVRequest({ setM = () => {} }) {
         email: match.email || '',
         telephone: match.phone || ''
       });
+    } else {
+      setProviderId('');
     }
   };
 
@@ -197,7 +223,60 @@ export default function SubmitPVRequest({ setM = () => {} }) {
     });
   };
 
-  // Add new Service Provider in Manager Panel (Persisted in DB & Local Storage)
+  // Quick Add Service Provider from Modal (Persisted in DB, Cloud Sync Hub & Local Storage)
+  const handleSaveQuickProvider = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!quickProviderForm.name.trim()) return;
+
+    setIsSubmittingQuickProvider(true);
+    const generatedId = `VEN-${String(931000 + serviceProviders.length + 1)}`;
+    const newId = quickProviderForm.id.trim() || generatedId;
+    const newP = {
+      id: newId,
+      name: quickProviderForm.name.trim(),
+      address: quickProviderForm.address.trim() || 'Bogoso',
+      email: quickProviderForm.email.trim() || '',
+      phone: quickProviderForm.phone.trim() || ''
+    };
+
+    try {
+      if (storeCreateProvider) {
+        await storeCreateProvider(newP);
+      } else {
+        try {
+          if (api.createServiceProvider) await api.createServiceProvider(newP);
+        } catch (_) {}
+        setLocalProviders(prev => {
+          const next = [newP, ...prev.filter(p => p.id !== newP.id && p.name !== newP.name)];
+          try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
+          return next;
+        });
+      }
+
+      if (cloudSync?.pushServiceProvider) {
+        await cloudSync.pushServiceProvider(newP);
+      }
+
+      setSelectedProviderInPanel(newP);
+      setSelectedProviderName(newP.name);
+      setProviderId(newP.id);
+      setProviderForm({
+        name: newP.name,
+        address: newP.address,
+        email: newP.email,
+        telephone: newP.phone
+      });
+      setShowAddProviderModal(false);
+      setSuccessNotice(`✅ Service Provider "${newP.name}" (ID: ${newP.id}) saved to database and synced across all devices.`);
+      setTimeout(() => setSuccessNotice(''), 5000);
+    } catch (err) {
+      console.warn('Quick provider creation error:', err);
+    } finally {
+      setIsSubmittingQuickProvider(false);
+    }
+  };
+
+  // Add new Service Provider in Manager Panel (Persisted in DB & Local Storage & Cloud Hub)
   const handleAddServiceProvider = async (e) => {
     e.preventDefault();
     if (!providerForm.name.trim()) return;
@@ -226,10 +305,14 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       });
     }
 
+    if (cloudSync?.pushServiceProvider) {
+      await cloudSync.pushServiceProvider(newP);
+    }
+
     setSelectedProviderInPanel(newP);
     setSelectedProviderName(newP.name);
     setProviderId(newP.id);
-    setSuccessNotice(`✅ Added & Saved Service Provider "${newP.name}" (ID: ${newP.id}) to database.`);
+    setSuccessNotice(`✅ Added & Saved Service Provider "${newP.name}" (ID: ${newP.id}) to database and synced across all devices.`);
     setTimeout(() => setSuccessNotice(''), 4000);
   };
 
@@ -779,9 +862,41 @@ export default function SubmitPVRequest({ setM = () => {} }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                  Select Client/Service Provider
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569' }}>
+                    Select Client/Service Provider <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextId = String(931000 + serviceProviders.length + 1);
+                      setQuickProviderForm({
+                        name: '',
+                        id: `VEN-${nextId}`,
+                        address: 'Bogoso',
+                        phone: '',
+                        email: ''
+                      });
+                      setShowAddProviderModal(true);
+                    }}
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: '#15803d',
+                      background: '#dcfce7',
+                      border: '1px solid #86efac',
+                      borderRadius: 4,
+                      padding: '2px 8px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                    title="Add a new vendor or service provider to database and all devices"
+                  >
+                    <Plus size={12} /> Add New Provider
+                  </button>
+                </div>
                 <select
                   value={selectedProviderName}
                   onChange={(e) => handleProviderSelectChange(e.target.value)}
@@ -797,9 +912,14 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   }}
                 >
                   <option value="">-- Select or Add Provider --</option>
-                  {serviceProviders.map(p => (
-                    <option key={p.id} value={p.name}>{p.name}</option>
-                  ))}
+                  <option value="__NEW_PROVIDER__" style={{ fontWeight: 800, color: '#15803d', background: '#f0fdf4' }}>
+                    ➕ Add New Service Provider...
+                  </option>
+                  <optgroup label="Registered Vendors & Service Providers">
+                    {serviceProviders.map(p => (
+                      <option key={p.id} value={p.name}>{p.name} {p.id ? `(${p.id})` : ''}</option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
 
@@ -1618,6 +1738,245 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                 <Printer size={15} /> Print Memo Slip
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Service Provider Modal (Instantly saves to DB & Syncs across all devices) */}
+      {showAddProviderModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 999999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 20
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 12,
+            width: '100%',
+            maxWidth: 520,
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            border: '1px solid #e2e8f0',
+            overflow: 'hidden'
+          }}>
+            {/* Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+              color: '#ffffff',
+              padding: '16px 20px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  background: '#22c55e',
+                  color: '#ffffff',
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Building2 size={18} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Create New Service Provider</h3>
+                  <p style={{ margin: 0, fontSize: 11.5, color: '#94a3b8' }}>
+                    Stored in database & instantly visible across all devices
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddProviderModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: 4,
+                  display: 'flex'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSaveQuickProvider} style={{ padding: 22 }}>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                  Company / Provider Name <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={quickProviderForm.name}
+                  onChange={(e) => setQuickProviderForm({ ...quickProviderForm, name: e.target.value })}
+                  placeholder="e.g. ECG Bogoso, Aunti Lizzy, Isaac Addae..."
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                    Provider ID / Account #
+                  </label>
+                  <input
+                    type="text"
+                    value={quickProviderForm.id}
+                    onChange={(e) => setQuickProviderForm({ ...quickProviderForm, id: e.target.value })}
+                    placeholder="e.g. VEN-931010"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 13,
+                      fontWeight: 600
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                    Address / Location
+                  </label>
+                  <input
+                    type="text"
+                    value={quickProviderForm.address}
+                    onChange={(e) => setQuickProviderForm({ ...quickProviderForm, address: e.target.value })}
+                    placeholder="e.g. Bogoso Main Market"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 13
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                    Telephone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={quickProviderForm.phone}
+                    onChange={(e) => setQuickProviderForm({ ...quickProviderForm, phone: e.target.value })}
+                    placeholder="e.g. 024 111 2233"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 13
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                    Email Address (Optional)
+                  </label>
+                  <input
+                    type="email"
+                    value={quickProviderForm.email}
+                    onChange={(e) => setQuickProviderForm({ ...quickProviderForm, email: e.target.value })}
+                    placeholder="e.g. vendor@gmail.com"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 13
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: 8,
+                padding: '10px 14px',
+                marginBottom: 20,
+                fontSize: 11.5,
+                color: '#64748b',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}>
+                <Sparkles size={16} color="#0284c7" />
+                <span>Once saved, this vendor will instantly appear on other phones, laptops, and admin portals connected to the system.</span>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddProviderModal(false)}
+                  style={{
+                    padding: '9px 16px',
+                    background: '#f1f5f9',
+                    color: '#475569',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 6,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingQuickProvider || !quickProviderForm.name.trim()}
+                  style={{
+                    padding: '9px 20px',
+                    background: isSubmittingQuickProvider ? '#94a3b8' : '#166534',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 6,
+                    fontWeight: 800,
+                    fontSize: 13,
+                    cursor: isSubmittingQuickProvider ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    boxShadow: '0 2px 4px rgba(22, 101, 52, 0.2)'
+                  }}
+                >
+                  {isSubmittingQuickProvider ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" /> Saving & Syncing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={15} /> Save & Select Provider
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
