@@ -52,6 +52,45 @@ const LEVEL_OPTIONS = [
 ];
 
 export default function AdminPortal({ onSignOut, initialAdminRole }) {
+  const {
+    onboardedStudents,
+    applications,
+    studentFees,
+    teacherDirectory,
+    classLevels,
+    subjects,
+    results,
+    messages,
+    approveResult,
+    declineResult,
+    onboardStudent,
+    updateOnboardedStudent,
+    deleteOnboardedStudent,
+    addStaffMember,
+    updateStaffMember,
+    offboardStaffMember,
+    reactivateStaffMember,
+    deleteStaffMember,
+    addClassLevel,
+    addSubject,
+    securityAlerts,
+    resolveSecurityAlert,
+    deleteSecurityAlert,
+    updateApplicationStatus,
+    updateApplicationOfficeUse,
+    updateApplication,
+    submitApplication,
+    deleteApplication,
+    refreshBackendData,
+    syncApplicationsToStudentDatabase,
+    adminSetUserPassword,
+    paymentVouchers,
+    pvNotifications,
+    markAllPVNotificationsRead,
+    clearPVNotifications,
+    markPVNotificationRead,
+  } = usePortalData();
+
   const [activeNav, setActiveNavState] = useState(() => {
     return localStorage.getItem('says_admin_active_nav') || 'Dashboard';
   });
@@ -207,45 +246,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     passcode: '',
     phone: ''
   });
-
-  const {
-    onboardedStudents,
-    applications,
-    studentFees,
-    teacherDirectory,
-    classLevels,
-    subjects,
-    results,
-    messages,
-    approveResult,
-    declineResult,
-    onboardStudent,
-    updateOnboardedStudent,
-    deleteOnboardedStudent,
-    addStaffMember,
-    updateStaffMember,
-    offboardStaffMember,
-    reactivateStaffMember,
-    deleteStaffMember,
-    addClassLevel,
-    addSubject,
-    securityAlerts,
-    resolveSecurityAlert,
-    deleteSecurityAlert,
-    updateApplicationStatus,
-    updateApplicationOfficeUse,
-    updateApplication,
-    submitApplication,
-    deleteApplication,
-    refreshBackendData,
-    syncApplicationsToStudentDatabase,
-    adminSetUserPassword,
-    paymentVouchers,
-    pvNotifications,
-    markAllPVNotificationsRead,
-    clearPVNotifications,
-    markPVNotificationRead,
-  } = usePortalData();
 
   // PV Approval Notifications & Pending Voucher Queue Detection
   const pendingPVs = useMemo(() => {
