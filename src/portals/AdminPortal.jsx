@@ -45,6 +45,49 @@ const NAV = [
 
 const SUB_ADMIN_PV_NAV = ['Submit PV Request', 'Prepare Bills Payables'];
 
+const TEACHING_STAFF_ROLES = [
+  'Subject Teacher',
+  'Form Master / Class Tutor',
+  'Class Teacher',
+  'Department Head',
+  'Senior Tutor',
+  'ICT Administrator',
+];
+
+const NON_TEACHING_STAFF_ROLES = [
+  'Driver',
+  'Bus Supervisor',
+  'Security',
+  'Cleaner',
+  'Cook / Catering',
+  'Nurse',
+  'Librarian',
+  'Office Assistant',
+  'Maintenance',
+];
+
+const NON_TEACHING_DUTIES = [
+  'Transport',
+  'Security',
+  'Sanitation',
+  'Kitchen',
+  'Health',
+  'Library',
+  'Administration',
+  'Maintenance',
+];
+
+const STAFF_ROLE_OPTIONS = [...TEACHING_STAFF_ROLES, ...NON_TEACHING_STAFF_ROLES];
+
+function isTeachingStaffMember(person = {}) {
+  const role = String(person.role || person.designation || '').trim().toLowerCase();
+  if (NON_TEACHING_STAFF_ROLES.some((item) => item.toLowerCase() === role)) return false;
+  if (TEACHING_STAFF_ROLES.some((item) => item.toLowerCase() === role)) return true;
+  if (/driver|security|cleaner|cook|catering|nurse|maintenance|librarian|office assistant|guard|kitchen|janitor|grounds/.test(role)) return false;
+  if (/teacher|tutor|lecturer|form master|department head/.test(role)) return true;
+  return true;
+}
+
 const LEVEL_OPTIONS = [
   'Creche', 'Nursery 1', 'Nursery 2', 'KG 1', 'KG 2',
   'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6',
@@ -328,6 +371,24 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [staffSearchQuery, setStaffSearchQuery] = useState('');
   const [staffSubjectFilter, setStaffSubjectFilter] = useState('All');
   const [staffStatusFilter, setStaffStatusFilter] = useState('All');
+  const [staffKindFilter, setStaffKindFilter] = useState('all');
+
+  const visibleStaff = useMemo(() => {
+    return (teacherDirectory || []).filter((t) => {
+      const matchesSearch = (t.name || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+        (t.staffId || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+        (t.subject || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+        (t.email || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+        (t.role || '').toLowerCase().includes(staffSearchQuery.toLowerCase());
+      const matchesSubject = staffSubjectFilter === 'All' || (t.subject || '').toLowerCase().includes(staffSubjectFilter.toLowerCase());
+      const matchesStatus = staffStatusFilter === 'All' ||
+        (staffStatusFilter === 'Active' && t.status !== 'Offboarded') ||
+        (staffStatusFilter === 'Offboarded' && t.status === 'Offboarded');
+      const teaching = isTeachingStaffMember(t);
+      const matchesKind = staffKindFilter === 'all' || (staffKindFilter === 'teaching' ? teaching : !teaching);
+      return matchesSearch && matchesSubject && matchesStatus && matchesKind;
+    });
+  }, [teacherDirectory, staffSearchQuery, staffSubjectFilter, staffStatusFilter, staffKindFilter]);
 
   const [newStaffForm, setNewStaffForm] = useState({
     name: '',
@@ -2637,8 +2698,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             <div className="animate-fade-up">
               <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
                 <div>
-                  <h1 className="page-header__title">Classes & Teaching Staff Directory 👨‍🏫</h1>
-                  <p className="page-header__subtitle">Onboard new teaching staff, edit staff credentials & class assignments, or offboard former staff members.</p>
+                  <h1 className="page-header__title">Classes & Staff Directory</h1>
+                  <p className="page-header__subtitle">Filter teaching staff from drivers and other non-teaching staff, then onboard, edit, or offboard them.</p>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -2653,6 +2714,17 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   >
                     <School size={16} /> 🏫 ➕ Add New Class
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingStaff(true)}
+                    style={{
+                      padding: '10px 16px', borderRadius: 8, background: '#166534', color: '#fff',
+                      border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 6
+                    }}
+                  >
+                    <UserPlus size={16} /> Add Staff
+                  </button>
                 </div>
               </div>
 
@@ -2661,17 +2733,17 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 <div style={{ padding: '16px 20px', background: '#f3e8ff', border: '1px solid #e9d5ff', borderRadius: 10 }}>
                   <div style={{ fontSize: 11, fontWeight: 800, color: '#6b21a8', textTransform: 'uppercase' }}>Active Teaching Staff</div>
                   <div style={{ fontSize: 26, fontWeight: 900, color: '#581c87', marginTop: 4 }}>
-                    {(teacherDirectory || []).filter(t => t.status !== 'Offboarded').length}
+                    {(teacherDirectory || []).filter(t => t.status !== 'Offboarded' && isTeachingStaffMember(t)).length}
                   </div>
-                  <div style={{ fontSize: 11, color: '#7e22ce', fontWeight: 600, marginTop: 2 }}>Faculty members active</div>
+                  <div style={{ fontSize: 11, color: '#7e22ce', fontWeight: 600, marginTop: 2 }}>Teachers and tutors</div>
                 </div>
 
                 <div style={{ padding: '16px 20px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#166534', textTransform: 'uppercase' }}>Departments & Subjects</div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#166534', textTransform: 'uppercase' }}>Non-teaching Staff</div>
                   <div style={{ fontSize: 26, fontWeight: 900, color: '#14532d', marginTop: 4 }}>
-                    {new Set((teacherDirectory || []).map(t => t.subject)).size}
+                    {(teacherDirectory || []).filter(t => t.status !== 'Offboarded' && !isTeachingStaffMember(t)).length}
                   </div>
-                  <div style={{ fontSize: 11, color: '#15803d', fontWeight: 600, marginTop: 2 }}>Core subject areas</div>
+                  <div style={{ fontSize: 11, color: '#15803d', fontWeight: 600, marginTop: 2 }}>Drivers, security, and support</div>
                 </div>
 
                 <div style={{ padding: '16px 20px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10 }}>
@@ -2885,6 +2957,37 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
               {/* Staff Filters Toolbar */}
               <div style={{ background: '#f8fafc', border: '1px solid var(--gray-200)', borderRadius: 12, padding: '14px 18px', marginBottom: 20 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                  {[
+                    { id: 'all', label: 'All staff' },
+                    { id: 'teaching', label: 'Teaching staff' },
+                    { id: 'non_teaching', label: 'Non-teaching staff' },
+                  ].map((option) => {
+                    const selected = staffKindFilter === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setStaffKindFilter(option.id)}
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: 999,
+                          border: selected ? '1px solid #4a1d6e' : '1px solid var(--gray-300)',
+                          background: selected ? '#4a1d6e' : '#fff',
+                          color: selected ? '#fff' : '#334155',
+                          fontWeight: 800,
+                          fontSize: 12.5,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                  <span style={{ alignSelf: 'center', fontSize: 12, color: '#64748b', fontWeight: 700 }}>
+                    Drivers, security, cleaners, cooks, and other support staff are under Non-teaching staff.
+                  </span>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 12, alignItems: 'center' }}>
                   <div style={{ position: 'relative' }}>
                     <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--gray-400)' }} />
