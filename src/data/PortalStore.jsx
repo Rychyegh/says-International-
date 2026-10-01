@@ -217,13 +217,6 @@ function mergeRosterWithApplications(students = [], applications = []) {
           })
           : s
       ));
-    } else {
-      roster.push({
-        ...draft,
-        id: `stu-app-${app.id || normalizePersonName(draft.fullName) || Date.now()}`,
-        studentId: draft.studentId || '',
-        studentEmail: schoolEmailFromName(draft.fullName),
-      });
     }
   }
   return deduplicateStudents(roster);
@@ -713,6 +706,11 @@ export function mapStudentFromApi(s = {}, fallback = {}) {
     id: id || studentId || fallback.id,
     studentId: studentId || (id ? String(id) : fallback.studentId),
     rfidCardCode: s.rfidCardCode || s.rfid_card_code || s.card_id || fallback.rfidCardCode || '',
+    parentPickupCardIssued: [true, 1, '1', 'true'].includes(
+      s.parentPickupCardIssued ?? s.parent_pickup_card_issued ?? s.parent_card_issued
+    ),
+    parentCardCode: s.parentCardCode || s.parent_card_code || s.pickup_card_code || fallback.parentCardCode || '',
+    dailyLimit: s.dailyLimit || s.daily_limit || s.spending_limit || fallback.dailyLimit || '',
     fullName: fullComputed,
     firstName: s.firstName || fallback.firstName || '',
     otherNames: s.otherNames || s.other_names || fallback.otherNames || '',
@@ -857,6 +855,9 @@ export function mergeStudentRecords(prev, incoming) {
     studentEmail: incoming.studentEmail || prev.studentEmail,
     defaultPassword: incoming.defaultPassword || prev.defaultPassword,
     rfidCardCode: preferIssuedRfid(incoming.rfidCardCode, prev.rfidCardCode),
+    parentPickupCardIssued: incoming.parentPickupCardIssued ?? prev.parentPickupCardIssued ?? false,
+    parentCardCode: incoming.parentCardCode || prev.parentCardCode || '',
+    dailyLimit: incoming.dailyLimit || prev.dailyLimit || '',
     fatherName: incoming.fatherName || prev.fatherName || '',
     fatherPhone: incoming.fatherPhone || prev.fatherPhone || '',
     motherName: incoming.motherName || prev.motherName || '',
@@ -1411,7 +1412,7 @@ function readData() {
         ...INITIAL_DATA.profiles,
         ...(parsed.profiles || {})
       },
-      onboardedStudents: deduplicateStudents(parsed.onboardedStudents || []),
+      onboardedStudents: [],
       applications: deduplicateApplications(parsed.applications || []),
       studentFees: deduplicateFees(parsed.studentFees || []),
       academicSettings: {
@@ -1419,8 +1420,8 @@ function readData() {
         ...(parsed.academicSettings || {})
       },
       // Always ensure these arrays exist even in old localStorage snapshots
-      pvNotifications: Array.isArray(parsed.pvNotifications) ? parsed.pvNotifications : [],
-      paymentVouchers: Array.isArray(parsed.paymentVouchers) ? deduplicatePaymentVouchers(parsed.paymentVouchers) : [],
+      pvNotifications: [],
+      paymentVouchers: [],
       serviceProviders: (() => {
         try {
           const list = Array.isArray(parsed.serviceProviders) && parsed.serviceProviders.length > 0
@@ -1453,7 +1454,15 @@ export function PortalDataProvider({ children }) {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      localStorage.removeItem('official_pv_queue');
+      localStorage.removeItem('says_read_pv_notifs');
+      localStorage.removeItem('says_cleared_pv_notifs');
+      const { paymentVouchers: _paymentVouchers, pvNotifications: _pvNotifications, ...rest } = data;
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        ...rest,
+        paymentVouchers: [],
+        pvNotifications: [],
+      }));
 
       (data.onboardedStudents || []).forEach((s) => {
         if (!s || (!s.studentEmail && !s.studentId)) return;
@@ -1494,9 +1503,14 @@ export function PortalDataProvider({ children }) {
         try {
           const incoming = JSON.parse(event.newValue);
           setData((current) => {
-            if (isDeepEqual(current, incoming)) return current;
+            const next = {
+              ...incoming,
+              paymentVouchers: current.paymentVouchers,
+              pvNotifications: current.pvNotifications,
+            };
+            if (isDeepEqual(current, next)) return current;
             applyingRemoteRef.current = true;
-            return incoming;
+            return next;
           });
         } catch (e) {}
       }
@@ -1803,16 +1817,15 @@ export function PortalDataProvider({ children }) {
           }
         }
 
-        // Onboarded Students
+        // Students come only from the database. An empty response clears the roster.
         if (studentsRes.status === 'fulfilled') {
           const students = extractStudentList(studentsRes.value);
-          if (Array.isArray(students) && students.length > 0) {
-            const mapped = students.map((s) => mapStudentFromApi(s));
-            const merged = deduplicateStudents([...(current.onboardedStudents || []), ...mapped]);
-            if (!isDeepEqual(current.onboardedStudents, merged)) {
-              updates.onboardedStudents = merged;
+          if (Array.isArray(students)) {
+            const mapped = deduplicateStudents(students.map((s) => mapStudentFromApi(s)));
+            if (!isDeepEqual(current.onboardedStudents, mapped)) {
+              updates.onboardedStudents = mapped;
               hasChanges = true;
-              merged.forEach((s) => {
+              mapped.forEach((s) => {
                 if (!s?.studentEmail && !s?.studentId) return;
                 upsertCanonicalLoginAccount({
                   studentId: s.studentId,
@@ -1890,16 +1903,13 @@ export function PortalDataProvider({ children }) {
           }
         }
 
-        // Payment Vouchers (all statuses, including DISBURSED)
+        // Payment vouchers come only from the database. An empty response clears the queue.
         if (pvsRes.status === 'fulfilled') {
           const pvs = api.extractPaymentVoucherList(pvsRes.value);
-          if (Array.isArray(pvs) && pvs.length > 0) {
-            const mapped = pvs.map(mapApiPaymentVoucher);
-            const mergedPVs = deduplicatePaymentVouchers([...(current.paymentVouchers || []), ...mapped]);
-            if (!isDeepEqual(current.paymentVouchers, mergedPVs)) {
-              updates.paymentVouchers = mergedPVs;
-              hasChanges = true;
-            }
+          const mapped = Array.isArray(pvs) ? deduplicatePaymentVouchers(pvs.map(mapApiPaymentVoucher)) : [];
+          if (!isDeepEqual(current.paymentVouchers, mapped)) {
+            updates.paymentVouchers = mapped;
+            hasChanges = true;
           }
         }
 
@@ -1940,13 +1950,6 @@ export function PortalDataProvider({ children }) {
 
         // Fold in Universal Cloud Hub updates if present
         if (cloudData) {
-          if (Array.isArray(cloudData.onboardedStudents)) {
-            const merged = deduplicateStudents([...(updates.onboardedStudents || current.onboardedStudents || []), ...cloudData.onboardedStudents]);
-            if (!isDeepEqual(current.onboardedStudents, merged)) {
-              updates.onboardedStudents = merged;
-              hasChanges = true;
-            }
-          }
           if (Array.isArray(cloudData.classLevels)) {
             const merged = Array.from(new Set([...(updates.classLevels || current.classLevels || DEFAULT_CLASS_LEVELS), ...cloudData.classLevels]));
             if (!isDeepEqual(current.classLevels, merged)) {
@@ -2986,18 +2989,32 @@ export function PortalDataProvider({ children }) {
         mother_phone: updates.motherPhone || existing?.motherPhone,
         rfidCardCode: updates.rfidCardCode || existing?.rfidCardCode,
         rfid_card_code: updates.rfidCardCode || existing?.rfidCardCode,
+        parentPickupCardIssued: updates.parentPickupCardIssued ?? existing?.parentPickupCardIssued ?? false,
+        parent_pickup_card_issued: updates.parentPickupCardIssued ?? existing?.parentPickupCardIssued ?? false,
+        parentCardCode: updates.parentCardCode ?? existing?.parentCardCode ?? '',
+        parent_card_code: updates.parentCardCode ?? existing?.parentCardCode ?? '',
+        dailyLimit: updates.dailyLimit || existing?.dailyLimit,
+        daily_limit: updates.dailyLimit || existing?.dailyLimit,
       };
       const matchingApps = existing
         ? (dataRef.current.applications || []).filter((app) => applicationMatchesStudent(app, existing))
         : [];
+      const cardMustBeSaved = updates.parentPickupCardIssued === true || Boolean(updates.rfidCardCode);
+      let savedToDatabase = false;
       try {
         if (backendId) {
           await api.updateStudent(backendId, payload);
-        } else if (existing?.studentId) {
+          savedToDatabase = true;
+        } else if (existing?.studentId && !isSyntheticLocalId(existing.studentId)) {
           await api.updateStudent(existing.studentId, payload);
+          savedToDatabase = true;
         }
       } catch (e) {
+        if (cardMustBeSaved) throw e;
         console.warn('Backend update student fallback:', e);
+      }
+      if (cardMustBeSaved && !savedToDatabase) {
+        throw new Error('The database did not save this card.');
       }
       if (updates.rfidCardCode) {
         await Promise.all(matchingApps.map(async (app) => {
@@ -4327,47 +4344,17 @@ export function PortalDataProvider({ children }) {
     // Notification management
     markAllPVNotificationsRead: () => setData((current) => {
       const notifs = current.pvNotifications || [];
-      const allKeys = notifs.map(n => String(n.pvNo || n.id || '').toLowerCase().trim());
-      try {
-        const storedRead = JSON.parse(localStorage.getItem('says_read_pv_notifs') || '[]');
-        const combined = Array.from(new Set([...storedRead, ...allKeys]));
-        localStorage.setItem('says_read_pv_notifs', JSON.stringify(combined));
-      } catch (_) {}
       return {
         ...current,
         pvNotifications: notifs.map(n => ({ ...n, read: true }))
       };
     }),
-    clearPVNotifications: () => setData((current) => {
-      const notifs = current.pvNotifications || [];
-      const allKeys = notifs.map(n => String(n.pvNo || n.id || '').toLowerCase().trim());
-      const pvs = current.paymentVouchers || [];
-      const pendingKeys = pvs
-        .filter(p => {
-          const s = (p.status || '').toLowerCase().trim();
-          return s.includes('pending') || s === 'draft' || !s;
-        })
-        .map(p => String(p.pvNo || p.id || '').toLowerCase().trim());
-
-      try {
-        const storedCleared = JSON.parse(localStorage.getItem('says_cleared_pv_notifs') || '[]');
-        const combined = Array.from(new Set([...storedCleared, ...allKeys, ...pendingKeys]));
-        localStorage.setItem('says_cleared_pv_notifs', JSON.stringify(combined));
-      } catch (_) {}
-      return {
-        ...current,
-        pvNotifications: []
-      };
-    }),
+    clearPVNotifications: () => setData((current) => ({
+      ...current,
+      pvNotifications: []
+    })),
     markPVNotificationRead: (idOrPvNo) => setData((current) => {
       const key = String(idOrPvNo).toLowerCase().trim();
-      try {
-        const storedRead = JSON.parse(localStorage.getItem('says_read_pv_notifs') || '[]');
-        if (!storedRead.includes(key)) {
-          storedRead.push(key);
-          localStorage.setItem('says_read_pv_notifs', JSON.stringify(storedRead));
-        }
-      } catch (_) {}
       return {
         ...current,
         pvNotifications: (current.pvNotifications || []).map(n => {
@@ -4556,14 +4543,6 @@ export function PortalDataProvider({ children }) {
             : n
         );
         try {
-          const q = JSON.parse(localStorage.getItem('official_pv_queue') || '[]');
-          if (Array.isArray(q) && q.length) {
-            localStorage.setItem('official_pv_queue', JSON.stringify(q.map((p) => (
-              pvMatchesRef(p, pvNo) ? { ...p, status: statusText, auditRemarks: remarks || p.auditRemarks, updatedAt: nowIso } : p
-            ))));
-          }
-        } catch (_) {}
-        try {
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('rcis_pv_status_changed', {
               detail: { pvNo, status: statusText, remarks }
@@ -4671,18 +4650,6 @@ export function PortalDataProvider({ children }) {
             updatedAt: new Date().toISOString(),
           });
         }
-
-        try {
-          const q = JSON.parse(localStorage.getItem('official_pv_queue') || '[]');
-          if (Array.isArray(q)) {
-            const updatedQ = q.map(p =>
-              (pvMatchesRef(p, pvNo) || pvMatchesRef(p, existingVoucher?.pvNo) || pvMatchesRef(p, existingVoucher?.id))
-                ? { ...p, ...settlementRecord, updatedAt: new Date().toISOString() }
-                : p
-            );
-            localStorage.setItem('official_pv_queue', JSON.stringify(updatedQ));
-          }
-        } catch (_) {}
 
         try {
           if (typeof window !== 'undefined') {

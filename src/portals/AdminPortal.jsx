@@ -96,7 +96,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const {
     onboardedStudents,
     applications,
-    studentFees,
     teacherDirectory,
     classLevels,
     subjects,
@@ -418,35 +417,43 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     if (!issuingCardStudent || !cardForm.rfidCardCode.trim()) return;
 
     const issuedUid = cardForm.rfidCardCode.trim();
-    if (updateOnboardedStudent) {
+    try {
+      if (!updateOnboardedStudent) {
+        throw new Error('The database did not save this RFID card.');
+      }
       await updateOnboardedStudent(issuingCardStudent.id, {
         rfidCardCode: issuedUid,
         cardIssued: true,
         dailyLimit: cardForm.dailyLimit || '50'
       });
+      setSuccessMsg(`💳 Smart RFID Card #${issuedUid} encoded & issued to ${issuingCardStudent.fullName}!`);
+      setIssuingCardStudent(null);
+      setCardForm({ rfidCardCode: '', dailyLimit: '50', pin: '1234', holderName: '', notes: '' });
+    } catch (err) {
+      setSuccessMsg('RFID card issue failed. The database did not save this card, so nothing was kept in this browser.');
     }
-
-    setSuccessMsg(`💳 Smart RFID Card #${issuedUid} encoded & issued to ${issuingCardStudent.fullName}!`);
-    setIssuingCardStudent(null);
-    setCardForm({ rfidCardCode: '', dailyLimit: '50', pin: '1234', holderName: '', notes: '' });
     setTimeout(() => setSuccessMsg(''), 6000);
   };
 
-  const handleIssueParentCardSubmit = (e) => {
+  const handleIssueParentCardSubmit = async (e) => {
     e.preventDefault();
     if (!issuingParentCardStudent) return;
 
     const code = cardForm.rfidCardCode.trim() || `PCARD-${Date.now().toString().slice(-6)}`;
-    if (updateOnboardedStudent) {
-      updateOnboardedStudent(issuingParentCardStudent.id, {
+    try {
+      if (!updateOnboardedStudent) {
+        throw new Error('The database did not save this parent pickup card.');
+      }
+      await updateOnboardedStudent(issuingParentCardStudent.id, {
         parentPickupCardIssued: true,
         parentCardCode: code
       });
+      setSuccessMsg(`👨‍👩‍👧 Official Parent Pickup Card #${code} issued for ${issuingParentCardStudent.guardianName} (${issuingParentCardStudent.fullName})!`);
+      setIssuingParentCardStudent(null);
+      setCardForm({ rfidCardCode: '', dailyLimit: '50', pin: '1234', holderName: '', notes: '' });
+    } catch (err) {
+      setSuccessMsg('Parent pickup card issue failed. The database did not save this card, so nothing was kept in this browser.');
     }
-
-    setSuccessMsg(`👨‍👩‍👧 Official Parent Pickup Card #${code} issued for ${issuingParentCardStudent.guardianName} (${issuingParentCardStudent.fullName})!`);
-    setIssuingParentCardStudent(null);
-    setCardForm({ rfidCardCode: '', dailyLimit: '50', pin: '1234', holderName: '', notes: '' });
     setTimeout(() => setSuccessMsg(''), 6000);
   };
 
@@ -773,7 +780,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const totalStudents = (onboardedStudents || []).length;
   const activeStudents = (onboardedStudents || []).filter((s) => s.status === 'Active').length;
   const totalApplications = (applications || []).length;
-  const totalFeesBilled = (studentFees || []).reduce((sum, f) => sum + (f.billedAmount || 0), 0);
 
   const recentOnboardedStudents = useMemo(() => {
     const recency = (student) => {
@@ -789,7 +795,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const STATS = [
     { label: 'Total Enrolled Students', value: String(totalStudents), trend: `${activeStudents} Active`, icon: '👥', bg: '#f3e8ff', ic: ADMIN_BG, nav: 'Student Roster' },
     { label: 'Admissions Applications', value: String(totalApplications), trend: 'Official forms active', icon: '📋', bg: '#fef9c3', ic: '#78350f', nav: 'Applications & Forms' },
-    { label: 'Total Revenue Billed', value: `GHS ${totalFeesBilled.toLocaleString()}`, trend: 'Term 1 · 2026', icon: '💰', bg: '#dcfce7', ic: '#166534', nav: 'Official Fee Schedule' },
     { label: 'Teaching Staff', value: String((teacherDirectory || []).filter(t => t.status !== 'Offboarded').length), trend: 'All departments', icon: '👨‍🏫', bg: '#e0f2fe', ic: '#0369a1', nav: 'Classes & Staff' },
   ];
 
@@ -2178,7 +2183,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 <div style={{ padding: '16px 20px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10 }}>
                   <div style={{ fontSize: 11, fontWeight: 800, color: '#1e40af', textTransform: 'uppercase' }}>Parent Pickup Cards</div>
                   <div style={{ fontSize: 26, fontWeight: 900, color: '#1e3a8a', marginTop: 4 }}>
-                    {(onboardedStudents || []).filter(s => s.parentPickupCardIssued).length || 2}
+                    {(onboardedStudents || []).filter(s => s.parentPickupCardIssued).length}
                   </div>
                   <div style={{ fontSize: 11, color: '#2563eb', fontWeight: 600, marginTop: 2 }}>Verified guardian pickup passes</div>
                 </div>

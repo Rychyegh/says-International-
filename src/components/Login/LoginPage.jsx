@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, Phone, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
-import { api, setAuthToken, setAuthUser, getAuthUser, isClassTeacherAccount, enrichTeacherSession, lookupRegisteredAccount, DEMO_CLASS_TEACHER_ACCOUNTS, extractAuthToken } from '../../services/api';
+import { api, setAuthToken, setAuthUser, getAuthUser, isClassTeacherAccount, enrichTeacherSession, extractAuthToken } from '../../services/api';
 import { usePortalData } from '../../data/PortalStore';
 import './Login.css';
 
@@ -284,20 +284,15 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   };
 
   const finishTeacherLogin = async (userObj) => {
-    const demoAccount = DEMO_CLASS_TEACHER_ACCOUNTS.find((account) => (
-      String(account.email).toLowerCase() === String(userObj.email || email || '').trim().toLowerCase()
-    ));
-    const localAccount = lookupRegisteredAccount(userObj.email || email) || lookupRegisteredAccount(userObj.staffId || userObj.staff_id) || demoAccount;
     const session = enrichTeacherSession({
       ...userObj,
-      ...(demoAccount || {}),
       email: userObj.email || email,
       password: undefined,
       passcode: undefined,
     });
-    let classTeacher = Boolean(demoAccount) || isClassTeacherAccount(session);
-    let staffId = session.staffId || demoAccount?.staffId || '';
-    let classAssigned = session.classAssigned || demoAccount?.classLevel || '';
+    let classTeacher = isClassTeacherAccount(session);
+    let staffId = session.staffId || '';
+    let classAssigned = session.classAssigned || '';
 
     if (!classTeacher) {
       try {
@@ -344,15 +339,10 @@ export default function LoginPage({ portal, onLoginSuccess }) {
         user: { ...session, staffId, classAssigned },
       };
       setPendingClassTeacher(pending);
-      const issuedPasscode = String(localAccount?.passcode || '').trim();
-      if (issuedPasscode) {
-        setClassPasscode('');
-        setClassTeacherStep(true);
-        setLoading(false);
-        setError('');
-        return;
-      }
-      completeClassTeacherLogin(pending.user);
+      setClassPasscode('');
+      setClassTeacherStep(true);
+      setLoading(false);
+      setError('');
       return;
     }
 
@@ -379,12 +369,6 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     }
 
     setLoading(true);
-    const localAccount = lookupRegisteredAccount(pendingClassTeacher?.email || email)
-      || lookupRegisteredAccount(pendingClassTeacher?.staffId)
-      || DEMO_CLASS_TEACHER_ACCOUNTS.find((account) => (
-        String(account.email).toLowerCase() === String(pendingClassTeacher?.email || email || '').trim().toLowerCase()
-      ));
-    const localPasscode = String(localAccount?.passcode || '').trim();
 
     try {
       const result = await api.verifyClassTeacherPasscode({
@@ -393,10 +377,6 @@ export default function LoginPage({ portal, onLoginSuccess }) {
       });
       completeClassTeacherLogin(result?.user || pendingClassTeacher?.user || getAuthUser() || {});
     } catch (err) {
-      if (localPasscode && localPasscode === passcode) {
-        completeClassTeacherLogin(pendingClassTeacher?.user || getAuthUser() || {});
-        return;
-      }
       setLoading(false);
       if (addSecurityAlert) {
         addSecurityAlert({

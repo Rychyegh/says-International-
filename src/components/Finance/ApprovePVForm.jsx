@@ -169,189 +169,33 @@ export default function ApprovePVForm({ setM = () => {} }) {
   const updatePaymentVoucher = portalData?.updatePaymentVoucher;
   const approvePaymentVoucher = portalData?.approvePaymentVoucher;
 
-  // Default seed queue if store is empty
-  const DEFAULT_PVS = [
-    {
-      id: 'pv-593406',
-      pvNo: 'PV-2026-593406',
-      accountName: 'Expenditure Account',
-      budget: '0.00',
-      actuals: '0.00',
-      batchNo: 'BATCH-2026-01',
-      tDate: '2026-10-01',
-      vDate: '2026-10-01',
-      requisitionNo: 'REQ-2026-901',
-      provider: 'AUNTI LIZZY',
-      providerId: '931001',
-      description: 'BUS TYRE (x11), BUS TYRE (x11)',
-      qty: 22,
-      cost: 10.00,
-      total: 220.00,
-      items: [
-        { id: 'it-593406-1', description: 'BUS TYRE (x11)', provider: 'AUNTI LIZZY', providerId: '931001', qty: 11, costPerItem: 10.00, totalAmount: 110.00, status: 'Pending approval' },
-        { id: 'it-593406-2', description: 'BUS TYRE (x11)', provider: 'AUNTI LIZZY', providerId: '931001', qty: 11, costPerItem: 10.00, totalAmount: 110.00, status: 'Pending approval' }
-      ],
-      datePrepared: '2026-10-01',
-      valuedDate: '2026-10-01',
-      auditRemarks: 'Registered in system',
-      imputer: 'Sub-Admin / Accounts',
-      inputDate: '2026-10-01 08:30',
-      status: 'Pending approval',
-      company: 'Remalj Carewell Inspirational School'
-    },
-    {
-      id: 'pv-088',
-      pvNo: 'PV-2026-088',
-      accountName: 'Utility & Substation Account',
-      budget: '5000.00',
-      actuals: '3200.00',
-      batchNo: 'BATCH-2026-09',
-      tDate: '2026-09-05',
-      vDate: '2026-09-05',
-      requisitionNo: 'REQ-99412',
-      provider: 'ELECTRICITY COMPANY OF GHANA (ECG)',
-      providerId: 'ECG-99310',
-      description: 'Cost of Electricity Bill & Utility Substation Maintenance',
-      qty: 1,
-      cost: 3200.00,
-      total: 3200.00,
-      datePrepared: '2026-09-05',
-      valuedDate: '2026-09-05',
-      auditRemarks: 'Pre-audited & verified against monthly meter consumption records. Approved for disbursement.',
-      imputer: 'LISAB (Sub-Admin)',
-      inputDate: '2026-09-05 10:15',
-      status: 'Validated',
-      company: 'Remalj Carewell Inspirational School'
-    },
-    {
-      id: 'pv-082',
-      pvNo: 'PV-2026-082',
-      accountName: 'Canteen & Feeding Account',
-      budget: '3000.00',
-      actuals: '1850.00',
-      batchNo: 'BATCH-2026-09',
-      tDate: '2026-09-02',
-      vDate: '2026-09-02',
-      requisitionNo: 'REQ-99380',
-      provider: 'DAILY CANTEEN SUPPLIES LTD',
-      providerId: '931043',
-      description: 'Weekly Canteen Feeding & Grocery Stock Supply',
-      qty: 1,
-      cost: 1850.00,
-      total: 1850.00,
-      items: [
-        { id: 'it-082-1', description: 'Fresh Vegetables & Cooking Ingredients', provider: 'DAILY CANTEEN SUPPLIES LTD', providerId: '931043', qty: 10, costPerItem: 75.00, totalAmount: 750.00, status: 'Pending approval' },
-        { id: 'it-082-2', description: 'Bags of Rice & Cooking Oil', provider: 'DAILY CANTEEN SUPPLIES LTD', providerId: '931043', qty: 5, costPerItem: 140.00, totalAmount: 700.00, status: 'Pending approval' },
-        { id: 'it-082-3', description: 'Beverages & Dairy Provision Pack', provider: 'DAILY CANTEEN SUPPLIES LTD', providerId: '931043', qty: 4, costPerItem: 100.00, totalAmount: 400.00, status: 'Pending approval' }
-      ],
-      datePrepared: '2026-09-02',
-      valuedDate: '2026-09-02',
-      auditRemarks: 'Pending pre-audit verification by Headmaster.',
-      imputer: 'Sub-Admin / Accounts',
-      inputDate: '2026-09-02 11:30',
-      status: 'Pending approval',
-      company: 'Remalj Carewell Inspirational School'
-    },
-    {
-      id: 'pv-075',
-      pvNo: 'PV-2026-075',
-      accountName: 'Stationery & Printing',
-      budget: '2000.00',
-      actuals: '1200.00',
-      batchNo: 'BATCH-2026-08',
-      tDate: '2026-08-28',
-      vDate: '2026-08-28',
-      requisitionNo: 'REQ-99300',
-      provider: 'STATIONERY & PRINTING DEPOT',
-      providerId: '931088',
-      description: 'Terminal Assessment Paper & Printing Ink Cartridges',
-      qty: 5,
-      cost: 240.00,
-      total: 1200.00,
-      items: [
-        { id: 'it-075-1', description: 'Terminal Assessment Printing Paper (A4 Reams)', provider: 'STATIONERY & PRINTING DEPOT', providerId: '931088', qty: 3, costPerItem: 240.00, totalAmount: 720.00, status: 'Validated' },
-        { id: 'it-075-2', description: 'High-Yield Black Laser Toner Cartridges', provider: 'STATIONERY & PRINTING DEPOT', providerId: '931088', qty: 2, costPerItem: 240.00, totalAmount: 480.00, status: 'Validated' }
-      ],
-      datePrepared: '2026-08-28',
-      valuedDate: '2026-08-28',
-      auditRemarks: 'Pre-audited & Approved',
-      imputer: 'Sub-Admin / Accounts',
-      inputDate: '2026-08-28 09:45',
-      status: 'Validated',
-      company: 'Remalj Carewell Inspirational School'
-    }
-  ];
+  const [pvQueue, setPvQueue] = useState([]);
 
-  const [pvQueue, setPvQueue] = useState(() => {
-    try {
-      const saved = localStorage.getItem('official_pv_queue');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return collapseVoucherQueue(parsed);
-        }
-      }
-    } catch (e) {}
-    return DEFAULT_PVS;
-  });
-
-  // Synchronize with portalStore paymentVouchers & localStorage
   useEffect(() => {
-    setPvQueue((prev) => {
-      const mergedList = collapseVoucherQueue([...(prev || []), ...(storeVouchers || [])]);
-      try {
-        localStorage.setItem('official_pv_queue', JSON.stringify(mergedList));
-      } catch (e) {}
-      return mergedList;
-    });
+    try { localStorage.removeItem('official_pv_queue'); } catch (e) {}
+    setPvQueue(collapseVoucherQueue(storeVouchers || []));
   }, [storeVouchers]);
 
   // Selected Active Voucher for Editing/Audit
-  const [selectedPvId, setSelectedPvId] = useState(pvQueue[0]?.id || pvQueue[0]?.pvNo || 'pv-088');
+  const [selectedPvId, setSelectedPvId] = useState('');
 
   // Toggle for Voucher Particulars & Calculations (Editable by Headmaster Prior to Approval)
   // Requires clicking the Pre-Audit & Editing Station header or selecting a PV from the queue to open
   const [isParticularsOpen, setIsParticularsOpen] = useState(false);
 
   // Form Fields State
-  const [pvNo, setPvNo] = useState(pvQueue[0]?.pvNo || 'PV-2026-088');
-  const [itemRequisitionNo, setItemRequisitionNo] = useState(pvQueue[0]?.requisitionNo || 'REQ-99412');
-  const [description, setDescription] = useState(() => {
-    const parsed = parsePvItems(pvQueue[0] || {});
-    return parsed[0]?.description || pvQueue[0]?.description || 'Cost of Electricity Bill & Utility Substation Maintenance';
-  });
-  const [datePrepared, setDatePrepared] = useState(pvQueue[0]?.datePrepared || '2026-09-05');
-  const [clientProvider, setClientProvider] = useState(pvQueue[0]?.provider || 'ELECTRICITY COMPANY OF GHANA (ECG)');
-  const [providerId, setProviderId] = useState(pvQueue[0]?.providerId || 'ECG-99310');
-  const [qty, setQty] = useState(() => {
-    const parsed = parsePvItems(pvQueue[0] || {});
-    return String(parsed[0]?.qty || pvQueue[0]?.qty || 1);
-  });
-  const [costPerItem, setCostPerItem] = useState(() => {
-    const parsed = parsePvItems(pvQueue[0] || {});
-    return Number(parsed[0]?.costPerItem || pvQueue[0]?.cost || 3200).toFixed(2);
-  });
-  const [auditRemarks, setAuditRemarks] = useState(pvQueue[0]?.auditRemarks || 'Pre-audited & verified against monthly meter consumption records.');
-  const [valuedDate, setValuedDate] = useState(pvQueue[0]?.valuedDate || '2026-09-05');
+  const [pvNo, setPvNo] = useState('');
+  const [itemRequisitionNo, setItemRequisitionNo] = useState('');
+  const [description, setDescription] = useState('');
+  const [datePrepared, setDatePrepared] = useState('');
+  const [clientProvider, setClientProvider] = useState('');
+  const [providerId, setProviderId] = useState('');
+  const [qty, setQty] = useState('');
+  const [costPerItem, setCostPerItem] = useState('');
+  const [auditRemarks, setAuditRemarks] = useState('');
+  const [valuedDate, setValuedDate] = useState('');
 
-  // Line items state for multi-item requests
-  const [currentItems, setCurrentItems] = useState(() => {
-    const parsed = parsePvItems(pvQueue[0] || {});
-    if (parsed.length > 0) return parsed;
-    const firstV = pvQueue[0];
-    return [{
-      id: 'it-088-1',
-      description: firstV?.description || 'Cost of Electricity Bill & Utility Substation Maintenance',
-      provider: firstV?.provider || 'ELECTRICITY COMPANY OF GHANA (ECG)',
-      providerId: firstV?.providerId || 'ECG-99310',
-      qty: Number(firstV?.qty || 1),
-      cost: Number(firstV?.cost || 3200.00),
-      costPerItem: Number(firstV?.cost || 3200.00),
-      total: Number(firstV?.total || 3200.00),
-      totalAmount: Number(firstV?.total || 3200.00),
-      status: firstV?.status || 'Validated'
-    }];
-  });
+  const [currentItems, setCurrentItems] = useState([]);
   const [selectedItemIds, setSelectedItemIds] = useState(() => currentItems.map(i => i.id));
   const [activeItemIndex, setActiveItemIndex] = useState(0);
 
@@ -511,17 +355,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
         match = storeVouchers.find(matchesVoucher);
       }
 
-      // 3. Check localStorage official_pv_queue
-      if (!match) {
-        try {
-          const saved = JSON.parse(localStorage.getItem('official_pv_queue') || '[]');
-          if (Array.isArray(saved)) {
-            match = saved.find(matchesVoucher);
-          }
-        } catch (_) {}
-      }
-
-      // 4. Query backend directly by PV identifier / number
+      // 3. Query backend directly by PV identifier / number
       if (!match) {
         try {
           const backendMatch = await api.getPaymentVoucherById(rawQuery.trim());
@@ -648,9 +482,6 @@ export default function ApprovePVForm({ setM = () => {} }) {
         (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
       );
       setPvQueue(updatedQueue);
-      try {
-        localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue));
-      } catch (e) {}
       setBannerNotice(`✏️ ✅ Successfully saved corrected voucher details for PV #${pvNo}! Corrected by Headmaster prior to approval.`);
     } catch (err) {
       setBannerNotice(err?.message || 'Saving voucher corrections failed.');
@@ -717,9 +548,6 @@ export default function ApprovePVForm({ setM = () => {} }) {
         (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
       );
       setPvQueue(updatedQueue);
-      try {
-        localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue));
-      } catch (e) {}
       setBannerNotice(`✅ Applied executive decision "${actionChoice}" for PV #${pvNo} (Item: ${updatedItems[activeItemIndex]?.description || 'Single Item'}).`);
     } catch (err) {
       setCurrentItems(currentItems);
@@ -763,7 +591,6 @@ export default function ApprovePVForm({ setM = () => {} }) {
         (pvNosMatch(p.pvNo, v.pvNo) || p.id === v.id) ? { ...p, ...updatedFields } : p
       );
       setPvQueue(updatedQueue);
-      try { localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue)); } catch (e) {}
       const acted = updatedItems.find((i) => i.id === itemId);
       setBannerNotice(`✅ ${decision === 'Validated' ? 'Approved' : (decision === 'Declined' ? 'Rejected' : decision)} "${acted?.description || 'item'}" in PV #${v.pvNo}. Other lines in this voucher remain unchanged.`);
     } catch (err) {
@@ -827,9 +654,6 @@ export default function ApprovePVForm({ setM = () => {} }) {
         (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
       );
       setPvQueue(updatedQueue);
-      try {
-        localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue));
-      } catch (e) {}
       setBannerNotice(`✅ Applied bulk action "${actionChoice}" to ${selectedItemIds.length} item(s) in PV #${pvNo}.`);
     } catch (err) {
       setBannerNotice(err?.message || 'Pre-auditing this payment voucher failed.');

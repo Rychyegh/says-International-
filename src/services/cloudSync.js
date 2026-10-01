@@ -107,8 +107,6 @@ export const cloudSync = {
           feeAccounts: data.feeAccounts || [],
           teacherDirectory: data.teacherDirectory || [],
           definedBills: data.definedBills || [],
-          paymentVouchers: data.paymentVouchers || [],
-          pvNotifications: data.pvNotifications || [],
           serviceProviders: data.serviceProviders || [],
           timetable: data.timetable || [],
           results: data.results || [],

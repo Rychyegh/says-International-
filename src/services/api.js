@@ -675,29 +675,18 @@ export const DEMO_CLASS_TEACHER_ACCOUNTS = [
 export function ensureDemoClassTeacherAccounts() {
   try {
     const list = readRegisteredAccounts();
+    const demoKeys = new Set(
+      DEMO_CLASS_TEACHER_ACCOUNTS.flatMap((account) => [account.email, account.staffId])
+        .map((value) => String(value || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
     let changed = false;
-    DEMO_CLASS_TEACHER_ACCOUNTS.forEach((account) => {
-      const emailKey = account.email.toLowerCase();
-      const existing = list[emailKey];
-      if (!existing) {
-        list[emailKey] = { ...account };
-        if (account.staffId) list[account.staffId.toLowerCase()] = list[emailKey];
-        changed = true;
-        return;
-      }
-      const next = {
-        ...existing,
-        role: 'class_teacher',
-        teacherDesignation: 'class_teacher',
-        assignedClass: existing.assignedClass || account.assignedClass,
-        classLevel: existing.classLevel || account.classLevel,
-        subClass: existing.subClass || account.subClass,
-        staffId: existing.staffId || account.staffId,
-        password: existing.password || account.password,
-        passcode: existing.passcode || account.passcode,
-      };
-      if (JSON.stringify(next) !== JSON.stringify(existing)) {
-        list[emailKey] = next;
+    Object.keys(list).forEach((key) => {
+      const item = list[key] || {};
+      const email = String(item.email || key).trim().toLowerCase();
+      const staffId = String(item.staffId || '').trim().toLowerCase();
+      if (demoKeys.has(String(key).trim().toLowerCase()) || demoKeys.has(email) || demoKeys.has(staffId) || email.endsWith('@class-teacher.local')) {
+        delete list[key];
         changed = true;
       }
     });
@@ -705,23 +694,8 @@ export function ensureDemoClassTeacherAccounts() {
   } catch (e) {}
 }
 
-function loginFromDemoTeacher(credentials = {}) {
-  const email = String(credentials.email || '').trim().toLowerCase();
-  const password = String(credentials.password || '');
-  if (!email || !password) return null;
-  ensureDemoClassTeacherAccounts();
-  const account = lookupRegisteredAccount(email);
-  if (!account || String(account.password || '') !== password) return null;
-  if (!isClassTeacherAccount(account) && String(account.role || '') !== 'class_teacher') return null;
-  const user = enrichTeacherSession({
-    ...account,
-    email: account.email,
-    teacherDesignation: 'class_teacher',
-    isClassTeacher: true,
-  });
-  setAuthToken(`demo-class-teacher-${account.staffId || email}`);
-  setAuthUser(user);
-  return { token: `demo-class-teacher-${account.staffId || email}`, user };
+function loginFromDemoTeacher() {
+  return null;
 }
 
 export const api = {
@@ -1967,51 +1941,8 @@ export const api = {
   },
 
   provisionBackendClassTeacherDemos: async () => {
-    const token = getAuthToken();
-    if (!token || !String(token).startsWith('eyJ')) {
-      throw new Error('Sign in to the Head Admin portal with a live database session first, then retry.');
-    }
-
-    const results = [];
-    for (const account of DEMO_CLASS_TEACHER_ACCOUNTS) {
-      const item = { email: account.email, fullName: account.fullName, staffId: account.staffId };
-      try {
-        await api.createUserAccount({
-          ...account,
-          role: 'class_teacher',
-          teacherDesignation: 'class_teacher',
-          assignedClass: account.classLevel || account.assignedClass,
-          classLevel: account.classLevel,
-          subClass: account.subClass,
-          department: account.department || 'Class Tutors',
-        });
-        item.user = 'created';
-      } catch (err) {
-        const msg = String(err.message || err);
-        item.user = /already|exist|duplicate|409/i.test(msg) ? 'exists' : 'error';
-        item.userError = msg;
-      }
-
-      try {
-        await api.issueClassTeacherCredential({
-          teacherName: account.fullName,
-          classAssigned: account.classLevel || account.assignedClass,
-          staffId: account.staffId,
-          passcode: account.passcode,
-          phone: account.phone,
-          send_sms: false,
-        });
-        item.credential = 'issued';
-      } catch (err) {
-        const msg = String(err.message || err);
-        item.credential = /already|exist|duplicate|409/i.test(msg) ? 'exists' : 'error';
-        item.credentialError = msg;
-      }
-
-      results.push(item);
-    }
     ensureDemoClassTeacherAccounts();
-    return results;
+    return [];
   },
 
   updateMyProfile: async ({ portal, name, photo }) => {

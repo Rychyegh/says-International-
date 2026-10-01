@@ -7,7 +7,7 @@ import {
   FileText, Download, X, Plus, Sparkles, Building, Check, Layers
 } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
-import { api, getAuthUser, getAuthToken } from '../../services/api';
+import { api, getAuthUser, getAuthToken, ensureDemoClassTeacherAccounts } from '../../services/api';
 import { CLASS_LEVELS, getMappedSubClasses } from '../../data/classStructure';
 
 const ROLES = [
@@ -104,6 +104,15 @@ function extractBackendUsers(res) {
   return [];
 }
 
+function isSeededDemoAccount(user) {
+  const email = String(user?.email || '').trim().toLowerCase();
+  const staffId = String(user?.staffId || '').trim().toLowerCase();
+  if (email.endsWith('@class-teacher.local')) return true;
+  if (email === 'classteacher@remaljcarewell.edu.gh' || email === 'a.sarfo@remaljcarewell.edu.gh') return true;
+  if (staffId === 'ct-2026-demo' || staffId === 'stf-2026-004') return true;
+  return false;
+}
+
 function mapBackendUser(item) {
   if (!item || typeof item !== 'object') return null;
   const email = String(item.email || '').trim();
@@ -160,11 +169,24 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     }
 
     setIsLoadingUsers(true);
+    ensureDemoClassTeacherAccounts();
     api.getUsers()
-      .then((res) => {
+      .then(async (res) => {
         const backendList = extractBackendUsers(res).map(mapBackendUser).filter(Boolean);
-        setUsers(backendList);
-        setBackendError(null);
+        const seeded = backendList.filter(isSeededDemoAccount);
+        const kept = backendList.filter((user) => !isSeededDemoAccount(user));
+        const failed = [];
+        for (const user of seeded) {
+          try {
+            await api.deleteUserAccount(user.id);
+          } catch (err) {
+            failed.push(user);
+          }
+        }
+        setUsers([...kept, ...failed]);
+        setBackendError(failed.length
+          ? 'Some old demo accounts are still in the database because this session could not delete them.'
+          : null);
       })
       .catch((err) => {
         console.warn('[UAC] Could not fetch users from the database:', err?.message || err);
