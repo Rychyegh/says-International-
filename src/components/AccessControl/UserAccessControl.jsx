@@ -159,6 +159,44 @@ const DEFAULT_USERS_SEED = [
     lastLogin: '2026-09-29 11:05',
     mustChangePassword: false,
   },
+  {
+    id: 'usr_ct_demo_01',
+    fullName: 'Ms. Efua Boateng',
+    email: 'classteacher@remaljcarewell.edu.gh',
+    phone: '024 900 2200',
+    role: 'class_teacher',
+    teacherDesignation: 'class_teacher',
+    status: 'Active',
+    staffId: 'CT-2026-DEMO',
+    password: 'ClassTeacher2026!',
+    passcode: '2468',
+    department: 'Class Tutors',
+    assignedClass: 'Basic 1 · Section A',
+    classLevel: 'Basic 1',
+    subClass: 'Section A',
+    createdAt: '2026-02-01',
+    lastLogin: 'Never',
+    mustChangePassword: false,
+  },
+  {
+    id: 'usr_ct_demo_02',
+    fullName: 'Mrs. Abena Sarfo',
+    email: 'a.sarfo@remaljcarewell.edu.gh',
+    phone: '024 900 1104',
+    role: 'class_teacher',
+    teacherDesignation: 'class_teacher',
+    status: 'Active',
+    staffId: 'STF-2026-004',
+    password: 'ClassTeacher2026!',
+    passcode: '1357',
+    department: 'English Language',
+    assignedClass: 'Basic 2 · Section A',
+    classLevel: 'Basic 2',
+    subClass: 'Section A',
+    createdAt: '2026-03-01',
+    lastLogin: 'Never',
+    mustChangePassword: false,
+  },
 ];
 
 export default function UserAccessControl({ adminRole = 'head_admin' }) {
@@ -323,6 +361,9 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
           setBackendError(null);
         } catch {
           setUsers(buildUserList(backendList, {}, onboardedStudents));
+        }
+        if (String(token).startsWith('eyJ')) {
+          api.provisionBackendClassTeacherDemos().catch(() => {});
         }
       })
       .catch(err => {

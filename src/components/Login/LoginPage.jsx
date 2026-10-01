@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, Phone, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
-import { api, setAuthToken, setAuthUser, getAuthUser, isClassTeacherAccount, enrichTeacherSession, lookupRegisteredAccount } from '../../services/api';
+import { api, setAuthToken, setAuthUser, getAuthUser, isClassTeacherAccount, enrichTeacherSession, lookupRegisteredAccount, DEMO_CLASS_TEACHER_ACCOUNTS } from '../../services/api';
 import { usePortalData } from '../../data/PortalStore';
 import './Login.css';
 
@@ -282,11 +282,20 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   };
 
   const finishTeacherLogin = async (userObj) => {
-    const localAccount = lookupRegisteredAccount(userObj.email || email) || lookupRegisteredAccount(userObj.staffId || userObj.staff_id);
-    const session = enrichTeacherSession({ ...userObj, email: userObj.email || email });
-    let classTeacher = isClassTeacherAccount(session);
-    let staffId = session.staffId || '';
-    let classAssigned = session.classAssigned || '';
+    const demoAccount = DEMO_CLASS_TEACHER_ACCOUNTS.find((account) => (
+      String(account.email).toLowerCase() === String(userObj.email || email || '').trim().toLowerCase()
+    ));
+    const localAccount = lookupRegisteredAccount(userObj.email || email) || lookupRegisteredAccount(userObj.staffId || userObj.staff_id) || demoAccount;
+    const session = enrichTeacherSession({
+      ...userObj,
+      ...(demoAccount || {}),
+      email: userObj.email || email,
+      password: undefined,
+      passcode: undefined,
+    });
+    let classTeacher = Boolean(demoAccount) || isClassTeacherAccount(session);
+    let staffId = session.staffId || demoAccount?.staffId || '';
+    let classAssigned = session.classAssigned || demoAccount?.classLevel || '';
 
     if (!classTeacher) {
       try {
@@ -369,7 +378,10 @@ export default function LoginPage({ portal, onLoginSuccess }) {
 
     setLoading(true);
     const localAccount = lookupRegisteredAccount(pendingClassTeacher?.email || email)
-      || lookupRegisteredAccount(pendingClassTeacher?.staffId);
+      || lookupRegisteredAccount(pendingClassTeacher?.staffId)
+      || DEMO_CLASS_TEACHER_ACCOUNTS.find((account) => (
+        String(account.email).toLowerCase() === String(pendingClassTeacher?.email || email || '').trim().toLowerCase()
+      ));
     const localPasscode = String(localAccount?.passcode || '').trim();
 
     try {

@@ -18,7 +18,7 @@ import ApprovePVForm from '../components/Finance/ApprovePVForm';
 import PayPVForm from '../components/Finance/PayPVForm';
 import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
 import UserAccessControl from '../components/AccessControl/UserAccessControl';
-import { api, getAuthUser } from '../services/api';
+import { api, getAuthUser, getAuthToken } from '../services/api';
 
 const ADMIN_BG = '#4a1d6e';
 const ADMIN_LIGHT = '#f3e8ff';
@@ -131,6 +131,34 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [issuedCTCredentials, setIssuedCTCredentials] = useState([]);
   const [ctCredentialsError, setCtCredentialsError] = useState('');
   const [isIssuingCT, setIsIssuingCT] = useState(false);
+  const [ctDemoProvisionMsg, setCtDemoProvisionMsg] = useState('');
+  const [isProvisioningCtDemos, setIsProvisioningCtDemos] = useState(false);
+
+  const refreshClassTeacherCredentials = () => {
+    api.listClassTeacherCredentials()
+      .then((list) => {
+        setIssuedCTCredentials(list);
+        setCtCredentialsError('');
+      })
+      .catch((err) => {
+        setCtCredentialsError(err.message || 'Could not load class teacher credentials.');
+      });
+  };
+
+  const provisionClassTeacherDemos = async () => {
+    setIsProvisioningCtDemos(true);
+    setCtDemoProvisionMsg('');
+    try {
+      const results = await api.provisionBackendClassTeacherDemos();
+      const ok = results.filter((row) => row.user !== 'error' && row.credential !== 'error').length;
+      setCtDemoProvisionMsg(`Saved ${ok} class teacher demo login(s) to the live database. They can now sign in from any device.`);
+      refreshClassTeacherCredentials();
+    } catch (err) {
+      setCtDemoProvisionMsg(err.message || 'Could not save class teacher demos to the database.');
+    } finally {
+      setIsProvisioningCtDemos(false);
+    }
+  };
 
   useEffect(() => {
     if (adminRole !== 'head_admin') return undefined;
@@ -145,6 +173,19 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       .catch((err) => {
         if (!cancelled) setCtCredentialsError(err.message || 'Could not load class teacher credentials.');
       });
+    const token = getAuthToken();
+    if (token && String(token).startsWith('eyJ')) {
+      api.provisionBackendClassTeacherDemos()
+        .then((results) => {
+          if (cancelled) return;
+          const created = results.some((row) => row.user === 'created' || row.credential === 'issued');
+          if (created) {
+            setCtDemoProvisionMsg('Class teacher demo logins were saved to the live database.');
+            refreshClassTeacherCredentials();
+          }
+        })
+        .catch(() => {});
+    }
     return () => { cancelled = true; };
   }, [adminRole]);
 
@@ -2509,18 +2550,36 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       <p style={{ fontSize: 12, color: '#7e22ce', margin: '4px 0 0', fontWeight: 600 }}>
                         Generate and issue dedicated logins, Staff IDs, and 4-digit Security Passcodes specifically for Class Teachers (Form Tutors).
                       </p>
+                      {ctDemoProvisionMsg && (
+                        <p style={{ fontSize: 12, color: '#166534', margin: '8px 0 0', fontWeight: 800 }}>
+                          {ctDemoProvisionMsg}
+                        </p>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsIssuingCTModal(true)}
-                      style={{
-                        padding: '9px 16px', background: '#581c87', color: '#fff', border: 'none',
-                        borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                        boxShadow: '0 4px 12px rgba(88,28,135,0.25)'
-                      }}
-                    >
-                      🔑 Issue Class Teacher Passcode
-                    </button>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={provisionClassTeacherDemos}
+                        disabled={isProvisioningCtDemos}
+                        style={{
+                          padding: '9px 16px', background: '#166534', color: '#fff', border: 'none',
+                          borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: isProvisioningCtDemos ? 'wait' : 'pointer'
+                        }}
+                      >
+                        {isProvisioningCtDemos ? 'Saving demos…' : '💾 Save demo class teachers to database'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsIssuingCTModal(true)}
+                        style={{
+                          padding: '9px 16px', background: '#581c87', color: '#fff', border: 'none',
+                          borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                          boxShadow: '0 4px 12px rgba(88,28,135,0.25)'
+                        }}
+                      >
+                        🔑 Issue Class Teacher Passcode
+                      </button>
+                    </div>
                   </div>
 
                   {/* Issued Class Teacher Credentials Register */}

@@ -384,17 +384,110 @@ export function enrichTeacherSession(user = {}) {
   return session;
 }
 
-export const api = {
+export const DEMO_CLASS_TEACHER_ACCOUNTS = [
+  {
+    id: 'usr_ct_demo_01',
+    fullName: 'Ms. Efua Boateng',
+    email: 'classteacher@remaljcarewell.edu.gh',
+    phone: '024 900 2200',
+    role: 'class_teacher',
+    teacherDesignation: 'class_teacher',
+    status: 'Active',
+    staffId: 'CT-2026-DEMO',
+    password: 'ClassTeacher2026!',
+    passcode: '2468',
+    assignedClass: 'Basic 1 · Section A',
+    classLevel: 'Basic 1',
+    subClass: 'Section A',
+    department: 'Class Tutors',
+  },
+  {
+    id: 'usr_ct_demo_02',
+    fullName: 'Mrs. Abena Sarfo',
+    email: 'a.sarfo@remaljcarewell.edu.gh',
+    phone: '024 900 1104',
+    role: 'class_teacher',
+    teacherDesignation: 'class_teacher',
+    status: 'Active',
+    staffId: 'STF-2026-004',
+    password: 'ClassTeacher2026!',
+    passcode: '1357',
+    assignedClass: 'Basic 2 · Section A',
+    classLevel: 'Basic 2',
+    subClass: 'Section A',
+    department: 'English Language',
+  },
+];
+
+export function ensureDemoClassTeacherAccounts() {
+  try {
+    const list = readRegisteredAccounts();
+    let changed = false;
+    DEMO_CLASS_TEACHER_ACCOUNTS.forEach((account) => {
+      const emailKey = account.email.toLowerCase();
+      const existing = list[emailKey];
+      if (!existing) {
+        list[emailKey] = { ...account };
+        if (account.staffId) list[account.staffId.toLowerCase()] = list[emailKey];
+        changed = true;
+        return;
+      }
+      const next = {
+        ...existing,
+        role: 'class_teacher',
+        teacherDesignation: 'class_teacher',
+        assignedClass: existing.assignedClass || account.assignedClass,
+        classLevel: existing.classLevel || account.classLevel,
+        subClass: existing.subClass || account.subClass,
+        staffId: existing.staffId || account.staffId,
+        password: existing.password || account.password,
+        passcode: existing.passcode || account.passcode,
+      };
+      if (JSON.stringify(next) !== JSON.stringify(existing)) {
+        list[emailKey] = next;
+        changed = true;
+      }
+    });
+    if (changed) localStorage.setItem('registered_accounts', JSON.stringify(list));
+  } catch (e) {}
+}
+
+function loginFromDemoTeacher(credentials = {}) {
+  const email = String(credentials.email || '').trim().toLowerCase();
+  const password = String(credentials.password || '');
+  if (!email || !password) return null;
+  ensureDemoClassTeacherAccounts();
+  const account = lookupRegisteredAccount(email);
+  if (!account || String(account.password || '') !== password) return null;
+  if (!isClassTeacherAccount(account) && String(account.role || '') !== 'class_teacher') return null;
+  const user = enrichTeacherSession({
+    ...account,
+    email: account.email,
+    teacherDesignation: 'class_teacher',
+    isClassTeacher: true,
+  });
+  setAuthToken(`demo-class-teacher-${account.staffId || email}`);
+  setAuthUser(user);
+  return { token: `demo-class-teacher-${account.staffId || email}`, user };
+}
   // --- Auth & User Access ---
   login: async (credentials) => {
     // credentials: { email, password, portal }
-    const res = await request('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(credentials),
-    });
-    if (res && res.token) setAuthToken(res.token);
-    if (res && res.user) setAuthUser(res.user);
-    return res;
+    try {
+      const res = await request('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      });
+      if (res && res.token) setAuthToken(res.token);
+      if (res && res.user) setAuthUser(res.user);
+      return res;
+    } catch (err) {
+      if (String(credentials.portal || '').toLowerCase() === 'teacher') {
+        const demo = loginFromDemoTeacher(credentials);
+        if (demo) return demo;
+      }
+      throw err;
+    }
   },
 
   cardScan: async (cardData) => {
@@ -1405,6 +1498,9 @@ export const api = {
       status:       userData.status || 'Active',
       staff_code:   userData.staffId || userData.staff_id || undefined,
       student_code: userData.studentId || userData.student_id || undefined,
+      department:   userData.department || undefined,
+      designation:  isClassTeacher ? 'class_teacher' : (userData.designation || undefined),
+      assigned_class: classAssigned,
       class_assigned: classAssigned,
       sub_class:    subClass,
     };
@@ -1461,6 +1557,54 @@ export const api = {
 
   deleteUserAccount: async (userId) => {
     return await request(`/users/${userId}`, { method: 'DELETE' });
+  },
+
+  provisionBackendClassTeacherDemos: async () => {
+    const token = getAuthToken();
+    if (!token || !String(token).startsWith('eyJ')) {
+      throw new Error('Sign in to the Head Admin portal with a live database session first, then retry.');
+    }
+
+    const results = [];
+    for (const account of DEMO_CLASS_TEACHER_ACCOUNTS) {
+      const item = { email: account.email, fullName: account.fullName, staffId: account.staffId };
+      try {
+        await api.createUserAccount({
+          ...account,
+          role: 'class_teacher',
+          teacherDesignation: 'class_teacher',
+          assignedClass: account.classLevel || account.assignedClass,
+          classLevel: account.classLevel,
+          subClass: account.subClass,
+          department: account.department || 'Class Tutors',
+        });
+        item.user = 'created';
+      } catch (err) {
+        const msg = String(err.message || err);
+        item.user = /already|exist|duplicate|409/i.test(msg) ? 'exists' : 'error';
+        item.userError = msg;
+      }
+
+      try {
+        await api.issueClassTeacherCredential({
+          teacherName: account.fullName,
+          classAssigned: account.classLevel || account.assignedClass,
+          staffId: account.staffId,
+          passcode: account.passcode,
+          phone: account.phone,
+          send_sms: false,
+        });
+        item.credential = 'issued';
+      } catch (err) {
+        const msg = String(err.message || err);
+        item.credential = /already|exist|duplicate|409/i.test(msg) ? 'exists' : 'error';
+        item.credentialError = msg;
+      }
+
+      results.push(item);
+    }
+    ensureDemoClassTeacherAccounts();
+    return results;
   },
 
   updateMyProfile: async ({ portal, name, photo }) => {

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { api, getUserFullName } from '../services/api';
+import { api, getUserFullName, ensureDemoClassTeacherAccounts } from '../services/api';
 import { cloudSync } from '../services/cloudSync';
 
 const STORAGE_KEY = 'remalj-portal-live-data-v3';
@@ -424,7 +424,8 @@ export const DEFAULT_TEACHER_DIRECTORY = [
     id: 'stf-1',
     staffId: 'STF-2026-001',
     name: 'Joseph Asamoah Arthur',
-    role: 'Form Master / Senior Tutor',
+    role: 'Class Teacher',
+    teacherDesignation: 'class_teacher',
     subject: 'Pure Mathematics',
     classAssigned: 'Basic 4',
     email: 'j.arthur@remaljcarewell.edu.gh',
@@ -463,7 +464,8 @@ export const DEFAULT_TEACHER_DIRECTORY = [
     id: 'stf-4',
     staffId: 'STF-2026-004',
     name: 'Mrs. Abena Sarfo',
-    role: 'Form Master / Class Tutor',
+    role: 'Class Teacher',
+    teacherDesignation: 'class_teacher',
     subject: 'English Language',
     classAssigned: 'Basic 2',
     email: 'a.sarfo@remaljcarewell.edu.gh',
@@ -471,6 +473,20 @@ export const DEFAULT_TEACHER_DIRECTORY = [
     status: 'Active',
     photo: '👩‍🏫',
     joinedDate: '2024-03-01'
+  },
+  {
+    id: 'stf-ct-demo',
+    staffId: 'CT-2026-DEMO',
+    name: 'Ms. Efua Boateng',
+    role: 'Class Teacher',
+    teacherDesignation: 'class_teacher',
+    subject: 'General Education',
+    classAssigned: 'Basic 1',
+    email: 'classteacher@remaljcarewell.edu.gh',
+    phone: '024 900 2200',
+    status: 'Active',
+    photo: '👩‍🏫',
+    joinedDate: '2026-02-01'
   },
   {
     id: 'stf-5',
@@ -584,6 +600,7 @@ const PortalDataContext = createContext(null);
 
 function readData() {
   try {
+    ensureDemoClassTeacherAccounts();
     const saved = window.localStorage.getItem(STORAGE_KEY);
     if (!saved) return INITIAL_DATA;
     const parsed = JSON.parse(saved);
