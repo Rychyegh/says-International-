@@ -5,6 +5,7 @@ import { getAuthUser, getUserFullName } from '../../services/api';
 import { downloadPublishedReport } from '../../data/reportDownload';
 import RegisterForExamsForm from '../RegisterForExams/RegisterForExamsForm';
 import AcademicSettingsManager from './AcademicSettingsManager';
+import { getMappedSubClasses } from '../Onboarding/OfficialApplicationForm';
 import './AcademicViews.css';
 
 const COURSE_CATALOGUE = ['Pure Mathematics', 'Physics', 'Literature in English', 'ICT Project', 'Chemistry', 'Economics', 'Government', 'Biology'];
