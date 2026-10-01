@@ -171,8 +171,8 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [backendError, setBackendError] = useState(null);
 
-  // Helper: merge backend user list with local seed
-  const buildUserList = (backendList = [], localMap = {}) => {
+  // Helper: merge backend user list with local seed and the canonical student roster
+  const buildUserList = (backendList = [], localMap = {}, roster = []) => {
     const combinedMap = new Map();
     DEFAULT_USERS_SEED.forEach(u => combinedMap.set(u.email.toLowerCase(), u));
     // Local cache
@@ -212,7 +212,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
         role: item.role || prev.role || 'student',
         status: item.status || prev.status || 'Active',
         staffId: item.staffId || item.staff_id || prev.staffId,
-        studentId: item.studentId || item.student_id || prev.studentId,
+        studentId: item.studentId || item.student_id || item.student_code || prev.studentId,
         password: prev.password || 'Carewell2026!',
         department: item.department || prev.department || 'General',
         assignedClass: item.assignedClass || item.assigned_class || prev.assignedClass,
@@ -221,18 +221,62 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
         mustChangePassword: !!(item.mustChangePassword || item.must_change_password),
       });
     });
-    return Array.from(combinedMap.values());
+
+    (roster || []).forEach((s) => {
+      const email = (s.studentEmail || '').toLowerCase().trim();
+      if (!email) return;
+      const prev = combinedMap.get(email) || {};
+      combinedMap.set(email, {
+        ...prev,
+        id: prev.id || s.id || `usr_${s.studentId || email}`,
+        fullName: s.fullName || prev.fullName || 'Student',
+        email,
+        phone: s.guardianPhone || prev.phone || '024 000 0000',
+        role: 'student',
+        status: s.status || prev.status || 'Active',
+        studentId: s.studentId || prev.studentId,
+        password: prev.password || s.defaultPassword || 'Carewell2026!',
+        assignedClass: [s.level, s.classSection].filter(Boolean).join(' · ') || prev.assignedClass,
+        createdAt: s.enrollmentDate || prev.createdAt || '2026-01-01',
+        lastLogin: prev.lastLogin || 'Never',
+        mustChangePassword: !!prev.mustChangePassword,
+      });
+    });
+
+    const collapsed = new Map();
+    Array.from(combinedMap.values()).forEach((user) => {
+      const sid = (user.studentId || '').toLowerCase().trim();
+      const collapseKey = user.role === 'student' && sid
+        ? `student:${sid}`
+        : `email:${(user.email || '').toLowerCase()}`;
+      const prev = collapsed.get(collapseKey);
+      if (!prev) {
+        collapsed.set(collapseKey, user);
+        return;
+      }
+      collapsed.set(collapseKey, {
+        ...prev,
+        ...user,
+        id: prev.id || user.id,
+        email: prev.email || user.email,
+        studentId: prev.studentId || user.studentId,
+        password: prev.password || user.password,
+        fullName: user.fullName || prev.fullName,
+      });
+    });
+    return Array.from(collapsed.values());
   };
 
   const [users, setUsers] = useState(() => {
     try {
       const raw = localStorage.getItem('registered_accounts');
       const list = raw ? JSON.parse(raw) : {};
-      return buildUserList([], list);
+      return buildUserList([], list, onboardedStudents);
     } catch {
       return DEFAULT_USERS_SEED;
     }
   });
+  const backendUsersRef = useRef([]);
 
   // Fetch real users from backend on mount
   useEffect(() => {
@@ -242,13 +286,14 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       .then(res => {
         if (cancelled) return;
         const backendList = Array.isArray(res) ? res : (res?.users || res?.data || []);
+        backendUsersRef.current = backendList;
         try {
           const raw = localStorage.getItem('registered_accounts');
           const localMap = raw ? JSON.parse(raw) : {};
-          setUsers(buildUserList(backendList, localMap));
+          setUsers(buildUserList(backendList, localMap, onboardedStudents));
           setBackendError(null);
         } catch {
-          setUsers(buildUserList(backendList, {}));
+          setUsers(buildUserList(backendList, {}, onboardedStudents));
         }
       })
       .catch(err => {
@@ -262,6 +307,16 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('registered_accounts');
+      const localMap = raw ? JSON.parse(raw) : {};
+      setUsers(buildUserList(backendUsersRef.current, localMap, onboardedStudents));
+    } catch {
+      setUsers(buildUserList(backendUsersRef.current, {}, onboardedStudents));
+    }
+  }, [onboardedStudents]);
 
   const [auditLogs, setAuditLogs] = useState(() => {
     try {

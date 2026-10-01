@@ -503,11 +503,11 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     rfidCardCode: '',
   });
 
-  const handleOnboardSubmit = (e) => {
+  const handleOnboardSubmit = async (e) => {
     e.preventDefault();
     if (!onboardingForm.fullName || !onboardingForm.guardianName || !onboardingForm.guardianEmail) return;
 
-    onboardStudent(onboardingForm);
+    await onboardStudent(onboardingForm);
 
     setOnboardingForm({
       fullName: '',
@@ -526,7 +526,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     setTimeout(() => setSuccessMsg(''), 5000);
   };
 
-  const handleEnrollApplicant = (app) => {
+  const handleEnrollApplicant = async (app) => {
     const learnerName = (app.firstName || app.surname || app.otherNames)
       ? `${app.firstName || ''} ${app.otherNames ? app.otherNames + ' ' : ''}${app.surname || ''}`.replace(/\s+/g, ' ').trim()
       : (app.learner || app.learner_name || app.fullName || 'Student');
@@ -536,19 +536,23 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     const level = formatClassToBasic(app.level || app.applyingClass || 'Basic 1');
     const homeAddress = app.residentialAddress || app.address || 'Bogoso';
 
-    onboardStudent({
+    await onboardStudent({
       fullName: learnerName,
+      firstName: app.firstName,
+      otherNames: app.otherNames,
+      surname: app.surname,
       dob: app.dob || '',
       gender: app.sex || 'Male',
       level: level,
-      classSection: app.officeFormAssigned || 'A',
+      classSection: app.officeFormAssigned || app.classSection || app.subClass || 'A',
       guardianName: guardianName,
       guardianEmail: guardianEmail,
       guardianPhone: guardianPhone,
       homeAddress: homeAddress,
+      rfidCardCode: app.officeStudentID || app.rfidCardCode,
     });
 
-    updateApplicationStatus(app.id, 'Enrolled');
+    await updateApplicationStatus(app.id, 'Enrolled');
     setSuccessMsg(`Applicant ${learnerName} officially admitted and enrolled into Student Roster!`);
     setTimeout(() => setSuccessMsg(''), 5000);
   };
@@ -1669,10 +1673,29 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     readOnly={false}
                     isAdmin={true}
                     onCancel={() => setIsCreatingApp(false)}
-                    onSubmit={(newForm) => {
-                      submitApplication(newForm);
+                    onSubmit={async (newForm) => {
+                      const otherNames = (newForm.otherNames || '').trim();
+                      const learnerName = (newForm.firstName || newForm.surname || otherNames)
+                        ? `${newForm.firstName || ''} ${otherNames ? otherNames + ' ' : ''}${newForm.surname || ''}`.replace(/\s+/g, ' ').trim()
+                        : (newForm.learner || newForm.fullName || 'Student');
+                      await onboardStudent({
+                        fullName: learnerName,
+                        firstName: newForm.firstName,
+                        otherNames,
+                        surname: newForm.surname,
+                        dob: newForm.dob,
+                        gender: newForm.sex || newForm.gender,
+                        level: newForm.applyingClass || newForm.level || 'Basic 1',
+                        classSection: newForm.classSection || newForm.subClass || newForm.officeFormAssigned || 'A',
+                        guardianName: newForm.fatherName || newForm.motherName || newForm.guardian,
+                        guardianEmail: newForm.fatherEmail || newForm.email,
+                        guardianPhone: newForm.fatherPhone || newForm.motherPhone || newForm.phone,
+                        homeAddress: newForm.residentialAddress || newForm.homeAddress,
+                        rfidCardCode: newForm.officeStudentID || newForm.rfidCardCode,
+                      });
+                      await submitApplication(newForm);
                       setIsCreatingApp(false);
-                      setSuccessMsg('New Application Form created and submitted successfully!');
+                      setSuccessMsg('Student onboarded. One account created and synced across roster, fees, and portals.');
                       setTimeout(() => setSuccessMsg(''), 5000);
                     }}
                   />

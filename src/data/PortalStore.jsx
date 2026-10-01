@@ -52,80 +52,310 @@ export function formatClassToBasic(level) {
   return str;
 }
 
+function normalizePersonName(value) {
+  return String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function isSyntheticLocalId(id) {
+  const s = String(id || '').trim();
+  return !s || /^stu(-bulk)?-/i.test(s) || /^fee-(acc-)?/i.test(s);
+}
+
+function isOfficialStudentCode(code) {
+  return /REMALJ-\d{4}-\d{3,}$/i.test(String(code || '').trim());
+}
+
+function preferCanonicalId(incoming, existing) {
+  if (incoming && !isSyntheticLocalId(incoming) && isSyntheticLocalId(existing)) return incoming;
+  if (existing && !isSyntheticLocalId(existing) && isSyntheticLocalId(incoming)) return existing;
+  return incoming || existing;
+}
+
+function preferStudentCode(incoming, existing) {
+  const inc = incoming ? String(incoming).trim() : '';
+  const ex = existing ? String(existing).trim() : '';
+  const incOff = isOfficialStudentCode(inc);
+  const exOff = isOfficialStudentCode(ex);
+  if (incOff && !exOff) return inc;
+  if (exOff && !incOff) return ex;
+  if (inc && isSyntheticLocalId(ex)) return inc;
+  return inc || ex;
+}
+
+function billedAmountForLevel(level) {
+  const formatted = formatClassToBasic(level || '');
+  if (formatted.includes('Basic 7') || formatted.includes('Basic 8') || formatted.includes('Basic 9')) return 5200;
+  if ((formatted || '').includes('SHS')) return 5800;
+  return 4800;
+}
+
+function schoolEmailFromName(fullName) {
+  const slug = String(fullName || 'student')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '.')
+    .replace(/^\.+|\.+$/g, '') || 'student';
+  return `${slug}@remaljcarewell.edu.gh`;
+}
+
+export function unwrapApiStudent(res) {
+  if (!res || typeof res !== 'object') return null;
+  if (res.student && typeof res.student === 'object') return res.student;
+  if (res.data && typeof res.data === 'object' && !Array.isArray(res.data)) {
+    return res.data.student || res.data;
+  }
+  if (res.record && typeof res.record === 'object') return res.record;
+  if (res.id || res.studentId || res.student_id || res.student_id_code || res.fullName || res.full_name) return res;
+  return null;
+}
+
+export function mapStudentFromApi(s = {}, fallback = {}) {
+  const assembledName = [s.firstName || fallback.firstName, s.otherNames || fallback.otherNames, s.surname || fallback.surname]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const fullComputed = (
+    s.fullName || s.full_name || s.name
+    || fallback.fullName || fallback.name
+    || assembledName
+    || 'Student'
+  ).replace(/\s+/g, ' ').trim();
+
+  const rawCode = s.studentId || s.student_id_code || s.student_code || s.admission_no || s.admissionNo
+    || (typeof s.student_id === 'string' && /[A-Za-z]/.test(s.student_id) ? s.student_id : '');
+  const studentId = preferStudentCode(rawCode, fallback.studentId);
+  const id = preferCanonicalId(s.id || s.uuid || s.pk, fallback.id);
+
+  return {
+    id: id || studentId || fallback.id,
+    studentId: studentId || (id ? String(id) : fallback.studentId),
+    rfidCardCode: s.rfidCardCode || s.rfid_card_code || s.card_id || fallback.rfidCardCode || '',
+    fullName: fullComputed,
+    firstName: s.firstName || fallback.firstName || '',
+    otherNames: s.otherNames || s.other_names || fallback.otherNames || '',
+    surname: s.surname || fallback.surname || '',
+    dob: s.dob || fallback.dob || '',
+    gender: s.gender || fallback.gender || 'Not Specified',
+    level: formatClassToBasic(s.level || s.class_level || fallback.level || 'Basic 1'),
+    classSection: s.classSection || s.class_section || fallback.classSection || 'A',
+    guardianName: s.guardianName || s.guardian_name || fallback.guardianName || 'Parent/Guardian',
+    guardianEmail: s.guardianEmail || s.guardian_email || fallback.guardianEmail || '',
+    guardianPhone: s.guardianPhone || s.guardian_phone || fallback.guardianPhone || '',
+    homeAddress: s.homeAddress || s.home_address || fallback.homeAddress || 'Bogoso',
+    enrollmentDate: s.enrollmentDate || s.enrollment_date || fallback.enrollmentDate || new Date().toISOString().split('T')[0],
+    status: s.status || fallback.status || 'Active',
+    studentEmail: s.studentEmail || s.student_email || s.school_email || fallback.studentEmail || '',
+    defaultPassword: s.defaultPassword || s.default_password || fallback.defaultPassword || '',
+  };
+}
+
+export function studentsAreSamePerson(a = {}, b = {}) {
+  const aName = normalizePersonName(a.fullName || a.name || a.full_name);
+  const bName = normalizePersonName(b.fullName || b.name || b.full_name);
+  const aSid = String(a.studentId || a.student_id_code || a.student_code || '').toLowerCase().trim();
+  const bSid = String(b.studentId || b.student_id_code || b.student_code || '').toLowerCase().trim();
+  const aId = String(a.id || '').toLowerCase().trim();
+  const bId = String(b.id || '').toLowerCase().trim();
+  const aEmail = String(a.studentEmail || a.student_email || a.email || '').toLowerCase().trim();
+  const bEmail = String(b.studentEmail || b.student_email || b.email || '').toLowerCase().trim();
+  const aRfid = String(a.rfidCardCode || a.rfid_card_code || '').toLowerCase().trim();
+  const bRfid = String(b.rfidCardCode || b.rfid_card_code || '').toLowerCase().trim();
+
+  if (aSid && bSid && aSid === bSid) return true;
+  if (aId && bId && aId === bId) return true;
+  if (aEmail && bEmail && aEmail === bEmail && aEmail.includes('@')) return true;
+  if (aRfid && bRfid && aRfid === bRfid) return true;
+  if (aName && bName && aName === bName) {
+    if (isOfficialStudentCode(aSid) && isOfficialStudentCode(bSid) && aSid !== bSid) {
+      if (aEmail && bEmail && aEmail !== bEmail) return false;
+      if (a.dob && b.dob && String(a.dob) !== String(b.dob)) return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+export function findMatchingStudent(list = [], candidate = {}) {
+  return (list || []).find((s) => studentsAreSamePerson(s, candidate)) || null;
+}
+
+export function mergeStudentRecords(prev, incoming) {
+  return {
+    ...prev,
+    ...incoming,
+    id: preferCanonicalId(incoming.id, prev.id),
+    studentId: preferStudentCode(incoming.studentId, prev.studentId),
+    fullName: incoming.fullName || prev.fullName || incoming.name || prev.name,
+    otherNames: incoming.otherNames || prev.otherNames || '',
+    dob: incoming.dob || prev.dob,
+    gender: incoming.gender || prev.gender,
+    level: formatClassToBasic(incoming.level || prev.level),
+    classSection: incoming.classSection || prev.classSection || 'A',
+    guardianName: (incoming.guardianName && incoming.guardianName !== 'Parent/Guardian')
+      ? incoming.guardianName
+      : (prev.guardianName || incoming.guardianName || 'Parent/Guardian'),
+    guardianEmail: incoming.guardianEmail || prev.guardianEmail,
+    guardianPhone: incoming.guardianPhone || prev.guardianPhone,
+    homeAddress: incoming.homeAddress || prev.homeAddress,
+    enrollmentDate: prev.enrollmentDate || incoming.enrollmentDate || new Date().toISOString().split('T')[0],
+    status: incoming.status || prev.status || 'Active',
+    studentEmail: incoming.studentEmail || prev.studentEmail,
+    defaultPassword: incoming.defaultPassword || prev.defaultPassword,
+    rfidCardCode: incoming.rfidCardCode || prev.rfidCardCode,
+  };
+}
+
 export function deduplicateStudents(students = []) {
   if (!Array.isArray(students)) return [];
   const result = [];
 
   for (const s of students) {
     if (!s || typeof s !== 'object') continue;
-
-    const normName = (s.fullName || s.name || s.full_name || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    const normStudentId = (s.studentId || s.student_id_code || s.student_code || '').toLowerCase().trim();
-    const normId = String(s.id || '').toLowerCase().trim();
-    const normEmail = (s.studentEmail || s.student_email || s.email || '').toLowerCase().trim();
-    const normRfid = (s.rfidCardCode || s.rfid_card_code || '').toLowerCase().trim();
-
-    // Find if this student matches any existing entry in result
-    const existingIndex = result.findIndex(prev => {
-      const prevName = (prev.fullName || prev.name || prev.full_name || '').toLowerCase().replace(/\s+/g, ' ').trim();
-      const prevStudentId = (prev.studentId || prev.student_id_code || prev.student_code || '').toLowerCase().trim();
-      const prevId = String(prev.id || '').toLowerCase().trim();
-      const prevEmail = (prev.studentEmail || prev.student_email || prev.email || '').toLowerCase().trim();
-      const prevRfid = (prev.rfidCardCode || prev.rfid_card_code || '').toLowerCase().trim();
-
-      // 1. Matches by normalized non-empty student ID
-      if (normStudentId && prevStudentId && normStudentId === prevStudentId) return true;
-      // 2. Matches by database/store ID
-      if (normId && prevId && normId === prevId) return true;
-      // 3. Matches by student email
-      if (normEmail && prevEmail && normEmail === prevEmail) return true;
-      // 4. Matches by RFID card code
-      if (normRfid && prevRfid && normRfid === prevRfid) return true;
-      // 5. Matches by full name
-      if (normName && prevName && normName === prevName) return true;
-
-      return false;
-    });
-
+    const normalized = {
+      ...s,
+      level: formatClassToBasic(s.level || s.class_level || s.classLevel)
+    };
+    const existingIndex = result.findIndex((prev) => studentsAreSamePerson(prev, normalized));
     if (existingIndex === -1) {
-      result.push({
-        ...s,
-        level: formatClassToBasic(s.level || s.class_level || s.classLevel)
-      });
+      result.push(normalized);
     } else {
-      const prev = result[existingIndex];
-      const isPrevOfficialId = /REMALJ-\d{4}-\d{3}$/i.test(prev.studentId || '');
-      const isCurOfficialId = /REMALJ-\d{4}-\d{3}$/i.test(s.studentId || '');
-      const preferredId = isCurOfficialId ? s.studentId : (isPrevOfficialId ? prev.studentId : (s.studentId || prev.studentId));
-      const preferredRfid = prev.rfidCardCode || s.rfidCardCode || s.rfid_card_code;
-
-      const merged = {
-        ...prev,
-        ...s,
-        id: prev.id || s.id,
-        studentId: preferredId,
-        fullName: s.fullName || prev.fullName || s.name || prev.name,
-        otherNames: s.otherNames || prev.otherNames || '',
-        dob: s.dob || prev.dob,
-        gender: s.gender || prev.gender,
-        level: formatClassToBasic(s.level || prev.level || s.class_level || prev.class_level),
-        classSection: s.classSection || prev.classSection || s.class_section || prev.class_section || 'A',
-        guardianName: (s.guardianName && s.guardianName !== 'Parent/Guardian') ? s.guardianName : (prev.guardianName || s.guardianName || 'Parent/Guardian'),
-        guardianEmail: s.guardianEmail || prev.guardianEmail,
-        guardianPhone: s.guardianPhone || prev.guardianPhone,
-        homeAddress: s.homeAddress || prev.homeAddress,
-        enrollmentDate: prev.enrollmentDate || s.enrollmentDate || new Date().toISOString().split('T')[0],
-        status: s.status || prev.status || 'Active',
-        studentEmail: s.studentEmail || prev.studentEmail,
-        defaultPassword: s.defaultPassword || prev.defaultPassword,
-        rfidCardCode: preferredRfid,
-      };
-
-      result[existingIndex] = merged;
+      result[existingIndex] = mergeStudentRecords(result[existingIndex], normalized);
     }
   }
 
   return result;
+}
+
+function studentIdentityKey(student = {}) {
+  const sid = String(student.studentId || '').toLowerCase().trim();
+  const email = String(student.studentEmail || student.guardianEmail || '').toLowerCase().trim();
+  const name = normalizePersonName(student.fullName || student.name);
+  return sid || email || name;
+}
+
+function upsertCanonicalLoginAccount({
+  studentId,
+  studentEmail,
+  password,
+  fullName,
+  guardianEmail,
+  guardianName,
+  guardianPhone,
+  parentPassword,
+}) {
+  if (!studentEmail && !studentId) return;
+  try {
+    const raw = localStorage.getItem('registered_accounts');
+    const list = raw ? JSON.parse(raw) : {};
+    const emailKey = (studentEmail || '').toLowerCase().trim();
+    const sidKey = String(studentId || '').toLowerCase().trim();
+    const personName = normalizePersonName(fullName);
+
+    let keptPassword = password;
+    let keptId = `usr_${studentId || emailKey}`;
+    Object.keys(list).forEach((key) => {
+      const item = list[key];
+      if (!item || item.role !== 'student') return;
+      const sameId = sidKey && item.studentId && String(item.studentId).toLowerCase() === sidKey;
+      const sameEmail = emailKey && item.email && item.email.toLowerCase() === emailKey;
+      const sameName = personName && normalizePersonName(item.fullName) === personName;
+      if (sameId || sameEmail || sameName) {
+        if (!keptPassword) keptPassword = item.password;
+        if (item.id) keptId = item.id;
+        delete list[key];
+      }
+    });
+
+    const account = {
+      id: keptId,
+      studentId,
+      email: studentEmail,
+      password: keptPassword,
+      fullName,
+      role: 'student',
+    };
+    if (emailKey) list[emailKey] = account;
+    if (sidKey && sidKey !== emailKey) list[sidKey] = account;
+
+    const parentKey = (guardianEmail || '').toLowerCase().trim();
+    if (parentKey && parentKey !== emailKey) {
+      const existingParent = list[parentKey] && list[parentKey].role === 'parent' ? list[parentKey] : null;
+      const linkedStudentIds = Array.from(new Set([
+        ...(existingParent?.linkedStudentIds || []),
+        studentId,
+      ].filter(Boolean)));
+      list[parentKey] = {
+        ...(existingParent || {}),
+        id: existingParent?.id || `usr_parent_${studentId}`,
+        email: guardianEmail,
+        phone: guardianPhone || existingParent?.phone,
+        password: existingParent?.password || parentPassword || 'ParentPass2026!',
+        fullName: guardianName || existingParent?.fullName || `Parent of ${fullName}`,
+        role: 'parent',
+        linkedStudentIds,
+      };
+    }
+
+    localStorage.setItem('registered_accounts', JSON.stringify(list));
+  } catch (e) { /* local cache only */ }
+}
+
+function applyCanonicalStudentToState(current, canonical) {
+  const billed = billedAmountForLevel(canonical.level);
+  const existingFee = (current.studentFees || []).find((f) =>
+    (f.studentId && canonical.studentId && String(f.studentId) === String(canonical.studentId))
+    || normalizePersonName(f.studentName) === normalizePersonName(canonical.fullName)
+  );
+  const existingFeeAccount = (current.feeAccounts || []).find((a) =>
+    normalizePersonName(a.child) === normalizePersonName(canonical.fullName)
+  );
+
+  const newFee = {
+    id: existingFee?.id || `fee-${canonical.studentId || canonical.id}`,
+    studentId: canonical.studentId,
+    studentName: canonical.fullName,
+    otherNames: canonical.otherNames || '',
+    guardianName: canonical.guardianName,
+    guardianEmail: canonical.guardianEmail,
+    term: existingFee?.term || 'Term 1 · 2026',
+    billedAmount: Number(existingFee?.billedAmount) || billed,
+    paidAmount: Number(existingFee?.paidAmount) || 0,
+    balance: existingFee?.balance !== undefined ? Number(existingFee.balance) : billed,
+    status: existingFee?.status || 'Not Paid',
+    dueDate: existingFee?.dueDate || '2026-09-15',
+    paymentDate: existingFee?.paymentDate || null,
+  };
+  const newFeeAccount = {
+    id: existingFeeAccount?.id || `fee-acc-${canonical.studentId || canonical.id}`,
+    child: canonical.fullName,
+    school: 'REMALJ Carewell Inspirational School',
+    term: existingFeeAccount?.term || 'Term 1 · 2026',
+    billed: existingFeeAccount?.billed || newFee.billedAmount,
+    paid: existingFeeAccount?.paid || newFee.paidAmount,
+    status: existingFeeAccount?.status || newFee.status,
+  };
+
+  const otherStudents = (current.onboardedStudents || []).filter((s) => !studentsAreSamePerson(s, canonical));
+  const otherFees = (current.studentFees || []).filter((f) => f !== existingFee);
+  const otherFeeAccounts = (current.feeAccounts || []).filter((a) => a !== existingFeeAccount);
+
+  upsertCanonicalLoginAccount({
+    studentId: canonical.studentId,
+    studentEmail: canonical.studentEmail,
+    password: canonical.defaultPassword,
+    fullName: canonical.fullName,
+    guardianEmail: canonical.guardianEmail,
+    guardianName: canonical.guardianName,
+    guardianPhone: canonical.guardianPhone,
+    parentPassword: canonical.parentPassword || 'ParentPass2026!',
+  });
+
+  return {
+    ...current,
+    onboardedStudents: deduplicateStudents([canonical, ...otherStudents]),
+    studentFees: deduplicateFees([newFee, ...otherFees]),
+    feeAccounts: [newFeeAccount, ...otherFeeAccounts],
+  };
 }
 
 export function deduplicateFees(fees = []) {
@@ -377,10 +607,26 @@ export function PortalDataProvider({ children }) {
   const senderIdRef = useRef(`portal-${Math.random().toString(36).slice(2)}`);
   // Set while applying a snapshot received from another tab, so it is not echoed back
   const applyingRemoteRef = useRef(false);
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const onboardLocksRef = useRef(new Map());
 
   useEffect(() => {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+      (data.onboardedStudents || []).forEach((s) => {
+        if (!s || (!s.studentEmail && !s.studentId)) return;
+        upsertCanonicalLoginAccount({
+          studentId: s.studentId,
+          studentEmail: s.studentEmail || schoolEmailFromName(s.fullName),
+          password: s.defaultPassword,
+          fullName: s.fullName,
+          guardianEmail: s.guardianEmail,
+          guardianName: s.guardianName,
+          guardianPhone: s.guardianPhone,
+        });
+      });
 
       if (applyingRemoteRef.current) {
         applyingRemoteRef.current = false;
@@ -701,29 +947,23 @@ export function PortalDataProvider({ children }) {
           const sRaw = studentsRes.value;
           const students = Array.isArray(sRaw) ? sRaw : (sRaw?.students || sRaw?.data || sRaw?.records || []);
           if (Array.isArray(students) && students.length > 0) {
-            const mapped = students.map(s => ({
-              id: s.id,
-              studentId: s.studentId || s.student_id_code || s.student_code || s.id,
-              rfidCardCode: s.rfidCardCode || s.rfid_card_code,
-              fullName: s.fullName || s.full_name,
-              otherNames: s.otherNames || s.other_names || '',
-              dob: s.dob,
-              gender: s.gender,
-              level: formatClassToBasic(s.level || s.class_level),
-              classSection: s.classSection || s.class_section || 'A',
-              guardianName: s.guardianName || s.guardian_name,
-              guardianEmail: s.guardianEmail || s.guardian_email,
-              guardianPhone: s.guardianPhone || s.guardian_phone,
-              homeAddress: s.homeAddress || s.home_address,
-              enrollmentDate: s.enrollmentDate || s.enrollment_date || new Date().toISOString().split('T')[0],
-              status: s.status || 'Active',
-              studentEmail: s.studentEmail || s.student_email,
-              defaultPassword: s.defaultPassword || s.default_password
-            }));
+            const mapped = students.map((s) => mapStudentFromApi(s));
             const merged = deduplicateStudents([...(current.onboardedStudents || []), ...mapped]);
             if (!isDeepEqual(current.onboardedStudents, merged)) {
               updates.onboardedStudents = merged;
               hasChanges = true;
+              merged.forEach((s) => {
+                if (!s?.studentEmail && !s?.studentId) return;
+                upsertCanonicalLoginAccount({
+                  studentId: s.studentId,
+                  studentEmail: s.studentEmail || schoolEmailFromName(s.fullName),
+                  password: s.defaultPassword,
+                  fullName: s.fullName,
+                  guardianEmail: s.guardianEmail,
+                  guardianName: s.guardianName,
+                  guardianPhone: s.guardianPhone,
+                });
+              });
             }
           }
         }
@@ -944,6 +1184,121 @@ export function PortalDataProvider({ children }) {
       window.removeEventListener('focus', handleFocus);
       clearInterval(autoRefreshInterval);
     };
+  }, [refreshBackendData]);
+
+  const performOnboardStudent = useCallback(async (student) => {
+    const fName = (student.firstName || '').trim();
+    const oName = (student.otherNames || '').trim();
+    const sName = (student.surname || '').trim();
+    const fullComputed = (fName || sName || oName)
+      ? [fName, oName, sName].filter(Boolean).join(' ')
+      : (student.fullName || student.name || 'Applicant');
+    const formattedLevel = formatClassToBasic(student.level || student.applyingClass || 'Basic 1');
+    const draft = {
+      ...student,
+      fullName: fullComputed,
+      level: formattedLevel,
+      classSection: student.classSection || student.officeFormAssigned || student.subClass || 'A',
+      guardianName: student.guardianName || student.guardian || student.fatherName || 'Parent/Guardian',
+      guardianEmail: student.guardianEmail || student.email || student.fatherEmail || '',
+      guardianPhone: student.guardianPhone || student.phone || student.fatherPhone || '',
+      homeAddress: student.homeAddress || student.residentialAddress || 'Bogoso',
+      dob: student.dob || student.dateOfBirth || '2015-01-01',
+      gender: student.gender || student.sex || 'Not Specified',
+    };
+
+    const lockKey = studentIdentityKey(draft);
+    const existingLock = onboardLocksRef.current.get(lockKey);
+    if (existingLock) return existingLock;
+
+    const run = (async () => {
+      const existing = findMatchingStudent(dataRef.current.onboardedStudents || [], draft);
+      const billed = billedAmountForLevel(draft.level);
+      const payload = {
+        fullName: draft.fullName,
+        full_name: draft.fullName,
+        name: draft.fullName,
+        dob: draft.dob,
+        gender: draft.gender,
+        level: draft.level,
+        class_level: draft.level,
+        classSection: draft.classSection,
+        class_section: draft.classSection,
+        guardianName: draft.guardianName,
+        guardian_name: draft.guardianName,
+        guardianEmail: draft.guardianEmail,
+        guardian_email: draft.guardianEmail,
+        guardianPhone: draft.guardianPhone,
+        guardian_phone: draft.guardianPhone,
+        homeAddress: draft.homeAddress,
+        home_address: draft.homeAddress,
+        initialBilledAmount: billed,
+        initial_billed_amount: billed,
+        term: 'Term 1 · 2026',
+        rfidCardCode: draft.rfidCardCode,
+        rfid_card_code: draft.rfidCardCode,
+      };
+
+      let createdFromApi = null;
+      const existingBackendId = existing?.id && !isSyntheticLocalId(existing.id) ? existing.id : null;
+      try {
+        if (existingBackendId) {
+          createdFromApi = await api.updateStudent(existingBackendId, payload);
+        } else {
+          createdFromApi = await api.onboardStudent(payload);
+        }
+      } catch (e) {
+        const msg = String(e?.message || e || '');
+        if (/409|already|exists|duplicate/i.test(msg)) {
+          try {
+            const all = await api.getStudents();
+            const list = Array.isArray(all) ? all : (all?.students || all?.data || []);
+            createdFromApi = findMatchingStudent((list || []).map((s) => mapStudentFromApi(s)), draft);
+          } catch (_) { /* keep local upsert */ }
+        } else if (existingBackendId) {
+          try {
+            createdFromApi = await api.onboardStudent(payload);
+          } catch (e2) {
+            console.warn('Backend onboard student fallback:', e2);
+          }
+        } else {
+          console.warn('Backend onboard student fallback:', e);
+        }
+      }
+
+      const apiStudent = unwrapApiStudent(createdFromApi);
+      const mappedApi = apiStudent ? mapStudentFromApi(apiStudent, { ...draft, ...(existing || {}) }) : null;
+      const rosterCount = (dataRef.current.onboardedStudents || []).length + 1;
+      const fallbackCode = existing?.studentId || draft.studentId || `REMALJ-${new Date().getFullYear()}-${String(rosterCount).padStart(3, '0')}`;
+      const canonical = mapStudentFromApi(mappedApi || {}, {
+        ...existing,
+        ...draft,
+        id: mappedApi?.id || existing?.id,
+        studentId: mappedApi?.studentId || fallbackCode,
+        studentEmail: mappedApi?.studentEmail || existing?.studentEmail || schoolEmailFromName(fullComputed),
+        defaultPassword: mappedApi?.defaultPassword || existing?.defaultPassword || draft.defaultPassword
+          || `StuPass#${String(mappedApi?.studentId || fallbackCode).replace(/REMALJ-/i, '')}`,
+        rfidCardCode: mappedApi?.rfidCardCode || draft.rfidCardCode || existing?.rfidCardCode || `CARD-${String(rosterCount).padStart(3, '0')}`,
+      });
+
+      if (!canonical.id) canonical.id = crypto.randomUUID?.() || String(Date.now());
+      if (!canonical.studentId) canonical.studentId = fallbackCode;
+      if (!canonical.studentEmail) canonical.studentEmail = schoolEmailFromName(canonical.fullName);
+      if (!canonical.defaultPassword) {
+        canonical.defaultPassword = `StuPass#${String(canonical.studentId).replace(/REMALJ-/i, '')}`;
+      }
+
+      setData((current) => applyCanonicalStudentToState(current, canonical));
+      refreshBackendData();
+      return canonical;
+    })();
+
+    onboardLocksRef.current.set(lockKey, run);
+    try {
+      return await run;
+    } finally {
+      onboardLocksRef.current.delete(lockKey);
+    }
   }, [refreshBackendData]);
 
   const lastAutoRefreshedAtRef = useRef(new Date().toLocaleTimeString());
@@ -1263,6 +1618,30 @@ export function PortalDataProvider({ children }) {
           messages: updatedMessages,
         };
       });
+
+      if (status === 'Enrolled') {
+        const app = (dataRef.current.applications || []).find((item) => item.id === id);
+        if (app) {
+          const learnerName = (app.firstName || app.surname || app.otherNames)
+            ? `${app.firstName || ''} ${app.otherNames ? app.otherNames + ' ' : ''}${app.surname || ''}`.replace(/\s+/g, ' ').trim()
+            : (app.learner || app.fullName || 'Student');
+          await performOnboardStudent({
+            fullName: learnerName,
+            firstName: app.firstName,
+            otherNames: app.otherNames,
+            surname: app.surname,
+            dob: app.dob,
+            gender: app.sex || app.gender,
+            level: app.level || app.applyingClass,
+            classSection: app.officeFormAssigned || app.classSection || app.subClass || 'A',
+            guardianName: app.guardian || app.fatherName || app.motherName,
+            guardianEmail: app.email || app.fatherEmail || app.guardianEmail,
+            guardianPhone: app.phone || app.fatherPhone || app.guardianPhone,
+            homeAddress: app.residentialAddress || app.homeAddress,
+            rfidCardCode: app.officeStudentID || app.rfidCardCode,
+          });
+        }
+      }
     },
     updateApplication: async (id, updatedForm) => {
       try {
@@ -1461,264 +1840,14 @@ export function PortalDataProvider({ children }) {
       setData((current) => ({ ...current, profiles: { ...current.profiles, [portal]: { ...current.profiles[portal], ...updates } } }));
     },
     setTheme: (theme) => setData((current) => ({ ...current, theme })),
-    onboardStudent: async (student) => {
-      let createdFromApi = null;
-      try {
-        createdFromApi = await api.onboardStudent({
-          fullName: student.fullName,
-          full_name: student.fullName,
-          name: student.fullName,
-          dob: student.dob || '2015-01-01',
-          gender: student.gender || 'Not Specified',
-          level: student.level || 'Grade 1',
-          class_level: student.level || 'Grade 1',
-          classSection: student.classSection || 'A',
-          class_section: student.classSection || 'A',
-          guardianName: student.guardianName,
-          guardian_name: student.guardianName,
-          guardianEmail: student.guardianEmail,
-          guardian_email: student.guardianEmail,
-          guardianPhone: student.guardianPhone,
-          guardian_phone: student.guardianPhone,
-          homeAddress: student.homeAddress || 'Bogoso',
-          home_address: student.homeAddress || 'Bogoso',
-          initialBilledAmount: (student.level || '').includes('JHS') ? 5200 : (student.level || '').includes('SHS') ? 5800 : 4800,
-          initial_billed_amount: (student.level || '').includes('JHS') ? 5200 : (student.level || '').includes('SHS') ? 5800 : 4800,
-          term: 'Term 1 · 2026'
-        });
-      } catch (e) {
-        console.warn('Backend onboard student fallback:', e);
-      }
-
-      setData((current) => {
-        const studentNormName = (student.fullName || '').toLowerCase().trim();
-        const studentNormLevel = (student.level || '').toLowerCase().trim();
-
-        const currentStudents = current.onboardedStudents || [];
-        const existingStudent = currentStudents.find(
-          s => (s.fullName || s.name || '').toLowerCase().trim() === studentNormName ||
-               (s.studentId && student.studentId && s.studentId.toLowerCase().trim() === student.studentId.toLowerCase().trim())
-        );
-
-        const apiStudent = (createdFromApi && typeof createdFromApi === 'object')
-          ? (createdFromApi.student || (createdFromApi.studentId || createdFromApi.id || createdFromApi.student_id_code ? createdFromApi : null))
-          : null;
-
-        const studentId = apiStudent?.studentId || apiStudent?.student_id_code || apiStudent?.student_id || existingStudent?.studentId || student.studentId || `REMALJ-${new Date().getFullYear()}-${String(currentStudents.length + 1).padStart(3, '0')}`;
-        const studentDbId = apiStudent?.id || existingStudent?.id || crypto.randomUUID?.() || String(Date.now());
-        const studentEmail = `${student.fullName.toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`;
-        const defaultPassword = student.defaultPassword || apiStudent?.defaultPassword || apiStudent?.default_password || existingStudent?.defaultPassword || `StuPass#${studentId.replace('REMALJ-', '')}`;
-        const parentPassword = student.parentPassword || 'ParentPass2026!';
-        const rfidCode = student.rfidCardCode || apiStudent?.rfidCardCode || apiStudent?.rfid_card_code || existingStudent?.rfidCardCode || `CARD-${String(currentStudents.length + 1).padStart(3, '0')}`;
-
-        const fName = (student.firstName || '').trim();
-        const oName = (student.otherNames || '').trim();
-        const sName = (student.surname || '').trim();
-        const fullComputed = (fName || sName || oName)
-          ? [fName, oName, sName].filter(Boolean).join(' ')
-          : (student.fullName || student.name || 'Applicant');
-        const formattedLevel = formatClassToBasic(student.level || apiStudent?.level || apiStudent?.class_level || existingStudent?.level || 'Basic 1');
-
-        const newStudent = {
-          id: studentDbId,
-          studentId,
-          rfidCardCode: rfidCode,
-          fullName: fullComputed,
-          firstName: fName,
-          otherNames: oName,
-          surname: sName,
-          dob: student.dob || apiStudent?.dob || existingStudent?.dob,
-          gender: student.gender || apiStudent?.gender || existingStudent?.gender,
-          level: formattedLevel,
-          classSection: student.classSection || apiStudent?.classSection || apiStudent?.class_section || existingStudent?.classSection || 'A',
-          guardianName: (student.guardianName && student.guardianName !== 'Parent/Guardian') ? student.guardianName : (existingStudent?.guardianName || student.guardianName),
-          guardianEmail: student.guardianEmail || apiStudent?.guardianEmail || apiStudent?.guardian_email || existingStudent?.guardianEmail,
-          guardianPhone: student.guardianPhone || apiStudent?.guardianPhone || apiStudent?.guardian_phone || existingStudent?.guardianPhone,
-          homeAddress: student.homeAddress || apiStudent?.homeAddress || apiStudent?.home_address || existingStudent?.homeAddress,
-          enrollmentDate: apiStudent?.enrollmentDate || existingStudent?.enrollmentDate || new Date().toISOString().split('T')[0],
-          status: 'Active',
-          studentEmail,
-          defaultPassword,
-        };
-
-        // Only cache credentials into registered_accounts if backend API confirmed creation
-        if (createdFromApi) {
-          try {
-            const raw = localStorage.getItem('registered_accounts');
-            const list = raw ? JSON.parse(raw) : {};
-            list[studentEmail.toLowerCase()] = {
-              id: `usr_${studentId}`,
-              studentId,
-              email: studentEmail,
-              password: defaultPassword,
-              fullName: fullComputed,
-              role: 'student'
-            };
-            list[studentId.toLowerCase()] = {
-              id: `usr_${studentId}`,
-              studentId,
-              email: studentEmail,
-              password: defaultPassword,
-              fullName: fullComputed,
-              role: 'student'
-            };
-            if (student.guardianEmail) {
-              list[student.guardianEmail.toLowerCase()] = {
-                id: `usr_parent_${studentId}`,
-                email: student.guardianEmail,
-                phone: student.guardianPhone,
-                password: parentPassword,
-                fullName: student.guardianName || `Parent of ${fullComputed}`,
-                role: 'parent'
-              };
-            }
-            localStorage.setItem('registered_accounts', JSON.stringify(list));
-          } catch (e) {}
-        }
-
-        const defaultBilled = (formattedLevel || '').includes('Basic 7') || (formattedLevel || '').includes('Basic 8') || (formattedLevel || '').includes('Basic 9') ? 5200 : (formattedLevel || '').includes('SHS') ? 5800 : 4800;
-        const newFee = {
-          id: `fee-${newStudent.id}`,
-          studentId,
-          studentName: fullComputed,
-          otherNames: oName,
-          guardianName: newStudent.guardianName,
-          guardianEmail: newStudent.guardianEmail,
-          term: 'Term 1 · 2026',
-          billedAmount: defaultBilled,
-          paidAmount: 0,
-          balance: defaultBilled,
-          status: 'Not Paid',
-          dueDate: '2026-09-15',
-          paymentDate: null
-        };
-        const newFeeAccount = {
-          id: `fee-acc-${newStudent.id}`,
-          child: fullComputed,
-          school: 'REMALJ Carewell Inspirational School',
-          term: 'Term 1 · 2026',
-          billed: defaultBilled,
-          paid: 0,
-          status: 'Not Paid'
-        };
-
-        const otherStudents = (current.onboardedStudents || []).filter(s => {
-          const sName = (s.fullName || s.name || '').toLowerCase().trim();
-          const sId = (s.studentId || '').toLowerCase().trim();
-          const sDbId = String(s.id || '').toLowerCase().trim();
-          if (studentNormName && sName === studentNormName) return false;
-          if (studentId && sId === studentId.toLowerCase().trim()) return false;
-          if (newStudent.id && sDbId === String(newStudent.id).toLowerCase().trim()) return false;
-          return true;
-        });
-        const otherFees = (current.studentFees || []).filter(
-          f => (f.studentName || '').toLowerCase().trim() !== studentNormName && f.studentId !== studentId
-        );
-        const otherFeeAccounts = (current.feeAccounts || []).filter(
-          a => (a.child || '').toLowerCase().trim() !== studentNormName
-        );
-
-        return {
-          ...current,
-          onboardedStudents: deduplicateStudents([newStudent, ...otherStudents]),
-          studentFees: deduplicateFees([newFee, ...otherFees]),
-          feeAccounts: [newFeeAccount, ...otherFeeAccounts],
-        };
-      });
-    },
+    onboardStudent: performOnboardStudent,
     onboardStudentsBulk: async (studentsArray) => {
       if (!Array.isArray(studentsArray) || studentsArray.length === 0) return [];
-
       const onboardedResults = [];
-
       for (const student of studentsArray) {
-        const studentLevel = formatClassToBasic(student.level || 'Basic 4');
-        try {
-          await api.onboardStudent({
-            fullName: student.fullName,
-            dob: student.dob || '2014-01-01',
-            gender: student.gender || 'Not Specified',
-            level: studentLevel,
-            classSection: student.classSection || 'A',
-            guardianName: student.guardianName || 'Guardian',
-            guardianEmail: student.guardianEmail || 'parent@remaljcarewell.edu.gh',
-            guardianPhone: student.guardianPhone || '0541769621',
-            homeAddress: student.homeAddress || 'Bogoso',
-            initialBilledAmount: studentLevel.includes('Basic 7') || studentLevel.includes('Basic 8') || studentLevel.includes('Basic 9') ? 5200 : (student.level || '').includes('SHS') ? 5800 : 4800,
-            term: 'Term 1 · 2026'
-          }).catch(() => {});
-        } catch (e) {}
+        const created = await performOnboardStudent(student);
+        if (created) onboardedResults.push(created);
       }
-
-      setData((current) => {
-        let currentCount = (current.onboardedStudents || []).length;
-        const newStudents = [];
-        const newFees = [];
-        const newAccounts = [];
-
-        studentsArray.forEach((student, idx) => {
-          currentCount++;
-          const studentId = `REMALJ-${new Date().getFullYear()}-${String(currentCount).padStart(3, '0')}`;
-          const id = `stu-bulk-${Date.now()}-${idx}`;
-          const studentLevel = formatClassToBasic(student.level || 'Basic 4');
-
-          const newStudent = {
-            id,
-            studentId,
-            fullName: student.fullName,
-            dob: student.dob || '2014-01-01',
-            gender: student.gender || 'Male',
-            level: studentLevel,
-            classSection: student.classSection || 'A',
-            guardianName: student.guardianName || 'Guardian',
-            guardianEmail: student.guardianEmail || 'parent@remaljcarewell.edu.gh',
-            guardianPhone: student.guardianPhone || '054 176 9621',
-            homeAddress: student.homeAddress || 'Bogoso',
-            enrollmentDate: new Date().toISOString().split('T')[0],
-            status: 'Active',
-            studentEmail: `${(student.fullName || 'student').toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`,
-          };
-
-          const defaultBilled = studentLevel.includes('Basic 7') || studentLevel.includes('Basic 8') || studentLevel.includes('Basic 9') ? 5200 : (student.level || '').includes('SHS') ? 5800 : 4800;
-          const newFee = {
-            id: `fee-${id}`,
-            studentId,
-            studentName: student.fullName,
-            guardianName: student.guardianName,
-            guardianEmail: student.guardianEmail || 'parent@remaljcarewell.edu.gh',
-            term: 'Term 1 · 2026',
-            billedAmount: defaultBilled,
-            paidAmount: 0,
-            balance: defaultBilled,
-            status: 'Not Paid',
-            dueDate: '2026-09-15',
-            paymentDate: null
-          };
-
-          const newFeeAccount = {
-            id: `fee-acc-${id}`,
-            child: student.fullName,
-            school: 'REMALJ Carewell Inspirational School',
-            term: 'Term 1 · 2026',
-            billed: defaultBilled,
-            paid: 0,
-            status: 'Not Paid'
-          };
-
-          newStudents.push(newStudent);
-          newFees.push(newFee);
-          newAccounts.push(newFeeAccount);
-          onboardedResults.push(newStudent);
-        });
-
-        return {
-          ...current,
-          onboardedStudents: deduplicateStudents([...newStudents, ...(current.onboardedStudents || [])]),
-          studentFees: deduplicateFees([...newFees, ...(current.studentFees || [])]),
-          feeAccounts: [...newAccounts, ...(current.feeAccounts || [])],
-        };
-      });
-
       return onboardedResults;
     },
     updateOnboardedStudent: async (id, updates) => {
@@ -3233,7 +3362,7 @@ export function PortalDataProvider({ children }) {
 
       return true;
     },
-  }), [data, refreshBackendData]);
+  }), [data, refreshBackendData, performOnboardStudent]);
 
   return <PortalDataContext.Provider value={value}>{children}</PortalDataContext.Provider>;
 }

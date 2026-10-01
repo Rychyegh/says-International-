@@ -8,11 +8,11 @@ import './Onboarding.css';
 const statuses = ['Submitted', 'Documents review', 'Assessment scheduled', 'Accepted', 'Enrolled'];
 
 export function LearnerOnboarding() {
-  const { submitApplication } = usePortalData();
+  const { submitApplication, onboardStudent } = usePortalData();
   const [notice, setNotice] = useState('');
   const [onboardMode, setOnboardMode] = useState('single'); // 'single' | 'bulk'
 
-  const handleOfficialSubmit = (formData) => {
+  const handleOfficialSubmit = async (formData) => {
     const otherNames = (formData.otherNames || '').trim();
     const learnerName = (formData.firstName || formData.surname || otherNames)
       ? `${formData.firstName || ''} ${otherNames ? otherNames + ' ' : ''}${formData.surname || ''}`.replace(/\s+/g, ' ').trim()
@@ -39,8 +39,23 @@ export function LearnerOnboarding() {
       classSection: formData.classSection || formData.subClass || 'A',
     };
 
-    submitApplication(applicationRecord);
-    setNotice('✅ Official Application Form submitted & Student onboarded successfully! Details populated across Student Roster, Credentials Vault, and Fee Schedule.');
+    await onboardStudent({
+      fullName: learnerName,
+      firstName: formData.firstName,
+      otherNames,
+      surname: formData.surname,
+      dob: formData.dob,
+      gender: formData.sex || formData.gender,
+      level: applicationRecord.level,
+      classSection: applicationRecord.classSection,
+      guardianName,
+      guardianEmail: contactEmail,
+      guardianPhone: contactPhone,
+      homeAddress: formData.residentialAddress || formData.homeAddress,
+      rfidCardCode: formData.officeStudentID || formData.rfidCardCode,
+    });
+    await submitApplication(applicationRecord);
+    setNotice('✅ Student onboarded. One account created and synced across Student Roster, Credentials Vault, and Fee Schedule.');
     setTimeout(() => setNotice(''), 7000);
   };
 
