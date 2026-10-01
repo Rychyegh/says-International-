@@ -1456,7 +1456,9 @@ export default function ApprovePVForm({ setM = () => {} }) {
                       />
                     </th>
                     <th style={{ padding: '6px 8px' }}>Line Item Particulars</th>
+                    <th style={{ padding: '6px 8px' }}>Date Prepared</th>
                     <th style={{ padding: '6px 8px' }}>Payee / Merchant</th>
+                    <th style={{ padding: '6px 8px' }}>Service Provider ID</th>
                     <th style={{ padding: '6px 8px', textAlign: 'center' }}>Qty</th>
                     <th style={{ padding: '6px 8px', textAlign: 'right' }}>Rate (GHS)</th>
                     <th style={{ padding: '6px 8px', textAlign: 'right' }}>Subtotal (GHS)</th>
@@ -1487,8 +1489,14 @@ export default function ApprovePVForm({ setM = () => {} }) {
                           {item.description}
                           {isActive && <span style={{ marginLeft: 6, fontSize: 9.5, color: '#16a34a', fontWeight: 900 }}>● Editing in station</span>}
                         </td>
+                        <td style={{ padding: '6px 8px', color: '#0f3a4b', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                          {formatDatePreview(item.datePrepared || item.tDate || datePrepared) || (item.datePrepared || item.tDate || datePrepared || 'N/A')}
+                        </td>
                         <td style={{ padding: '6px 8px', color: '#475569' }}>
                           {item.provider || clientProvider}
+                        </td>
+                        <td style={{ padding: '6px 8px', color: '#0f3a4b', fontWeight: 800 }}>
+                          {item.providerId || providerId || 'N/A'}
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 800 }}>
                           {item.qty}
@@ -1605,222 +1613,6 @@ export default function ApprovePVForm({ setM = () => {} }) {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
-          {/* Description or Particulars */}
-          <div style={{ gridColumn: 'span 3' }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>
-              Description or Particulars <span style={{ color: '#dc2626' }}>* (Editable if wrong)</span>
-            </label>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Cost of Electricity Bill & Substation Maintenance"
-              style={{ width: '100%', padding: '7px 10px', borderRadius: 4, border: '1px solid #0284c7', fontSize: 12, background: '#fff', fontWeight: 700 }}
-            />
-          </div>
-
-          {/* Date Prepared */}
-          <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Date Prepared</label>
-            <input
-              type="date"
-              value={datePrepared}
-              onChange={(e) => setDatePrepared(e.target.value)}
-              style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
-            />
-            <div style={{ fontSize: 10, color: '#0284c7', fontWeight: 700, marginTop: 2 }}>
-              {formatDatePreview(datePrepared)}
-            </div>
-          </div>
-
-          {/* Client/Service Provider */}
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>
-              Select Client / Service Provider <span style={{ color: '#dc2626' }}>*</span>
-            </label>
-            <input
-              type="text"
-              value={clientProvider}
-              onChange={(e) => setClientProvider(e.target.value)}
-              placeholder="Vendor / Provider Name..."
-              style={{ width: '100%', padding: '6px 10px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff', fontWeight: 700 }}
-            />
-          </div>
-
-          {/* Service Provider's ID */}
-          <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Service Provider ID</label>
-            <input
-              type="text"
-              value={providerId}
-              onChange={(e) => setProviderId(e.target.value)}
-              placeholder="ID / Account #"
-              style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#f8fafc', fontWeight: 700 }}
-            />
-          </div>
-
-          {/* Qty */}
-          <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>
-              Qty. <span style={{ color: '#dc2626' }}>* (Edit if wrong)</span>
-            </label>
-            <input
-              type="number"
-              min="1"
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-              style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #0284c7', fontSize: 12, background: '#fff', fontWeight: 800 }}
-            />
-          </div>
-
-          {/* Cost Per Item (GHS) */}
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>
-              Cost Per Item / Rate (GHS) <span style={{ color: '#dc2626' }}>* (Edit if wrong)</span>
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={costPerItem}
-              onChange={(e) => setCostPerItem(e.target.value)}
-              style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #0284c7', fontSize: 12, background: '#fff', fontWeight: 800 }}
-            />
-          </div>
-
-          {/* Total Amount (GHS) */}
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Total Amount (GHS)</label>
-            <input
-              type="text"
-              readOnly
-              value={`GHS ${calculatedTotalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-              style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #0284c7', fontSize: 13, fontWeight: 900, color: '#0369a1', background: '#f0f9ff' }}
-            />
-          </div>
-        </div>
-
-        {/* Executive Pre-Audit Verification & Decision Section */}
-        <div style={{
-          background: '#f8fafc',
-          padding: 14,
-          borderRadius: 8,
-          border: '1px solid #cbd5e1',
-          marginBottom: 16
-        }}>
-          <div style={{ fontSize: 12, fontWeight: 900, color: '#0f3a4b', borderBottom: '2px solid #0f3a4b', paddingBottom: 4, marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Executive Pre-Audit Verification & Decision</span>
-            <button
-              type="button"
-              onClick={handleSaveVoucherEdits}
-              style={{ padding: '4px 10px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #38bdf8', borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer' }}
-            >
-              💾 Save Corrections Only
-            </button>
-          </div>
-
-          {/* Remarks Input */}
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Pre Audit Remarks & Comments</label>
-            <input
-              type="text"
-              placeholder="Enter audit verification comments or correction rationale..."
-              value={auditRemarks}
-              onChange={(e) => setAuditRemarks(e.target.value)}
-              style={{ width: '100%', padding: '7px 10px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
-            />
-          </div>
-
-          {/* Valued Date & Action Choice Dropdown (Exact Match to Image 2 Dropdown) */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-            <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Valued Date</label>
-              <input
-                type="date"
-                value={valuedDate}
-                onChange={(e) => setValuedDate(e.target.value)}
-                style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 3 }}>Approval Action Choice</label>
-              <select
-                value={actionChoice}
-                onChange={(e) => setActionChoice(e.target.value)}
-                style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff', fontWeight: 800, color: '#0f3a4b' }}
-              >
-                <option value="Validated">Validated (Pre-audit Approved)</option>
-                <option value="Pending approval">Pending approval</option>
-                <option value="Postponed">Postponed</option>
-                <option value="Declined">Declined</option>
-                <option value="Cancel PV">Cancel PV</option>
-                <option value="Non-accrual">Non-accrual</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Action Buttons (Image 2 Match & Multi-Item Support) */}
-          <div style={{ display: 'grid', gridTemplateColumns: currentItems.length > 1 ? '1fr 1fr 1fr' : '1fr 1fr', gap: 10 }}>
-            <button
-              type="button"
-              onClick={handleActionSingleItem}
-              disabled={isActioning}
-              style={{
-                padding: '10px 14px', background: '#0f3a4b', color: '#fff', border: 'none',
-                borderRadius: 6, fontSize: 11.5, fontWeight: 800, cursor: isActioning ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                opacity: isActioning ? 0.75 : 1
-              }}
-            >
-              {isActioning ? <Loader2 size={14} className="animate-spin" /> : null}
-              {currentItems.length > 1
-                ? `Action Active Item (${currentItems[activeItemIndex]?.description?.substring(0, 14) || 'Item'}...)`
-                : `Action Single PV Item (#${pvNo})`}
-            </button>
-
-            {currentItems.length > 1 && (
-              <button
-                type="button"
-                onClick={handleBulkActionSelectedItems}
-                disabled={isActioning || selectedItemIds.length === 0}
-                style={{
-                  padding: '10px 14px',
-                  background: selectedItemIds.length > 0 ? '#16a34a' : '#94a3b8',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 6,
-                  fontSize: 11.5,
-                  fontWeight: 900,
-                  cursor: (isActioning || selectedItemIds.length === 0) ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  opacity: isActioning ? 0.75 : 1
-                }}
-              >
-                {isActioning ? <Loader2 size={14} className="animate-spin" /> : null}
-                Bulk Action Selected ({selectedItemIds.length})
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={handleActionNextOrAll}
-              disabled={isActioning}
-              style={{
-                padding: '10px 14px', background: '#0284c7', color: '#fff', border: 'none',
-                borderRadius: 6, fontSize: 11.5, fontWeight: 900, cursor: isActioning ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                opacity: isActioning ? 0.75 : 1
-              }}
-            >
-              {isActioning ? <Loader2 size={14} className="animate-spin" /> : null}
-              Action Next PV / All Items
-            </button>
-          </div>
-        </div>
 
       </div>
     </>
