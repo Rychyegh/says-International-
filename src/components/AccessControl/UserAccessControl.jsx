@@ -887,7 +887,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                 email: '',
                 phone: '',
                 role: 'teacher',
-                staffId: `CT-2026-${String(users.length + 1).padStart(3, '0')}`,
+                staffId: '',
                 studentId: '',
                 assignedClass: '',
                 subClass: '',
@@ -1454,25 +1454,12 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
             </div>
 
             <form onSubmit={handleCreateUser} style={{ padding: 24, overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Assigned User Role *</label>
-                  <RoleSelect
-                    value={createForm.role}
-                    onChange={(role) => setCreateForm(prev => ({ ...prev, role }))}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Staff / Student ID</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. CT-2026-005"
-                    value={createForm.staffId}
-                    onChange={(e) => setCreateForm(prev => ({ ...prev, staffId: e.target.value }))}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13 }}
-                  />
-                </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Assigned User Role *</label>
+                <RoleSelect
+                  value={createForm.role}
+                  onChange={(role) => setCreateForm(prev => ({ ...prev, role }))}
+                />
               </div>
 
               <div>
