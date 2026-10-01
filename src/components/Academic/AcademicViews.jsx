@@ -690,22 +690,22 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
                         ) : row.status === 'Declined' ? (
                           <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 10, fontWeight: 800, background: '#fee2e2', color: '#dc2626' }}>
                             🔴 Declined
-                          </span>
+                      </span>
                         ) : row.hasScore ? (
                           <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 10, fontWeight: 800, background: '#fef3c7', color: '#92400e' }}>
                             🟡 Pending
-                          </span>
-                        ) : (
+                      </span>
+                    ) : (
                           <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 10, fontWeight: 700, background: '#f1f5f9', color: '#94a3b8' }}>
                             ⚪ Not Entered
-                          </span>
-                        )}
-                      </td>
+                      </span>
+                    )}
+                  </td>
 
                       {/* Action */}
                       <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                         {onOpenScoreSheet ? (
-                          <button
+                        <button
                             type="button"
                             onClick={() => onOpenScoreSheet({
                               student: row.student,
@@ -729,19 +729,19 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
                             title={row.hasScore ? 'Edit student scores in score sheet' : 'Enter student scores'}
                           >
                             {row.hasScore ? '✏️ Edit Score' : '+ Enter Score'}
-                          </button>
-                        ) : (
+                        </button>
+                    ) : (
                           <span style={{ color: '#94a3b8', fontSize: 10 }}>-</span>
-                        )}
-                      </td>
-                    </tr>
+                    )}
+                  </td>
+                </tr>
                   );
                 })
               )}
             </tbody>
           </table>
         </div>
-      </section>
+        </section>
 
       {/* OPTIONAL MANUAL RESULT SUBMISSION MODAL */}
       {showManualSubmitModal && (
@@ -796,10 +796,10 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
                   <button type="submit" style={{ padding: '8px 16px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 800 }}>
                     Submit Result
                   </button>
-                </div>
-              </div>
-            </form>
           </div>
+          </div>
+        </form>
+      </div>
         </div>
       )}
     </div>

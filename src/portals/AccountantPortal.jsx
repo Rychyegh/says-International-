@@ -278,6 +278,7 @@ export default function AccountantPortal({ onSignOut }) {
     adjustStudentBill,
     postAcademicBill,
     adminSetUserPassword,
+    refreshBackendData,
   } = usePortalData();
 
   const totalBilled = (studentFees || []).reduce((acc, item) => acc + (item.billedAmount || 0), 0);
@@ -294,13 +295,17 @@ export default function AccountantPortal({ onSignOut }) {
   ];
 
   const filteredFees = (studentFees || []).filter((fee) => {
+    const studentName = String(fee?.studentName || '').toLowerCase();
+    const studentId = String(fee?.studentId || '').toLowerCase();
+    const guardianName = String(fee?.guardianName || '').toLowerCase();
+    const query = searchQuery.toLowerCase();
     const matchesSearch =
-      fee.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      fee.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      fee.guardianName.toLowerCase().includes(searchQuery.toLowerCase());
+      studentName.includes(query) ||
+      studentId.includes(query) ||
+      guardianName.includes(query);
 
-    if (feeFilter === 'Paid') return matchesSearch && fee.balance === 0;
-    if (feeFilter === 'Owing') return matchesSearch && fee.balance > 0;
+    if (feeFilter === 'Paid') return matchesSearch && Number(fee?.balance || 0) === 0;
+    if (feeFilter === 'Owing') return matchesSearch && Number(fee?.balance || 0) > 0;
     return matchesSearch;
   });
 
@@ -1702,8 +1707,15 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
     setTimeout(() => setJournalStatusNotice(''), 3500);
   };
 
-  const handleRefreshBills = () => {
-    setJournalStatusNotice('Bills refreshed & recalled from accounting database.');
+  const handleRefreshBills = async () => {
+    try {
+      if (typeof refreshBackendData === 'function') {
+        await refreshBackendData();
+      }
+      setJournalStatusNotice('Bills refreshed from the accounting database.');
+    } catch {
+      setJournalStatusNotice('Could not refresh bills from the database.');
+    }
     setTimeout(() => setJournalStatusNotice(''), 3000);
   };
 
@@ -1748,12 +1760,12 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
   };
 
   // Post Compulsory Bill to Student Journal
-  const handlePostToJournal = () => {
+  const handlePostToJournal = async () => {
     setBillItems((prev) =>
       prev.map((item) => ({ ...item, status: 'Posted' }))
     );
     if (portalData?.postAcademicBill) {
-      portalData.postAcademicBill({
+      await portalData.postAcademicBill({
         studentName: formStudentName,
         classLevel: formCurrentClass || currClass,
         items: billItems,

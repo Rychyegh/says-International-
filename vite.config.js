@@ -5,6 +5,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
+      '/api': {
+        target: 'https://rcis-backend.onrender.com',
+        changeOrigin: true,
+        secure: true,
+      },
       '/sms-gateway': {
         target: 'https://api.smsonlinegh.com/v5',
         changeOrigin: true,

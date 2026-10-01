@@ -571,6 +571,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       rfidCardCode: '',
     });
 
+    setActiveNav('Dashboard');
     setSuccessMsg('Student onboarded successfully! Student ID, school email, and fee account initialized.');
     setTimeout(() => setSuccessMsg(''), 5000);
   };
@@ -602,6 +603,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     });
 
     await updateApplicationStatus(app.id, 'Enrolled');
+    setActiveNav('Dashboard');
     setSuccessMsg(`Applicant ${learnerName} officially admitted and enrolled into Student Roster!`);
     setTimeout(() => setSuccessMsg(''), 5000);
   };
@@ -756,6 +758,17 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const activeStudents = (onboardedStudents || []).filter((s) => s.status === 'Active').length;
   const totalApplications = (applications || []).length;
   const totalFeesBilled = (studentFees || []).reduce((sum, f) => sum + (f.billedAmount || 0), 0);
+
+  const recentOnboardedStudents = useMemo(() => {
+    const recency = (student) => {
+      const raw = student?.onboardedAt || student?.createdAt || student?.enrollmentDate || student?.updatedAt || 0;
+      const ts = new Date(raw).getTime();
+      return Number.isFinite(ts) ? ts : 0;
+    };
+    return [...(onboardedStudents || [])]
+      .sort((a, b) => recency(b) - recency(a))
+      .slice(0, 8);
+  }, [onboardedStudents]);
 
   const STATS = [
     { label: 'Total Enrolled Students', value: String(totalStudents), trend: `${activeStudents} Active`, icon: '👥', bg: '#f3e8ff', ic: ADMIN_BG, nav: 'Student Roster' },
@@ -1099,13 +1112,20 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {onboardedStudents.slice(0, 5).map((stu) => (
-                          <tr key={stu.id}>
+                        {recentOnboardedStudents.length === 0 && (
+                          <tr>
+                            <td colSpan={5} style={{ textAlign: 'center', padding: 24, color: 'var(--gray-500)', fontWeight: 600 }}>
+                              Newly onboarded students will appear here. Use + Onboard / Fill Application Form to add one.
+                            </td>
+                          </tr>
+                        )}
+                        {recentOnboardedStudents.map((stu) => (
+                          <tr key={stu.id || stu.studentId}>
                             <td><code>{stu.studentId}</code></td>
                             <td><strong>{stu.fullName}</strong></td>
                             <td>{stu.level}</td>
                             <td>{stu.guardianName}</td>
-                            <td><span className="status-pill status-pill--success">{stu.status}</span></td>
+                            <td><span className="status-pill status-pill--success">{stu.status || 'Active'}</span></td>
                           </tr>
                         ))}
                       </tbody>
@@ -1734,6 +1754,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       });
                       await submitApplication(newForm);
                       setIsCreatingApp(false);
+                      setActiveNav('Dashboard');
                       setSuccessMsg('Student onboarded. One account created and synced across roster, fees, and portals.');
                       setTimeout(() => setSuccessMsg(''), 5000);
                     }}

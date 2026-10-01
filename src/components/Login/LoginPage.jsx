@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, Phone, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
-import { api, setAuthToken, setAuthUser, getAuthUser, isClassTeacherAccount, enrichTeacherSession, lookupRegisteredAccount, DEMO_CLASS_TEACHER_ACCOUNTS } from '../../services/api';
+import { api, setAuthToken, setAuthUser, getAuthUser, isClassTeacherAccount, enrichTeacherSession, lookupRegisteredAccount, DEMO_CLASS_TEACHER_ACCOUNTS, extractAuthToken } from '../../services/api';
 import { usePortalData } from '../../data/PortalStore';
 import './Login.css';
 
@@ -211,7 +211,8 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     try {
       if (loginMethod === 'password') {
         const result = await api.login({ email, password, portal });
-        if (result.token) setAuthToken(result.token);
+        const liveToken = extractAuthToken(result) || result.token;
+        if (liveToken) setAuthToken(liveToken);
         const userObj = result.user || { email, role: portal };
         if (portal === 'teacher') {
           await finishTeacherLogin(userObj);
@@ -225,7 +226,8 @@ export default function LoginPage({ portal, onLoginSuccess }) {
         });
       } else if (loginMethod === 'card') {
         const result = await api.cardScan({ cardId, portal });
-        if (result.token) setAuthToken(result.token);
+        const liveToken = extractAuthToken(result) || result.token;
+        if (liveToken) setAuthToken(liveToken);
         const userObj = result.user || { cardId, role: portal };
         setAuthUser({
           ...userObj,

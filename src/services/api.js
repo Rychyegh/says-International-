@@ -5,6 +5,33 @@
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://rcis-backend.onrender.com/api/v1';
+const LIVE_API_ORIGIN = 'https://rcis-backend.onrender.com/api/v1';
+
+export function extractAuthToken(res) {
+  if (!res || typeof res !== 'object') return '';
+  const nested = res.data && typeof res.data === 'object' ? res.data : {};
+  return String(
+    res.token
+    || res.access_token
+    || res.accessToken
+    || res.sims_token
+    || nested.token
+    || nested.access_token
+    || ''
+  ).trim();
+}
+
+function applyAuthSession(res) {
+  const token = extractAuthToken(res);
+  if (token) setAuthToken(token);
+  const user = res?.user || res?.data?.user;
+  if (user) setAuthUser(user);
+  return token;
+}
+
+function hasLiveDatabaseSession() {
+  return String(getAuthToken() || '').startsWith('eyJ');
+}
 const SMS_API_KEY = import.meta.env.VITE_SMS_API_KEY || '67648ed5720ca875d42dc20f5726d94c9c1ea2b149a541784b5ba2194241b022';
 const SMS_SENDER_ID = import.meta.env.VITE_SMS_SENDER_ID || 'RCIS';
 
@@ -53,7 +80,10 @@ export function setAuthUser(user) {
 }
 
 async function request(endpoint, options = {}) {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const urls = [`${API_BASE_URL}${endpoint}`];
+  if (import.meta.env.DEV && API_BASE_URL.startsWith('/') && LIVE_API_ORIGIN) {
+    urls.push(`${LIVE_API_ORIGIN}${endpoint}`);
+  }
   const token = getAuthToken();
 
   const headers = {
@@ -64,7 +94,7 @@ async function request(endpoint, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  if (token) {
+  if (token && String(token).startsWith('eyJ')) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
@@ -73,16 +103,25 @@ async function request(endpoint, options = {}) {
     headers,
   };
 
+  let lastError = null;
+  for (const url of urls) {
   try {
     const response = await fetch(url, config);
+      const text = await response.text();
+      let data = null;
+      if (text && text.trim()) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = null;
+        }
+      }
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status} ${response.statusText}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.detail) {
-          if (Array.isArray(errorData.detail)) {
-            console.error(`[FastAPI 422 Validation Error on ${endpoint}]:`, errorData.detail);
-            const formatted = errorData.detail
+        if (data && data.detail) {
+          if (Array.isArray(data.detail)) {
+            console.error(`[FastAPI 422 Validation Error on ${endpoint}]:`, data.detail);
+            const formatted = data.detail
               .map(d => {
                 const loc = Array.isArray(d.loc) ? d.loc.filter(x => x !== 'body').join('.') : d.loc;
                 return `[${loc}]: ${d.msg}`;
@@ -90,23 +129,136 @@ async function request(endpoint, options = {}) {
               .join('; ');
             errorMessage = `FastAPI Validation Error (HTTP 422): ${formatted}`;
           } else {
-            errorMessage = typeof errorData.detail === 'string' 
-              ? errorData.detail 
-              : JSON.stringify(errorData.detail);
+            errorMessage = typeof data.detail === 'string'
+              ? data.detail
+              : JSON.stringify(data.detail);
           }
-        } else if (errorData.message) {
-          errorMessage = errorData.message;
+        } else if (data && data.message) {
+          errorMessage = data.message;
+        } else if (text && text.trim()) {
+          errorMessage = text.trim().slice(0, 300);
         }
-      } catch {
-        // use default HTTP error
+        lastError = new Error(errorMessage);
+        if (response.status >= 400 && response.status < 500) throw lastError;
+        continue;
       }
-      throw new Error(errorMessage);
-    }
-    return await response.json();
+      if (data !== null && data !== undefined) return data;
+      return { success: true, status: response.status };
   } catch (err) {
-    console.warn(`[API Client Warning] Request to ${endpoint} failed:`, err.message);
-    throw err;
+      lastError = err;
+      if (err && /FastAPI|HTTP 4/.test(String(err.message || ''))) throw err;
+    }
   }
+  console.warn(`[API Client Warning] Request to ${endpoint} failed:`, lastError?.message);
+  throw lastError || new Error(`Request to ${endpoint} failed`);
+}
+
+export function sanitizePostedBillItems(items = []) {
+  return (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      details: String(item?.details || item?.description || item?.name || 'Fee item').trim().slice(0, 100) || 'Fee item',
+      amount: Number(item?.amount ?? item?.fee ?? 0) || 0,
+    }))
+    .filter((item) => item.details);
+}
+
+export function classLevelForBillPost(level) {
+  const raw = String(level || '').trim();
+  if (!raw) return 'Basic 1';
+  const basic = raw.match(/basic\s*([1-9])/i);
+  if (basic) return `Basic ${basic[1]}`;
+  const kg = raw.match(/(?:kindergarten|kg)\s*([12])/i);
+  if (kg) return `Kindergarten ${kg[1]}`;
+  const nur = raw.match(/nursery\s*([12])/i);
+  if (nur) return `Nursery ${nur[1]}`;
+  if (/creche/i.test(raw)) return 'Creche';
+  return raw.replace(/\s+[A-D]$/i, '').slice(0, 50) || 'Basic 1';
+}
+
+function isOfficialStudentCode(value) {
+  return /REMALJ-\d{4}-\d{3,}$/i.test(String(value || '').trim());
+}
+
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+}
+
+function resolveBillStudentId(student = {}) {
+  const code = String(student.studentId || student.student_id || student.student_code || '').trim();
+  if (isOfficialStudentCode(code)) return code;
+  const uuid = String(student.id || student.uuid || student.backendId || '').trim();
+  if (isUuid(uuid)) return uuid;
+  const candidates = [code, uuid, student.studentId, student.id];
+  for (const candidate of candidates) {
+    const value = String(candidate || '').trim();
+    if (!value) continue;
+    if (/^stu(-bulk)?-/i.test(value) || /^fee-(acc-)?/i.test(value)) continue;
+    return value;
+  }
+  return '';
+}
+
+function normalizeBillTerm(term) {
+  const raw = String(term || 'Term 1').trim();
+  const match = raw.match(/term\s*([1-3])/i);
+  return match ? `Term ${match[1]}` : raw.slice(0, 50);
+}
+
+function billDueDate(preferred) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const parsed = preferred ? new Date(preferred) : null;
+  if (parsed && !Number.isNaN(parsed.getTime()) && parsed >= today) {
+    return String(preferred).slice(0, 10);
+  }
+  const future = new Date(today);
+  future.setDate(future.getDate() + 30);
+  return future.toISOString().slice(0, 10);
+}
+
+function extractStudentList(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== 'object') return [];
+  return raw.students || raw.data || raw.records || raw.items || [];
+}
+
+function studentNamesMatch(a, b) {
+  const n = (value) => String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  return Boolean(n(a) && n(a) === n(b));
+}
+
+function splitBillItemsForStudentLedger(items = []) {
+  const list = sanitizePostedBillItems(items);
+  let tuitionFee = 0;
+  let stationeryFee = 0;
+  const optionalServices = [];
+  list.forEach((item, idx) => {
+    const details = item.details.toLowerCase();
+    if (/^optional:/.test(details) || /motivation levy|bus transport|feeding|pick up card/.test(details)) {
+      optionalServices.push({
+        service_id: `opt-${idx + 1}`,
+        name: item.details.replace(/^OPTIONAL:\s*/i, '').slice(0, 255) || `Optional ${idx + 1}`,
+        amount: item.amount,
+      });
+      return;
+    }
+    if (/stationer/.test(details)) {
+      stationeryFee += item.amount;
+      return;
+    }
+    tuitionFee += item.amount;
+  });
+  return { tuition_fee: tuitionFee, stationery_fee: stationeryFee, optional_services: optionalServices };
+}
+
+async function runInChunks(items, worker, size = 5) {
+  const results = [];
+  for (let i = 0; i < items.length; i += size) {
+    const slice = items.slice(i, i + size);
+    const part = await Promise.allSettled(slice.map((item) => worker(item)));
+    results.push(...part);
+  }
+  return results;
 }
 
 // Score sheet entries carry the full class-test breakdown so a saved sheet can be reopened and edited
@@ -470,19 +622,58 @@ function loginFromDemoTeacher(credentials = {}) {
   setAuthUser(user);
   return { token: `demo-class-teacher-${account.staffId || email}`, user };
 }
+
+export const api = {
   // --- Auth & User Access ---
   login: async (credentials) => {
     // credentials: { email, password, portal }
+    const payload = {
+      email: credentials.email,
+      username: credentials.email,
+      identifier: credentials.email,
+      password: credentials.password,
+      portal: credentials.portal,
+    };
     try {
-      const res = await request('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify(credentials),
+    const res = await request('/auth/login', {
+      method: 'POST',
+        body: JSON.stringify(payload),
       });
-      if (res && res.token) setAuthToken(res.token);
-      if (res && res.user) setAuthUser(res.user);
+      applyAuthSession(res);
+      if (!extractAuthToken(res) && credentials.portal && ['admin', 'accountant'].includes(String(credentials.portal).toLowerCase())) {
+        try {
+          const sims = await request('/sims-auth/login', {
+            method: 'POST',
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
+          });
+          applyAuthSession(sims);
+          return { ...res, ...sims };
+        } catch {
+    return res;
+        }
+      }
       return res;
     } catch (err) {
-      if (String(credentials.portal || '').toLowerCase() === 'teacher') {
+      const portal = String(credentials.portal || '').toLowerCase();
+      if (['admin', 'accountant', 'head_admin', 'sub_admin'].includes(portal)) {
+        try {
+          const sims = await request('/sims-auth/login', {
+            method: 'POST',
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
+          });
+          applyAuthSession(sims);
+          return sims;
+        } catch {
+          // keep original login error
+        }
+      }
+      if (portal === 'teacher') {
         const demo = loginFromDemoTeacher(credentials);
         if (demo) return demo;
       }
@@ -496,8 +687,7 @@ function loginFromDemoTeacher(credentials = {}) {
       method: 'POST',
       body: JSON.stringify(cardData),
     });
-    if (res && res.token) setAuthToken(res.token);
-    if (res && res.user) setAuthUser(res.user);
+    if (res && extractAuthToken(res)) applyAuthSession(res);
     return res;
   },
 
@@ -528,8 +718,7 @@ function loginFromDemoTeacher(credentials = {}) {
       }),
     });
     // Only write to localStorage when the backend API successfully confirmed registration
-    if (res && res.token) setAuthToken(res.token);
-    if (res && res.user) setAuthUser(res.user);
+    if (res && extractAuthToken(res)) applyAuthSession(res);
     saveRegisteredAccount({
       id: res?.user?.id || `usr_${Date.now()}`,
       email: cleanEmail,
@@ -694,8 +883,7 @@ function loginFromDemoTeacher(credentials = {}) {
         portal: 'teacher',
       }),
     });
-    if (res && res.token) setAuthToken(res.token);
-    if (res && res.user) setAuthUser(res.user);
+    if (res && extractAuthToken(res)) applyAuthSession(res);
     return res;
   },
 
@@ -711,8 +899,7 @@ function loginFromDemoTeacher(credentials = {}) {
         passcode,
       }),
     });
-    if (res && res.token) setAuthToken(res.token);
-    if (res && res.user) setAuthUser(res.user);
+    if (res && extractAuthToken(res)) applyAuthSession(res);
     return res;
   },
 
@@ -1704,11 +1891,171 @@ function loginFromDemoTeacher(credentials = {}) {
     });
   },
 
-  postAcademicBill: async (bill) => {
+  postAcademicBill: async (bill = {}) => {
+    const items = sanitizePostedBillItems(bill.items);
+    if (!items.length) {
+      throw new Error('A posted bill must include at least one fee item.');
+    }
+    const payload = {
+      student_id: bill.student_id || bill.studentId || '',
+      student_name: bill.student_name || bill.studentName || '',
+      class_level: classLevelForBillPost(bill.class_level || bill.classLevel),
+      items,
+      total_amount: Number(bill.total_amount ?? bill.totalAmount) || items.reduce((sum, item) => sum + item.amount, 0),
+      term: normalizeBillTerm(bill.term),
+    };
     return await request('/finance/bills/post', {
       method: 'POST',
-      body: JSON.stringify(bill),
+      body: JSON.stringify(payload),
     });
+  },
+
+  postStudentAcademicBill: async (bill = {}) => {
+    const studentId = String(bill.student_id || bill.studentId || '').trim();
+    if (!studentId) {
+      throw new Error('A student id is required to post an official academic bill.');
+    }
+    const items = sanitizePostedBillItems(bill.items);
+    const split = splitBillItemsForStudentLedger(items);
+    const totalPayable = Number(bill.total_payable ?? bill.totalAmount ?? bill.total_amount)
+      || (split.tuition_fee + split.stationery_fee + split.optional_services.reduce((sum, item) => sum + Number(item.amount || 0), 0));
+    const payload = {
+      student_id: studentId,
+      academic_year: String(bill.academic_year || bill.academicYear || '2026/2027').slice(0, 50),
+      term: normalizeBillTerm(bill.term),
+      class_level: classLevelForBillPost(bill.class_level || bill.classLevel),
+      tuition_fee: split.tuition_fee,
+      stationery_fee: split.stationery_fee,
+      optional_services: split.optional_services,
+      arrears_brought_forward: Number(bill.arrears_brought_forward || 0) || 0,
+      scholarship_discount: Number(bill.scholarship_discount || 0) || 0,
+      total_payable: totalPayable,
+      billed_by: String(bill.billed_by || bill.billedBy || getUserFullName() || 'Accounts Office').slice(0, 255) || 'Accounts Office',
+      due_date: billDueDate(bill.due_date || bill.dueDate),
+    };
+    return await request('/finance/bills/student', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': `bill-${studentId}-${payload.term}-${payload.academic_year}-${totalPayable}` },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  persistPostedAcademicBills: async ({
+    students = [],
+    items = [],
+    totalAmount,
+    term = 'Term 1',
+    classLevel,
+    academicYear = '2026/2027',
+    billedBy,
+    dueDate,
+  } = {}) => {
+    const sanitizedItems = sanitizePostedBillItems(items);
+    const total = Number(totalAmount) || sanitizedItems.reduce((sum, item) => sum + item.amount, 0);
+    const result = { posted: 0, failed: 0, errors: [] };
+    if (!hasLiveDatabaseSession()) {
+      result.failed = Math.max(1, (students || []).length || 1);
+      result.errors.push('No live database session. Sign out and sign in again with Head Admin or Accounts credentials so the bill can be saved on the server.');
+      return result;
+    }
+    if (!sanitizedItems.length) {
+      result.failed = 1;
+      result.errors.push('A posted bill must include at least one fee item.');
+      return result;
+    }
+
+    let targets = (Array.isArray(students) ? students : []).filter(Boolean);
+    try {
+      const remote = extractStudentList(await api.getStudents());
+      targets = targets.map((stu) => {
+        const name = stu.fullName || stu.name || stu.studentName;
+        const code = String(stu.studentId || '').trim();
+        const match = remote.find((row) => {
+          const remoteCode = String(row.student_id || row.studentId || row.student_code || '').trim();
+          const remoteName = row.full_name || row.fullName || row.name;
+          const remoteId = String(row.id || '').trim();
+          if (code && (code === remoteCode || code === remoteId)) return true;
+          if (stu.id && String(stu.id) === remoteId) return true;
+          return studentNamesMatch(name, remoteName);
+        });
+        if (!match) return stu;
+        return {
+          ...stu,
+          id: match.id || stu.id,
+          studentId: match.student_id || match.studentId || match.student_code || stu.studentId,
+          fullName: stu.fullName || match.full_name || match.fullName,
+          level: stu.level || match.level || match.class_level,
+        };
+      });
+    } catch (error) {
+      console.warn('Could not match billed students to the database roster:', error);
+    }
+
+    const postFeeLines = (student = {}) => api.postAcademicBill({
+      student_id: resolveBillStudentId(student),
+      student_name: student.fullName || student.name || student.studentName || '',
+      class_level: student.level || student.classLevel || classLevel,
+      items: sanitizedItems,
+      total_amount: total,
+      term,
+    });
+
+    const postOfficialStudentBill = (student = {}) => {
+      const studentId = resolveBillStudentId(student);
+      if (!studentId) {
+        throw new Error(`No database student id for ${student.fullName || student.studentName || 'student'}`);
+      }
+      return api.postStudentAcademicBill({
+        student_id: studentId,
+        class_level: student.level || student.classLevel || classLevel,
+        items: sanitizedItems,
+        total_amount: total,
+        term,
+        academic_year: academicYear,
+        billed_by: billedBy,
+        due_date: dueDate,
+      });
+    };
+
+    if (targets.length === 0) {
+      try {
+        await postFeeLines({ level: classLevel });
+        result.posted += 1;
+      } catch (error) {
+        result.failed += 1;
+        result.errors.push(error.message);
+      }
+      return result;
+    }
+
+    const outcomes = await runInChunks(targets, async (student) => {
+      try {
+        await postOfficialStudentBill(student);
+      } catch (studentError) {
+        try {
+          await postFeeLines(student);
+        } catch (feeError) {
+          throw new Error([studentError.message, feeError.message].filter(Boolean).join(' | '));
+        }
+        throw new Error(studentError.message || 'Official student bill was not saved in the database.');
+      }
+      try {
+        await postFeeLines(student);
+      } catch {
+        // Fee-line post is extra; the official student bill already landed.
+      }
+      return true;
+    });
+
+    outcomes.forEach((outcome) => {
+      if (outcome.status === 'fulfilled') {
+        result.posted += 1;
+      } else {
+        result.failed += 1;
+        result.errors.push(outcome.reason?.message || String(outcome.reason || 'Bill post failed'));
+      }
+    });
+    return result;
   },
 
   adjustStudentBill: async (adjustment) => {

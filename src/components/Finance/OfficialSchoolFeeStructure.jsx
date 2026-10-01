@@ -914,7 +914,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
-  const handleBulkPostToClass = () => {
+  const handleBulkPostToClass = async () => {
     const studentsToBill = includedWholeClassForPrint.length > 0 ? includedWholeClassForPrint : includedStudentsForClass;
     if (studentsToBill.length === 0) {
       alert(`There are no students included in the billing list for ${selectedSubLevel}. Please include at least one student.`);
@@ -927,14 +927,15 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     const allItemsToPost = [...baseBillItems, ...optionalItemsToPost];
     const totalToPost = allItemsToPost.reduce((acc, i) => acc + Number(i.amount || 0), 0);
 
+    let persist = { posted: 0, failed: 0, errors: [] };
     if (portalData?.postAcademicBill) {
-      portalData.postAcademicBill({
+      persist = await portalData.postAcademicBill({
         targetStudents: studentsToBill,
         classLevel: selectedSubLevel,
         items: allItemsToPost,
         totalAmount: totalToPost,
         term: 'Term 1 · 2026'
-      });
+      }) || persist;
     }
 
     setPostBillSuccessData({
@@ -946,14 +947,25 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       targetStudentName: '',
       targetClass: selectedSubLevel,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      term: 'Term 1 · 2026'
+      term: 'Term 1 · 2026',
+      databasePosted: Number(persist.posted) || 0,
+      databaseFailed: Number(persist.failed) || 0,
+      databaseError: persist.errors?.[0] || '',
     });
 
-    setSuccessMsg(`⚡ Bulk Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${studentsToBill.length} students in ${selectedSubLevel}!`);
+    if (persist.failed && persist.posted === 0) {
+      setSuccessMsg(`Could not save the ${selectedSubLevel} bills to the database: ${persist.errors[0] || 'request failed'}`);
+      alert(`Could not save bills to the database.\n\n${persist.errors[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
+      setTimeout(() => setSuccessMsg(''), 7000);
+      return;
+    }
+    } else {
+      setSuccessMsg(`⚡ Bulk Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${studentsToBill.length} students in ${selectedSubLevel}${persist.posted ? ' and saved to the database' : ''}.`);
+    }
     setTimeout(() => setSuccessMsg(''), 7000);
   };
 
-  const handleSinglePostToLedger = (student) => {
+  const handleSinglePostToLedger = async (student) => {
     const studentToUse = student || preparingStudentBill;
     if (!studentToUse) {
       alert('Please select a student to post their individual bill.');
@@ -969,8 +981,9 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
     const sFullName = getStudentFullName(studentToUse);
 
+    let persist = { posted: 0, failed: 0, errors: [] };
     if (portalData?.postAcademicBill) {
-      portalData.postAcademicBill({
+      persist = await portalData.postAcademicBill({
         studentId: studentToUse.studentId || studentToUse.id,
         studentName: sFullName,
         targetStudents: [studentToUse],
@@ -978,7 +991,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
         items: allItemsToPost,
         totalAmount: totalToPost,
         term: 'Term 1 · 2026'
-      });
+      }) || persist;
     }
 
     setPostBillSuccessData({
@@ -991,10 +1004,21 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       targetStudentId: studentToUse.studentId || studentToUse.id,
       targetClass: studentToUse.level || selectedSubLevel,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      term: 'Term 1 · 2026'
+      term: 'Term 1 · 2026',
+      databasePosted: Number(persist.posted) || 0,
+      databaseFailed: Number(persist.failed) || 0,
+      databaseError: persist.errors?.[0] || '',
     });
 
-    setSuccessMsg(`⚡ Single Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${sFullName} (${studentToUse.studentId || studentToUse.id})!`);
+    if (persist.failed && persist.posted === 0) {
+      setSuccessMsg(`Could not save ${sFullName}'s bill to the database: ${persist.errors[0] || 'request failed'}`);
+      alert(`Could not save this bill to the database.\n\n${persist.errors[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
+      setTimeout(() => setSuccessMsg(''), 7000);
+      return;
+    }
+    } else {
+      setSuccessMsg(`⚡ Single Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${sFullName}${persist.posted ? ' and saved to the database' : ''}.`);
+    }
     setTimeout(() => setSuccessMsg(''), 7000);
   };
 
@@ -1251,7 +1275,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
   };
 
   // Handle Post Academic Bill to Student Ledger & Accounts
-  const handlePostBillToLedger = (targetStudent = null) => {
+  const handlePostBillToLedger = async (targetStudent = null) => {
     let studentToUse = targetStudent;
     let scopeLabel = '';
     let targetStudentsList = [];
@@ -1299,16 +1323,17 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     const allItemsToPost = [...baseBillItems, ...optionalItemsToPost];
     const totalToPost = allItemsToPost.reduce((acc, i) => acc + Number(i.amount || 0), 0);
 
+    let persist = { posted: 0, failed: 0, errors: [] };
     if (portalData?.postAcademicBill) {
-      portalData.postAcademicBill({
+      persist = await portalData.postAcademicBill({
         studentId: studentToUse?.studentId || studentToUse?.id || null,
         studentName: studentToUse ? getStudentFullName(studentToUse) : null,
         targetStudents: targetStudentsList,
-        classLevel: selectedPostingClass || `${activeCategoryObj.name} · ${selectedSubLevel}`,
+        classLevel: selectedPostingClass || selectedSubLevel || `${activeCategoryObj.name} · ${selectedSubLevel}`,
         items: allItemsToPost,
         totalAmount: totalToPost,
         term: 'Term 1 · 2026'
-      });
+      }) || persist;
     }
 
     const affectedCount = targetStudentsList.length > 0 ? targetStudentsList.length : 1;
@@ -1325,10 +1350,22 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       targetStudentId: studentToUse?.studentId || studentToUse?.id,
       targetClass: selectedPostingClass || `${activeCategoryObj.name} · ${selectedSubLevel}`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      term: 'Term 1 · 2026'
+      term: 'Term 1 · 2026',
+      databasePosted: Number(persist.posted) || 0,
+      databaseFailed: Number(persist.failed) || 0,
+      databaseError: persist.errors?.[0] || '',
     });
 
-    setSuccessMsg(`⚡ Successfully posted Academic Bill of GHS ${totalToPost.toFixed(2)} (${baseBillItems.length} compulsory + ${optionalItemsToPost.length} optional) to ${finalScopeText} (${affectedCount} student accounts)!`);
+    if (persist.failed && persist.posted === 0) {
+      setSuccessMsg(`Could not save bills to the database: ${persist.errors[0] || 'request failed'}`);
+      alert(`Could not save bills to the database.\n\n${persist.errors[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
+      setIsPostingModalOpen(false);
+      setTimeout(() => setSuccessMsg(''), 7000);
+      return;
+    }
+    } else {
+      setSuccessMsg(`⚡ Successfully posted Academic Bill of GHS ${totalToPost.toFixed(2)} (${baseBillItems.length} compulsory + ${optionalItemsToPost.length} optional) to ${finalScopeText} (${affectedCount} student accounts)${persist.posted ? ' and saved to the database' : ''}.`);
+    }
     setIsPostingModalOpen(false);
     setPreparingStudentBill(null); // Close child modal so the foremost success dialog box is unobstructed
     setSelectedPostingStudent(null);
@@ -3504,10 +3541,14 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                 </div>
                 <div>
                   <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, letterSpacing: '0.01em', color: '#ffffff' }}>
-                    Bill Successfully Posted to Ledger!
+                    {postBillSuccessData.databasePosted > 0
+                      ? 'Bill Posted to Database Ledger'
+                      : 'Bill Posted to Student Ledger'}
                   </h3>
                   <p style={{ margin: '3px 0 0', fontSize: 12, color: '#bbf7d0', fontWeight: 600 }}>
-                    Live Ledger Synchronized · {postBillSuccessData.timestamp}
+                    {postBillSuccessData.databasePosted > 0
+                      ? `Saved in the finance database · ${postBillSuccessData.timestamp}`
+                      : `Ledger updated locally · ${postBillSuccessData.timestamp}`}
                   </p>
                 </div>
               </div>
@@ -3582,15 +3623,19 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                 alignItems: 'center',
                 gap: 10,
                 fontSize: 12,
-                color: '#15803d',
-                background: '#dcfce7',
+                color: postBillSuccessData.databasePosted > 0 ? '#15803d' : '#92400e',
+                background: postBillSuccessData.databasePosted > 0 ? '#dcfce7' : '#fef3c7',
                 padding: '12px 16px',
                 borderRadius: 8,
                 fontWeight: 700,
                 marginBottom: 20
               }}>
                 <Check size={18} style={{ flexShrink: 0 }} />
-                <span>Student ledger has been debited. Financial statements, billing invoices, and parent portal balances are updated.</span>
+                <span>
+                  {postBillSuccessData.databasePosted > 0
+                    ? 'Saved to the finance database. The accountant portal, parent fees, and student ledgers will show this bill.'
+                    : `Student ledger is updated on this device. Database save failed${postBillSuccessData.databaseError ? `: ${postBillSuccessData.databaseError}` : ''}. Sign in with a live Head Admin or Accounts session and post again so the accountant can see it.`}
+                </span>
               </div>
 
               {/* Action Buttons */}

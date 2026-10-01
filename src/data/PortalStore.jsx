@@ -143,6 +143,8 @@ export function mapStudentFromApi(s = {}, fallback = {}) {
     guardianPhone: s.guardianPhone || s.guardian_phone || fallback.guardianPhone || '',
     homeAddress: s.homeAddress || s.home_address || fallback.homeAddress || 'Bogoso',
     enrollmentDate: s.enrollmentDate || s.enrollment_date || fallback.enrollmentDate || new Date().toISOString().split('T')[0],
+    onboardedAt: s.onboardedAt || s.onboarded_at || s.created_at || s.createdAt || fallback.onboardedAt || s.enrollmentDate || s.enrollment_date || fallback.enrollmentDate || null,
+    createdAt: s.created_at || s.createdAt || fallback.createdAt || null,
     status: s.status || fallback.status || 'Active',
     studentEmail: s.studentEmail || s.student_email || s.school_email || fallback.studentEmail || '',
     defaultPassword: s.defaultPassword || s.default_password || fallback.defaultPassword || '',
@@ -198,6 +200,8 @@ export function mergeStudentRecords(prev, incoming) {
     guardianPhone: incoming.guardianPhone || prev.guardianPhone,
     homeAddress: incoming.homeAddress || prev.homeAddress,
     enrollmentDate: prev.enrollmentDate || incoming.enrollmentDate || new Date().toISOString().split('T')[0],
+    onboardedAt: incoming.onboardedAt || prev.onboardedAt || incoming.createdAt || prev.createdAt || prev.enrollmentDate || incoming.enrollmentDate,
+    createdAt: incoming.createdAt || prev.createdAt,
     status: incoming.status || prev.status || 'Active',
     studentEmail: incoming.studentEmail || prev.studentEmail,
     defaultPassword: incoming.defaultPassword || prev.defaultPassword,
@@ -358,6 +362,48 @@ function applyCanonicalStudentToState(current, canonical) {
   };
 }
 
+function extractApiList(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== 'object') return [];
+  for (const key of ['fees', 'student_fees', 'studentFees', 'ledgers', 'accounts', 'data', 'records', 'items', 'results', 'bills']) {
+    if (Array.isArray(raw[key])) return raw[key];
+  }
+  if (raw.data && typeof raw.data === 'object') return extractApiList(raw.data);
+  return [];
+}
+
+export function mapFeeFromApi(f = {}) {
+  const billedAmount = Number(
+    f.billedAmount ?? f.billed_amount ?? f.total_billed ?? f.total_payable ?? f.billed ?? f.amount ?? 0
+  ) || 0;
+  const paidAmount = Number(
+    f.paidAmount ?? f.paid_amount ?? f.total_paid ?? f.amount_paid ?? f.paid ?? 0
+  ) || 0;
+  const balanceRaw = f.balance ?? f.current_balance ?? f.amount_due ?? f.outstanding;
+  const balance = balanceRaw === undefined || balanceRaw === null
+    ? Math.max(0, billedAmount - paidAmount)
+    : Number(balanceRaw) || 0;
+  const status = f.status
+    || (balance <= 0 && billedAmount > 0 ? 'Paid' : paidAmount > 0 ? 'Balance Due' : 'Not Paid');
+  return {
+    id: f.id || f.fee_id || f.bill_id || `fee-${f.student_id || f.studentId || Date.now()}`,
+    studentId: f.studentId || f.student_id || f.student_code || f.student_id_code || '',
+    studentName: f.studentName || f.student_name || f.full_name || f.learner || f.child || '',
+    guardianName: f.guardianName || f.guardian_name || f.parent_name || '',
+    guardianEmail: f.guardianEmail || f.guardian_email || f.parent_email || '',
+    term: f.term || 'Term 1 · 2026',
+    billedAmount,
+    paidAmount,
+    balance,
+    status,
+    dueDate: f.dueDate || f.due_date || '2026-09-15',
+    paymentDate: f.paymentDate || f.payment_date || null,
+    itemsBreakdown: f.itemsBreakdown || f.items || f.lines || [],
+    updatedAt: f.updatedAt || f.updated_at || f.created_at || f.lastBillPostedAt || null,
+    lastBillPostedAt: f.lastBillPostedAt || f.updated_at || f.created_at || null,
+  };
+}
+
 export function deduplicateFees(fees = []) {
   const map = new Map();
   (fees || []).forEach(f => {
@@ -371,12 +417,30 @@ export function deduplicateFees(fees = []) {
       map.set(key, f);
     } else {
       const prev = map.get(key);
+      const billedAmount = Math.max(Number(prev.billedAmount) || 0, Number(f.billedAmount) || 0);
+      const paidAmount = Math.max(Number(prev.paidAmount) || 0, Number(f.paidAmount) || 0);
+      const balance = Math.max(0, billedAmount - paidAmount);
+      const status = balance <= 0 && billedAmount > 0
+        ? 'Paid'
+        : paidAmount > 0
+          ? 'Balance Due'
+          : (f.status || prev.status || 'Not Paid');
       map.set(key, {
         ...prev,
         ...f,
-        paidAmount: Math.max(Number(prev.paidAmount) || 0, Number(f.paidAmount) || 0),
-        balance: Math.min(Number(prev.balance !== undefined ? prev.balance : prev.billedAmount) || 0, Number(f.balance !== undefined ? f.balance : f.billedAmount) || 0),
-        status: (prev.status === 'Paid' || f.status === 'Paid') ? 'Paid' : (prev.status === 'Partially Paid' || f.status === 'Partially Paid') ? 'Partially Paid' : (f.status || prev.status || 'Not Paid')
+        studentId: prev.studentId || f.studentId,
+        studentName: prev.studentName || f.studentName,
+        guardianName: prev.guardianName || f.guardianName,
+        guardianEmail: prev.guardianEmail || f.guardianEmail,
+        billedAmount,
+        paidAmount,
+        balance,
+        status,
+        itemsBreakdown: (Array.isArray(f.itemsBreakdown) && f.itemsBreakdown.length)
+          ? f.itemsBreakdown
+          : (prev.itemsBreakdown || []),
+        lastBillPostedAt: f.lastBillPostedAt || prev.lastBillPostedAt,
+        updatedAt: f.updatedAt || prev.updatedAt,
       });
     }
   });
@@ -1042,29 +1106,17 @@ export function PortalDataProvider({ children }) {
 
         // Student Fees & Accounts
         if (feesRes.status === 'fulfilled') {
-          const fRaw = feesRes.value;
-          const fees = Array.isArray(fRaw) ? fRaw : (fRaw?.fees || fRaw?.data || fRaw?.records || []);
+          const fees = extractApiList(feesRes.value);
           if (Array.isArray(fees) && fees.length > 0) {
-            const mapped = fees.map(f => ({
-              id: f.id,
-              studentId: f.studentId || f.student_id || f.student_code,
-              studentName: f.studentName || f.student_name,
-              guardianName: f.guardianName || f.guardian_name,
-              guardianEmail: f.guardianEmail || f.guardian_email,
-              term: f.term || 'Term 1 · 2026',
-              billedAmount: Number(f.billedAmount !== undefined ? f.billedAmount : f.billed_amount) || 0,
-              paidAmount: Number(f.paidAmount !== undefined ? f.paidAmount : f.paid_amount) || 0,
-              balance: Number(f.balance) || 0,
-              status: f.status || 'Not Paid',
-              dueDate: f.dueDate || f.due_date || '2026-09-15',
-              paymentDate: f.paymentDate || f.payment_date
-            }));
-            const mergedFees = deduplicateFees(mergeByKey(current.studentFees || [], mapped, f => (f.studentName ? `${(f.studentName).toLowerCase().trim()}::${(f.term || '').toLowerCase().trim()}` : f.studentId || f.id)));
+            const mapped = fees.map((f) => mapFeeFromApi(f));
+            const mergedFees = deduplicateFees([...(current.studentFees || []), ...mapped]);
             if (!isDeepEqual(current.studentFees, mergedFees)) {
               updates.studentFees = mergedFees;
               updates.feeAccounts = mergedFees.map(f => ({
                 id: `fee-acc-${f.studentId || f.id}`,
                 child: f.studentName,
+                studentId: f.studentId,
+                guardianEmail: f.guardianEmail,
                 school: 'REMALJ Carewell Inspirational School',
                 term: f.term,
                 billed: f.billedAmount,
@@ -1225,7 +1277,7 @@ export function PortalDataProvider({ children }) {
             }
           }
           if (Array.isArray(cloudData.studentFees)) {
-            const merged = deduplicateFees(mergeByKey(updates.studentFees || current.studentFees || [], cloudData.studentFees, f => (f.studentName ? `${(f.studentName).toLowerCase().trim()}::${(f.term || '').toLowerCase().trim()}` : f.studentId || f.id)));
+            const merged = deduplicateFees([...(updates.studentFees || current.studentFees || []), ...cloudData.studentFees.map((f) => mapFeeFromApi(f))]);
             if (!isDeepEqual(current.studentFees, merged)) {
               updates.studentFees = merged;
               hasChanges = true;
@@ -1387,6 +1439,14 @@ export function PortalDataProvider({ children }) {
       if (!canonical.studentEmail) canonical.studentEmail = schoolEmailFromName(canonical.fullName);
       if (!canonical.defaultPassword) {
         canonical.defaultPassword = `StuPass#${String(canonical.studentId).replace(/REMALJ-/i, '')}`;
+      }
+      const nowIso = new Date().toISOString();
+      if (!existing) {
+        canonical.onboardedAt = nowIso;
+        canonical.enrollmentDate = nowIso.slice(0, 10);
+      } else {
+        canonical.onboardedAt = existing.onboardedAt || existing.enrollmentDate || nowIso;
+        canonical.enrollmentDate = existing.enrollmentDate || nowIso.slice(0, 10);
       }
 
       setData((current) => applyCanonicalStudentToState(current, canonical));
@@ -2358,19 +2418,7 @@ export function PortalDataProvider({ children }) {
       }, ...(current.studentFees || [])],
     })),
     postAcademicBill: async ({ studentId, studentName, classLevel, items, totalAmount, term = 'Term 1 · 2026', targetStudents: requestedStudents } = {}) => {
-      try {
-        await api.postAcademicBill({
-          student_id: studentId,
-          student_name: studentName,
-          class_level: classLevel,
-          items,
-          total_amount: totalAmount,
-          term,
-        });
-      } catch (e) {
-        console.warn('Backend bill post fallback:', e);
-      }
-      setData((current) => {
+      const current = dataRef.current || {};
       const amountToPost = Number(totalAmount) || 0;
       let targetStudents = [];
       if (Array.isArray(requestedStudents) && requestedStudents.length > 0) {
@@ -2401,96 +2449,132 @@ export function PortalDataProvider({ children }) {
         });
       }
 
-      if (targetStudents.length === 0) return current;
-
-      const updatedFees = [...(current.studentFees || [])];
-      const updatedFeeAccounts = [...(current.feeAccounts || [])];
-      const updatedLedgerLogs = [...(current.ledgerLogs || [])];
-
-      targetStudents.forEach(stu => {
-        const feeIndex = updatedFees.findIndex(f => f.studentId === stu.studentId || f.studentName === stu.fullName);
-        if (feeIndex >= 0) {
-          const existing = updatedFees[feeIndex];
-          const newBilled = (existing.billedAmount || 0) + amountToPost;
-          const newBalance = Math.max(0, newBilled - (existing.paidAmount || 0));
-          const newStatus = newBalance <= 0 ? 'Paid' : (existing.paidAmount || 0) > 0 ? 'Balance Due' : 'Not Paid';
-          updatedFees[feeIndex] = {
-            ...existing,
-            billedAmount: newBilled,
-            balance: newBalance,
-            status: newStatus,
-            lastBillPostedAt: new Date().toLocaleString(),
-            itemsBreakdown: items || existing.itemsBreakdown,
-            guardianName: stu.guardianName || existing.guardianName,
-            guardianEmail: stu.guardianEmail || existing.guardianEmail,
-          };
-        } else {
-          const newFee = {
-            id: `fee-${stu.id || Date.now()}`,
-            studentId: stu.studentId,
-            studentName: stu.fullName,
-            guardianName: stu.guardianName,
-            guardianEmail: stu.guardianEmail || 'parent@remaljcarewell.edu.gh',
-            term,
-            billedAmount: amountToPost,
-            paidAmount: 0,
-            balance: amountToPost,
-            status: 'Not Paid',
-            dueDate: '2026-09-15',
-            paymentDate: null,
-            itemsBreakdown: items,
-          };
-          updatedFees.unshift(newFee);
-        }
-
-        const accIndex = updatedFeeAccounts.findIndex(a =>
-          (stu.studentId && a.studentId === stu.studentId) || a.child === stu.fullName || a.child === stu.name
-        );
-        if (accIndex >= 0) {
-          const existingAcc = updatedFeeAccounts[accIndex];
-          const newBilled = (existingAcc.billed || 0) + amountToPost;
-          const newPaid = existingAcc.paid || 0;
-          updatedFeeAccounts[accIndex] = {
-            ...existingAcc,
-            billed: newBilled,
-            status: (newBilled - newPaid) <= 0 ? 'Paid' : 'Balance due',
-            guardianEmail: stu.guardianEmail || existingAcc.guardianEmail,
-            studentId: stu.studentId || existingAcc.studentId,
-          };
-        } else {
-          updatedFeeAccounts.unshift({
-            id: `fee-acc-${stu.id || Date.now()}`,
-            child: stu.fullName,
-            studentId: stu.studentId,
-            guardianEmail: stu.guardianEmail,
-            school: 'REMALJ Carewell Inspirational School',
-            term,
-            billed: amountToPost,
-            paid: 0,
-            status: 'Not Paid',
-          });
-        }
-
-        updatedLedgerLogs.unshift({
-          id: `ledg-${Date.now()}-${stu.studentId}`,
-          studentId: stu.studentId,
-          studentName: stu.fullName,
-          classLevel: stu.level || classLevel,
-          transactionType: 'DEBIT (ACADEMIC BILL POSTING)',
-          amount: amountToPost,
-          description: `Term Academic Fee Bill Posted (${term}) - Total: GHS ${amountToPost.toFixed(2)}`,
-          postedBy: 'Admin / Accounts Office',
-          postedAt: new Date().toLocaleString(),
+      const settings = current.academicSettings || {};
+      let persistResult = { posted: 0, failed: 0, errors: [] };
+      try {
+        persistResult = await api.persistPostedAcademicBills({
+          students: targetStudents,
+          items,
+          totalAmount: amountToPost,
+          term,
+          classLevel,
+          academicYear: settings.academicYear || '2026/2027',
+          billedBy: getUserFullName() || 'Accounts Office',
+          dueDate: settings.resumptionDate || '2026-09-15',
         });
-      });
+      } catch (e) {
+        persistResult = { posted: 0, failed: Math.max(1, targetStudents.length), errors: [e.message] };
+        console.warn('Backend bill post fallback:', e);
+      }
 
-      return {
-        ...current,
-        studentFees: updatedFees,
-        feeAccounts: updatedFeeAccounts,
-        ledgerLogs: updatedLedgerLogs,
-      };
-    });
+      const postedAt = new Date().toISOString();
+      if (persistResult.posted > 0) {
+      setData((latest) => {
+        if (targetStudents.length === 0) return latest;
+
+        const updatedFees = [...(latest.studentFees || [])];
+        const updatedFeeAccounts = [...(latest.feeAccounts || [])];
+        const updatedLedgerLogs = [...(latest.ledgerLogs || [])];
+
+        targetStudents.forEach(stu => {
+          const feeIndex = updatedFees.findIndex(f =>
+            (stu.studentId && f.studentId === stu.studentId) || f.studentName === stu.fullName || f.studentName === stu.name
+          );
+          if (feeIndex >= 0) {
+            const existing = updatedFees[feeIndex];
+            const newBilled = (existing.billedAmount || 0) + amountToPost;
+            const newBalance = Math.max(0, newBilled - (existing.paidAmount || 0));
+            const newStatus = newBalance <= 0 ? 'Paid' : (existing.paidAmount || 0) > 0 ? 'Balance Due' : 'Not Paid';
+            updatedFees[feeIndex] = {
+              ...existing,
+              billedAmount: newBilled,
+              balance: newBalance,
+              status: newStatus,
+              lastBillPostedAt: postedAt,
+              updatedAt: postedAt,
+              itemsBreakdown: items || existing.itemsBreakdown,
+              guardianName: stu.guardianName || existing.guardianName,
+              guardianEmail: stu.guardianEmail || existing.guardianEmail,
+              studentId: stu.studentId || existing.studentId,
+            };
+          } else {
+            updatedFees.unshift({
+              id: `fee-${stu.id || stu.studentId || Date.now()}`,
+              studentId: stu.studentId,
+              studentName: stu.fullName || stu.name,
+              guardianName: stu.guardianName,
+              guardianEmail: stu.guardianEmail || 'parent@remaljcarewell.edu.gh',
+              term,
+              billedAmount: amountToPost,
+              paidAmount: 0,
+              balance: amountToPost,
+              status: 'Not Paid',
+              dueDate: settings.resumptionDate || '2026-09-15',
+              paymentDate: null,
+              itemsBreakdown: items,
+              lastBillPostedAt: postedAt,
+              updatedAt: postedAt,
+            });
+          }
+
+          const accIndex = updatedFeeAccounts.findIndex(a =>
+            (stu.studentId && a.studentId === stu.studentId) || a.child === stu.fullName || a.child === stu.name
+          );
+          if (accIndex >= 0) {
+            const existingAcc = updatedFeeAccounts[accIndex];
+            const newBilled = (existingAcc.billed || 0) + amountToPost;
+            const newPaid = existingAcc.paid || 0;
+            updatedFeeAccounts[accIndex] = {
+              ...existingAcc,
+              billed: newBilled,
+              status: (newBilled - newPaid) <= 0 ? 'Paid' : 'Balance due',
+              guardianEmail: stu.guardianEmail || existingAcc.guardianEmail,
+              studentId: stu.studentId || existingAcc.studentId,
+            };
+          } else {
+            updatedFeeAccounts.unshift({
+              id: `fee-acc-${stu.id || stu.studentId || Date.now()}`,
+              child: stu.fullName || stu.name,
+              studentId: stu.studentId,
+              guardianEmail: stu.guardianEmail,
+              school: 'REMALJ Carewell Inspirational School',
+              term,
+              billed: amountToPost,
+              paid: 0,
+              status: 'Not Paid',
+            });
+          }
+
+          updatedLedgerLogs.unshift({
+            id: `ledg-${Date.now()}-${stu.studentId || stu.id || Math.random().toString(36).slice(2, 8)}`,
+            studentId: stu.studentId,
+            studentName: stu.fullName || stu.name,
+            classLevel: stu.level || classLevel,
+            transactionType: 'DEBIT (ACADEMIC BILL POSTING)',
+            amount: amountToPost,
+            description: `Term Academic Fee Bill Posted (${term}) - Total: GHS ${amountToPost.toFixed(2)}`,
+            postedBy: getUserFullName() || 'Admin / Accounts Office',
+            postedAt: new Date().toLocaleString(),
+          });
+        });
+
+        return {
+          ...latest,
+          studentFees: updatedFees,
+          feeAccounts: updatedFeeAccounts,
+          ledgerLogs: updatedLedgerLogs,
+        };
+      });
+      }
+
+      try {
+        if (persistResult.posted > 0) {
+          await refreshBackendData();
+        }
+      } catch (e) {
+        console.warn('Fee ledger refresh after bill post failed:', e);
+      }
+      return persistResult;
     },
     adjustStudentBill: async ({
       studentId,
