@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Download, Plus, Save, CheckCircle2 } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
-import { getAuthUser, getUserFullName } from '../../services/api';
+import { getAuthUser, getUserFullName, isClassTeacherAccount, enrichTeacherSession } from '../../services/api';
 import { downloadPublishedReport } from '../../data/reportDownload';
 import RegisterForExamsForm from '../RegisterForExams/RegisterForExamsForm';
 import AcademicSettingsManager from './AcademicSettingsManager';
@@ -77,12 +77,12 @@ export const SCHOOL_SUBJECTS = [
 
 export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
   const { results, publishResult, onboardedStudents, academicSettings, teacherDirectory, timetable } = usePortalData();
-  const authUser = getAuthUser();
-  const lecturerName = getUserFullName() || authUser?.name || 'Staff';
+  const authUser = enrichTeacherSession(getAuthUser() || {});
+  const lecturerName = getUserFullName(authUser) || authUser?.name || 'Staff';
 
   // Determine assigned classes for this teacher
   const teacherAssignedClass = authUser?.classAssigned || authUser?.class_assigned || '';
-  const isClassTeacher = authUser?.teacherDesignation === 'class_teacher' || authUser?.teacher_designation === 'class_teacher';
+  const isClassTeacher = isClassTeacherAccount(authUser);
 
   const [selectedClass, setSelectedClass] = useState(() => initialTarget?.classLevel || teacherAssignedClass || 'Basic 1');
   const [selectedSubClass, setSelectedSubClass] = useState(() => initialTarget?.subClass || 'All');

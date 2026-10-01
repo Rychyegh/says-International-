@@ -9,6 +9,12 @@
   font-family: system-ui, -apple-system, sans-serif;
 }
 
+.single-student-bill-page {
+  max-width: 210mm;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
 .fee-header-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
@@ -368,6 +374,14 @@ body.print-individual-bill {
 }
 
 @media print {
+  body.print-individual-bill html,
+  body.print-individual-bill,
+  body.print-individual-bill body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
   body.print-individual-bill .topbar,
   body.print-individual-bill .pre-header,
   body.print-individual-bill .portal__sidebar,
@@ -391,24 +405,35 @@ body.print-individual-bill {
     background: #ffffff !important;
     box-shadow: none !important;
     overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
   }
 
-  body.print-individual-bill .fee-structure-container > *:not(:has(.official-bill-document)) {
+  /* Hide every node that is not the single-student bill or an ancestor/descendant of it. */
+  body.print-individual-bill *:not(.single-student-bill-page):not(:has(.single-student-bill-page)):not(.single-student-bill-page *) {
     display: none !important;
   }
 
-  body.print-individual-bill .official-bill-document {
+  body.print-individual-bill .single-student-bill-page,
+  body.print-individual-bill .official-bill-document.single-student-bill-page {
     display: block !important;
     visibility: visible !important;
     position: static !important;
     width: 100% !important;
-    max-width: 190mm !important;
+    max-width: 194mm !important;
     margin: 0 auto !important;
-    padding: 8mm 10mm !important;
+    padding: 6mm 8mm !important;
     box-shadow: none !important;
     border: none !important;
     background: #ffffff !important;
     color: #000000 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-before: avoid !important;
   }
 
   body.print-individual-bill .official-bill-document table {
@@ -421,5 +446,9 @@ body.print-individual-bill {
     flex-direction: row !important;
     align-items: center !important;
     gap: 12px !important;
+  }
+
+  body.print-individual-bill .receipt-logo {
+    height: 48px !important;
   }
 }

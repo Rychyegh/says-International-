@@ -295,6 +295,95 @@ function saveRegisteredAccount(acc) {
   } catch (e) {}
 }
 
+function readRegisteredAccounts() {
+  try {
+    const raw = localStorage.getItem('registered_accounts');
+    const list = raw ? JSON.parse(raw) : {};
+    return list && typeof list === 'object' ? list : {};
+  } catch {
+    return {};
+  }
+}
+
+export function lookupRegisteredAccount(emailOrStaffId) {
+  const key = String(emailOrStaffId || '').trim().toLowerCase();
+  if (!key) return null;
+  const list = readRegisteredAccounts();
+  if (list[key]) return list[key];
+  return Object.values(list).find((account) => {
+    if (!account || typeof account !== 'object') return false;
+    return [account.email, account.staffId, account.staff_id]
+      .some((value) => String(value || '').trim().toLowerCase() === key);
+  }) || null;
+}
+
+function lookupDirectoryTeacher(email, staffId) {
+  try {
+    const data = JSON.parse(localStorage.getItem('remalj-portal-live-data-v3') || '{}');
+    const directory = Array.isArray(data.teacherDirectory) ? data.teacherDirectory : [];
+    const emailKey = String(email || '').trim().toLowerCase();
+    const staffKey = String(staffId || '').trim().toLowerCase();
+    return directory.find((teacher) => {
+      const teacherEmail = String(teacher.email || '').trim().toLowerCase();
+      const teacherStaff = String(teacher.staffId || teacher.staff_id || '').trim().toLowerCase();
+      return (emailKey && teacherEmail === emailKey) || (staffKey && teacherStaff === staffKey);
+    }) || null;
+  } catch {
+    return null;
+  }
+}
+
+export function isClassTeacherAccount(user) {
+  if (!user || typeof user !== 'object') return false;
+  const designation = String(
+    user.teacherDesignation || user.teacher_designation || user.designation || user.role || ''
+  ).toLowerCase().replace(/\s+/g, '_');
+  if (designation === 'class_teacher' || designation.includes('class_teacher')) return true;
+  if (String(user.role || '').toLowerCase() === 'class teacher') return true;
+  if (user.isClassTeacher === true || user.is_class_teacher === true) return true;
+  if (user.requiresClassTeacherPasscode === true || user.requires_class_teacher_passcode === true) return true;
+  return false;
+}
+
+export function enrichTeacherSession(user = {}) {
+  const email = String(user.email || '').trim();
+  const local = lookupRegisteredAccount(email) || lookupRegisteredAccount(user.staffId || user.staff_id);
+  const directory = lookupDirectoryTeacher(email, user.staffId || user.staff_id || local?.staffId);
+  const classTeacher = isClassTeacherAccount(user)
+    || isClassTeacherAccount(local)
+    || isClassTeacherAccount(directory)
+    || String(directory?.role || '').toLowerCase().includes('class teacher');
+  const classAssigned = user.classAssigned
+    || user.class_assigned
+    || local?.assignedClass
+    || local?.classAssigned
+    || local?.classLevel
+    || directory?.classAssigned
+    || directory?.class_assigned
+    || '';
+  const staffId = user.staffId || user.staff_id || local?.staffId || directory?.staffId || '';
+  const fullName = user.fullName || user.full_name || user.name || local?.fullName || directory?.name || email;
+  const session = {
+    ...local,
+    ...directory,
+    ...user,
+    email: email || local?.email || directory?.email || '',
+    fullName,
+    name: fullName,
+    staffId,
+    classAssigned,
+    class_assigned: classAssigned,
+    role: 'teacher',
+    teacherDesignation: classTeacher ? 'class_teacher' : (user.teacherDesignation || user.teacher_designation || 'subject_teacher'),
+    teacher_designation: classTeacher ? 'class_teacher' : (user.teacher_designation || user.teacherDesignation || 'subject_teacher'),
+    isClassTeacher: classTeacher,
+    is_class_teacher: classTeacher,
+  };
+  delete session.password;
+  delete session.passcode;
+  return session;
+}
+
 export const api = {
   // --- Auth & User Access ---
   login: async (credentials) => {

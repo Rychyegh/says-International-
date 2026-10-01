@@ -187,12 +187,16 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
           email: item.email,
           phone: item.phone || item.phone_number || item.phoneNumber || prev.phone || '024 000 0000',
           role: item.role || prev.role || 'student',
+          teacherDesignation: item.teacherDesignation || item.teacher_designation || prev.teacherDesignation,
+          passcode: item.passcode || prev.passcode,
           status: item.status || prev.status || 'Active',
           staffId: item.staffId || item.staff_id || prev.staffId,
           studentId: item.studentId || item.student_id || prev.studentId,
           password: item.password || prev.password || 'Carewell2026!',
           department: item.department || prev.department || 'General',
           assignedClass: item.assignedClass || item.assigned_class || prev.assignedClass,
+          classLevel: item.classLevel || item.class_level || prev.classLevel,
+          subClass: item.subClass || item.sub_class || prev.subClass,
           createdAt: item.createdAt || item.created_at || prev.createdAt || '2026-01-01',
           lastLogin: item.lastLogin || item.last_login || prev.lastLogin || 'Never',
           mustChangePassword: !!item.mustChangePassword,
@@ -204,18 +208,30 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       if (!item || !item.email) return;
       const emailKey = item.email.toLowerCase();
       const prev = combinedMap.get(emailKey) || {};
+      const backendDesignation = item.teacherDesignation || item.teacher_designation || item.designation || prev.teacherDesignation;
+      const isClassTeacher = backendDesignation === 'class_teacher'
+        || item.role === 'class_teacher'
+        || String(item.role || '').toLowerCase() === 'class teacher'
+        || prev.role === 'class_teacher'
+        || prev.teacherDesignation === 'class_teacher'
+        || item.is_class_teacher === true
+        || item.isClassTeacher === true;
       combinedMap.set(emailKey, {
         id: item.id || item._id || prev.id || `usr_${Date.now()}`,
         fullName: item.fullName || item.full_name || item.name || prev.fullName || 'User',
         email: item.email,
         phone: item.phone || item.phone_number || prev.phone || '024 000 0000',
-        role: item.role || prev.role || 'student',
+        role: isClassTeacher ? 'class_teacher' : (item.role || prev.role || 'student'),
+        teacherDesignation: isClassTeacher ? 'class_teacher' : (backendDesignation || prev.teacherDesignation),
+        passcode: prev.passcode || item.passcode,
         status: item.status || prev.status || 'Active',
         staffId: item.staffId || item.staff_id || prev.staffId,
         studentId: item.studentId || item.student_id || item.student_code || prev.studentId,
         password: prev.password || 'Carewell2026!',
         department: item.department || prev.department || 'General',
-        assignedClass: item.assignedClass || item.assigned_class || prev.assignedClass,
+        assignedClass: item.assignedClass || item.assigned_class || item.class_assigned || prev.assignedClass,
+        classLevel: item.classLevel || item.class_level || prev.classLevel,
+        subClass: item.subClass || item.sub_class || prev.subClass,
         createdAt: item.createdAt || item.created_at || prev.createdAt || '2026-01-01',
         lastLogin: item.lastLogin || item.last_login || prev.lastLogin || 'Never',
         mustChangePassword: !!(item.mustChangePassword || item.must_change_password),

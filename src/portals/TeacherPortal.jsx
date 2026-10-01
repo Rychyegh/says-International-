@@ -15,7 +15,7 @@ import { PortalSettings, StaffAssignments, StaffCalendar } from '../components/S
 import { AdmissionsRegister } from '../components/Onboarding/Onboarding';
 import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
 import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
-import { api, getAuthUser, getUserFullName } from '../services/api';
+import { api, getAuthUser, getUserFullName, setAuthUser, enrichTeacherSession, isClassTeacherAccount } from '../services/api';
 import { usePortalData } from '../data/PortalStore';
 
 const TEACHER_GREEN = '#204d2d';
@@ -164,8 +164,25 @@ export default function TeacherPortal() {
   const onboardedStudents = store?.onboardedStudents || [];
   const teacherDirectory = store?.teacherDirectory || [];
 
-  const authUser = getAuthUser();
-  const isClassTeacher = authUser?.teacherDesignation === 'class_teacher' || authUser?.teacher_designation === 'class_teacher';
+  const authUser = enrichTeacherSession(getAuthUser() || {});
+  const isClassTeacher = isClassTeacherAccount(authUser);
+
+  useEffect(() => {
+    if (!isClassTeacher) return undefined;
+    const stored = getAuthUser() || {};
+    if (stored.teacherDesignation !== 'class_teacher' && stored.teacher_designation !== 'class_teacher') {
+      setAuthUser({
+        ...stored,
+        ...authUser,
+        teacherDesignation: 'class_teacher',
+        teacher_designation: 'class_teacher',
+        isClassTeacher: true,
+        is_class_teacher: true,
+        role: 'teacher',
+      });
+    }
+    return undefined;
+  }, [isClassTeacher, authUser.email, authUser.staffId]);
   const [classDashboard, setClassDashboard] = useState(null);
   const [recordStats, setRecordStats] = useState(null);
   const staffId = authUser?.staffId || authUser?.staff_id || classDashboard?.teacher?.staffId || '';

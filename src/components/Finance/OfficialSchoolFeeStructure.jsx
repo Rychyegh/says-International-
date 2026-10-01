@@ -1588,7 +1588,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       )}
 
       {/* Header Banner */}
-      <div className="fee-header-card">
+      <div className="fee-header-card no-print">
         <div className="fee-header-brand">
           <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 68, width: 'auto', borderRadius: 8, border: '2px solid #0284c7', boxShadow: '0 4px 10px rgba(2,132,199,0.2)' }} />
           <div>
@@ -2217,7 +2217,9 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       {activeBillingView === 'single_student' && (
         <div className="animate-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Student Picker Bar */}
-          <div style={{
+          <div
+            className="no-print"
+            style={{
             background: '#ffffff',
             border: '2px solid #16a34a',
             borderRadius: 12,
@@ -2387,112 +2389,113 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                 </div>
               </div>
 
-              {/* Printable Official Single Student Bill Document */}
-              <div style={{ padding: 32, background: '#fff' }} className="printable-document official-bill-document">
-                <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: 18, marginBottom: 24 }} className="receipt-header-box">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }} className="receipt-header-inline">
-                    <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 60, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
+              {/* Printable Official Single Student Bill — same one-page layout as bulk class print */}
+              <div
+                className="printable-document official-bill-document single-student-bill-page"
+                style={{
+                  background: '#ffffff',
+                  padding: '36px 42px',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: 16, marginBottom: 20 }} className="receipt-header-box">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }} className="receipt-header-inline">
+                    <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 56, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
                     <div style={{ textAlign: 'left' }} className="receipt-school-text">
-                      <div style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', letterSpacing: '0.03em', lineHeight: 1.2 }}>
+                      <div style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', letterSpacing: '0.02em', lineHeight: 1.2 }}>
                         REMALJ CAREWELL INSPIRATIONAL SCHOOL
                       </div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginTop: 3 }}>
-                        P.O. BOX 139, BOGOSO · PRESTEA HUNI-VALLEY MUNICIPALITY · GHANA
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', marginTop: 2 }}>
+                        P.O. BOX 139, BOGOSO · PRESTEA HUNI-VALLEY MUNICIPALITY · GHANA · PHONE: 024 111 2222
                       </div>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'center', marginTop: 12 }}>
-                    <div style={{ display: 'inline-block', background: '#0f172a', color: '#fff', padding: '4px 18px', borderRadius: 20, fontSize: 12, fontWeight: 900, letterSpacing: '0.05em' }}>
+                  <div style={{ textAlign: 'center', marginTop: 10 }}>
+                    <div style={{ display: 'inline-block', background: '#0f172a', color: '#fff', padding: '3px 18px', borderRadius: 20, fontSize: 11, fontWeight: 900, letterSpacing: '0.05em' }}>
                       OFFICIAL STUDENT FEE BILL STATEMENT · TERM 1 (2025/2026)
                     </div>
                   </div>
                 </div>
 
-                {/* Student Info Card */}
                 <div style={{
                   background: '#f8fafc',
                   border: '1px solid #e2e8f0',
-                  borderRadius: 12,
-                  padding: 16,
-                  marginBottom: 24,
+                  borderRadius: 10,
+                  padding: 14,
+                  marginBottom: 18,
                   display: 'grid',
-                  gridTemplateColumns: '95px 1fr 1fr',
-                  gap: 16,
+                  gridTemplateColumns: '80px 1fr 1fr',
+                  gap: 14,
                   alignItems: 'center'
                 }}>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{
-                      width: 82, height: 92, borderRadius: 8, border: '2px dashed #cbd5e1',
+                      width: 70, height: 78, borderRadius: 6, border: '1.5px solid #cbd5e1',
                       background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center',
                       overflow: 'hidden', margin: '0 auto'
                     }}>
                       {preparingStudentBill.photo || preparingStudentBill.passportPhoto ? (
                         <img src={preparingStudentBill.photo || preparingStudentBill.passportPhoto} alt={getStudentFullName(preparingStudentBill)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
-                        <User size={40} color="#94a3b8" />
+                        <User size={36} color="#94a3b8" />
                       )}
                     </div>
                   </div>
-
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>STUDENT FULL NAME:</div>
-                    <div style={{ fontSize: 18, fontWeight: 900, color: '#0f172a' }}>{getStudentFullName(preparingStudentBill)}</div>
-                    <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>
-                      Student ID: <code style={{ fontWeight: 800, color: '#0284c7' }}>{preparingStudentBill.studentId}</code>
+                    <div style={{ fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>STUDENT FULL NAME:</div>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{getStudentFullName(preparingStudentBill)}</div>
+                    <div style={{ fontSize: 11.5, color: '#475569', marginTop: 2 }}>
+                      Student ID: <code style={{ fontWeight: 800, color: '#0284c7' }}>{preparingStudentBill.studentId || preparingStudentBill.id}</code>
                     </div>
                   </div>
-
-                  <div style={{ fontSize: 12.5, lineHeight: 1.6, color: '#334155' }}>
+                  <div style={{ fontSize: 12, lineHeight: 1.55, color: '#334155' }}>
                     <div><strong>Class:</strong> {preparingStudentBill.level || selectedSubLevel} ({preparingStudentBill.classSection || 'A'})</div>
                     <div><strong>Guardian:</strong> {preparingStudentBill.guardianName || preparingStudentBill.guardian || 'Parent/Guardian'}</div>
                     <div><strong>Date Issued:</strong> {new Date().toLocaleDateString('en-GB')}</div>
                   </div>
                 </div>
 
-                {/* Line Items */}
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 13, fontWeight: 900, color: '#0f3a4b', textTransform: 'uppercase', marginBottom: 8 }}>
-                    1. Compulsory Fees Component (Subtotal: GHS {totalBase.toFixed(2)})
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, color: '#0f3a4b', textTransform: 'uppercase', marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+                    <span>1. Compulsory Term Fees Component</span>
+                    <span>Subtotal: GHS {totalBase.toFixed(2)}</span>
                   </div>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, border: '1px solid #cbd5e1' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, border: '1px solid #cbd5e1' }}>
                     <thead>
-                      <tr style={{ background: '#f8fafc', borderBottom: '1px solid #cbd5e1', textAlign: 'left' }}>
-                        <th style={{ padding: '8px 12px' }}>Fee Line Item</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>Amount (GHS)</th>
+                      <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', textAlign: 'left' }}>
+                        <th style={{ padding: '6px 10px' }}>Fee Line Item</th>
+                        <th style={{ padding: '6px 10px', textAlign: 'right' }}>Amount (GHS)</th>
                       </tr>
                     </thead>
                     <tbody>
                       {baseBillItems.map((item, idx) => (
                         <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '7px 12px', fontWeight: 600 }}>{item.details}</td>
-                          <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700 }}>{Number(item.amount || 0).toFixed(2)}</td>
+                          <td style={{ padding: '5px 10px', fontWeight: 600 }}>{item.details}</td>
+                          <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 700 }}>{Number(item.amount || 0).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
 
-                {/* Selected Optional Items */}
-                {selectedStudentOptionalIds.length > 0 && (
-                  <div style={{ marginBottom: 20 }}>
-                    <div style={{ fontSize: 13, fontWeight: 900, color: '#0284c7', textTransform: 'uppercase', marginBottom: 8 }}>
-                      2. Optional Fees Component (Subtotal: GHS {optionalBillItems.filter(o => selectedStudentOptionalIds.includes(o.id)).reduce((acc, i) => acc + Number(i.amount || 0), 0).toFixed(2)})
+                {studentSelectedOpts.length > 0 && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, fontWeight: 900, color: '#0284c7', textTransform: 'uppercase', marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+                      <span>2. Optional Services (Motivation, Bus, Feeding, Stationery, Pick Up Card)</span>
+                      <span>Subtotal: GHS {studentOptTotal.toFixed(2)}</span>
                     </div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, border: '1px solid #bae6fd' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, border: '1px solid #bae6fd' }}>
                       <thead>
                         <tr style={{ background: '#f0f9ff', borderBottom: '1px solid #bae6fd', textAlign: 'left' }}>
-                          <th style={{ padding: '8px 12px' }}>Optional Item</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Amount (GHS)</th>
+                          <th style={{ padding: '6px 10px' }}>Optional Item</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'right' }}>Amount (GHS)</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {optionalBillItems.filter(o => selectedStudentOptionalIds.includes(o.id)).map((opt) => (
+                        {studentSelectedOpts.map((opt) => (
                           <tr key={opt.id} style={{ borderBottom: '1px solid #f0f9ff' }}>
-                            <td style={{ padding: '7px 12px', fontWeight: 600, color: '#0369a1' }}>
-                              <div>{opt.icon} {opt.details}</div>
-                              {opt.description && <div style={{ fontSize: 11, color: '#64748b', fontWeight: 500, marginTop: 2 }}>{opt.description}</div>}
-                            </td>
-                            <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700 }}>{Number(opt.amount || 0).toFixed(2)}</td>
+                            <td style={{ padding: '5px 10px', fontWeight: 600, color: '#0369a1' }}>{opt.icon} {opt.details}</td>
+                            <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 700 }}>{Number(opt.amount || 0).toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2500,42 +2503,51 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                   </div>
                 )}
 
-                {/* Total */}
                 <div style={{
                   background: '#f0fdf4',
                   border: '2px solid #16a34a',
-                  borderRadius: 10,
-                  padding: '12px 18px',
+                  borderRadius: 8,
+                  padding: '10px 16px',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  marginBottom: 20
+                  marginBottom: 16
                 }}>
-                  <span style={{ fontSize: 14, fontWeight: 900, color: '#166534', textTransform: 'uppercase' }}>
-                    TOTAL AMOUNT DUE FOR {getStudentFullName(preparingStudentBill).toUpperCase()}:
+                  <span style={{ fontSize: 12.5, fontWeight: 900, color: '#166534', textTransform: 'uppercase' }}>
+                    TOTAL ACADEMIC BILL DUE FOR {getStudentFullName(preparingStudentBill).toUpperCase()}:
                   </span>
-                  <span style={{ fontSize: 22, fontWeight: 900, color: '#15803d' }}>
+                  <span style={{ fontSize: 19, fontWeight: 900, color: '#15803d' }}>
                     GHS {studentGrandTotal.toFixed(2)}
                   </span>
                 </div>
 
-                {/* Bank / MoMo details */}
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 16px', fontSize: 12, lineHeight: 1.6, color: '#334155', marginBottom: 24 }}>
-                  <div><strong>PAYMENT DETAILS:</strong></div>
+                <div style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  fontSize: 11,
+                  color: '#334155',
+                  marginBottom: 18,
+                  lineHeight: 1.5
+                }}>
+                  <div><strong>OFFICIAL BANKING PAYMENT DETAILS:</strong></div>
                   <div>• GCB Bank PLC (Bogoso Branch) · Account No: 7011130001245</div>
                   <div>• Ecobank Ghana PLC · Account No: 1441002390119</div>
-                  <div>• MTN Mobile Money: 298410 (REMALJ Carewell School) · Ref: <code>{preparingStudentBill.studentId}</code></div>
+                  <div>• MTN Mobile Money: 298410 (REMALJ Carewell School) · Ref: <code>{preparingStudentBill.studentId || preparingStudentBill.id}</code></div>
                 </div>
 
-                {/* Signatures */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 8 }}>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ borderBottom: '1px solid #0f172a', width: 180, marginBottom: 4 }}></div>
-                    <div style={{ fontWeight: 800, fontSize: 11, color: '#0f172a' }}>Headmaster / Principal</div>
+                    <div style={{ borderBottom: '1px solid #0f172a', width: 170, marginBottom: 4 }}></div>
+                    <div style={{ fontWeight: 800, fontSize: 10.5, color: '#0f172a' }}>Headmaster / Principal</div>
+                  </div>
+                  <div style={{ textAlign: 'center', fontSize: 10, color: '#64748b' }}>
+                    Addressed to {getStudentFullName(preparingStudentBill)} · 1 of 1
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ borderBottom: '1px solid #0f172a', width: 180, marginBottom: 4 }}></div>
-                    <div style={{ fontWeight: 800, fontSize: 11, color: '#0f172a' }}>Bursar / Accountant Signature</div>
+                    <div style={{ borderBottom: '1px solid #0f172a', width: 170, marginBottom: 4 }}></div>
+                    <div style={{ fontWeight: 800, fontSize: 10.5, color: '#0f172a' }}>Bursar / Accountant Signature</div>
                   </div>
                 </div>
               </div>
@@ -3195,330 +3207,6 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Individual bills open in the Single Student view so print/layout stay on one document. */}
-      {false && preparingStudentBill && (
-        <div
-          onClick={(e) => { if (e.target === e.currentTarget) setPreparingStudentBill(null); }}
-          style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(15,23,42,0.75)', backdropFilter: 'blur(4px)',
-            zIndex: 10000, overflowY: 'auto', padding: '85px 16px 40px',
-            display: 'flex', justifyContent: 'center', alignItems: 'flex-start'
-          }}
-        >
-          <div style={{
-            width: '100%', maxWidth: 780, background: '#fff', borderRadius: 16,
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden',
-            animation: 'fadeUp 0.2s ease-out'
-          }}>
-            {/* Modal Control Header */}
-            <div style={{
-              background: '#0f172a', padding: '16px 24px', color: '#fff',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-            }} className="no-print">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <FileText size={18} color="#38bdf8" />
-                <span style={{ fontWeight: 800, fontSize: 15 }}>Official Student Bill & Billing Statement</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <button
-                  onClick={() => handleExportStudentBillCSV(preparingStudentBill)}
-                  style={{ padding: '6px 12px', background: '#1e293b', color: '#38bdf8', border: '1px solid #334155', borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
-                >
-                  📥 Export CSV
-                </button>
-                <button
-                  onClick={() => window.print()}
-                  style={{ padding: '6px 14px', background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 6, fontWeight: 900, fontSize: 12, cursor: 'pointer' }}
-                >
-                  🖨️ Print Student Bill
-                </button>
-                <button
-                  onClick={() => handlePostBillToLedger(preparingStudentBill)}
-                  style={{ padding: '6px 14px', background: '#16a34a', color: '#ffffff', border: 'none', borderRadius: 6, fontWeight: 900, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
-                >
-                  ⚡ Post Bill to Student Ledger
-                </button>
-                <button
-                  onClick={() => setPreparingStudentBill(null)}
-                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
-                >
-                  <X size={20} />
-                </button>
-              </div>
-            </div>
-
-            {/* ── OPTIONAL BILL SELECTION TOGGLES FOR THIS STUDENT ── */}
-            <div className="no-print" style={{
-              background: '#e0f2fe',
-              padding: '12px 24px',
-              borderBottom: '1px solid #bae6fd'
-            }}>
-              <div style={{ fontSize: 12, fontWeight: 900, color: '#0369a1', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Sparkles size={15} /> Select Optional Bills to Include for {getStudentFullName(preparingStudentBill)}:
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                {optionalBillItems.map((opt) => {
-                  const isChecked = selectedStudentOptionalIds.includes(opt.id);
-                  return (
-                    <label
-                      key={opt.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        background: isChecked ? '#0284c7' : '#ffffff',
-                        color: isChecked ? '#ffffff' : '#334155',
-                        padding: '5px 12px',
-                        borderRadius: 20,
-                        fontSize: 12,
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedStudentOptionalIds(prev => [...prev, opt.id]);
-                          } else {
-                            setSelectedStudentOptionalIds(prev => prev.filter(id => id !== opt.id));
-                          }
-                        }}
-                      />
-                      <span>{opt.icon} {opt.label} (GHS {opt.amount.toFixed(2)})</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Printable Official Student Bill Document */}
-            <div style={{ padding: 32, background: '#fff' }} className="printable-document official-bill-document">
-              {/* Document Header */}
-              <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: 18, marginBottom: 24 }} className="receipt-header-box">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }} className="receipt-header-inline">
-                  <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 60, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
-                  <div style={{ textAlign: 'left' }} className="receipt-school-text">
-                    <div style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', letterSpacing: '0.03em', lineHeight: 1.2 }}>
-                      REMALJ CAREWELL INSPIRATIONAL SCHOOL
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginTop: 3 }}>
-                      P.O. BOX 139, BOGOSO · PRESTEA HUNI-VALLEY MUNICIPALITY · GHANA
-                    </div>
-                  </div>
-                </div>
-                <div style={{ textAlign: 'center', marginTop: 12 }}>
-                  <div style={{ display: 'inline-block', background: '#0f172a', color: '#fff', padding: '4px 18px', borderRadius: 20, fontSize: 12, fontWeight: 900, letterSpacing: '0.05em' }}>
-                    OFFICIAL STUDENT FEE BILL STATEMENT · TERM 1 (2026)
-                  </div>
-                </div>
-              </div>
-
-              {/* Student Metadata Card with Passport Photo */}
-              <div style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderRadius: 12,
-                padding: 16,
-                marginBottom: 24,
-                display: 'grid',
-                gridTemplateColumns: '95px 1fr 1fr',
-                gap: 16,
-                alignItems: 'center'
-              }}>
-                {/* Photo Upload & Preview Frame */}
-                <div style={{ textAlign: 'center', position: 'relative' }}>
-                  <div style={{
-                    width: 82,
-                    height: 92,
-                    borderRadius: 8,
-                    border: '2px dashed #cbd5e1',
-                    background: '#ffffff',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    overflow: 'hidden',
-                    position: 'relative',
-                    margin: '0 auto',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
-                  }}>
-                    {preparingStudentBill.photo || preparingStudentBill.passportPhoto ? (
-                      <img
-                        src={preparingStudentBill.photo || preparingStudentBill.passportPhoto}
-                        alt={getStudentFullName(preparingStudentBill)}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                    ) : (
-                      <div style={{ color: '#94a3b8', textAlign: 'center', padding: 4 }}>
-                        <Upload size={20} style={{ margin: '0 auto 2px auto', display: 'block', color: '#64748b' }} />
-                        <span style={{ fontSize: 9, fontWeight: 800, color: '#64748b', display: 'block', lineHeight: 1.1 }}>
-                          PASSPORT<br />PHOTO
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Interactive Photo Upload Control */}
-                  <label
-                    htmlFor="student-bill-photo-input"
-                    className="no-print"
-                    style={{
-                      display: 'inline-block',
-                      marginTop: 6,
-                      fontSize: 10,
-                      fontWeight: 800,
-                      color: '#0284c7',
-                      background: '#e0f2fe',
-                      padding: '3px 8px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      border: '1px solid #bae6fd',
-                      transition: 'all 0.2s'
-                    }}
-                    title="Click to upload student photo"
-                  >
-                    📷 {preparingStudentBill.photo || preparingStudentBill.passportPhoto ? 'Change' : 'Upload'}
-                  </label>
-                  <input
-                    type="file"
-                    id="student-bill-photo-input"
-                    accept="image/*"
-                    onChange={handleStudentPhotoUpload}
-                    style={{ display: 'none' }}
-                    className="no-print"
-                  />
-                </div>
-
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Student Name</div>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a', marginTop: 2 }}>{getStudentFullName(preparingStudentBill)}</div>
-                  
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginTop: 10 }}>Student ID Number</div>
-                  <div style={{ fontSize: 13, fontWeight: 900, color: '#1e1b4b', fontFamily: 'monospace' }}>{preparingStudentBill.studentId}</div>
-                </div>
-
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Class Level</div>
-                  <div style={{ fontSize: 14, fontWeight: 900, color: '#0f172a', marginTop: 2 }}>{activeCategoryObj.name} · {selectedSubLevel}</div>
-
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginTop: 10 }}>Guardian / Parent</div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: '#334155' }}>{preparingStudentBill.guardianName} ({preparingStudentBill.guardianPhone || '024 111 2222'})</div>
-                </div>
-              </div>
-
-              {/* Fee Line Items Table */}
-              <div style={{ marginBottom: 24 }}>
-                <h4 style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Section 1: Compulsory Academic Bill ({selectedSubLevel}):
-                </h4>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, marginBottom: 16 }}>
-                  <thead>
-                    <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
-                      <th style={{ padding: '8px 12px', color: '#1e293b' }}>Fee Component Details</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'right', color: '#1e293b' }}>Billed Amount (GHS)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {baseBillItems.map((item, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                        <td style={{ padding: '8px 12px', fontWeight: 700, color: '#334155' }}>{item.details}</td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>{item.amount.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                    <tr style={{ background: '#f8fafc', fontWeight: 900, borderTop: '2px solid #cbd5e1' }}>
-                      <td style={{ padding: '8px 12px', color: '#0f172a' }}>Compulsory Bill Subtotal:</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 13.5, color: '#0f172a' }}>GHS {totalBase.toFixed(2)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                {/* Section 2: Optional Selected Add-ons */}
-                {studentSelectedOpts.length > 0 && (
-                  <div>
-                    <h4 style={{ fontSize: 13, fontWeight: 800, color: '#0369a1', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Section 2: Optional Bills (Motivation, Bus, Feeding, Stationery, Pick Up Card):
-                    </h4>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, marginBottom: 16 }}>
-                      <thead>
-                        <tr style={{ background: '#e0f2fe', borderBottom: '2px solid #bae6fd', textAlign: 'left' }}>
-                          <th style={{ padding: '8px 12px', color: '#0369a1' }}>Optional Component</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'right', color: '#0369a1' }}>Amount (GHS)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {studentSelectedOpts.map((opt) => (
-                          <tr key={opt.id} style={{ borderBottom: '1px solid #e0f2fe' }}>
-                            <td style={{ padding: '8px 12px', fontWeight: 700, color: '#0369a1' }}>
-                              <div>{opt.icon} {opt.details} ({opt.label})</div>
-                              {opt.description && <div style={{ fontSize: 11, color: '#64748b', fontWeight: 500, marginTop: 2 }}>{opt.description}</div>}
-                            </td>
-                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
-                              {opt.amount.toFixed(2)}
-                            </td>
-                          </tr>
-                        ))}
-                        <tr style={{ background: '#f0f9ff', fontWeight: 900, borderTop: '2px solid #bae6fd' }}>
-                          <td style={{ padding: '8px 12px', color: '#0369a1' }}>Optional Bills Subtotal:</td>
-                          <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 13.5, color: '#0369a1' }}>
-                            GHS {studentOptTotal.toFixed(2)}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {/* Grand Total Summary */}
-                <div style={{ background: '#0f172a', color: '#fff', borderRadius: 8, padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontWeight: 900, fontSize: 14, letterSpacing: '0.03em' }}>
-                    GRAND TOTAL TERM BILL PAYABLE:
-                  </div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: '#38bdf8' }}>
-                    GHS {studentGrandTotal.toFixed(2)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Financial Status Summary */}
-              {(() => {
-                const feeAcc = studentFees.find(f => f.studentId === preparingStudentBill.studentId) || { billedAmount: studentGrandTotal, paidAmount: studentGrandTotal, balance: 0, status: 'Paid' };
-                return (
-                  <div style={{ background: feeAcc.balance === 0 ? '#f0fdf4' : '#fff1f2', border: `1px solid ${feeAcc.balance === 0 ? '#bbf7d0' : '#fecaca'}`, borderRadius: 12, padding: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: feeAcc.balance === 0 ? '#166534' : '#991b1b', textTransform: 'uppercase' }}>Payment Status</div>
-                      <div style={{ fontSize: 18, fontWeight: 900, color: feeAcc.balance === 0 ? '#14532d' : '#991b1b', marginTop: 2 }}>{feeAcc.status}</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--gray-600)' }}>Amount Paid: GHS {feeAcc.paidAmount.toFixed(2)}</div>
-                      <div style={{ fontSize: 16, fontWeight: 900, color: feeAcc.balance === 0 ? '#166534' : '#dc2626', marginTop: 2 }}>
-                        Outstanding Balance: GHS {feeAcc.balance.toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Signatures & Footer */}
-              <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid #cbd5e1', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: 12 }}>
-                <div>
-                  <div style={{ fontWeight: 800, color: '#0f172a' }}>REMALJ Accounts & Finance Office</div>
-                  <div style={{ color: '#64748b', fontSize: 11 }}>Official Institutional Bill Invoice</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ borderBottom: '1px solid #0f172a', width: 160, marginBottom: 4 }}></div>
-                  <div style={{ fontWeight: 800, fontSize: 11, color: '#0f172a' }}>Bursar / Accountant Signature</div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       )}

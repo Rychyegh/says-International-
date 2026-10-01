@@ -1,19 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, Phone, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
-import { api, setAuthToken, setAuthUser, getAuthUser } from '../../services/api';
+import { api, setAuthToken, setAuthUser, getAuthUser, isClassTeacherAccount, enrichTeacherSession, lookupRegisteredAccount } from '../../services/api';
 import { usePortalData } from '../../data/PortalStore';
 import './Login.css';
-
-function isClassTeacherAccount(user) {
-  if (!user) return false;
-  const designation = String(
-    user.teacherDesignation || user.teacher_designation || user.designation || ''
-  ).toLowerCase().replace(/\s+/g, '_');
-  if (designation === 'class_teacher' || designation.includes('class_teacher')) return true;
-  if (user.isClassTeacher === true || user.is_class_teacher === true) return true;
-  if (user.requiresClassTeacherPasscode === true || user.requires_class_teacher_passcode === true) return true;
-  return String(user.role || '').toLowerCase() === 'class_teacher';
-}
 
 const PORTAL_CONFIG = {
   teacher: {
@@ -269,50 +258,100 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     }
   };
 
+  const completeClassTeacherLogin = (userObj = {}) => {
+    const session = enrichTeacherSession({
+      ...userObj,
+      email: userObj.email || email,
+      teacherDesignation: 'class_teacher',
+      teacher_designation: 'class_teacher',
+      isClassTeacher: true,
+      classAssigned: userObj.classAssigned || userObj.class_assigned || pendingClassTeacher?.classAssigned || '',
+      staffId: userObj.staffId || userObj.staff_id || pendingClassTeacher?.staffId || '',
+    });
+    setAuthUser({
+      ...session,
+      teacherDesignation: 'class_teacher',
+      teacher_designation: 'class_teacher',
+      isClassTeacher: true,
+      is_class_teacher: true,
+      role: 'teacher',
+    });
+    setLoading(false);
+    setSuccess(true);
+    setTimeout(() => onLoginSuccess(), 900);
+  };
+
   const finishTeacherLogin = async (userObj) => {
-    const fullName = userObj.fullName || userObj.full_name || userObj.name || email;
-    let classTeacher = isClassTeacherAccount(userObj);
-    let staffId = userObj.staffId || userObj.staff_id || '';
-    let classAssigned = userObj.classAssigned || userObj.class_assigned || '';
+    const localAccount = lookupRegisteredAccount(userObj.email || email) || lookupRegisteredAccount(userObj.staffId || userObj.staff_id);
+    const session = enrichTeacherSession({ ...userObj, email: userObj.email || email });
+    let classTeacher = isClassTeacherAccount(session);
+    let staffId = session.staffId || '';
+    let classAssigned = session.classAssigned || '';
 
     if (!classTeacher) {
       try {
         const status = await api.getClassTeacherStatus();
-        if (status && (status.is_class_teacher === true || status.isClassTeacher === true)) {
+        if (status && (status.is_class_teacher === true || status.isClassTeacher === true || isClassTeacherAccount(status))) {
           classTeacher = true;
           staffId = status.staff_id || status.staffId || staffId;
           classAssigned = status.class_assigned || status.classAssigned || classAssigned;
         }
       } catch {
-        classTeacher = false;
+        // Local registry / staff directory still decide class-teacher access below.
+      }
+    }
+
+    if (!classTeacher) {
+      try {
+        const staffRes = await api.getStaff();
+        const staffList = Array.isArray(staffRes)
+          ? staffRes
+          : (staffRes?.staff || staffRes?.data || staffRes?.items || []);
+        const emailKey = String(session.email || email || '').trim().toLowerCase();
+        const match = staffList.find((member) => {
+          const memberEmail = String(member.email || '').trim().toLowerCase();
+          const memberStaff = String(member.staffId || member.staff_id || member.staff_code || '').trim();
+          return (emailKey && memberEmail === emailKey)
+            || (staffId && memberStaff && memberStaff === staffId);
+        });
+        if (match && (isClassTeacherAccount(match) || String(match.role || '').toLowerCase().includes('class teacher'))) {
+          classTeacher = true;
+          staffId = match.staffId || match.staff_id || staffId;
+          classAssigned = match.classAssigned || match.class_assigned || classAssigned;
+        }
+      } catch {
+        // Staff directory is optional when the login payload already identifies the teacher.
       }
     }
 
     if (classTeacher) {
-      setAuthUser({
-        ...userObj,
-        fullName,
-        name: fullName,
-        role: 'teacher',
-        teacherDesignation: 'subject_teacher',
+      const pending = {
         staffId,
         classAssigned,
-      });
-      setPendingClassTeacher({ staffId, classAssigned, fullName });
-      setClassPasscode('');
-      setClassTeacherStep(true);
-      setLoading(false);
-      setError('');
+        fullName: session.fullName,
+        email: session.email || email,
+        user: { ...session, staffId, classAssigned },
+      };
+      setPendingClassTeacher(pending);
+      const issuedPasscode = String(localAccount?.passcode || '').trim();
+      if (issuedPasscode) {
+        setClassPasscode('');
+        setClassTeacherStep(true);
+        setLoading(false);
+        setError('');
+        return;
+      }
+      completeClassTeacherLogin(pending.user);
       return;
     }
 
     setAuthUser({
-      ...userObj,
-      fullName,
-      name: fullName,
+      ...session,
       role: 'teacher',
       teacherDesignation: 'subject_teacher',
-      classAssigned: '',
+      teacher_designation: 'subject_teacher',
+      isClassTeacher: false,
+      classAssigned: session.classAssigned || '',
     });
     setLoading(false);
     setSuccess(true);
@@ -329,26 +368,21 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     }
 
     setLoading(true);
+    const localAccount = lookupRegisteredAccount(pendingClassTeacher?.email || email)
+      || lookupRegisteredAccount(pendingClassTeacher?.staffId);
+    const localPasscode = String(localAccount?.passcode || '').trim();
+
     try {
       const result = await api.verifyClassTeacherPasscode({
         staffId: pendingClassTeacher?.staffId,
         passcode,
       });
-      const userObj = result?.user || getAuthUser() || {};
-      const fullName = userObj.fullName || userObj.full_name || userObj.name || pendingClassTeacher?.fullName || email;
-      setAuthUser({
-        ...userObj,
-        fullName,
-        name: fullName,
-        role: 'teacher',
-        teacherDesignation: 'class_teacher',
-        classAssigned: userObj.classAssigned || userObj.class_assigned || pendingClassTeacher?.classAssigned || '',
-        staffId: userObj.staffId || userObj.staff_id || pendingClassTeacher?.staffId || '',
-      });
-      setLoading(false);
-      setSuccess(true);
-      setTimeout(() => onLoginSuccess(), 900);
+      completeClassTeacherLogin(result?.user || pendingClassTeacher?.user || getAuthUser() || {});
     } catch (err) {
+      if (localPasscode && localPasscode === passcode) {
+        completeClassTeacherLogin(pendingClassTeacher?.user || getAuthUser() || {});
+        return;
+      }
       setLoading(false);
       if (addSecurityAlert) {
         addSecurityAlert({
