@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { CalendarPlus, CheckCircle2, ClipboardList, CreditCard, MessageSquare, Send, Settings, UserRound } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
+import { getUserFullName } from '../../services/api';
 import './SchoolWorkflows.css';
 
 export function StaffCalendar() {
@@ -106,7 +107,9 @@ export function StudentMessagesAssignments({ showMessages = false }) {
 export function PortalSettings({ portal = 'admin' }) {
   const { profiles = {}, theme, updateProfile, setTheme } = usePortalData();
   const profile = (profiles && profiles[portal]) || (profiles && profiles.admin) || { name: 'Administrator', photo: '' };
-  const [name, setName] = useState(profile?.name || 'Administrator');
+  const accountName = portal === 'teacher' ? getUserFullName() : '';
+  const savedName = profile?.name || '';
+  const [name, setName] = useState((!savedName || savedName === 'Teacher' || savedName === 'Administrator') && accountName ? accountName : (savedName || 'Administrator'));
   const [photo, setPhoto] = useState(profile?.photo || '');
   const [notice, setNotice] = useState('');
 

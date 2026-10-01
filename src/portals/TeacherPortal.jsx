@@ -15,7 +15,7 @@ import { PortalSettings, StaffAssignments, StaffCalendar } from '../components/S
 import { AdmissionsRegister } from '../components/Onboarding/Onboarding';
 import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
 import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
-import { api, getAuthUser } from '../services/api';
+import { api, getAuthUser, getUserFullName } from '../services/api';
 import { usePortalData } from '../data/PortalStore';
 
 const TEACHER_GREEN = '#204d2d';
@@ -81,6 +81,84 @@ const FALLBACK_TRANSPORT = {
   stopsLeft: 3,
 };
 
+function asList(res, keys) {
+  if (Array.isArray(res)) return res;
+  if (!res || typeof res !== 'object') return [];
+  for (const key of keys) {
+    if (Array.isArray(res[key])) return res[key];
+  }
+  return [];
+}
+
+function rowText(row, keys) {
+  for (const key of keys) {
+    if (row?.[key] != null && String(row[key]).trim()) return String(row[key]).trim();
+  }
+  return '';
+}
+
+function scopeToTeacher(rows, { classLabel, teacherName }) {
+  const classKey = classLabel.trim().toLowerCase();
+  const teacherKey = teacherName.trim().toLowerCase();
+  return rows.filter((row) => {
+    const rowClass = rowText(row, ['classLevel', 'class_level', 'level', 'audience', 'class']).toLowerCase();
+    const rowTeacher = rowText(row, ['lecturer', 'lecturer_name', 'author', 'author_name', 'teacher', 'teacher_name']).toLowerCase();
+    const classOk = !classKey || !rowClass || rowClass === classKey || rowClass.includes(classKey) || classKey.includes(rowClass);
+    const teacherOk = !teacherKey || !rowTeacher || rowTeacher === teacherKey || rowTeacher.includes(teacherKey) || teacherKey.includes(rowTeacher);
+    return classOk && teacherOk;
+  });
+}
+
+function isTodayClass(row) {
+  const today = new Date();
+  const todayLong = today.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  const todayShort = today.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase().slice(0, 3);
+  const day = rowText(row, ['day', 'weekday']).toLowerCase();
+  if (day === todayLong || day.slice(0, 3) === todayShort) return true;
+  const dateValue = rowText(row, ['date', 'class_date', 'scheduled_date']);
+  return Boolean(dateValue) && dateValue.slice(0, 10) === today.toISOString().slice(0, 10);
+}
+
+function startMinutes(time) {
+  const match = String(time || '').match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (!match) return null;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const meridiem = (match[3] || '').toUpperCase();
+  if (meridiem === 'PM' && hours < 12) hours += 12;
+  if (meridiem === 'AM' && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+}
+
+function isUngradedAssignment(row) {
+  const status = rowText(row, ['status', 'grading_status']).toLowerCase();
+  if (!status) return true;
+  return !['graded', 'approved', 'closed'].includes(status);
+}
+
+function computeTeacherStats(timetables, assignments, results) {
+  const todayClasses = timetables.filter(isTodayClass);
+  const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+  const classesRemaining = todayClasses.filter((row) => {
+    const start = startMinutes(rowText(row, ['time', 'start_time']));
+    return start == null || start >= nowMinutes;
+  }).length;
+  const openAssignments = assignments.filter(isUngradedAssignment);
+  const scores = results
+    .map((row) => Number(row.score ?? row.total_score ?? row.totalScore ?? row.average))
+    .filter((score) => Number.isFinite(score));
+  const averageClassScore = scores.length
+    ? Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10
+    : null;
+  return {
+    classesToday: todayClasses.length,
+    classesRemaining,
+    assignmentsDue: openAssignments.length,
+    assignmentsUngraded: openAssignments.length,
+    averageClassScore,
+  };
+}
+
 export default function TeacherPortal() {
   const store = usePortalData();
   const onboardedStudents = store?.onboardedStudents || [];
@@ -89,7 +167,10 @@ export default function TeacherPortal() {
   const authUser = getAuthUser();
   const isClassTeacher = authUser?.teacherDesignation === 'class_teacher' || authUser?.teacher_designation === 'class_teacher';
   const [classDashboard, setClassDashboard] = useState(null);
+  const [recordStats, setRecordStats] = useState(null);
   const staffId = authUser?.staffId || authUser?.staff_id || classDashboard?.teacher?.staffId || '';
+  const teacherLabel = getUserFullName(authUser) || classDashboard?.teacher?.fullName || '';
+  const classLabel = classDashboard?.teacher?.classAssigned || authUser?.classAssigned || authUser?.class_assigned || '';
 
   useEffect(() => {
     if (!isClassTeacher) return undefined;
@@ -102,7 +183,37 @@ export default function TeacherPortal() {
     return () => { cancelled = true; };
   }, [isClassTeacher]);
 
-  const SUBJECT_RESTRICTED = ['Students', 'Admissions', 'Transport', 'Messages', 'Operations', 'Settings'];
+  useEffect(() => {
+    let cancelled = false;
+    Promise.allSettled([
+      api.getTimetables(),
+      api.getAssignments(),
+      api.getResults(),
+    ]).then(([timetableResult, assignmentResult, resultResult]) => {
+      if (cancelled) return;
+      const scope = { classLabel, teacherName: teacherLabel };
+      const timetables = timetableResult.status === 'fulfilled'
+        ? scopeToTeacher(asList(timetableResult.value, ['timetables', 'schedules', 'items', 'data', 'records']), scope)
+        : null;
+      const assignments = assignmentResult.status === 'fulfilled'
+        ? scopeToTeacher(asList(assignmentResult.value, ['assignments', 'items', 'data', 'records']), scope)
+        : null;
+      const results = resultResult.status === 'fulfilled'
+        ? scopeToTeacher(asList(resultResult.value, ['results', 'scores', 'items', 'data', 'records']), scope)
+        : null;
+      const computed = computeTeacherStats(timetables || [], assignments || [], results || []);
+      setRecordStats({
+        classesToday: timetables ? computed.classesToday : undefined,
+        classesRemaining: timetables ? computed.classesRemaining : undefined,
+        assignmentsDue: assignments ? computed.assignmentsDue : undefined,
+        assignmentsUngraded: assignments ? computed.assignmentsUngraded : undefined,
+        averageClassScore: results ? computed.averageClassScore : undefined,
+      });
+    });
+    return () => { cancelled = true; };
+  }, [classLabel, teacherLabel]);
+
+  const SUBJECT_RESTRICTED = ['Students', 'Admissions', 'Academic Calendar', 'Transport', 'Messages', 'Operations', 'Settings'];
 
   const [activeNav, setActiveNavState] = useState(() => {
     const saved = localStorage.getItem('says_teacher_active_nav') || 'Dashboard';
@@ -138,15 +249,23 @@ export default function TeacherPortal() {
     return () => window.removeEventListener('says_navigate', handleNavEvent);
   }, [isClassTeacher]);
 
-  const teacherName = classDashboard?.teacher?.fullName || authUser?.fullName || authUser?.name || 'Staff';
-  const classAssignedLabel = classDashboard?.teacher?.classAssigned || authUser?.classAssigned || authUser?.class_assigned || '';
+  const teacherName = teacherLabel || 'Staff';
+  const classAssignedLabel = classLabel;
   const dashboardStats = classDashboard?.stats || {};
-  const classesToday = dashboardStats.classesToday ?? 6;
-  const classesRemaining = dashboardStats.classesRemaining ?? 2;
-  const assignmentsDue = dashboardStats.assignmentsDue ?? 11;
-  const assignmentsUngraded = dashboardStats.assignmentsUngraded ?? 3;
-  const averageClassScore = dashboardStats.averageClassScore ?? 78;
-  const averageScoreDelta = dashboardStats.averageScoreDelta ?? 2.4;
+  const classesToday = recordStats?.classesToday ?? dashboardStats.classesToday;
+  const classesRemaining = recordStats?.classesRemaining ?? dashboardStats.classesRemaining;
+  const assignmentsDue = recordStats?.assignmentsDue ?? dashboardStats.assignmentsDue;
+  const assignmentsUngraded = recordStats?.assignmentsUngraded ?? dashboardStats.assignmentsUngraded;
+  const averageClassScore = recordStats?.averageClassScore ?? dashboardStats.averageClassScore;
+  const averageScoreDelta = dashboardStats.averageScoreDelta;
+  const classesTodayLabel = classesToday == null ? '—' : String(classesToday);
+  const assignmentsDueLabel = assignmentsDue == null ? '—' : String(assignmentsDue);
+  const averageScoreLabel = averageClassScore == null ? '—' : `${averageClassScore}%`;
+  const classesTrend = classesRemaining == null ? 'From the timetable' : `${classesRemaining} remaining`;
+  const assignmentsTrend = assignmentsUngraded == null ? 'From assignment records' : `${assignmentsUngraded} not graded`;
+  const scoreTrend = averageClassScore == null
+    ? 'No recorded scores'
+    : (averageScoreDelta == null ? 'From recorded results' : `${Number(averageScoreDelta) >= 0 ? '+' : ''}${averageScoreDelta}% vs last`);
   const liveTransport = (isClassTeacher && classDashboard?.transport) ? classDashboard.transport : FALLBACK_TRANSPORT;
   const activityFeed = classDashboard?.activity?.length
     ? classDashboard.activity.map((item) => ({
@@ -187,9 +306,9 @@ export default function TeacherPortal() {
 
   const STATS = [
     { label: 'Total Students',  value: String(dashboardStats.totalStudents ?? displayStudents.length), trend: 'Active enrolled roster',  up: true,  icon: '👥', bg: '#dcfce7', ic: '#166534' },
-    { label: 'Classes Today',   value: String(classesToday),   trend: `${classesRemaining} remaining`,   up: true,  icon: '📚', bg: '#dbeafe', ic: '#1e3a8a' },
-    { label: 'Assignments Due', value: String(assignmentsDue),  trend: `${assignmentsUngraded} not graded`,  up: false, icon: '📋', bg: '#fef9c3', ic: '#78350f' },
-    { label: 'Avg Class Score', value: `${averageClassScore}%`, trend: `${Number(averageScoreDelta) >= 0 ? '+' : ''}${averageScoreDelta}% vs last`, up: Number(averageScoreDelta) >= 0,  icon: '📈', bg: '#dcfce7', ic: '#166534' },
+    { label: 'Classes Today',   value: classesTodayLabel,   trend: classesTrend,   up: true,  icon: '📚', bg: '#dbeafe', ic: '#1e3a8a' },
+    { label: 'Assignments Due', value: assignmentsDueLabel,  trend: assignmentsTrend,  up: assignmentsUngraded != null && Number(assignmentsUngraded) === 0, icon: '📋', bg: '#fef9c3', ic: '#78350f' },
+    { label: 'Avg Class Score', value: averageScoreLabel, trend: scoreTrend, up: averageScoreDelta == null || Number(averageScoreDelta) >= 0,  icon: '📈', bg: '#dcfce7', ic: '#166534' },
   ];
 
   return (
@@ -213,7 +332,7 @@ export default function TeacherPortal() {
           </div>
           <span className="sidebar-section-label">Navigation</span>
           {NAV.slice(0, 9)
-            .filter((item) => isClassTeacher || !['Students', 'Admissions'].includes(item.label))
+            .filter((item) => isClassTeacher || !SUBJECT_RESTRICTED.includes(item.label))
             .map((item) => (
             <button key={item.label} className={`sidebar-item${activeNav === item.label ? ' active' : ''}`}
               style={activeNav === item.label ? { background: TEACHER_GREEN } : {}}
@@ -309,8 +428,8 @@ export default function TeacherPortal() {
                 </p>
                 <h1 className="page-header__title">Good morning, {teacherName} 👋</h1>
                 <p className="page-header__subtitle">
-                  You have <strong style={{ color: TEACHER_ACCENT }}>{classesToday} classes</strong> today and{' '}
-                  <strong style={{ color: '#c89a3a' }}>{assignmentsUngraded} assignments</strong> pending review.
+                  You have <strong style={{ color: TEACHER_ACCENT }}>{classesTodayLabel} classes</strong> today and{' '}
+                  <strong style={{ color: '#c89a3a' }}>{assignmentsUngraded == null ? '—' : assignmentsUngraded} assignments</strong> pending review.
                   {isClassTeacher && classAssignedLabel ? <> Form class: <strong style={{ color: TEACHER_ACCENT }}>{classAssignedLabel}</strong>.</> : null}
                 </p>
               </div>
@@ -328,7 +447,6 @@ export default function TeacherPortal() {
                 <div className="panel">
                   <div className="panel__header">
                     <h2 className="panel__title">{classAssignedLabel ? `${classAssignedLabel} Student Ledger` : 'Class Student Ledger'}</h2>
-                    <button style={{ padding: '6px 14px', fontSize: 11, border: `1.5px solid ${TEACHER_GREEN}`, color: TEACHER_GREEN, borderRadius: 6, background: 'transparent', cursor: 'pointer', fontWeight: 700 }}>+ Add Student</button>
                   </div>
                   <table className="data-table">
                     <thead><tr><th>Student Name</th><th>ID Number</th><th>Attendance</th><th>Maths Grade</th><th>Science Grade</th><th>Status</th></tr></thead>
@@ -462,7 +580,7 @@ export default function TeacherPortal() {
           {activeNav === 'Exam Registration' && <ExamRegistration />}
           {activeNav === 'Admissions' && isClassTeacher && <AdmissionsRegister />}
           {activeNav === 'Assignments' && <StaffAssignments />}
-          {activeNav === 'Academic Calendar' && <StaffCalendar />}
+          {activeNav === 'Academic Calendar' && isClassTeacher && <StaffCalendar />}
           {activeNav === 'Contacts' && <ContactDirectory />}
           {activeNav === 'Reports' && <TeacherReports />}
           {activeNav === 'Operations' && isClassTeacher && <OperationsCentre />}

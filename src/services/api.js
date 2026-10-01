@@ -29,6 +29,21 @@ export function getAuthUser() {
   }
 }
 
+export function getUserFullName(user = getAuthUser()) {
+  if (!user || typeof user !== 'object') return '';
+  const explicit = [user.fullName, user.full_name, user.teacherName, user.teacher_name]
+    .map((value) => String(value || '').trim())
+    .find(Boolean);
+  if (explicit) return explicit;
+  const parts = [
+    user.firstName || user.first_name,
+    user.otherNames || user.other_names || user.middleName || user.middle_name,
+    user.lastName || user.last_name || user.surname,
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+  if (parts.length) return parts.join(' ');
+  return String(user.name || '').trim();
+}
+
 export function setAuthUser(user) {
   if (user) {
     localStorage.setItem('auth_user', JSON.stringify(user));

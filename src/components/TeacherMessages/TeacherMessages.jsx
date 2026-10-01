@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { MessageSquare, Send, Users } from 'lucide-react';
 import './TeacherMessages.css';
 import { usePortalData } from '../../data/PortalStore';
+import { getUserFullName } from '../../services/api';
 
 const RECIPIENTS = {
   Parents: [
@@ -34,7 +35,7 @@ export default function TeacherMessages({ initialAudience = 'Parents' }) {
   const send = (event) => {
     event.preventDefault();
     if (!body.trim()) return;
-    sendMessage({ from: 'Mr. Samuel Amponsah', senderRole: 'Staff', to: audience, recipient: recipient.name, subject: topic, body: body.trim() });
+    sendMessage({ from: getUserFullName() || 'Staff', senderRole: 'Staff', to: audience, recipient: recipient.name, subject: topic, body: body.trim() });
     setBody('');
     setNotice(`Message queued for ${recipient.name}.`);
   };

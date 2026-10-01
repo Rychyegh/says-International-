@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { usePortalData } from '../../data/PortalStore';
+import { getUserFullName } from '../../services/api';
 
 export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
   const { academicSettings, onboardedStudents, saveScoreSheetEntry } = usePortalData();
@@ -13,7 +14,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
   const [term, setTerm] = useState(academicSettings?.academicTerm || 'Term 3');
   const [subject, setSubject] = useState('Mathematics');
   const [category, setCategory] = useState('Core');
-  const [instructor, setInstructor] = useState('Mr. Ebenezer Arthur');
+  const [instructor, setInstructor] = useState(getUserFullName() || '');
   const [examDate, setExamDate] = useState('2025-07-16');
 
   const [arrivalTest, setArrivalTest] = useState(0);

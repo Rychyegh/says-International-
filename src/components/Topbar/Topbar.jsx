@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { GraduationCap, Users, BookOpen, LogOut, ShieldCheck, CreditCard, Bell, BellRing, X, CheckCheck, FileText, FileCheck } from 'lucide-react';
-import { getAuthUser } from '../../services/api';
+import { getAuthUser, getUserFullName } from '../../services/api';
 import { usePortalData } from '../../data/PortalStore';
 import DashboardSearch from '../DashboardSearch/DashboardSearch';
 import './Topbar.css';
@@ -52,7 +52,10 @@ export default function Topbar({ activePortal, isAuthed, onSignOut, adminRole })
 
   const isSubAdmin = currentAdminRole === 'sub_admin' || authUser?.role === 'sub_admin' || authUser?.adminRole === 'sub_admin';
 
-  const userName = authUser?.fullName || authUser?.name || authUser?.email || (isSubAdmin && activePortal === 'admin' ? 'Sub-Admin Officer' : defaultUser.name);
+  const signedInName = getUserFullName(authUser);
+  const userName = activePortal === 'teacher'
+    ? (signedInName || 'Staff')
+    : (signedInName || authUser?.email || (isSubAdmin && activePortal === 'admin' ? 'Sub-Admin Officer' : defaultUser.name));
   const userRole = activePortal === 'admin'
     ? (isSubAdmin ? 'Sub-Administrator' : 'Head Administrator')
     : (authUser?.role

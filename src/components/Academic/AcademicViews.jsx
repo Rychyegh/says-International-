@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Download, Plus, Save, CheckCircle2 } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
+import { getUserFullName } from '../../services/api';
 import { downloadPublishedReport } from '../../data/reportDownload';
 import RegisterForExamsForm from '../RegisterForExams/RegisterForExamsForm';
 import AcademicSettingsManager from './AcademicSettingsManager';
@@ -9,12 +10,13 @@ import './AcademicViews.css';
 const COURSE_CATALOGUE = ['Pure Mathematics', 'Physics', 'Literature in English', 'ICT Project', 'Chemistry', 'Economics', 'Government', 'Biology'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
-const blankTimetable = { day: 'Monday', time: '08:00 AM', subject: '', room: '', lecturer: 'Mr. Samuel Amponsah' };
-const blankResult = { subject: 'Pure Mathematics', score: 0, grade: 'A', lecturer: 'Mr. Samuel Amponsah' };
+const blankTimetable = { day: 'Monday', time: '08:00 AM', subject: '', room: '', lecturer: '' };
+const blankResult = { subject: 'Pure Mathematics', score: 0, grade: 'A', lecturer: '' };
 
 export function LecturerSchedule() {
   const { timetable, saveTimetableEntry } = usePortalData();
-  const [entry, setEntry] = useState(blankTimetable);
+  const lecturerName = getUserFullName() || 'Staff';
+  const [entry, setEntry] = useState({ ...blankTimetable, lecturer: lecturerName });
   const [notice, setNotice] = useState('');
   const update = (key) => (event) => setEntry((current) => ({ ...current, [key]: event.target.value }));
   const submit = (event) => {
@@ -22,7 +24,7 @@ export function LecturerSchedule() {
     if (!entry.subject.trim() || !entry.room.trim()) return;
     saveTimetableEntry(entry);
     setNotice(`${entry.subject} is now visible in the student timetable.`);
-    setEntry(blankTimetable);
+    setEntry({ ...blankTimetable, lecturer: lecturerName });
   };
   return (
     <div className="academic-view animate-fade-up">
@@ -44,7 +46,8 @@ export function LecturerSchedule() {
 
 export function LecturerGrades() {
   const { results, publishResult } = usePortalData();
-  const [result, setResult] = useState(blankResult);
+  const lecturerName = getUserFullName() || 'Staff';
+  const [result, setResult] = useState({ ...blankResult, lecturer: lecturerName });
   const [notice, setNotice] = useState('');
   const update = (key) => (event) => setResult((current) => ({ ...current, [key]: event.target.value }));
   const submit = (event) => {
@@ -104,7 +107,7 @@ export function LecturerGrades() {
                           <strong>Error Note from Academic Head:</strong> {item.declineNote || 'Correction required.'}
                         </div>
                         <button
-                          onClick={() => setResult({ subject: item.subject, score: item.score, grade: item.grade, lecturer: item.lecturer || 'Mr. Samuel Amponsah' })}
+                          onClick={() => setResult({ subject: item.subject, score: item.score, grade: item.grade, lecturer: item.lecturer || lecturerName })}
                           style={{ padding: '4px 10px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 800 }}
                         >
                           ✏️ Edit & Resubmit Corrected Result

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { api } from '../services/api';
+import { api, getUserFullName } from '../services/api';
 import { cloudSync } from '../services/cloudSync';
 
 const STORAGE_KEY = 'remalj-portal-live-data-v3';
@@ -1067,7 +1067,7 @@ export function PortalDataProvider({ children }) {
       }
       setData((current) => ({
         ...current,
-        assignments: [{ id: crypto.randomUUID?.() || String(Date.now()), title, instructions, audience, due, author: 'Mr. Samuel Amponsah', status: 'Published' }, ...current.assignments],
+        assignments: [{ id: crypto.randomUUID?.() || String(Date.now()), title, instructions, audience, due, author: getUserFullName() || 'Staff', status: 'Published' }, ...current.assignments],
       }));
     },
     submitApplication: async (application) => {
