@@ -1935,19 +1935,79 @@ export function PortalDataProvider({ children }) {
       return onboardedResults;
     },
     updateOnboardedStudent: async (id, updates) => {
+      const currentRoster = dataRef.current.onboardedStudents || [];
+      const existing = currentRoster.find((s) => s.id === id || s.studentId === id)
+        || findMatchingStudent(currentRoster, updates);
+      const backendId = existing?.id && !isSyntheticLocalId(existing.id) ? existing.id : null;
+      const payload = {
+        fullName: updates.fullName || existing?.fullName,
+        full_name: updates.fullName || existing?.fullName,
+        level: updates.level || existing?.level,
+        class_level: updates.level || existing?.level,
+        classSection: updates.classSection || existing?.classSection,
+        class_section: updates.classSection || existing?.classSection,
+        guardianName: updates.guardianName || existing?.guardianName,
+        guardian_name: updates.guardianName || existing?.guardianName,
+        guardianEmail: updates.guardianEmail || existing?.guardianEmail,
+        guardian_email: updates.guardianEmail || existing?.guardianEmail,
+        guardianPhone: updates.guardianPhone || existing?.guardianPhone,
+        guardian_phone: updates.guardianPhone || existing?.guardianPhone,
+      };
       try {
-        await api.updateStudent(id, updates);
+        if (backendId) {
+          await api.updateStudent(backendId, payload);
+        } else if (existing?.studentId) {
+          await api.updateStudent(existing.studentId, payload);
+        }
       } catch (e) {
         console.warn('Backend update student fallback:', e);
       }
-      setData((current) => ({
-        ...current,
-        onboardedStudents: (current.onboardedStudents || []).map((s) => (s.id === id || s.studentId === id) ? {
-          ...s,
+      setData((current) => {
+        const roster = current.onboardedStudents || [];
+        const prev = roster.find((s) => s.id === id || s.studentId === id)
+          || findMatchingStudent(roster, updates);
+        if (!prev) return current;
+        const merged = mergeStudentRecords(prev, {
           ...updates,
-          level: updates.level ? formatClassToBasic(updates.level) : s.level,
-        } : s),
-      }));
+          id: prev.id,
+          studentId: prev.studentId,
+          level: updates.level ? formatClassToBasic(updates.level) : prev.level,
+        });
+        const oldName = normalizePersonName(prev.fullName || prev.name);
+        const oldSid = String(prev.studentId || prev.id || '');
+        return {
+          ...current,
+          onboardedStudents: deduplicateStudents(
+            roster.map((s) => (studentsAreSamePerson(s, prev) ? merged : s))
+          ),
+          studentFees: (current.studentFees || []).map((f) => {
+            const same = (f.studentId && String(f.studentId) === oldSid)
+              || (f.id && String(f.id) === String(prev.id))
+              || normalizePersonName(f.studentName) === oldName;
+            return same
+              ? {
+                  ...f,
+                  studentId: merged.studentId || f.studentId,
+                  studentName: merged.fullName,
+                  guardianName: merged.guardianName || f.guardianName,
+                  guardianEmail: merged.guardianEmail || f.guardianEmail,
+                }
+              : f;
+          }),
+          feeAccounts: (current.feeAccounts || []).map((a) => {
+            const same = (a.studentId && String(a.studentId) === oldSid)
+              || normalizePersonName(a.child) === oldName;
+            return same
+              ? {
+                  ...a,
+                  studentId: merged.studentId || a.studentId,
+                  child: merged.fullName,
+                  guardianEmail: merged.guardianEmail || a.guardianEmail,
+                }
+              : a;
+          }),
+        };
+      });
     },
     deleteOnboardedStudent: async (id) => {
       try {

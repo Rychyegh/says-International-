@@ -42,6 +42,9 @@ const NAV = [
   { icon: <ShieldAlert size={15} />, label: 'Security & Intrusion Alerts', badge: 'Alerts' },
 ];
 
+const HEAD_ADMIN_PV_DESK = 'Pre-Audit & Approve PV';
+const SUB_ADMIN_PV_NAV = ['Submit PV Request', 'Prepare Bills Payables'];
+
 const LEVEL_OPTIONS = [
   'Creche', 'Nursery 1', 'Nursery 2', 'KG 1', 'KG 2',
   'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6',
@@ -99,6 +102,12 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       setAdminRole(initialAdminRole);
     }
   }, [initialAdminRole]);
+
+  useEffect(() => {
+    if (adminRole === 'head_admin' && SUB_ADMIN_PV_NAV.includes(activeNav)) {
+      setActiveNav(HEAD_ADMIN_PV_DESK);
+    }
+  }, [adminRole, activeNav]);
 
   useEffect(() => {
     const handleRoleEvent = () => {
@@ -716,12 +725,20 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   ];
 
   const handleEdit = (student) => {
-    setEditingId(student.id);
+    setEditingId(student.id || student.studentId);
     setEditingStudent({ ...student, level: formatClassToBasic(student.level) });
   };
 
   const handleSaveEdit = () => {
-    updateOnboardedStudent(editingId, editingStudent);
+    const targetId = editingId || editingStudent.id || editingStudent.studentId;
+    updateOnboardedStudent(targetId, {
+      fullName: editingStudent.fullName,
+      level: editingStudent.level,
+      classSection: editingStudent.classSection,
+      guardianName: editingStudent.guardianName,
+      guardianEmail: editingStudent.guardianEmail,
+      guardianPhone: editingStudent.guardianPhone,
+    });
     setEditingId(null);
     setEditingStudent({});
     setSuccessMsg('Student record updated successfully.');
@@ -965,7 +982,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             </div>
           )}
 
-          {adminRole === 'head_admin' && activeNav === 'Submit PV Request' && (
+          {adminRole === 'head_admin' && SUB_ADMIN_PV_NAV.includes(activeNav) && (
             <div style={{ padding: 40, textAlign: 'center', background: '#fff', borderRadius: 16, margin: '20px 0', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
               <ShieldAlert size={48} color="#4a1d6e" style={{ marginBottom: 12 }} />
               <h3 style={{ fontSize: 20, fontWeight: 900, color: '#4a1d6e', marginBottom: 8 }}>
@@ -1001,6 +1018,35 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           {/* ── DASHBOARD ── */}
           {activeNav === 'Dashboard' && (
             <div className="animate-fade-up">
+              {adminRole === 'head_admin' && (
+                <div style={{
+                  padding: '28px 28px 24px', marginBottom: 20, textAlign: 'center',
+                  background: 'linear-gradient(180deg, #faf5ff 0%, #fff 100%)',
+                  border: '1px solid #e9d5ff', borderRadius: 16
+                }}>
+                  <div style={{
+                    width: 52, height: 52, borderRadius: 14, margin: '0 auto 14px',
+                    background: '#f3e8ff', color: '#6b21a8',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22
+                  }}>🛡️</div>
+                  <h2 style={{ fontSize: 22, fontWeight: 900, color: '#4a1d6e', margin: '0 0 8px' }}>
+                    👑 Head Admin Desk — Pre-Audit & Approval Station
+                  </h2>
+                  <p style={{ fontSize: 13.5, color: '#64748b', maxWidth: 640, margin: '0 auto 18px', lineHeight: 1.6 }}>
+                    Preparing PV requests is handled by Sub-Admin accounts. Head Admin manages pre-auditing, voucher corrections, and final approval via the <strong>Pre-Audit & Approve PV</strong> desk.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveNav(HEAD_ADMIN_PV_DESK)}
+                    style={{
+                      padding: '10px 22px', background: '#4a1d6e', color: '#fff', border: 'none',
+                      borderRadius: 10, fontWeight: 800, cursor: 'pointer', fontSize: 13.5
+                    }}
+                  >
+                    Go to Pre-Audit & Approve PV
+                  </button>
+                </div>
+              )}
               <div className="page-header">
                 <p className="page-header__eyebrow" style={{ color: ADMIN_ACCENT }}>
                   <span style={{ background: ADMIN_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #e9d5ff' }}>
@@ -2411,7 +2457,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           )}
 
           {/* ── SUBMIT PV REQUEST (PREPARE BILLS PAYABLES) ── */}
-          {(activeNav === 'Submit PV Request' || activeNav === 'Prepare Bills Payables') && (
+          {(activeNav === 'Submit PV Request' || activeNav === 'Prepare Bills Payables') && adminRole !== 'head_admin' && (
             <div className="animate-fade-up">
               <SubmitPVRequest setM={() => {}} />
             </div>
@@ -2446,7 +2492,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
           {/* ── OFFICIAL FEE SCHEDULE VIEW ── */}
           {activeNav === 'Official Fee Schedule' && (
-            <OfficialSchoolFeeStructure />
+            <OfficialSchoolFeeStructure adminRole={adminRole} />
           )}
 
           {/* ── CLASSES & STAFF ── */}

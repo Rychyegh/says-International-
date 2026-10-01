@@ -361,3 +361,65 @@
     overflow: visible !important;
   }
 }
+
+body.print-individual-bill.printing,
+body.print-individual-bill {
+  background: #ffffff !important;
+}
+
+@media print {
+  body.print-individual-bill .topbar,
+  body.print-individual-bill .pre-header,
+  body.print-individual-bill .portal__sidebar,
+  body.print-individual-bill .page-header,
+  body.print-individual-bill .fee-header-card,
+  body.print-individual-bill .fee-selector-bar,
+  body.print-individual-bill .no-print,
+  body.print-individual-bill .fee-header-actions {
+    display: none !important;
+  }
+
+  body.print-individual-bill .portal,
+  body.print-individual-bill .portal__layout,
+  body.print-individual-bill .portal__content,
+  body.print-individual-bill .fee-structure-container {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  body.print-individual-bill .fee-structure-container > *:not(:has(.official-bill-document)) {
+    display: none !important;
+  }
+
+  body.print-individual-bill .official-bill-document {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 190mm !important;
+    margin: 0 auto !important;
+    padding: 8mm 10mm !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body.print-individual-bill .official-bill-document table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  body.print-individual-bill .receipt-header-inline {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 12px !important;
+  }
+}
