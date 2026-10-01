@@ -772,30 +772,26 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     return Array.from(map.values());
   }, [onboardedStudents, studentFees]);
 
-  // Live roster for the selected class — includes newly onboarded / fee-listed / updated students
+  // Live roster for the selected class — same set used for print, bulk post, and the billing table.
+  // Basic 4A includes Basic 4 / 4A / 4B so print pages and bulk post never drift by one student.
   const studentsForSelectedClass = useMemo(() => {
-    return liveClassStudents
-      .filter((student) => studentMatchesSelectedClass(student, selectedSubLevel || selectedClassKey))
-      .sort((a, b) => getStudentFullName(a).localeCompare(getStudentFullName(b)));
-  }, [liveClassStudents, selectedSubLevel, selectedClassKey]);
-
-  // Whole-class print: every student in the base class (Basic 1A print includes Basic 1 / 1A / 1B)
-  const studentsForWholeClassPrint = useMemo(() => {
     return liveClassStudents
       .filter((student) => studentMatchesSelectedClass(student, selectedSubLevel || selectedClassKey, { ignoreStream: true }))
       .sort((a, b) => getStudentFullName(a).localeCompare(getStudentFullName(b)));
   }, [liveClassStudents, selectedSubLevel, selectedClassKey]);
 
+  const studentsForWholeClassPrint = studentsForSelectedClass;
+
   // Included & Excluded Students for the selected class
   const includedStudentsForClass = useMemo(() => {
     return (studentsForSelectedClass || []).filter(
-      s => !excludedStudentIds.includes(s.id || s.studentId)
+      s => !excludedStudentIds.includes(s.id) && !excludedStudentIds.includes(s.studentId)
     );
   }, [studentsForSelectedClass, excludedStudentIds]);
 
   const includedWholeClassForPrint = useMemo(() => {
     return (studentsForWholeClassPrint || []).filter(
-      s => !excludedStudentIds.includes(s.id || s.studentId)
+      s => !excludedStudentIds.includes(s.id) && !excludedStudentIds.includes(s.studentId)
     );
   }, [studentsForWholeClassPrint, excludedStudentIds]);
 
@@ -808,7 +804,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
   const excludedStudentsForClass = useMemo(() => {
     return (studentsForSelectedClass || []).filter(
-      s => excludedStudentIds.includes(s.id || s.studentId)
+      s => excludedStudentIds.includes(s.id) || excludedStudentIds.includes(s.studentId)
     );
   }, [studentsForSelectedClass, excludedStudentIds]);
 
@@ -868,7 +864,8 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
   };
 
   const handleBulkPostToClass = () => {
-    if (includedStudentsForClass.length === 0) {
+    const studentsToBill = includedWholeClassForPrint.length > 0 ? includedWholeClassForPrint : includedStudentsForClass;
+    if (studentsToBill.length === 0) {
       alert(`There are no students included in the billing list for ${selectedSubLevel}. Please include at least one student.`);
       return;
     }
@@ -881,7 +878,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
     if (portalData?.postAcademicBill) {
       portalData.postAcademicBill({
-        targetStudents: includedStudentsForClass,
+        targetStudents: studentsToBill,
         classLevel: selectedSubLevel,
         items: allItemsToPost,
         totalAmount: totalToPost,
@@ -893,15 +890,15 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
       totalAmount: totalToPost,
       compulsoryCount: baseBillItems.length,
       optionalCount: optionalItemsToPost.length,
-      scopeLabel: `Class ${selectedSubLevel} (${includedStudentsForClass.length} Students)`,
-      affectedCount: includedStudentsForClass.length,
+      scopeLabel: `Class ${selectedSubLevel} (${studentsToBill.length} Students)`,
+      affectedCount: studentsToBill.length,
       targetStudentName: '',
       targetClass: selectedSubLevel,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       term: 'Term 1 · 2026'
     });
 
-    setSuccessMsg(`⚡ Bulk Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${includedStudentsForClass.length} students in ${selectedSubLevel}!`);
+    setSuccessMsg(`⚡ Bulk Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${studentsToBill.length} students in ${selectedSubLevel}!`);
     setTimeout(() => setSuccessMsg(''), 7000);
   };
 
@@ -1835,29 +1832,29 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                     boxShadow: '0 4px 12px rgba(2,132,199,0.25)'
                   }}
                 >
-                  <Printer size={16} /> 🖨️ Print Whole Class Bills ({includedWholeClassForPrint.length || includedStudentsForClass.length} Pages)
+                  <Printer size={16} /> 🖨️ Print Whole Class Bills ({includedWholeClassForPrint.length} Pages)
                 </button>
 
                 <button
                   type="button"
                   onClick={handleBulkPostToClass}
-                  disabled={includedStudentsForClass.length === 0}
+                  disabled={includedWholeClassForPrint.length === 0}
                   style={{
                     padding: '10px 18px',
                     borderRadius: 8,
                     border: 'none',
-                    background: includedStudentsForClass.length > 0 ? '#16a34a' : '#94a3b8',
+                    background: includedWholeClassForPrint.length > 0 ? '#16a34a' : '#94a3b8',
                     color: '#fff',
                     fontWeight: 900,
                     fontSize: 13,
-                    cursor: includedStudentsForClass.length > 0 ? 'pointer' : 'not-allowed',
+                    cursor: includedWholeClassForPrint.length > 0 ? 'pointer' : 'not-allowed',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
                     boxShadow: '0 4px 12px rgba(22,163,74,0.25)'
                   }}
                 >
-                  <FileText size={16} /> ⚡ Bulk Post Bill to Class ({includedStudentsForClass.length} Students)
+                  <FileText size={16} /> ⚡ Bulk Post Bill to Class ({includedWholeClassForPrint.length} Students)
                 </button>
               </div>
             </div>
@@ -2023,15 +2020,15 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                       </td>
                     </tr>
                   ) : (
-                    filteredClassStudents.map((s) => {
+                    filteredClassStudents.map((s, idx) => {
                       const sId = s.id || s.studentId;
-                      const isIncluded = !excludedStudentIds.includes(sId);
+                      const isIncluded = !excludedStudentIds.includes(sId) && !excludedStudentIds.includes(s.studentId) && !excludedStudentIds.includes(s.id);
                       const sFullName = getStudentFullName(s);
                       const indivAmount = totalBase + (postIncludeOptional ? totalOptionalActive : 0);
 
                       return (
                         <tr
-                          key={sId}
+                          key={s.studentId || s.id || `class-bill-${idx}`}
                           style={{
                             borderBottom: '1px solid #f1f5f9',
                             background: isIncluded ? '#ffffff' : '#fcfcfc',
