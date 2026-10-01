@@ -894,7 +894,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                       style={{ cursor: 'pointer', fontWeight: 700, paddingLeft: 14 }}
                     >
                       <option value="parent">👨‍👩‍👧 Parent / Guardian (Parent Portal)</option>
-                      <option value="student">📚 Student Learner (Student Portal)</option>
+                      <option value="student">📚 Student (Student Portal)</option>
                     </select>
                   </div>
                   <div style={{ fontSize: 11, color: '#64748b', marginTop: 5, lineHeight: 1.4 }}>

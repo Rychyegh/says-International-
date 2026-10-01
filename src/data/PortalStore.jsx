@@ -4,6 +4,85 @@ import { cloudSync } from '../services/cloudSync';
 
 const STORAGE_KEY = 'remalj-portal-live-data-v3';
 
+function extractAccountList(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw?.users)) return raw.users;
+  if (Array.isArray(raw?.data)) return raw.data;
+  if (Array.isArray(raw?.data?.users)) return raw.data.users;
+  return [];
+}
+
+export function directoryProfileFromUser(user = {}) {
+  const raw = String(user.role || '').trim().toLowerCase();
+  const designation = String(user.teacherDesignation || user.teacher_designation || user.designation || '').trim().toLowerCase();
+  let role = '';
+  let subject = user.department || user.subject || '';
+  if (designation === 'class_teacher' || raw === 'class_teacher' || raw === 'class teacher') {
+    role = 'Class Teacher';
+    subject = subject || 'Class Teacher';
+  } else if (raw === 'teacher' || raw === 'teaching staff' || raw === 'subject teacher') {
+    role = 'Subject Teacher';
+  } else if (raw === 'admin' || raw === 'head_admin' || raw === 'head administrator') {
+    role = 'Head Administrator';
+    subject = subject || 'Administration';
+  } else if (raw === 'sub_admin' || raw === 'sub-administrator' || raw === 'sub administrator') {
+    role = 'Sub-Administrator';
+    subject = subject || 'Administration';
+  } else if (raw === 'accountant' || raw === 'finance & accounts') {
+    role = 'Accountant';
+    subject = subject || 'Administration';
+  } else if (raw === 'security_driver' || raw === 'transport / security') {
+    role = 'Transport / Security';
+    subject = subject || 'Transport';
+  } else {
+    return null;
+  }
+  const name = user.fullName || user.full_name || user.name || '';
+  const email = String(user.email || '').trim();
+  const staffId = String(user.staffId || user.staff_id || user.staff_code || '').trim();
+  if (!name && !email && !staffId) return null;
+  const inactive = user.is_active === false || /suspend|inactive|offboard/i.test(String(user.status || ''));
+  return {
+    id: user.id || staffId || email,
+    staffId,
+    name: name || email,
+    role,
+    subject,
+    classAssigned: formatClassToBasic(user.assignedClass || user.assigned_class || user.class_assigned || user.classLevel || user.class_level || ''),
+    email,
+    phone: user.phone || user.phone_number || user.phoneNumber || '',
+    status: inactive ? 'Offboarded' : 'Active',
+    photo: '👤',
+    joinedDate: user.createdAt || user.created_at || '',
+  };
+}
+
+function mergeDirectoryAccount(list, profile) {
+  if (!profile) return;
+  const email = String(profile.email || '').trim().toLowerCase();
+  const staffId = String(profile.staffId || '').trim().toLowerCase();
+  const index = list.findIndex((person) => {
+    const personEmail = String(person.email || '').trim().toLowerCase();
+    const personStaffId = String(person.staffId || '').trim().toLowerCase();
+    return (email && personEmail === email) || (staffId && personStaffId === staffId);
+  });
+  if (index >= 0) {
+    list[index] = {
+      ...list[index],
+      name: profile.name || list[index].name,
+      role: profile.role,
+      subject: profile.subject || list[index].subject,
+      classAssigned: profile.classAssigned || list[index].classAssigned,
+      phone: profile.phone || list[index].phone,
+      email: profile.email || list[index].email,
+      staffId: profile.staffId || list[index].staffId,
+      status: profile.status || list[index].status,
+    };
+    return;
+  }
+  list.push(profile);
+}
+
 function mergeByKey(arrA = [], arrB = [], keyFn) {
   const map = new Map();
   (arrA || []).forEach(item => {
@@ -1604,6 +1683,8 @@ export function PortalDataProvider({ children }) {
         studentsRes,
         feesRes,
         staffRes,
+        classTeachersRes,
+        usersRes,
         billsRes,
         pvsRes,
         semRegsRes,
@@ -1624,6 +1705,8 @@ export function PortalDataProvider({ children }) {
         api.getStudents(),
         api.getFees(),
         api.getStaff(),
+        api.listClassTeacherCredentials(),
+        api.getUsers(),
         api.getDefinedBills(),
         api.getPaymentVouchers(),
         api.getSemesterRegistrations(),
@@ -1884,6 +1967,35 @@ export function PortalDataProvider({ children }) {
             photo: s.photo || (s.gender === 'Female' ? '👩‍🏫' : '👨‍🏫'),
             joinedDate: s.joinedDate || s.created_at || s.joined_date || ''
           })).filter((s) => s.id || s.staffId || s.email || s.name);
+          if (classTeachersRes.status === 'fulfilled' && Array.isArray(classTeachersRes.value)) {
+            const seen = new Set(
+              mapped.flatMap((person) => [String(person.staffId || '').toLowerCase(), String(person.id || '').toLowerCase()]).filter(Boolean)
+            );
+            classTeachersRes.value.forEach((credential) => {
+              const staffId = String(credential.staffId || '').trim();
+              const key = staffId.toLowerCase();
+              if (!key || seen.has(key)) return;
+              seen.add(key);
+              mapped.push({
+                id: credential.id || staffId,
+                staffId,
+                name: credential.teacherName || staffId,
+                role: 'Class Teacher',
+                subject: 'Class Teacher',
+                classAssigned: formatClassToBasic(credential.classAssigned || ''),
+                email: '',
+                phone: credential.phone || '',
+                status: 'Active',
+                photo: '👩‍🏫',
+                joinedDate: credential.issuedAt || '',
+              });
+            });
+          }
+          if (usersRes.status === 'fulfilled') {
+            extractAccountList(usersRes.value).forEach((account) => {
+              mergeDirectoryAccount(mapped, directoryProfileFromUser(account));
+            });
+          }
           if (!isDeepEqual(current.teacherDirectory, mapped)) {
             updates.teacherDirectory = mapped;
             hasChanges = true;

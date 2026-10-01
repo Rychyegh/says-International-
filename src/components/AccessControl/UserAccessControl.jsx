@@ -6,17 +6,17 @@ import {
   Copy, Printer, Shield, UserX, UserCheck, Mail, Phone, Clock,
   FileText, Download, X, Plus, Sparkles, Building, Check, Layers
 } from 'lucide-react';
-import { usePortalData } from '../../data/PortalStore';
+import { usePortalData, directoryProfileFromUser } from '../../data/PortalStore';
 import { api, getAuthUser, getAuthToken, ensureDemoClassTeacherAccounts } from '../../services/api';
 import { CLASS_LEVELS, getMappedSubClasses } from '../../data/classStructure';
 
 const ROLES = [
   { value: 'admin', label: 'Head Administrator', badgeColor: '#4a1d6e', bg: '#f3e8ff', desc: 'Full institutional control and administrative governance' },
   { value: 'sub_admin', label: 'Sub-Administrator', badgeColor: '#0369a1', bg: '#e0f2fe', desc: 'Operational student roster and academic task handling' },
-  { value: 'accountant', label: 'Finance & Accounts', badgeColor: '#166534', bg: '#dcfce7', desc: 'Billing, fee collection, payment vouchers, and ledger' },
-  { value: 'teacher', label: 'Teaching Staff', badgeColor: '#b45309', bg: '#fef3c7', desc: 'Class roster, lesson planning, grades, and attendance' },
+  { value: 'accountant', label: 'Accountant', badgeColor: '#166534', bg: '#dcfce7', desc: 'Billing, fee collection, payment vouchers, and ledger' },
+  { value: 'teacher', label: 'Subject Teacher', badgeColor: '#b45309', bg: '#fef3c7', desc: 'Class roster, lesson planning, grades, and attendance' },
   { value: 'class_teacher', label: 'Class Teacher', badgeColor: '#166534', bg: '#dcfce7', desc: 'Form tutor with class leadership, passcode verification, and class portal access' },
-  { value: 'student', label: 'Student Learner', badgeColor: '#4338ca', bg: '#e0e7ff', desc: 'Assignments, timetable, report cards, and digital ID' },
+  { value: 'student', label: 'Student', badgeColor: '#4338ca', bg: '#e0e7ff', desc: 'Assignments, timetable, report cards, and digital ID' },
   { value: 'parent', label: 'Parent / Guardian', badgeColor: '#be185d', bg: '#fce7f3', desc: 'Child progress, tuition fees, bus tracking, and messaging' },
   { value: 'security_driver', label: 'Transport / Security', badgeColor: '#374151', bg: '#f3f4f6', desc: 'Bus routing, RFID gate scans, and safety logging' },
 ];
@@ -148,7 +148,7 @@ function mapBackendUser(item) {
 }
 
 export default function UserAccessControl({ adminRole = 'head_admin' }) {
-  const { addStaffMember } = usePortalData();
+  const { addStaffMember, refreshBackendData } = usePortalData();
 
   const [activeTab, setActiveTab] = useState('users'); // 'users' | 'matrix' | 'audit'
   const [searchQuery, setSearchQuery] = useState('');
@@ -340,17 +340,13 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       const remoteId = res?.id || res?._id || res?.user?.id || res?.data?.id;
       const savedUser = { ...newUser, id: remoteId || newUser.id };
 
-      if (newUser.role === 'teacher' || newUser.role === 'class_teacher') {
+      const directoryProfile = directoryProfileFromUser(savedUser);
+      if (directoryProfile && addStaffMember) {
         try {
           await addStaffMember({
-            name: newUser.fullName,
-            email: newUser.email,
-            phone: newUser.phone,
-            staffId: newUser.staffId,
-            role: newUser.role === 'class_teacher' ? 'Class Teacher' : 'Subject Teacher',
-            teacherDesignation: newUser.teacherDesignation,
-            classAssigned: newUser.classLevel || newUser.assignedClass,
-            password: newUser.password,
+            ...directoryProfile,
+            teacherDesignation: isClassTeacher ? 'class_teacher' : undefined,
+            classAssigned: newUser.classLevel || newUser.assignedClass || '',
             status: 'Active',
           });
         } catch (staffErr) {
@@ -372,6 +368,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
         }
       }
 
+      if (refreshBackendData) await refreshBackendData();
       addAuditLog('Account Created', newUser.email, `Created account for ${newUser.fullName} with role [${newUser.role.toUpperCase()}].`);
       setIsCreateModalOpen(false);
       setSlipUser(savedUser);
@@ -409,6 +406,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       return;
     }
 
+    if (refreshBackendData) await refreshBackendData();
     addAuditLog('Account Modified', editingUser.email, `Updated profile / role details for ${editingUser.fullName}.`);
     setEditingUser(null);
     triggerToast(`User record for ${editingUser.fullName} was updated in the database.`);

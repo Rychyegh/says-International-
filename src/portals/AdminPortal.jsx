@@ -18,7 +18,7 @@ import ApprovePVForm from '../components/Finance/ApprovePVForm';
 import PayPVForm from '../components/Finance/PayPVForm';
 import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
 import UserAccessControl from '../components/AccessControl/UserAccessControl';
-import { api, getAuthUser } from '../services/api';
+import { getAuthUser } from '../services/api';
 import { getMappedSubClasses, formatDetailedClass } from '../data/classStructure';
 
 const ADMIN_BG = '#4a1d6e';
@@ -81,7 +81,7 @@ function isTeachingStaffMember(person = {}) {
   const role = String(person.role || person.designation || '').trim().toLowerCase();
   if (NON_TEACHING_STAFF_ROLES.some((item) => item.toLowerCase() === role)) return false;
   if (TEACHING_STAFF_ROLES.some((item) => item.toLowerCase() === role)) return true;
-  if (/driver|security|cleaner|cook|catering|nurse|maintenance|librarian|office assistant|guard|kitchen|janitor|grounds/.test(role)) return false;
+  if (/driver|security|cleaner|cook|catering|nurse|maintenance|librarian|office assistant|guard|kitchen|janitor|grounds|administrator|finance|accounts|accountant/.test(role)) return false;
   if (/teacher|tutor|lecturer|form master|department head/.test(role)) return true;
   return true;
 }
@@ -216,47 +216,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [printingCredentialSlip, setPrintingCredentialSlip] = useState(null);
   const [credentialSearchQuery, setCredentialSearchQuery] = useState('');
 
-  // Class Teacher Dedicated Passcode Credentials State (loaded from the backend)
-  const [issuedCTCredentials, setIssuedCTCredentials] = useState([]);
-  const [ctCredentialsError, setCtCredentialsError] = useState('');
-  const [isIssuingCT, setIsIssuingCT] = useState(false);
-
-  const refreshClassTeacherCredentials = () => {
-    api.listClassTeacherCredentials()
-      .then((list) => {
-        setIssuedCTCredentials(list);
-        setCtCredentialsError('');
-      })
-      .catch((err) => {
-        setCtCredentialsError(err.message || 'Could not load class teacher credentials.');
-      });
-  };
-
-  useEffect(() => {
-    if (adminRole !== 'head_admin') return undefined;
-    let cancelled = false;
-    api.listClassTeacherCredentials()
-      .then((list) => {
-        if (!cancelled) {
-          setIssuedCTCredentials(list);
-          setCtCredentialsError('');
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) setCtCredentialsError(err.message || 'Could not load class teacher credentials.');
-      });
-    return () => { cancelled = true; };
-  }, [adminRole]);
-
-  const [isIssuingCTModal, setIsIssuingCTModal] = useState(false);
-  const [ctForm, setCtForm] = useState({
-    teacherName: '',
-    classAssigned: 'Basic 4',
-    staffId: '',
-    passcode: '',
-    phone: ''
-  });
-
   // PV Approval Notifications & Pending Voucher Queue Detection
   const pendingPVs = useMemo(() => {
     return (paymentVouchers || []).filter(p => {
@@ -370,8 +329,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [staffStatusFilter, setStaffStatusFilter] = useState('All');
   const [staffKindFilter, setStaffKindFilter] = useState('all');
 
+  const staffDirectory = teacherDirectory || [];
+
   const visibleStaff = useMemo(() => {
-    return (teacherDirectory || []).filter((t) => {
+    return staffDirectory.filter((t) => {
       const matchesSearch = (t.name || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
         (t.staffId || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
         (t.subject || '').toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
@@ -385,20 +346,21 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       const matchesKind = staffKindFilter === 'all' || (staffKindFilter === 'teaching' ? teaching : !teaching);
       return matchesSearch && matchesSubject && matchesStatus && matchesKind;
     });
-  }, [teacherDirectory, staffSearchQuery, staffSubjectFilter, staffStatusFilter, staffKindFilter]);
+  }, [staffDirectory, staffSearchQuery, staffSubjectFilter, staffStatusFilter, staffKindFilter]);
 
-  const [newStaffForm, setNewStaffForm] = useState({
+  const blankNonTeachingStaff = {
     name: '',
     staffId: '',
-    role: 'Subject Teacher',
-    subject: 'Pure Mathematics',
-    classAssigned: 'Grade 4',
+    role: 'Driver',
+    subject: 'Transport',
+    classAssigned: '',
     email: '',
     phone: '',
-    gender: 'Male',
-    photo: '👨‍🏫',
+    gender: '',
+    photo: '👤',
     bio: ''
-  });
+  };
+  const [newStaffForm, setNewStaffForm] = useState(blankNonTeachingStaff);
 
   // Card Issuance State
   const [issuingCardStudent, setIssuingCardStudent] = useState(null);
@@ -457,29 +419,31 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     setTimeout(() => setSuccessMsg(''), 6000);
   };
 
-  const handleAddStaffSubmit = (e) => {
+  const handleAddStaffSubmit = async (e) => {
     e.preventDefault();
     if (!newStaffForm.name) return;
+    if (isTeachingStaffMember(newStaffForm)) return;
 
-    if (addStaffMember) {
-      addStaffMember(newStaffForm);
+    setStaffActionLoading(true);
+    setStaffActionError('');
+    try {
+      if (!addStaffMember) throw new Error('The database did not save this staff member.');
+      await addStaffMember({
+        ...newStaffForm,
+        role: newStaffForm.role,
+        subject: NON_TEACHING_DUTIES.includes(newStaffForm.subject) ? newStaffForm.subject : 'Transport',
+        classAssigned: '',
+      });
+      setSuccessMsg(`✅ ${newStaffForm.name} was saved as non-teaching staff.`);
+      setStaffKindFilter('non_teaching');
+      setIsAddingStaff(false);
+      setNewStaffForm(blankNonTeachingStaff);
+      setTimeout(() => setSuccessMsg(''), 5000);
+    } catch (err) {
+      setStaffActionError(err.message || 'The database did not save this staff member.');
+    } finally {
+      setStaffActionLoading(false);
     }
-
-    setSuccessMsg(`✅ Successfully onboarded staff member ${newStaffForm.name}! Portal credentials initialized.`);
-    setIsAddingStaff(false);
-    setNewStaffForm({
-      name: '',
-      staffId: '',
-      role: 'Subject Teacher',
-      subject: 'Pure Mathematics',
-      classAssigned: 'Grade 4',
-      email: '',
-      phone: '',
-      gender: 'Male',
-      photo: '👨‍🏫',
-      bio: ''
-    });
-    setTimeout(() => setSuccessMsg(''), 5000);
   };
   const handleOnboardStaffSubmit = handleAddStaffSubmit;
 
@@ -795,7 +759,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const STATS = [
     { label: 'Total Enrolled Students', value: String(totalStudents), trend: `${activeStudents} Active`, icon: '👥', bg: '#f3e8ff', ic: ADMIN_BG, nav: 'Student Roster' },
     { label: 'Admissions Applications', value: String(totalApplications), trend: 'Official forms active', icon: '📋', bg: '#fef9c3', ic: '#78350f', nav: 'Applications & Forms' },
-    { label: 'Teaching Staff', value: String((teacherDirectory || []).filter(t => t.status !== 'Offboarded').length), trend: 'All departments', icon: '👨‍🏫', bg: '#e0f2fe', ic: '#0369a1', nav: 'Classes & Staff' },
+    { label: 'Teaching Staff', value: String(staffDirectory.filter(t => t.status !== 'Offboarded' && isTeachingStaffMember(t)).length), trend: 'All departments', icon: '👨‍🏫', bg: '#e0f2fe', ic: '#0369a1', nav: 'Classes & Staff' },
   ];
 
   const studentDetailedClass = (student) => {
@@ -2719,14 +2683,18 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setIsAddingStaff(true)}
+                    onClick={() => {
+                      setNewStaffForm(blankNonTeachingStaff);
+                      setStaffActionError('');
+                      setIsAddingStaff(true);
+                    }}
                     style={{
                       padding: '10px 16px', borderRadius: 8, background: '#166534', color: '#fff',
                       border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', gap: 6
                     }}
                   >
-                    <UserPlus size={16} /> Add Staff
+                    <UserPlus size={16} /> Add Non-teaching Staff
                   </button>
                 </div>
               </div>
@@ -2736,7 +2704,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 <div style={{ padding: '16px 20px', background: '#f3e8ff', border: '1px solid #e9d5ff', borderRadius: 10 }}>
                   <div style={{ fontSize: 11, fontWeight: 800, color: '#6b21a8', textTransform: 'uppercase' }}>Active Teaching Staff</div>
                   <div style={{ fontSize: 26, fontWeight: 900, color: '#581c87', marginTop: 4 }}>
-                    {(teacherDirectory || []).filter(t => t.status !== 'Offboarded' && isTeachingStaffMember(t)).length}
+                    {staffDirectory.filter(t => t.status !== 'Offboarded' && isTeachingStaffMember(t)).length}
                   </div>
                   <div style={{ fontSize: 11, color: '#7e22ce', fontWeight: 600, marginTop: 2 }}>Teachers and tutors</div>
                 </div>
@@ -2744,7 +2712,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 <div style={{ padding: '16px 20px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10 }}>
                   <div style={{ fontSize: 11, fontWeight: 800, color: '#166534', textTransform: 'uppercase' }}>Non-teaching Staff</div>
                   <div style={{ fontSize: 26, fontWeight: 900, color: '#14532d', marginTop: 4 }}>
-                    {(teacherDirectory || []).filter(t => t.status !== 'Offboarded' && !isTeachingStaffMember(t)).length}
+                    {staffDirectory.filter(t => t.status !== 'Offboarded' && !isTeachingStaffMember(t)).length}
                   </div>
                   <div style={{ fontSize: 11, color: '#15803d', fontWeight: 600, marginTop: 2 }}>Drivers, security, and support</div>
                 </div>
@@ -2752,211 +2720,11 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 <div style={{ padding: '16px 20px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10 }}>
                   <div style={{ fontSize: 11, fontWeight: 800, color: '#991b1b', textTransform: 'uppercase' }}>Offboarded Staff</div>
                   <div style={{ fontSize: 26, fontWeight: 900, color: '#7f1d1d', marginTop: 4 }}>
-                    {(teacherDirectory || []).filter(t => t.status === 'Offboarded').length}
+                    {staffDirectory.filter(t => t.status === 'Offboarded').length}
                   </div>
                   <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 600, marginTop: 2 }}>Access deactivated</div>
                 </div>
               </div>
-
-              {/* Super Admin Class Teacher Credentials & Passcode Manager */}
-              {adminRole === 'head_admin' && (
-                <div style={{ background: '#f3e8ff', border: '1px solid #c084fc', borderRadius: 12, padding: 18, marginBottom: 20 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <div>
-                      <h3 style={{ fontSize: 16, fontWeight: 900, color: '#581c87', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        👑 Class Teacher Dedicated Credentials & Passcode Manager (Super Admin Only)
-                      </h3>
-                      <p style={{ fontSize: 12, color: '#7e22ce', margin: '4px 0 0', fontWeight: 600 }}>
-                        Generate and issue dedicated logins, Staff IDs, and 4-digit Security Passcodes specifically for Class Teachers (Form Tutors).
-                      </p>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={() => setIsIssuingCTModal(true)}
-                      style={{
-                        padding: '9px 16px', background: '#581c87', color: '#fff', border: 'none',
-                        borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                        boxShadow: '0 4px 12px rgba(88,28,135,0.25)'
-                      }}
-                    >
-                      🔑 Issue Class Teacher Passcode
-                    </button>
-                    </div>
-                  </div>
-
-                  {/* Issued Class Teacher Credentials Register */}
-                  {ctCredentialsError && (
-                    <p style={{ fontSize: 12, color: '#991b1b', fontWeight: 700, margin: '0 0 10px' }}>{ctCredentialsError}</p>
-                  )}
-                  <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e9d5ff', overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                      <thead>
-                        <tr style={{ background: '#faf5ff', borderBottom: '1px solid #e9d5ff', textAlign: 'left', color: '#6b21a8', fontWeight: 800 }}>
-                          <th style={{ padding: '10px 14px' }}>Class Teacher Name</th>
-                          <th style={{ padding: '10px 14px' }}>Assigned Class</th>
-                          <th style={{ padding: '10px 14px' }}>Staff ID</th>
-                          <th style={{ padding: '10px 14px' }}>Dedicated Passcode</th>
-                          <th style={{ padding: '10px 14px' }}>Status & Dispatch</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {issuedCTCredentials.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} style={{ padding: '16px 14px', color: '#6b21a8', fontWeight: 700 }}>
-                              No class teacher credentials issued yet.
-                            </td>
-                          </tr>
-                        ) : issuedCTCredentials.map((ct) => (
-                          <tr key={ct.id || ct.staffId} style={{ borderBottom: '1px solid #f3e8ff' }}>
-                            <td style={{ padding: '10px 14px', fontWeight: 800, color: '#1e1b4b' }}>{ct.teacherName}</td>
-                            <td style={{ padding: '10px 14px', fontWeight: 700, color: '#2563eb' }}>{ct.classAssigned}</td>
-                            <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 800, color: '#581c87' }}>{ct.staffId}</td>
-                            <td style={{ padding: '10px 14px' }}>
-                              <span style={{ padding: '3px 8px', borderRadius: 6, background: '#f3e8ff', color: '#6b21a8', fontFamily: 'monospace', fontWeight: 900, border: '1px solid #d8b4fe' }}>
-                                🔑 {ct.passcode}
-                              </span>
-                            </td>
-                            <td style={{ padding: '10px 14px' }}>
-                              <span className={`status-pill ${ct.smsStatus === 'failed' ? 'status-pill--warn' : 'status-pill--success'}`} style={{ fontSize: 11 }}>
-                                {ct.smsStatus === 'failed' ? 'SMS failed' : ct.smsStatus === 'not_sent' ? 'Issued' : '📱 SMS Credentials Sent'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Class Teacher Credentials Issuance Modal */}
-              {isIssuingCTModal && (
-                <div
-                  onClick={(e) => { if (e.target === e.currentTarget) setIsIssuingCTModal(false); }}
-                  style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(15,23,42,0.65)', backdropFilter: 'blur(4px)',
-                    zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
-                  }}
-                >
-                  <div onClick={(e) => e.stopPropagation()} style={{
-                    maxWidth: 520, width: '100%', background: '#fff', borderRadius: 16,
-                    padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', border: '1px solid #e2e8f0'
-                  }}>
-                    <h3 style={{ fontSize: 18, fontWeight: 900, color: '#581c87', marginBottom: 6 }}>
-                      🔑 Issue Dedicated Class Teacher Credentials & Passcode
-                    </h3>
-                    <p style={{ fontSize: 12, color: 'var(--gray-600)', marginBottom: 20 }}>
-                      Set up dedicated credentials allowing a Class Teacher to sign in with their assigned Staff ID and 4-digit Security Passcode.
-                    </p>
-
-                    <form onSubmit={async (e) => {
-                      e.preventDefault();
-                      if (!ctForm.teacherName || !ctForm.staffId || !ctForm.passcode) return;
-                      setIsIssuingCT(true);
-                      setCtCredentialsError('');
-                      try {
-                        const created = await api.issueClassTeacherCredential(ctForm);
-                        setIssuedCTCredentials((prev) => [
-                          created,
-                          ...prev.filter((item) => item.staffId !== created.staffId),
-                        ]);
-                        setSuccessMsg(`Dedicated Class Teacher passcode issued to ${ctForm.teacherName} for ${ctForm.classAssigned}.`);
-                        setIsIssuingCTModal(false);
-                        setTimeout(() => setSuccessMsg(''), 7000);
-                      } catch (err) {
-                        setCtCredentialsError(err.message || 'Could not issue class teacher credentials.');
-                      } finally {
-                        setIsIssuingCT(false);
-                      }
-                    }}>
-                      <div className="form-group" style={{ marginBottom: 14 }}>
-                        <label className="form-label">Teacher Name</label>
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={ctForm.teacherName}
-                          onChange={(e) => setCtForm(prev => ({ ...prev, teacherName: e.target.value }))}
-                          placeholder="e.g. Mr. Samuel Amponsah"
-                          required
-                        />
-                      </div>
-
-                      <div className="form-group" style={{ marginBottom: 14 }}>
-                        <label className="form-label">Class Assigned (Form Class)</label>
-                        <select
-                          className="form-input"
-                          value={ctForm.classAssigned}
-                          onChange={(e) => setCtForm(prev => ({ ...prev, classAssigned: e.target.value }))}
-                          style={{ appearance: 'auto' }}
-                        >
-                          {LEVEL_OPTIONS.map((lvl) => (
-                            <option key={lvl} value={lvl}>{lvl}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="form-group" style={{ marginBottom: 14 }}>
-                        <label className="form-label">Class Teacher Staff ID</label>
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={ctForm.staffId}
-                          onChange={(e) => setCtForm(prev => ({ ...prev, staffId: e.target.value }))}
-                          placeholder="e.g. CT-2026-003"
-                          required
-                        />
-                      </div>
-
-                      <div className="form-group" style={{ marginBottom: 14 }}>
-                        <label className="form-label">Phone (for SMS)</label>
-                        <input
-                          type="tel"
-                          className="form-input"
-                          value={ctForm.phone}
-                          onChange={(e) => setCtForm(prev => ({ ...prev, phone: e.target.value }))}
-                          placeholder="e.g. 0249001100"
-                        />
-                      </div>
-
-                      <div className="form-group" style={{ marginBottom: 20 }}>
-                        <label className="form-label">4-Digit Security Passcode</label>
-                        <input
-                          type="text"
-                          className="form-input"
-                          maxLength={6}
-                          value={ctForm.passcode}
-                          onChange={(e) => setCtForm(prev => ({ ...prev, passcode: e.target.value.replace(/\D/g, '') }))}
-                          placeholder="e.g. 9988"
-                          style={{ letterSpacing: '0.2em', fontWeight: 900, fontSize: 16 }}
-                          required
-                        />
-                      </div>
-
-                      {ctCredentialsError && (
-                        <p style={{ fontSize: 12, color: '#991b1b', fontWeight: 700, margin: '0 0 10px' }}>{ctCredentialsError}</p>
-                      )}
-                      <div style={{ display: 'flex', gap: 12 }}>
-                        <button
-                          type="button"
-                          onClick={() => setIsIssuingCTModal(false)}
-                          style={{ flex: 1, padding: 11, borderRadius: 8, border: '1px solid var(--gray-300)', background: '#fff', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={isIssuingCT}
-                          style={{ flex: 1, padding: 11, borderRadius: 8, border: 'none', background: '#581c87', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
-                        >
-                          {isIssuingCT ? 'Issuing…' : '🔑 Issue & Dispatch SMS'}
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              )}
 
               {/* Staff Filters Toolbar */}
               <div style={{ background: '#f8fafc', border: '1px solid var(--gray-200)', borderRadius: 12, padding: '14px 18px', marginBottom: 20 }}>
@@ -3192,8 +2960,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
               <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 560, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
                 <div style={{ background: ADMIN_BG, padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>➕ Onboard New Staff Member</h3>
-                    <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0 0' }}>Register staff credentials, primary subject, and assigned class.</p>
+                    <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>Add Non-teaching Staff</h3>
+                    <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0 0' }}>Drivers, security, cleaners, cooks, and other support staff.</p>
                   </div>
                   <button onClick={() => setIsAddingStaff(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 30, height: 30, borderRadius: 15, cursor: 'pointer', fontWeight: 900 }}>✕</button>
                 </div>
@@ -3226,40 +2994,32 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <label>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Designation / Role</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Non-teaching role</span>
                       <select
                         value={newStaffForm.role}
                         onChange={(e) => {
                           const role = e.target.value;
-                          const teaching = isTeachingStaffMember({ role });
                           setNewStaffForm({
                             ...newStaffForm,
                             role,
-                            subject: teaching
-                              ? (SUBJECT_OPTIONS.includes(newStaffForm.subject) ? newStaffForm.subject : (SUBJECT_OPTIONS[0] || ''))
-                              : (NON_TEACHING_DUTIES.includes(newStaffForm.subject) ? newStaffForm.subject : 'Transport'),
-                            classAssigned: teaching ? (newStaffForm.classAssigned || 'Basic 1') : '',
+                            subject: NON_TEACHING_DUTIES.includes(newStaffForm.subject) ? newStaffForm.subject : 'Transport',
+                            classAssigned: '',
                           });
                         }}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
                       >
-                        <optgroup label="Teaching staff">
-                          {TEACHING_STAFF_ROLES.map((role) => <option key={role}>{role}</option>)}
-                        </optgroup>
-                        <optgroup label="Non-teaching staff">
-                          {NON_TEACHING_STAFF_ROLES.map((role) => <option key={role}>{role}</option>)}
-                        </optgroup>
+                        {NON_TEACHING_STAFF_ROLES.map((role) => <option key={role}>{role}</option>)}
                       </select>
                     </label>
 
                     <label>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>{isTeachingStaffMember(newStaffForm) ? 'Primary Subject' : 'Duty area'}</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Duty area</span>
                       <select
                         value={newStaffForm.subject}
                         onChange={(e) => setNewStaffForm({ ...newStaffForm, subject: e.target.value })}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, appearance: 'auto' }}
                       >
-                        {(isTeachingStaffMember(newStaffForm) ? SUBJECT_OPTIONS : NON_TEACHING_DUTIES).map((s) => (
+                        {NON_TEACHING_DUTIES.map((s) => (
                           <option key={s} value={s}>{s}</option>
                         ))}
                       </select>
@@ -3268,13 +3028,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <label>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>{isTeachingStaffMember(newStaffForm) ? 'Assigned Class' : 'Assigned class (optional)'}</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Assigned class (optional)</span>
                       <select
                         value={newStaffForm.classAssigned}
                         onChange={(e) => setNewStaffForm({ ...newStaffForm, classAssigned: e.target.value })}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
                       >
-                        {!isTeachingStaffMember(newStaffForm) && <option value="">Not assigned to a class</option>}
+                        <option value="">Not assigned to a class</option>
                         {LEVEL_OPTIONS.map((l) => (
                           <option key={l}>{l}</option>
                         ))}
@@ -3305,6 +3065,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     />
                   </label>
 
+                  {staffActionError && (
+                    <p style={{ fontSize: 12, color: '#991b1b', fontWeight: 700, margin: 0 }}>{staffActionError}</p>
+                  )}
+
                   <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
                     <button
                       type="button"
@@ -3315,9 +3079,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     </button>
                     <button
                       type="submit"
-                      style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: ADMIN_BG, color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+                      disabled={staffActionLoading}
+                      style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: '#166534', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
                     >
-                      ✅ Onboard Staff Member
+                      {staffActionLoading ? 'Saving...' : 'Save Non-teaching Staff'}
                     </button>
                   </div>
                 </form>
