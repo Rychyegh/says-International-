@@ -840,6 +840,14 @@ A class teacher uses `role: teacher` plus `teacher_designation: class_teacher`. 
 ```
 - **Response `200 OK`**: Updates status to `PRE_AUDITED` and attaches `pre_audited_at` timestamp.
 
+Line-item pre-audit (required): a single PV can contain several items. Head Admin must be able to approve one line and reject another without acting on the whole voucher.
+
+- **Endpoint**: `PATCH /api/v1/finance/vouchers/{pv_id}/items/{item_id}`
+- **Access**: `HEADMASTER_PRE_AUDITOR`, `SIMS_ADMIN`
+- **Request Body**: `{ "status": "Validated" | "Declined", "audit_notes": "..." }`
+- **Response `200 OK`**: Updated item. Parent voucher `status` becomes `APPROVED` only when every line is approved, `REJECTED` when every line is declined, otherwise `PARTIALLY_APPROVED`. `total_amount` should be the sum of **approved** lines only.
+- The portal already calls this route (404 is ignored and the item decision is kept locally).
+
 #### 9. Disburse Payment Voucher & General Ledger Posting
 - **Endpoint**: `POST /api/v1/finance/vouchers/{pv_id}/disburse`
 - **Access**: `ACCOUNTANT`
@@ -917,6 +925,11 @@ A class teacher uses `role: teacher` plus `teacher_designation: class_teacher`. 
 }
 ```
 - **Response `201 Created`**: Returns array of created score sheet records with status `Pending Approval`.
+
+The teacher portal now also sends the four class-test components (each /100, total /400), converted 50s, `grade`, `remarks`, and `teacher_note`. See `docs/SCORE_SHEET_BACKEND.md` for the expanded body, plus two new routes the portal already calls:
+
+- `PUT /api/v1/sims/score-sheets/entry/{id}` — edit a saved sheet (reset to Pending Approval)
+- `GET /api/v1/sims/score-sheets/entries` — list saved sheets so a teacher can reopen and edit
 
 #### 2. Fetch Pending Test Results Awaiting Headmaster Approval
 - **Endpoint**: `GET /api/v1/sims/test-results/pending`

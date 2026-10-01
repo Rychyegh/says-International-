@@ -389,7 +389,9 @@ On every portal load the shared store calls these with the teacher JWT. A `403` 
 | `GET /attendance` and `POST /attendance/roll-call` | Assigned class only. Reject a roll call for another class with `403` |
 | `POST /attendance/scan`, `POST /attendance/notify-absent`, `POST /attendance/send-sms` | Assigned class only |
 | `GET /academic/results` | Assigned class |
-| `POST /sims/score-sheets/entry` | Allow. Keep the existing pending-approval status. Body already sent by the score sheet: `academic_year`, `class_level`, `term`, `subject`, `class_score_max`, `exam_score_max`, `scores[]` with `student_id`, `student_code`, `class_score`, `exam_score` |
+| `POST /sims/score-sheets/entry` | Allow. Keep status `Pending Approval`. Expanded body: four class tests each /100, `class_test_total` /400, `class_score` (converted /50), `exam_score` /100, `teacher_note`, `grade`, `remarks`. See `docs/SCORE_SHEET_BACKEND.md`. |
+| `PUT /sims/score-sheets/entry/{id}` | Allow for the teacher's own saved sheet. Same body as create. Reset to Pending Approval. |
+| `GET /sims/score-sheets/entries` | Assigned class / own subject. |
 | `GET /academic/timetables` | Rows for the assigned class |
 | `GET /academic/assignments` and `POST /academic/assignments` | Audience must be the assigned class on create |
 | `GET /messages` and `POST /messages` | Inbox and sent items for this teacher. Create body uses `recipient_role`, `recipient_name`, `recipient_email`, `student_name`, `subject`, `body` |

@@ -10,6 +10,17 @@ import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
 export default function PayPVForm() {
   const { paymentVouchers = [], disbursePaymentVoucher } = usePortalData();
 
+  const voucherPayableAmount = (v) => {
+    const items = Array.isArray(v?.items) ? v.items : [];
+    if (items.length > 0) {
+      const approved = items.filter((i) => /valid|approv|pre-audit/i.test(String(i.status || '')));
+      if (approved.length) {
+        return approved.reduce((acc, i) => acc + (Number(i.totalAmount || i.total || 0) || 0), 0);
+      }
+    }
+    return Number(v?.payableTotal || v?.total || v?.cost || v?.amount || 0) || 0;
+  };
+
   // Search & Filter State
   const [activeTab, setActiveTab] = useState('ready'); // 'ready' | 'history'
   const [searchQuery, setSearchQuery] = useState('');
@@ -37,6 +48,7 @@ export default function PayPVForm() {
       return (
         s === 'validated' ||
         s === 'approved' ||
+        s === 'partially approved' ||
         s === 'pre-audited & approved' ||
         s === 'pre-audited' ||
         s === 'pre_audited'
@@ -54,7 +66,7 @@ export default function PayPVForm() {
 
   // Financial Summary Totals
   const readyTotalGHS = useMemo(() => {
-    return readyVouchers.reduce((acc, v) => acc + (parseFloat(v.total || v.cost || v.amount) || 0), 0);
+    return readyVouchers.reduce((acc, v) => acc + voucherPayableAmount(v), 0);
   }, [readyVouchers]);
 
   const disbursedTotalGHS = useMemo(() => {
@@ -112,7 +124,7 @@ export default function PayPVForm() {
         }, 'Head Admin / Headmaster');
       }
 
-      setPaymentNotice(`💸 ✅ Successfully disbursed GHS ${(payingVoucher.total || payingVoucher.cost || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} for PV #${targetPvNo}. Payment reference: ${referenceNumber}`);
+      setPaymentNotice(`💸 ✅ Successfully disbursed GHS ${voucherPayableAmount(payingVoucher).toLocaleString(undefined, { minimumFractionDigits: 2 })} for PV #${targetPvNo}. Payment reference: ${referenceNumber}`);
       
       const paidSnapshot = {
         ...payingVoucher,
@@ -780,7 +792,7 @@ export default function PayPVForm() {
                   <div style={{ textAlign: 'right', borderLeft: '1px solid #e2e8f0', paddingLeft: 12 }}>
                     <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Amount to Pay</div>
                     <div style={{ fontSize: 18, fontWeight: 900, color: '#15803d', marginTop: 2 }}>
-                      GHS {(payingVoucher.total || payingVoucher.cost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      GHS {voucherPayableAmount(payingVoucher).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                     <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 800, marginTop: 4 }}>
                       ✓ Pre-Audit Approved
@@ -918,7 +930,7 @@ export default function PayPVForm() {
                       boxShadow: '0 2px 4px rgba(22, 163, 74, 0.4)'
                     }}
                   >
-                    {isProcessing ? 'Processing Payment...' : `Confirm & Disburse GHS ${(payingVoucher.total || payingVoucher.cost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                    {isProcessing ? 'Processing Payment...' : `Confirm & Disburse GHS ${voucherPayableAmount(payingVoucher).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   </button>
                 </div>
               </div>

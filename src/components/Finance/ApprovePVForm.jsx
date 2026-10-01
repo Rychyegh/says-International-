@@ -3,6 +3,36 @@ import { CheckCircle2, Edit3, Save, Search, AlertCircle, FileCheck, RefreshCw, F
 import { usePortalData } from '../../data/PortalStore';
 import { api } from '../../services/api';
 
+function normalizePvItemStatus(status) {
+  const s = String(status || '').toLowerCase().trim();
+  if (s.includes('valid') || s.includes('approv') || s.includes('pre-audit')) return 'Validated';
+  if (s.includes('declin') || s.includes('reject')) return 'Declined';
+  if (s.includes('cancel')) return 'Cancel PV';
+  if (s.includes('non-accrual')) return 'Non-accrual';
+  if (s.includes('postpon')) return 'Postponed';
+  if (s.includes('pending') || !s) return 'Pending approval';
+  return status || 'Pending approval';
+}
+
+function summarizePvStatusFromItems(items, fallback = 'Pending approval') {
+  if (!Array.isArray(items) || items.length === 0) return fallback;
+  const statuses = items.map((i) => normalizePvItemStatus(i.status));
+  const allVal = statuses.every((s) => s === 'Validated');
+  const allDec = statuses.every((s) => s === 'Declined' || s === 'Cancel PV' || s === 'Non-accrual');
+  const anyVal = statuses.some((s) => s === 'Validated');
+  if (allVal) return 'Validated';
+  if (allDec) return 'Declined';
+  if (anyVal) return 'Partially Approved';
+  return fallback;
+}
+
+function payableTotalFromItems(items, fallbackTotal = 0) {
+  if (!Array.isArray(items) || items.length === 0) return Number(fallbackTotal) || 0;
+  return items
+    .filter((i) => normalizePvItemStatus(i.status) === 'Validated')
+    .reduce((acc, i) => acc + (Number(i.totalAmount || i.total || 0) || 0), 0);
+}
+
 export default function ApprovePVForm({ setM = () => {} }) {
   const portalData = usePortalData();
   const storeVouchers = portalData?.paymentVouchers || [];
@@ -511,7 +541,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
     let updatedItems = [...currentItems];
     let overallStatus = normalizedDecision;
 
-    if (updatedItems.length > 1 && activeItemIndex < updatedItems.length) {
+    if (updatedItems.length >= 1 && activeItemIndex < updatedItems.length) {
       updatedItems[activeItemIndex] = {
         ...updatedItems[activeItemIndex],
         description,
@@ -524,15 +554,10 @@ export default function ApprovePVForm({ setM = () => {} }) {
         auditRemarks
       };
       setCurrentItems(updatedItems);
-
-      const allVal = updatedItems.every(i => i.status === 'Validated');
-      const allDec = updatedItems.every(i => i.status === 'Declined');
-      overallStatus = allVal ? 'Validated' : (allDec ? 'Declined' : (actionChoice === 'Validated' ? 'Validated' : actionChoice));
+      overallStatus = summarizePvStatusFromItems(updatedItems, normalizedDecision);
     }
 
-    const newCalculatedTotal = updatedItems.length > 1
-      ? updatedItems.reduce((acc, it) => acc + (it.totalAmount || it.total || 0), 0)
-      : calculatedTotalAmount;
+    const newCalculatedTotal = payableTotalFromItems(updatedItems, calculatedTotalAmount);
 
     const updatedFields = {
       pvNo,
@@ -573,6 +598,58 @@ export default function ApprovePVForm({ setM = () => {} }) {
     }
   };
 
+  const handleActionItemDirect = async (itemId, decision) => {
+    if (!pvNo.trim()) return;
+    setIsActioning(true);
+    const updatedItems = currentItems.map((item) => (
+      item.id === itemId ? { ...item, status: decision } : item
+    ));
+    setCurrentItems(updatedItems);
+    const overallStatus = summarizePvStatusFromItems(updatedItems, decision);
+    const newCalculatedTotal = payableTotalFromItems(updatedItems, calculatedTotalAmount);
+    const updatedFields = {
+      pvNo,
+      requisitionNo: itemRequisitionNo,
+      provider: clientProvider,
+      providerId,
+      items: updatedItems,
+      total: newCalculatedTotal,
+      datePrepared,
+      valuedDate,
+      auditRemarks,
+      status: overallStatus,
+      editedByHeadmaster: true
+    };
+    const updatedQueue = pvQueue.map(p =>
+      (p.pvNo?.toLowerCase() === pvNo.toLowerCase() || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
+    );
+    setPvQueue(updatedQueue);
+    try { localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue)); } catch (e) {}
+    try {
+      if (approvePaymentVoucher) {
+        await approvePaymentVoucher(pvNo, overallStatus, auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
+      }
+      const acted = updatedItems.find((i) => i.id === itemId);
+      try {
+        const uuid = (pvQueue.find((p) => p.pvNo === pvNo || p.id === selectedPvId) || {}).id;
+        if (uuid) {
+          await api.updatePaymentVoucherItem(uuid, itemId, {
+            status: decision,
+            audit_notes: auditRemarks,
+          });
+        }
+      } catch (e) {
+        console.warn('Backend PV item patch fallback:', e);
+      }
+      setBannerNotice(`✅ ${decision === 'Validated' ? 'Approved' : 'Rejected'} "${acted?.description || 'item'}" in PV #${pvNo}. Other lines in this voucher are unchanged.`);
+    } catch (err) {
+      setBannerNotice(`⚠️ Item action recorded locally (${err.message || 'offline'})`);
+    } finally {
+      setIsActioning(false);
+      setTimeout(() => setBannerNotice(''), 5000);
+    }
+  };
+
   // Bulk Action Selected Items in Multi-Item Request
   const handleBulkActionSelectedItems = async () => {
     if (!pvNo.trim()) {
@@ -600,11 +677,8 @@ export default function ApprovePVForm({ setM = () => {} }) {
     });
     setCurrentItems(updatedItems);
 
-    const allVal = updatedItems.every(i => i.status === 'Validated');
-    const allDec = updatedItems.every(i => i.status === 'Declined');
-    const overallStatus = allVal ? 'Validated' : (allDec ? 'Declined' : (actionChoice === 'Validated' ? 'Validated' : actionChoice));
-
-    const newCalculatedTotal = updatedItems.reduce((acc, it) => acc + (it.totalAmount || it.total || 0), 0);
+    const overallStatus = summarizePvStatusFromItems(updatedItems, normalizedDecision);
+    const newCalculatedTotal = payableTotalFromItems(updatedItems, calculatedTotalAmount);
 
     const updatedFields = {
       pvNo,
@@ -1222,22 +1296,46 @@ export default function ApprovePVForm({ setM = () => {} }) {
                           </span>
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectItemForEdit(item, idx)}
-                            style={{
-                              padding: '3px 8px',
-                              background: isActive ? '#16a34a' : '#0284c7',
-                              color: '#fff',
-                              border: 'none',
-                              borderRadius: 4,
-                              fontSize: 10,
-                              fontWeight: 800,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            {isActive ? '✓ Selected' : 'Inspect / Edit'}
-                          </button>
+                          <div style={{ display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              disabled={isActioning}
+                              onClick={() => handleActionItemDirect(item.id, 'Validated')}
+                              style={{
+                                padding: '3px 8px', background: '#166534', color: '#fff', border: 'none',
+                                borderRadius: 4, fontSize: 10, fontWeight: 800, cursor: 'pointer'
+                              }}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isActioning}
+                              onClick={() => handleActionItemDirect(item.id, 'Declined')}
+                              style={{
+                                padding: '3px 8px', background: '#dc2626', color: '#fff', border: 'none',
+                                borderRadius: 4, fontSize: 10, fontWeight: 800, cursor: 'pointer'
+                              }}
+                            >
+                              Reject
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectItemForEdit(item, idx)}
+                              style={{
+                                padding: '3px 8px',
+                                background: isActive ? '#0f3a4b' : '#0284c7',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: 4,
+                                fontSize: 10,
+                                fontWeight: 800,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {isActive ? 'Editing' : 'Edit'}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1249,7 +1347,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
             {/* Quick multi-item action toolbar */}
             <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <span style={{ fontSize: 11, color: '#0369a1', fontWeight: 700 }}>
-                💡 Select items with checkboxes above to apply executive action ("{actionChoice}") in bulk or inspect an individual item below.
+                💡 Approve or reject each line on its own. One item can be approved while another in the same PV is rejected.
               </span>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button

@@ -109,6 +109,72 @@ async function request(endpoint, options = {}) {
   }
 }
 
+// Score sheet entries carry the full class-test breakdown so a saved sheet can be reopened and edited
+function scoreSheetPayload(entry) {
+  return {
+    entry_key: entry.entryKey || entry.entry_key,
+    academic_year: entry.year || entry.academicYear || entry.academic_year,
+    class_level: entry.classLevel || entry.class_level,
+    term: entry.term,
+    subject: entry.subject,
+    category: entry.category,
+    instructor: entry.instructor,
+    exam_date: entry.examDate || entry.exam_date,
+    class_test_max: entry.classTestMax,
+    class_test_total_max: entry.classTestTotalMax,
+    exam_score_max: entry.examScoreMax,
+    scores: [
+      {
+        student_id: entry.studentId || entry.student_id,
+        student_code: entry.studentId || entry.student_id,
+        student_name: entry.studentName || entry.student_name,
+        arrival_test: Number(entry.arrivalTest ?? 0),
+        class_test_1: Number(entry.test1 ?? 0),
+        class_test_2: Number(entry.test2 ?? 0),
+        class_test_3: Number(entry.test3 ?? 0),
+        class_test_total: Number(entry.classTestTotal ?? 0),
+        class_score: Number(entry.classScore ?? 0),
+        exam_score: Number(entry.examScore ?? 0),
+        exam_score_converted: Number(entry.examScoreConverted ?? 0),
+        total_score: Number(entry.score ?? 0),
+        grade: entry.grade,
+        remarks: entry.remarks,
+        teacher_note: entry.teacherNote ?? entry.teacher_note ?? '',
+      },
+    ],
+  };
+}
+
+function mapScoreSheetEntry(raw = {}) {
+  const score = Array.isArray(raw.scores) ? (raw.scores[0] || {}) : raw;
+  return {
+    id: raw.id || raw._id || score.id,
+    entryKey: raw.entry_key || raw.entryKey,
+    studentId: score.student_id || score.student_code || score.studentId,
+    studentName: score.student_name || score.studentName,
+    classLevel: raw.class_level || raw.classLevel,
+    subject: raw.subject,
+    category: raw.category,
+    instructor: raw.instructor,
+    term: raw.term,
+    year: raw.academic_year || raw.academicYear,
+    examDate: raw.exam_date || raw.examDate,
+    arrivalTest: score.arrival_test ?? score.arrivalTest ?? 0,
+    test1: score.class_test_1 ?? score.test1 ?? 0,
+    test2: score.class_test_2 ?? score.test2 ?? 0,
+    test3: score.class_test_3 ?? score.test3 ?? 0,
+    classTestTotal: score.class_test_total ?? score.classTestTotal ?? 0,
+    classScore: score.class_score ?? score.classScore ?? 0,
+    examScore: score.exam_score ?? score.examScore ?? 0,
+    examScoreConverted: score.exam_score_converted ?? score.examScoreConverted ?? 0,
+    score: score.total_score ?? score.score ?? 0,
+    grade: score.grade,
+    remarks: score.remarks,
+    teacherNote: score.teacher_note ?? score.teacherNote ?? '',
+    status: raw.status || score.status || 'Pending Approval',
+  };
+}
+
 function mapClassTeacherDashboard(res) {
   if (!res || typeof res !== 'object') return null;
   const teacherRaw = res.teacher || res.profile || {};
@@ -1063,7 +1129,14 @@ export const api = {
       });
     }
   },
-  updateVoucherStatus: async (pvId, statusData) => api.updatePaymentVoucherStatus(pvId, statusData),
+  updatePaymentVoucherStatus: async (pvId, statusData) => api.updatePaymentVoucherStatus(pvId, statusData),
+
+  updatePaymentVoucherItem: async (pvId, itemId, itemData = {}) => {
+    return await request(`/finance/vouchers/${pvId}/items/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(itemData),
+    });
+  },
 
   disbursePaymentVoucher: async (pvId, disburseData = {}) => {
     return await request(`/finance/vouchers/${pvId}/disburse`, {
@@ -1305,25 +1378,23 @@ export const api = {
     });
   },
 
+  getScoreSheetEntries: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    const res = await request(`/sims/score-sheets/entries${query ? `?${query}` : ''}`);
+    return Array.isArray(res) ? res.map(mapScoreSheetEntry) : [];
+  },
+
   saveScoreSheet: async (entry) => {
     return await request('/sims/score-sheets/entry', {
       method: 'POST',
-      body: JSON.stringify({
-        academic_year: entry.year || entry.academicYear || entry.academic_year,
-        class_level: entry.classLevel || entry.class_level,
-        term: entry.term,
-        subject: entry.subject,
-        class_score_max: entry.classScoreMax,
-        exam_score_max: entry.examScoreMax,
-        scores: [
-          {
-            student_id: entry.studentId || entry.student_id,
-            student_code: entry.studentId || entry.student_id,
-            class_score: Number(entry.classScore ?? entry.score ?? 0),
-            exam_score: Number(entry.examScore ?? 0),
-          },
-        ],
-      }),
+      body: JSON.stringify(scoreSheetPayload(entry)),
+    });
+  },
+
+  updateScoreSheet: async (entryId, entry) => {
+    return await request(`/sims/score-sheets/entry/${entryId}`, {
+      method: 'PUT',
+      body: JSON.stringify(scoreSheetPayload(entry)),
     });
   },
 

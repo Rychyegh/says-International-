@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Printer, CheckCircle2, DollarSign, BookOpen, Layers, Plus, Trash2, FileText, Send, X, UserCheck, Upload, Camera, User, Bus, Utensils, Award, CreditCard, Sparkles, ChevronRight, GraduationCap, Edit3, Save, Check, Users, CheckSquare, Square, RefreshCw, Search, ArrowRight } from 'lucide-react';
 import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
-import { usePortalData } from '../../data/PortalStore';
+import { usePortalData, formatClassToBasic } from '../../data/PortalStore';
 import './OfficialSchoolFeeStructure.css';
 
 export const OFFICIAL_OPTIONAL_PRESETS = [
@@ -73,6 +73,77 @@ export const SINGLE_STUDENT_BASIC_SUBLEVELS = [
   { id: 'Basic 8', label: 'Basic 8', code: 'B8', stationery: 2090.00 },
   { id: 'Basic 9', label: 'Basic 9', code: 'B9', stationery: 2090.00 },
 ];
+
+const CLASS_ALIAS = {
+  cr: 'creche', creche: 'creche',
+  n1: 'nursery1', nursery1: 'nursery1',
+  n2: 'nursery2', nursery2: 'nursery2',
+  kg1: 'kindergarten1', kindergarten1: 'kindergarten1',
+  kg2: 'kindergarten2', kindergarten2: 'kindergarten2',
+  grade1: 'basic1', primary1: 'basic1', b1: 'basic1', basic1: 'basic1',
+  grade2: 'basic2', primary2: 'basic2', b2: 'basic2', basic2: 'basic2',
+  grade3: 'basic3', primary3: 'basic3', b3: 'basic3', basic3: 'basic3',
+  grade4: 'basic4', primary4: 'basic4', b4: 'basic4', basic4: 'basic4',
+  grade5: 'basic5', primary5: 'basic5', b5: 'basic5', basic5: 'basic5',
+  grade6: 'basic6', primary6: 'basic6', b6: 'basic6', basic6: 'basic6',
+  grade7: 'basic7', jhs1: 'basic7', b7: 'basic7', basic7: 'basic7',
+  grade8: 'basic8', jhs2: 'basic8', b8: 'basic8', basic8: 'basic8',
+  grade9: 'basic9', jhs3: 'basic9', b9: 'basic9', basic9: 'basic9',
+};
+
+function compactClassToken(value) {
+  return String(value || '').toLowerCase().replace(/[().]/g, '').replace(/\s+/g, '').trim();
+}
+
+function extractStreamLetter(value) {
+  const raw = String(value || '').toLowerCase().trim();
+  if (!raw) return '';
+  const labelled = raw.match(/(?:section|stream|class)\s*([a-d])\b/);
+  if (labelled) return labelled[1];
+  const compact = compactClassToken(raw);
+  const digitLetter = compact.match(/[1-9]([a-d])$/);
+  if (digitLetter) return digitLetter[1];
+  if (/^[a-d]$/.test(compact)) return compact;
+  const trailing = compact.match(/([a-d])$/);
+  if (trailing && !/kindergarten|creche|nursery/.test(compact)) return trailing[1];
+  return '';
+}
+
+function canonicalClassBase(value) {
+  const formatted = formatClassToBasic(value || '');
+  let compact = compactClassToken(formatted).replace(/[ab]$/i, '');
+  compact = compact.replace(/^kindergarten/, 'kg');
+  return CLASS_ALIAS[compact] || compact;
+}
+
+function studentMatchesSelectedClass(student, selectedSubLevel, { ignoreStream = false } = {}) {
+  if (!student) return false;
+  const target = String(selectedSubLevel || '').trim();
+  if (!target) return true;
+
+  const levelRaw = student.level || student.classLevel || student.class_level || student.applyingClass || student.currentClass || student.class || '';
+  const sectionRaw = student.classSection || student.class_section || student.section || student.subClass || student.sub_class || student.stream || '';
+  const combined = `${levelRaw} ${sectionRaw}`.trim();
+
+  const targetBase = canonicalClassBase(target);
+  const studentBase = canonicalClassBase(levelRaw) || canonicalClassBase(combined);
+  const targetStream = ignoreStream ? '' : extractStreamLetter(target);
+  const studentStream = extractStreamLetter(sectionRaw) || extractStreamLetter(levelRaw);
+
+  if (compactClassToken(combined) === compactClassToken(target)) return true;
+  if (targetBase && studentBase && targetBase === studentBase) {
+    if (!targetStream || ignoreStream) return true;
+    if (!studentStream) return true;
+    return studentStream === targetStream;
+  }
+  return false;
+}
+
+function studentRecordKey(student) {
+  return String(student?.studentId || student?.id || student?.fullName || student?.studentName || '')
+    .toLowerCase()
+    .trim();
+}
 
 
 const makeBaseBill = (tuition, admission = 1000.00) => [
@@ -620,6 +691,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
   // Multi-Page Class Bill Printing Modal State
   const [isPrintingClassBillsModal, setIsPrintingClassBillsModal] = useState(false);
+  const [printClassStudents, setPrintClassStudents] = useState([]);
 
   // Excluded student IDs from the class bill (removed from class list)
   const [excludedStudentIds, setExcludedStudentIds] = useState([]);
@@ -673,59 +745,46 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     || { baseBill: [], optionalBills: [] };
 
   
-  // Filter students to strictly match the selected class level (Requirement 1)
-  const studentsForSelectedClass = (onboardedStudents || []).filter(student => {
-    if (!student) return false;
-    const sLevel = (student.level || student.classLevel || student.class_level || '').trim().toLowerCase();
-    const sSection = (student.classSection || student.section || '').trim().toLowerCase();
-    const targetSub = (selectedSubLevel || '').trim().toLowerCase();
-    if (!targetSub) return true;
+  const liveClassStudents = useMemo(() => {
+    const fromRoster = (onboardedStudents || []).map((s) => ({ ...s, _source: 'roster' }));
+    const fromFees = (studentFees || []).map((f) => ({
+      id: f.studentId || f.id,
+      studentId: f.studentId || f.id,
+      fullName: f.studentName || f.fullName || f.name,
+      studentName: f.studentName || f.fullName,
+      firstName: f.firstName,
+      otherNames: f.otherNames,
+      surname: f.surname || f.lastName,
+      level: f.classLevel || f.level || f.class_level || f.class,
+      classLevel: f.classLevel || f.level,
+      classSection: f.classSection || f.section || f.subClass,
+      guardianName: f.guardianName || f.guardian,
+      photo: f.photo || f.passportPhoto,
+      _source: 'fees',
+    }));
+    const map = new Map();
+    [...fromFees, ...fromRoster].forEach((s) => {
+      const key = studentRecordKey(s);
+      if (!key) return;
+      const prev = map.get(key);
+      map.set(key, prev ? { ...prev, ...s } : s);
+    });
+    return Array.from(map.values());
+  }, [onboardedStudents, studentFees]);
 
-    // Direct equality (e.g. "creche" === "creche", "nursery 1" === "nursery 1")
-    if (sLevel === targetSub) return true;
+  // Live roster for the selected class — includes newly onboarded / fee-listed / updated students
+  const studentsForSelectedClass = useMemo(() => {
+    return liveClassStudents
+      .filter((student) => studentMatchesSelectedClass(student, selectedSubLevel || selectedClassKey))
+      .sort((a, b) => getStudentFullName(a).localeCompare(getStudentFullName(b)));
+  }, [liveClassStudents, selectedSubLevel, selectedClassKey]);
 
-    // Normalizing spaces & symbols
-    const cleanStudent = sLevel.replace(/\s+/g, '').replace(/[()]/g, '');
-    const cleanTarget = targetSub.replace(/\s+/g, '').replace(/[()]/g, '');
-    const combinedLevelSec = `${cleanStudent}${sSection}`.replace(/\s+/g, '');
-
-    if (cleanStudent === cleanTarget || combinedLevelSec === cleanTarget) return true;
-
-    // Base class normalization
-    const targetBase = cleanTarget.replace(/[ab]$/i, '');
-    const studentBase = cleanStudent.replace(/[ab]$/i, '');
-
-    const aliasMap = {
-      'cr': 'creche',
-      'n1': 'nursery1',
-      'n2': 'nursery2',
-      'kg1': 'kindergarten1',
-      'kg2': 'kindergarten2',
-      'grade1': 'basic1', 'primary1': 'basic1', 'b1': 'basic1',
-      'grade2': 'basic2', 'primary2': 'basic2', 'b2': 'basic2',
-      'grade3': 'basic3', 'primary3': 'basic3', 'b3': 'basic3',
-      'grade4': 'basic4', 'primary4': 'basic4', 'b4': 'basic4',
-      'grade5': 'basic5', 'primary5': 'basic5', 'b5': 'basic5',
-      'grade6': 'basic6', 'primary6': 'basic6', 'b6': 'basic6',
-      'grade7': 'basic7', 'jhs1': 'basic7', 'b7': 'basic7',
-      'grade8': 'basic8', 'jhs2': 'basic8', 'b8': 'basic8',
-      'grade9': 'basic9', 'jhs3': 'basic9', 'b9': 'basic9',
-    };
-
-    const normTarget = aliasMap[targetBase] || targetBase;
-    const normStudent = aliasMap[studentBase] || studentBase;
-
-    if (normTarget && normStudent && normTarget === normStudent) {
-      const targetStream = cleanTarget.match(/[ab]$/i)?.[0]?.toLowerCase();
-      const studentStream = cleanStudent.match(/[ab]$/i)?.[0]?.toLowerCase() || sSection.toLowerCase();
-      if (targetStream && studentStream && targetStream !== studentStream) {
-        return false;
-      }
-      return true;
-    }
-
-    return false;
-  });
+  // Whole-class print: every student in the base class (Basic 1A print includes Basic 1 / 1A / 1B)
+  const studentsForWholeClassPrint = useMemo(() => {
+    return liveClassStudents
+      .filter((student) => studentMatchesSelectedClass(student, selectedSubLevel || selectedClassKey, { ignoreStream: true }))
+      .sort((a, b) => getStudentFullName(a).localeCompare(getStudentFullName(b)));
+  }, [liveClassStudents, selectedSubLevel, selectedClassKey]);
 
   // Included & Excluded Students for the selected class
   const includedStudentsForClass = useMemo(() => {
@@ -733,6 +792,19 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
       s => !excludedStudentIds.includes(s.id || s.studentId)
     );
   }, [studentsForSelectedClass, excludedStudentIds]);
+
+  const includedWholeClassForPrint = useMemo(() => {
+    return (studentsForWholeClassPrint || []).filter(
+      s => !excludedStudentIds.includes(s.id || s.studentId)
+    );
+  }, [studentsForWholeClassPrint, excludedStudentIds]);
+
+  const openWholeClassPrint = () => {
+    setActiveBillingView('entire_class');
+    const pages = includedWholeClassForPrint.length > 0 ? includedWholeClassForPrint : includedStudentsForClass;
+    setPrintClassStudents(pages);
+    setIsPrintingClassBillsModal(true);
+  };
 
   const excludedStudentsForClass = useMemo(() => {
     return (studentsForSelectedClass || []).filter(
@@ -1453,6 +1525,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
     : [];
   const studentOptTotal = studentSelectedOpts.reduce((acc, o) => acc + o.amount, 0);
   const studentGrandTotal = totalBase + studentOptTotal;
+  const printPages = printClassStudents.length > 0 ? printClassStudents : includedWholeClassForPrint;
 
   return (
     <div className="fee-structure-container">
@@ -1484,10 +1557,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
           <button
             className="fee-btn"
             style={{ background: '#0284c7', color: '#fff', fontWeight: 800 }}
-            onClick={() => {
-              setActiveBillingView('entire_class');
-              setIsPrintingClassBillsModal(true);
-            }}
+            onClick={openWholeClassPrint}
           >
             <Printer size={15} /> 🖨️ Print Whole Class Bills
           </button>
@@ -1748,24 +1818,24 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
               <div className="no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <button
                   type="button"
-                  onClick={() => setIsPrintingClassBillsModal(true)}
-                  disabled={includedStudentsForClass.length === 0}
+                  onClick={openWholeClassPrint}
+                  disabled={includedWholeClassForPrint.length === 0 && includedStudentsForClass.length === 0}
                   style={{
                     padding: '10px 18px',
                     borderRadius: 8,
                     border: 'none',
-                    background: includedStudentsForClass.length > 0 ? '#0284c7' : '#94a3b8',
+                    background: (includedWholeClassForPrint.length > 0 || includedStudentsForClass.length > 0) ? '#0284c7' : '#94a3b8',
                     color: '#fff',
                     fontWeight: 900,
                     fontSize: 13,
-                    cursor: includedStudentsForClass.length > 0 ? 'pointer' : 'not-allowed',
+                    cursor: (includedWholeClassForPrint.length > 0 || includedStudentsForClass.length > 0) ? 'pointer' : 'not-allowed',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
                     boxShadow: '0 4px 12px rgba(2,132,199,0.25)'
                   }}
                 >
-                  <Printer size={16} /> 🖨️ Print Whole Class Bills ({includedStudentsForClass.length} Pages)
+                  <Printer size={16} /> 🖨️ Print Whole Class Bills ({includedWholeClassForPrint.length || includedStudentsForClass.length} Pages)
                 </button>
 
                 <button
@@ -3799,6 +3869,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
       {/* Each page is an official bill addressed to each individual student in the selected class */}
       {isPrintingClassBillsModal && (
         <div
+          className="print-class-bills-overlay"
           onClick={(e) => { if (e.target === e.currentTarget) setIsPrintingClassBillsModal(false); }}
           style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -3824,7 +3895,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                   </span>
                 </div>
                 <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
-                  Each page below is addressed to each individual student in {selectedSubLevel} ({includedStudentsForClass.length} individual pages).
+                  Each page below is addressed to each individual student in {selectedSubLevel} ({printPages.length} individual pages).
                 </div>
               </div>
 
@@ -3839,7 +3910,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                     boxShadow: '0 4px 12px rgba(56,189,248,0.3)'
                   }}
                 >
-                  <Printer size={16} /> Print All ({includedStudentsForClass.length} Pages)
+                  <Printer size={16} /> Print All ({printPages.length} Pages)
                 </button>
 
                 <button
@@ -3854,12 +3925,12 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
 
             {/* Printable Container: maps each student to an addressed .class-bill-page */}
             <div style={{ background: '#f8fafc', padding: '24px 0' }} className="printable-document">
-              {includedStudentsForClass.length === 0 ? (
+              {printPages.length === 0 ? (
                 <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
                   No students currently included for billing in {selectedSubLevel}. Please include students in the roster first.
                 </div>
               ) : (
-                includedStudentsForClass.map((s, idx) => {
+                printPages.map((s, idx) => {
                   const sFullName = getStudentFullName(s);
                   const activeOptionals = postIncludeOptional ? optionalBillItems.filter(o => o.enabled) : [];
                   const sTotal = totalBase + (postIncludeOptional ? totalOptionalActive : 0);
@@ -4031,7 +4102,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal }) {
                           <div style={{ fontWeight: 800, fontSize: 10.5, color: '#0f172a' }}>Headmaster / Principal</div>
                         </div>
                         <div style={{ textAlign: 'center', fontSize: 10, color: '#64748b' }}>
-                          Addressed to {sFullName} · Page {idx + 1} of {includedStudentsForClass.length}
+                          Addressed to {sFullName} · Page {idx + 1} of {printPages.length}
                         </div>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ borderBottom: '1px solid #0f172a', width: 170, marginBottom: 4 }}></div>

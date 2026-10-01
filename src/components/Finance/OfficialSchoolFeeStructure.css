@@ -341,4 +341,23 @@
   .fee-structure-container:has(.class-bill-page) > *:not(:has(.class-bill-page)) {
     display: none !important;
   }
+
+  .print-class-bills-overlay {
+    position: static !important;
+    inset: auto !important;
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    display: block !important;
+    z-index: auto !important;
+  }
+
+  .print-class-bills-overlay > div {
+    max-width: none !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
 }

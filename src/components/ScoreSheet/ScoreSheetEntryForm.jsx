@@ -1,9 +1,14 @@
-import React, { useState, useMemo } from 'react';
-import { usePortalData } from '../../data/PortalStore';
+import React, { useState, useMemo, useEffect } from 'react';
+import { usePortalData, scoreSheetEntryKey } from '../../data/PortalStore';
 import { getUserFullName } from '../../services/api';
 
+// Each of the four class tests is marked over 100, so the class test total is out of 400
+const CLASS_TEST_MAX = 100;
+const CLASS_TEST_COUNT = 4;
+const CLASS_TEST_TOTAL_MAX = CLASS_TEST_MAX * CLASS_TEST_COUNT;
+
 export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
-  const { academicSettings, onboardedStudents, saveScoreSheetEntry } = usePortalData();
+  const { academicSettings, onboardedStudents, saveScoreSheetEntry, results } = usePortalData();
   const students = (propStudents && propStudents.length > 0) ? propStudents : (onboardedStudents || []);
 
   const [studentSearch, setStudentSearch] = useState('');
@@ -18,12 +23,13 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
   const [examDate, setExamDate] = useState('2025-07-16');
 
   const [arrivalTest, setArrivalTest] = useState(0);
-  const [test1, setTest1] = useState(15);
-  const [test2, setTest2] = useState(18);
-  const [test3, setTest3] = useState(17);
-  const [classTestMaxBase, setClassTestMaxBase] = useState(100);
-  const [examsScore, setExamsScore] = useState(84);
+  const [test1, setTest1] = useState(0);
+  const [test2, setTest2] = useState(0);
+  const [test3, setTest3] = useState(0);
+  const [examsScore, setExamsScore] = useState(0);
   const [applyGrade, setApplyGrade] = useState(true);
+  const [teacherNote, setTeacherNote] = useState('');
+  const [savedAt, setSavedAt] = useState('');
 
   const filteredStudents = useMemo(() => {
     let list = [...(students || [])];
@@ -43,9 +49,32 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
     return list;
   }, [students, studentSearch, studentSort]);
 
-  const totalTest = Number(arrivalTest) + Number(test1) + Number(test2) + Number(test3);
-  const maxTestBase = Number(classTestMaxBase) > 0 ? Number(classTestMaxBase) : 100;
-  const test50 = Math.min(50, Math.round((totalTest / maxTestBase) * 50));
+  const studentKey = selectedStudent.studentId || selectedStudent.id;
+
+  // Reopen a previously saved sheet for this student / subject / term / year so it can be edited
+  const savedEntry = useMemo(() => {
+    const key = scoreSheetEntryKey({ studentId: studentKey, studentName: selectedStudent.fullName, subject, term, year });
+    return (results || []).find((r) => scoreSheetEntryKey(r) === key) || null;
+  }, [results, studentKey, selectedStudent.fullName, subject, term, year]);
+
+  useEffect(() => {
+    setArrivalTest(savedEntry?.arrivalTest ?? 0);
+    setTest1(savedEntry?.test1 ?? 0);
+    setTest2(savedEntry?.test2 ?? 0);
+    setTest3(savedEntry?.test3 ?? 0);
+    setExamsScore(savedEntry?.examScore ?? 0);
+    setTeacherNote(savedEntry?.teacherNote ?? '');
+    setSavedAt(savedEntry?.updatedAt || '');
+  }, [savedEntry]);
+
+  const clampTest = (value) => {
+    const n = Number(value);
+    if (Number.isNaN(n)) return 0;
+    return Math.min(CLASS_TEST_MAX, Math.max(0, n));
+  };
+
+  const totalTest = clampTest(arrivalTest) + clampTest(test1) + clampTest(test2) + clampTest(test3);
+  const test50 = Math.min(50, Math.round((totalTest / CLASS_TEST_TOTAL_MAX) * 50));
   const exams50 = Math.min(50, Math.round((Number(examsScore) / 100) * 50));
   const totalScore = test50 + exams50;
 
@@ -174,32 +203,28 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: 12, borderRadius: 6 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, borderBottom: '1px solid #cbd5e1', paddingBottom: 4 }}>
-                <span style={{ fontWeight: 800, fontSize: 11, color: '#0f3a4b' }}>Class test (Max Base: {maxTestBase})</span>
-                <select value={classTestMaxBase} onChange={(e) => setClassTestMaxBase(Number(e.target.value))} style={{ fontSize: 10, padding: '1px 4px', borderRadius: 3, border: '1px solid #cbd5e1' }}>
-                  <option value={100}>Max 100</option>
-                  <option value={50}>Max 50</option>
-                  <option value={60}>Max 60</option>
-                </select>
+                <span style={{ fontWeight: 800, fontSize: 11, color: '#0f3a4b' }}>Class tests (each / {CLASS_TEST_MAX})</span>
+                <span style={{ fontSize: 10, fontWeight: 800, color: '#92400e', background: '#fef3c7', padding: '2px 6px', borderRadius: 99 }}>Total / {CLASS_TEST_TOTAL_MAX}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 11 }}>Arrival test:</span>
-                <input type="number" value={arrivalTest} onChange={(e) => setArrivalTest(e.target.value)} style={{ width: 80, padding: 3, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right' }} />
+                <span style={{ fontSize: 11 }}>Arrival test (/100):</span>
+                <input type="number" min={0} max={CLASS_TEST_MAX} value={arrivalTest} onChange={(e) => setArrivalTest(clampTest(e.target.value))} style={{ width: 80, padding: 3, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 11 }}>Class test 1:</span>
-                <input type="number" value={test1} onChange={(e) => setTest1(e.target.value)} style={{ width: 80, padding: 3, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right' }} />
+                <span style={{ fontSize: 11 }}>Class test 1 (/100):</span>
+                <input type="number" min={0} max={CLASS_TEST_MAX} value={test1} onChange={(e) => setTest1(clampTest(e.target.value))} style={{ width: 80, padding: 3, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 11 }}>Class test 2:</span>
-                <input type="number" value={test2} onChange={(e) => setTest2(e.target.value)} style={{ width: 80, padding: 3, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right' }} />
+                <span style={{ fontSize: 11 }}>Class test 2 (/100):</span>
+                <input type="number" min={0} max={CLASS_TEST_MAX} value={test2} onChange={(e) => setTest2(clampTest(e.target.value))} style={{ width: 80, padding: 3, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 11 }}>Class test 3:</span>
-                <input type="number" value={test3} onChange={(e) => setTest3(e.target.value)} style={{ width: 80, padding: 3, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right' }} />
+                <span style={{ fontSize: 11 }}>Class test 3 (/100):</span>
+                <input type="number" min={0} max={CLASS_TEST_MAX} value={test3} onChange={(e) => setTest3(clampTest(e.target.value))} style={{ width: 80, padding: 3, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, fontWeight: 700, background: '#fef3c7', padding: '4px 6px', borderRadius: 4 }}>
-                <span style={{ fontSize: 11 }}>Total Class test ({maxTestBase}):</span>
-                <span>{totalTest}</span>
+                <span style={{ fontSize: 11 }}>Total Class test (/400):</span>
+                <span>{totalTest} / {CLASS_TEST_TOTAL_MAX}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 800, background: '#fed7aa', padding: '4px 6px', borderRadius: 4 }}>
                 <span style={{ fontSize: 11 }}>Class test converted to 50%:</span>
@@ -211,7 +236,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
               <div style={{ fontWeight: 800, fontSize: 11, color: '#0f3a4b', marginBottom: 8, borderBottom: '1px solid #cbd5e1', paddingBottom: 4 }}>Exams score</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <span style={{ fontSize: 11 }}>Exams score (100):</span>
-                <input type="number" value={examsScore} onChange={(e) => setExamsScore(e.target.value)} style={{ width: 80, padding: 4, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right', fontWeight: 700 }} />
+                <input type="number" min={0} max={100} value={examsScore} onChange={(e) => setExamsScore(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} style={{ width: 80, padding: 4, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right', fontWeight: 700 }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 800, background: '#fed7aa', padding: '6px 8px', borderRadius: 4, marginBottom: 12 }}>
                 <span style={{ fontSize: 11 }}>Exams score converted to 50%:</span>
@@ -233,7 +258,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
                 <input type="checkbox" checked={applyGrade} onChange={(e) => setApplyGrade(e.target.checked)} /> Apply grade marks?
               </label>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 160px', gap: 12, alignItems: 'center' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 160px', gap: 12, alignItems: 'start' }}>
               <div>
                 <label style={{ fontSize: 10, fontWeight: 700 }}>Grade</label>
                 <input type="text" value={applyGrade ? grade : ''} readOnly style={{ width: '100%', padding: 6, background: '#fed7aa', border: '1px solid #fdba74', borderRadius: 4, fontWeight: 800 }} />
@@ -253,24 +278,54 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
                         studentName: selectedStudent.fullName,
                         classLevel: cls,
                         subject,
+                        category,
+                        examDate,
+                        arrivalTest: clampTest(arrivalTest),
+                        test1: clampTest(test1),
+                        test2: clampTest(test2),
+                        test3: clampTest(test3),
+                        classTestMax: CLASS_TEST_MAX,
+                        classTestTotalMax: CLASS_TEST_TOTAL_MAX,
+                        classTestTotal: totalTest,
+                        classScore: test50,
+                        examScore: Number(examsScore) || 0,
+                        examScoreMax: 100,
+                        examScoreConverted: exams50,
                         score: totalScore,
                         grade,
                         remarks,
+                        teacherNote,
                         term,
                         year,
                         instructor
                       });
                     }
-                    alert(`✅ Score entry for ${selectedStudent.fullName} (${subject}) submitted for approval!\nTotal Score: ${totalScore}% | Grade: ${grade} (${remarks})\n\nSent to Admin and Sub-Admin for review. It will appear on transcripts once approved.`);
+                    setSavedAt(new Date().toLocaleString());
+                    alert(`${savedEntry ? 'Updated' : 'Saved'} score entry for ${selectedStudent.fullName} (${subject}).\nClass tests: ${totalTest}/400 → ${test50}/50 | Exam: ${exams50}/50 | Total: ${totalScore}%\n\nSent to Admin and Sub-Admin for approval. You can reopen this student to edit and save again.`);
                   }}
                   style={{ padding: '6px 12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 4, fontWeight: 800, color: '#3730a3', cursor: 'pointer' }}
                 >
-                  + Submit scores
+                  {savedEntry ? 'Update saved scores' : '+ Submit scores'}
                 </button>
                 <button type="button" onClick={() => alert(`Test Roll for ${cls} (${subject}): ${selectedStudent.fullName} - Score ${totalScore}% (Grade ${grade})`)} style={{ padding: '6px 12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 4, fontWeight: 800, color: '#3730a3', cursor: 'pointer' }}>
                   View Test Roll
                 </button>
               </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label style={{ fontSize: 10, fontWeight: 700, display: 'block', marginBottom: 4 }}>Teacher comment / note (editable per student)</label>
+              <textarea
+                value={teacherNote}
+                onChange={(e) => setTeacherNote(e.target.value)}
+                placeholder="Write a comment on this student's performance, effort, or areas to improve..."
+                rows={3}
+                style={{ width: '100%', padding: 8, border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 12, resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
+              />
+              {savedAt ? (
+                <div style={{ marginTop: 4, fontSize: 10, color: '#166534', fontWeight: 700 }}>
+                  Last saved {savedAt}. Reopen this student, subject, term and year to edit.
+                </div>
+              ) : null}
             </div>
           </div>
 

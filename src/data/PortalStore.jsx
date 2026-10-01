@@ -153,6 +153,18 @@ export function deduplicateFees(fees = []) {
   return Array.from(map.values());
 }
 
+// One score sheet per student, subject, term and year — saving the same combination edits that record
+export function scoreSheetEntryKey(entry = {}) {
+  if (entry.entryKey) return entry.entryKey;
+  const parts = [
+    entry.studentId || entry.student_id || entry.studentName || entry.student_name,
+    entry.subject,
+    entry.term,
+    entry.year || entry.academicYear,
+  ];
+  return parts.map((p) => String(p || '').trim().toLowerCase()).join('::');
+}
+
 export function isDeepEqual(a, b) {
   if (a === b) return true;
   if (a === null || a === undefined || b === null || b === undefined) return a === b;
@@ -361,15 +373,26 @@ function readData() {
 export function PortalDataProvider({ children }) {
   const [data, setData] = useState(readData);
 
+  // Identifies this tab so its own broadcasts are never applied back to itself
+  const senderIdRef = useRef(`portal-${Math.random().toString(36).slice(2)}`);
+  // Set while applying a snapshot received from another tab, so it is not echoed back
+  const applyingRemoteRef = useRef(false);
+
   useEffect(() => {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+      if (applyingRemoteRef.current) {
+        applyingRemoteRef.current = false;
+        return;
+      }
+
       // Real-Time Cloud Hub Push for instant cross-user / multi-portal synchronization
       cloudSync.pushLatestData(data);
 
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
         const channel = new BroadcastChannel('rcis_portal_data_sync');
-        channel.postMessage({ type: 'DATA_UPDATE', payload: data });
+        channel.postMessage({ type: 'DATA_UPDATE', sender: senderIdRef.current, payload: data });
         channel.close();
       }
     } catch (e) {}
@@ -383,7 +406,12 @@ export function PortalDataProvider({ children }) {
     const sync = (event) => {
       if (event.key === STORAGE_KEY && event.newValue) {
         try {
-          setData(JSON.parse(event.newValue));
+          const incoming = JSON.parse(event.newValue);
+          setData((current) => {
+            if (isDeepEqual(current, incoming)) return current;
+            applyingRemoteRef.current = true;
+            return incoming;
+          });
         } catch (e) {}
       }
     };
@@ -395,10 +423,13 @@ export function PortalDataProvider({ children }) {
         channel = new BroadcastChannel('rcis_portal_data_sync');
         channel.onmessage = (event) => {
           if (event.data && event.data.type === 'DATA_UPDATE' && event.data.payload) {
-            setData(current => ({
-              ...current,
-              ...event.data.payload
-            }));
+            if (event.data.sender === senderIdRef.current) return;
+            setData(current => {
+              const next = { ...current, ...event.data.payload };
+              if (isDeepEqual(current, next)) return current;
+              applyingRemoteRef.current = true;
+              return next;
+            });
           } else if (event.data && event.data.type === 'PV_SUBMITTED') {
             const { notif } = event.data;
             if (notif) {
@@ -449,7 +480,8 @@ export function PortalDataProvider({ children }) {
         billsRes,
         pvsRes,
         semRegsRes,
-        examRegsRes
+        examRegsRes,
+        scoreSheetsRes
       ] = await Promise.allSettled([
         cloudSync.pullLatestData(),
         api.getBusRoutes(),
@@ -467,7 +499,8 @@ export function PortalDataProvider({ children }) {
         api.getDefinedBills(),
         api.getPaymentVouchers(),
         api.getSemesterRegistrations(),
-        api.getExamRegistrations()
+        api.getExamRegistrations(),
+        api.getScoreSheetEntries()
       ]);
 
       const cloudData = (cloudRes.status === 'fulfilled' && cloudRes.value && typeof cloudRes.value === 'object') ? cloudRes.value : null;
@@ -509,19 +542,48 @@ export function PortalDataProvider({ children }) {
         if (resultsRes.status === 'fulfilled' && Array.isArray(resultsRes.value)) {
           const mapped = resultsRes.value.map(r => ({
             id: r.id,
+            backendId: r.id,
             studentId: r.student_id || r.studentId,
             studentName: r.student_name || r.studentName,
             subject: r.subject,
+            classLevel: formatClassToBasic(r.class_level || r.classLevel),
+            term: r.term,
+            year: r.academic_year || r.academicYear,
             score: r.score,
             grade: r.grade,
+            remarks: r.remarks,
             lecturer: r.lecturer,
+            arrivalTest: r.arrival_test ?? r.arrivalTest,
+            test1: r.class_test_1 ?? r.test1,
+            test2: r.class_test_2 ?? r.test2,
+            test3: r.class_test_3 ?? r.test3,
+            classTestTotal: r.class_test_total ?? r.classTestTotal,
+            classScore: r.class_score ?? r.classScore,
+            examScore: r.exam_score ?? r.examScore,
+            teacherNote: r.teacher_note ?? r.teacherNote ?? '',
             status: r.status || 'Approved',
             declineNote: r.decline_note || r.declineNote,
+            approvedBy: r.approved_by || r.approvedBy,
             updatedAt: r.updated_at || r.updatedAt
           }));
-          const merged = mergeByKey(current.results || [], mapped, r => r.id || `${r.studentId}-${r.subject}`);
+          const merged = mergeByKey(current.results || [], mapped, r => scoreSheetEntryKey(r) || r.id);
           if (!isDeepEqual(current.results, merged)) {
             updates.results = merged;
+            hasChanges = true;
+          }
+        }
+
+        if (scoreSheetsRes.status === 'fulfilled' && Array.isArray(scoreSheetsRes.value)) {
+          const mappedSheets = scoreSheetsRes.value.map((r) => ({
+            ...r,
+            backendId: r.backendId || r.id,
+            lecturer: r.instructor || r.lecturer,
+            status: r.status || 'Pending Approval',
+          }));
+          const base = updates.results || current.results || [];
+          const mergedSheets = mergeByKey(base, mappedSheets, r => scoreSheetEntryKey(r) || r.id);
+          if (!isDeepEqual(base, mergedSheets)) {
+            updates.results = mergedSheets;
             hasChanges = true;
           }
         }
@@ -760,6 +822,20 @@ export function PortalDataProvider({ children }) {
               valuedDate: p.date_prepared || p.valuedDate,
               auditRemarks: p.auditRemarks || p.pre_audited_by || 'Registered in system',
               status: p.status === 'PRE_AUDITED' ? 'Pre-Audited & Approved' : p.status || 'Pending Audit',
+              ...(Array.isArray(p.items) && p.items.length > 0 ? {
+                items: p.items.map((it, idx) => ({
+                  id: it.id || `it-${p.id || p.pv_number}-${idx}`,
+                  description: it.description || it.particulars,
+                  provider: it.payee_name || it.provider || p.payee_name,
+                  providerId: it.payee_id || it.providerId,
+                  qty: Number(it.quantity || it.qty) || 1,
+                  cost: Number(it.unit_cost || it.cost) || 0,
+                  costPerItem: Number(it.unit_cost || it.costPerItem || it.cost) || 0,
+                  total: Number(it.total_amount || it.total) || 0,
+                  totalAmount: Number(it.total_amount || it.totalAmount || it.total) || 0,
+                  status: it.status || 'Pending approval',
+                }))
+              } : {}),
               editedByHeadmaster: false,
               correctionsLog: []
             }));
@@ -1832,33 +1908,53 @@ export function PortalDataProvider({ children }) {
         semesterRegistrations: (current.semesterRegistrations || []).filter(r => r.id !== id && r.studentId !== id)
       }));
     },
-    // Score Sheet Entry Persistence
+    // Score Sheet Entry Persistence — upserts on the entry key so a saved sheet can be edited later
     saveScoreSheetEntry: (entry) => {
-      api.saveScoreSheet(entry).catch((e) => console.warn('Backend score sheet save fallback:', e));
+      const entryKey = scoreSheetEntryKey(entry);
+      let persisted = null;
+
       setData((current) => {
-      const existingResults = current.results || [];
-      const newResult = {
-        id: entry.id || `res-${Date.now()}`,
-        studentId: entry.studentId,
-        studentName: entry.studentName,
-        subject: entry.subject || 'General Subject',
-        score: entry.score,
-        grade: entry.grade,
-        remarks: entry.remarks,
-        classLevel: entry.classLevel,
-        term: entry.term,
-        year: entry.year,
-        lecturer: entry.instructor || 'Subject Teacher',
-        status: 'Pending Approval',
-        declineNote: null,
-        submittedAt: new Date().toLocaleString(),
-        updatedAt: new Date().toLocaleDateString()
-      };
-      const updated = existingResults.some(r => r.id === newResult.id || (r.subject === newResult.subject && r.studentName === newResult.studentName))
-        ? existingResults.map(r => (r.id === newResult.id || (r.subject === newResult.subject && r.studentName === newResult.studentName)) ? { ...r, ...newResult } : r)
-        : [newResult, ...existingResults];
-      return { ...current, results: updated };
-    });
+        const existingResults = current.results || [];
+        const existing = existingResults.find((r) => scoreSheetEntryKey(r) === entryKey);
+
+        persisted = {
+          ...entry,
+          id: existing?.id || entry.id || `res-${Date.now()}`,
+          entryKey,
+          backendId: existing?.backendId,
+          subject: entry.subject || 'General Subject',
+          lecturer: entry.instructor || 'Subject Teacher',
+          teacherNote: entry.teacherNote || '',
+          status: 'Pending Approval',
+          declineNote: null,
+          approvedBy: null,
+          submittedAt: existing?.submittedAt || new Date().toLocaleString(),
+          updatedAt: new Date().toLocaleString(),
+        };
+
+        return {
+          ...current,
+          results: existing
+            ? existingResults.map((r) => r.id === persisted.id ? { ...r, ...persisted } : r)
+            : [persisted, ...existingResults],
+        };
+      });
+
+      if (!persisted) return;
+      const remoteId = persisted.backendId;
+      const sync = remoteId
+        ? api.updateScoreSheet(remoteId, persisted)
+        : api.saveScoreSheet(persisted);
+      sync
+        .then((res) => {
+          const newRemoteId = res?.id || res?._id;
+          if (!newRemoteId || newRemoteId === remoteId) return;
+          setData((latest) => ({
+            ...latest,
+            results: (latest.results || []).map((r) => r.id === persisted.id ? { ...r, backendId: newRemoteId } : r),
+          }));
+        })
+        .catch((e) => console.warn('Backend score sheet save fallback:', e));
     },
     // Payment Recording with Robust Match Logic
     recordFeePayment: async ({ id, studentId, studentName, paidAmount, paymentDate, paymentMethod = 'Mobile Money', notes = '', receivingAccount = 'GCB Main Account' }) => {
@@ -2941,17 +3037,35 @@ export function PortalDataProvider({ children }) {
         const statusText = actionChoice === 'Pre-audit Approve PV' ? 'Pre-Audited & Approved' : actionChoice;
         const updated = existing.map(p => {
           if (p.pvNo.toLowerCase() === String(pvNo).toLowerCase() || p.id === pvNo) {
+            const mergedItems = Array.isArray(updatedFields?.items) ? updatedFields.items : (p.items || []);
             const qtyVal = Number(updatedFields?.qty !== undefined ? updatedFields.qty : p.qty) || 1;
             const costVal = Number(updatedFields?.cost !== undefined ? updatedFields.cost : (updatedFields?.costPerItem !== undefined ? updatedFields.costPerItem : (p.cost || 0))) || 0;
-            const newTotal = qtyVal * costVal;
+            const payable = Array.isArray(mergedItems) && mergedItems.length > 0
+              ? mergedItems
+                  .filter((i) => /valid|approv|pre-audit/i.test(String(i.status || '')))
+                  .reduce((acc, i) => acc + (Number(i.totalAmount || i.total || 0) || 0), 0)
+              : (qtyVal * costVal);
             const isEdited = !!updatedFields || p.editedByHeadmaster;
+            const mixedStatus = Array.isArray(mergedItems) && mergedItems.length > 1
+              ? (() => {
+                  const statuses = mergedItems.map((i) => String(i.status || '').toLowerCase());
+                  const allVal = statuses.every((s) => s.includes('valid') || s.includes('approv'));
+                  const allDec = statuses.every((s) => s.includes('declin') || s.includes('reject') || s.includes('cancel'));
+                  if (allVal) return 'Validated';
+                  if (allDec) return 'Declined';
+                  if (statuses.some((s) => s.includes('valid') || s.includes('approv'))) return 'Partially Approved';
+                  return statusText;
+                })()
+              : statusText;
             return {
               ...p,
               ...(updatedFields || {}),
+              items: mergedItems,
               qty: qtyVal,
               cost: costVal,
-              total: newTotal,
-              status: statusText,
+              total: payable,
+              payableTotal: payable,
+              status: mixedStatus,
               auditRemarks: remarks || p.auditRemarks,
               approvedBy: auditorName,
               approvedAt: new Date().toLocaleString(),
