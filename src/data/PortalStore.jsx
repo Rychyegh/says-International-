@@ -101,6 +101,123 @@ function applicationMatchesStudent(app, student) {
   return Boolean(appName && stuName && appName === stuName);
 }
 
+function applicationsAreSame(a = {}, b = {}) {
+  if (!a || !b) return false;
+  if (a.id && b.id && String(a.id) === String(b.id)) return true;
+  const aName = normalizePersonName(applicationLearnerName(a) || a.learner || a.fullName);
+  const bName = normalizePersonName(applicationLearnerName(b) || b.learner || b.fullName);
+  if (!aName || aName !== bName) return false;
+  const aDob = String(a.dob || a.dateOfBirth || '').slice(0, 10);
+  const bDob = String(b.dob || b.dateOfBirth || '').slice(0, 10);
+  if (aDob && bDob && aDob !== bDob) return false;
+  const aYear = String(a.academicYear || '').trim().toLowerCase();
+  const bYear = String(b.academicYear || '').trim().toLowerCase();
+  if (aYear && bYear && aYear !== bYear) return false;
+  return true;
+}
+
+function findMatchingApplication(list = [], candidate = {}) {
+  return (list || []).find((app) => applicationsAreSame(app, candidate)) || null;
+}
+
+function mergeApplicationRecords(prev = {}, incoming = {}) {
+  const prevTime = new Date(prev.updatedAt || prev.submittedAt || 0).getTime() || 0;
+  const incomingTime = new Date(incoming.updatedAt || incoming.submittedAt || 0).getTime() || 0;
+  const older = incomingTime >= prevTime ? prev : incoming;
+  const newer = incomingTime >= prevTime ? incoming : prev;
+  return {
+    ...older,
+    ...newer,
+    id: preferCanonicalId(incoming.id, prev.id),
+    formData: { ...(older.formData || {}), ...(newer.formData || {}) },
+    rfidCardCode: preferIssuedRfid(newer.rfidCardCode, older.rfidCardCode, newer.formData?.rfidCardCode, older.formData?.rfidCardCode),
+    learner: newer.learner || older.learner,
+    fullName: newer.fullName || older.fullName || newer.learner || older.learner,
+    status: newer.status || older.status,
+  };
+}
+
+function mapApiApplication(a = {}) {
+  const formData = a.formData || a.form_data || {};
+  return {
+    id: a.id,
+    learner: a.learner || a.learner_name,
+    guardian: a.guardian || a.guardian_name,
+    email: a.email || a.contact_email,
+    phone: a.phone || a.contact_phone,
+    level: formatClassToBasic(a.level || a.applying_level),
+    status: a.status,
+    submittedAt: a.submittedAt || a.submitted_at,
+    updatedAt: a.updatedAt || a.updated_at || a.submittedAt || a.submitted_at,
+    office_use_notes: a.office_use_notes,
+    firstName: formData.firstName || a.firstName,
+    otherNames: formData.otherNames || a.otherNames,
+    surname: formData.surname || a.surname,
+    dob: formData.dob || a.dob,
+    academicYear: formData.academicYear || a.academicYear,
+    ...formData,
+    rfidCardCode: formData.rfidCardCode || a.rfidCardCode || a.rfid_card_code || '',
+  };
+}
+
+async function findRemoteApplicationId(candidate) {
+  try {
+    const raw = await api.getApplications();
+    const list = extractApplicationsList(raw).map(mapApiApplication);
+    return findMatchingApplication(list, candidate)?.id || null;
+  } catch {
+    return null;
+  }
+}
+
+async function removeDuplicateRemoteApplications(keepId, candidate) {
+  if (!keepId || !candidate) return;
+  try {
+    const raw = await api.getApplications();
+    const list = extractApplicationsList(raw).map(mapApiApplication);
+    const extras = list.filter((app) =>
+      app.id
+      && String(app.id) !== String(keepId)
+      && applicationsAreSame(app, { ...candidate, id: keepId })
+    );
+    await Promise.all(extras.map((app) => api.deleteApplication(app.id).catch(() => null)));
+  } catch {
+    /* keep local collapse even if remote cleanup fails */
+  }
+}
+
+function deduplicateApplications(list = []) {
+  if (!Array.isArray(list)) return [];
+  const result = [];
+  for (const app of list) {
+    if (!app || typeof app !== 'object') continue;
+    const existingIndex = result.findIndex((prev) => applicationsAreSame(prev, app));
+    if (existingIndex === -1) result.push(app);
+    else result[existingIndex] = mergeApplicationRecords(result[existingIndex], app);
+  }
+  return result;
+}
+
+function unwrapApiApplication(res) {
+  if (!res || typeof res !== 'object') return null;
+  if (res.application && typeof res.application === 'object') return res.application;
+  if (res.record && typeof res.record === 'object') return res.record;
+  if (res.data && typeof res.data === 'object' && !Array.isArray(res.data)) {
+    return res.data.application || res.data.record || res.data;
+  }
+  if (res.id || res.learner_name || res.learner || res.form_data || res.formData) return res;
+  return null;
+}
+
+function extractApplicationsList(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== 'object') return [];
+  for (const key of ['applications', 'data', 'records', 'results', 'items']) {
+    if (Array.isArray(raw[key])) return raw[key];
+  }
+  return [];
+}
+
 export function findStudentByCardUid(students = [], applications = [], rawCode) {
   const code = String(rawCode || '').trim();
   if (!code) return null;
@@ -789,6 +906,7 @@ function readData() {
         ...(parsed.profiles || {})
       },
       onboardedStudents: deduplicateStudents(parsed.onboardedStudents || []),
+      applications: deduplicateApplications(parsed.applications || []),
       studentFees: deduplicateFees(parsed.studentFees || []),
       academicSettings: {
         ...INITIAL_DATA.academicSettings,
@@ -1167,27 +1285,15 @@ export function PortalDataProvider({ children }) {
         }
 
         // Admissions Applications
-        if (appsRes.status === 'fulfilled' && Array.isArray(appsRes.value)) {
-          const mapped = appsRes.value.map(a => {
-            const formData = a.formData || a.form_data || {};
-            return {
-              id: a.id,
-              learner: a.learner || a.learner_name,
-              guardian: a.guardian || a.guardian_name,
-              email: a.email || a.contact_email,
-              phone: a.phone || a.contact_phone,
-              level: formatClassToBasic(a.level || a.applying_level),
-              status: a.status,
-              submittedAt: a.submittedAt || a.submitted_at,
-              office_use_notes: a.office_use_notes,
-              ...formData,
-              rfidCardCode: formData.rfidCardCode || a.rfidCardCode || a.rfid_card_code || '',
-            };
-          });
-          const merged = mergeByKey(current.applications || [], mapped, a => a.id || a.learner);
-          if (!isDeepEqual(current.applications, merged)) {
-            updates.applications = merged;
-            hasChanges = true;
+        if (appsRes.status === 'fulfilled') {
+          const appList = extractApplicationsList(appsRes.value);
+          if (Array.isArray(appList) && appList.length > 0) {
+            const mapped = appList.map(mapApiApplication);
+            const merged = deduplicateApplications([...(current.applications || []), ...mapped]);
+            if (!isDeepEqual(current.applications, merged)) {
+              updates.applications = merged;
+              hasChanges = true;
+            }
           }
         }
 
@@ -1802,32 +1908,56 @@ export function PortalDataProvider({ children }) {
       const applyingLevel = formatClassToBasic(application.applyingClass || application.level || 'Basic 1');
       const academicYear = application.academicYear || '2025/2026';
       const academicTerm = application.academicTerm || application.term || 'Term 1';
+      const candidate = {
+        ...application,
+        learner: learnerName,
+        fullName: learnerName,
+        firstName: application.firstName || '',
+        otherNames,
+        surname: application.surname || '',
+        email: contactEmail,
+        academicYear,
+        academicTerm,
+      };
+      const existingMatch = findMatchingApplication(dataRef.current.applications || [], candidate);
+      const remoteId = existingMatch?.id || await findRemoteApplicationId(candidate);
 
-      try {
-        await api.submitApplication({
-          learner_name: learnerName,
-          guardian_name: guardianName,
-          contact_email: contactEmail,
-          contact_phone: contactPhone,
-          applying_level: applyingLevel,
-          form_data: {
-            ...application,
-            academicYear,
-            academicTerm,
-            otherNames,
-          }
-        });
-      } catch (e) {
-        console.warn('Backend application submit fallback:', e);
+      if (remoteId) {
+        await api.updateApplication(remoteId, {
+          ...application,
+          ...candidate,
+          id: remoteId,
+        }).catch((e) => console.warn('Backend application overwrite fallback:', e));
       }
 
-      setData((current) => {
-        const appId = crypto.randomUUID?.() || String(Date.now());
-        const classSection = application.officeFormAssigned || 'A';
-        const homeAddress = application.residentialAddress || application.homeAddress || 'Bogoso';
+      let createdFromApi = null;
+      if (!remoteId) {
+        try {
+          createdFromApi = await api.submitApplication({
+            learner_name: learnerName,
+            guardian_name: guardianName,
+            contact_email: contactEmail,
+            contact_phone: contactPhone,
+            applying_level: applyingLevel,
+            form_data: {
+              ...application,
+              academicYear,
+              academicTerm,
+              otherNames,
+            }
+          });
+        } catch (e) {
+          console.warn('Backend application submit fallback:', e);
+        }
+      }
 
+      const apiApp = unwrapApiApplication(createdFromApi);
+      const resolvedId = apiApp?.id || remoteId || crypto.randomUUID?.() || String(Date.now());
+
+      setData((current) => {
         const newApp = {
-          id: appId,
+          ...(existingMatch || {}),
+          id: resolvedId,
           ...application,
           learner: learnerName,
           fullName: learnerName,
@@ -1842,19 +1972,25 @@ export function PortalDataProvider({ children }) {
           academicYear,
           academicTerm,
           term: academicTerm,
-          status: 'Submitted',
-          submittedAt: new Date().toLocaleString(),
-          rfidCardCode: application.rfidCardCode || '',
+          status: existingMatch?.status || 'Submitted',
+          submittedAt: existingMatch?.submittedAt || new Date().toLocaleString(),
+          updatedAt: new Date().toLocaleString(),
+          rfidCardCode: application.rfidCardCode || existingMatch?.rfidCardCode || '',
           formData: {
+            ...(existingMatch?.formData || {}),
             ...application,
-            rfidCardCode: application.rfidCardCode || '',
+            rfidCardCode: application.rfidCardCode || existingMatch?.rfidCardCode || '',
           },
         };
 
         const issuedRfid = application.rfidCardCode || '';
+        const apps = existingMatch
+          ? (current.applications || []).map((app) => (applicationsAreSame(app, existingMatch) ? mergeApplicationRecords(app, newApp) : app))
+          : [newApp, ...(current.applications || [])];
+
         return {
           ...current,
-          applications: [newApp, ...(current.applications || [])],
+          applications: deduplicateApplications(apps),
           onboardedStudents: issuedRfid
             ? (current.onboardedStudents || []).map((s) => (
               studentsAreSamePerson(s, { fullName: learnerName, studentId: application.officeStudentID || application.studentId }) && !s.rfidCardCode
@@ -1864,6 +2000,9 @@ export function PortalDataProvider({ children }) {
             : current.onboardedStudents,
         };
       });
+      if (resolvedId) {
+        await removeDuplicateRemoteApplications(resolvedId, candidate);
+      }
     },
     updateApplicationStatus: async (id, status) => {
       try {
@@ -1956,13 +2095,30 @@ export function PortalDataProvider({ children }) {
       }
     },
     updateApplication: async (id, updatedForm) => {
-      try {
-        await api.updateApplication(id, updatedForm);
-      } catch (e) {
-        console.warn('Backend update application fallback:', e);
+      const rosterApps = dataRef.current.applications || [];
+      const existingApp = rosterApps.find((a) => String(a.id) === String(id))
+        || findMatchingApplication(rosterApps, { id, ...updatedForm })
+        || {};
+      let persistId = existingApp.id || id || await findRemoteApplicationId({ id, ...updatedForm, ...existingApp });
+
+      if (persistId) {
+        try {
+          await api.updateApplication(persistId, { ...existingApp, ...updatedForm, id: persistId });
+        } catch (e) {
+          const remoteId = await findRemoteApplicationId({ id: persistId, ...existingApp, ...updatedForm });
+          if (remoteId) {
+            persistId = remoteId;
+            try {
+              await api.updateApplication(remoteId, { ...existingApp, ...updatedForm, id: remoteId });
+            } catch (retryErr) {
+              console.warn('Backend update application fallback:', retryErr);
+            }
+          } else {
+            console.warn('Backend update application fallback:', e);
+          }
+        }
       }
 
-      const existingApp = (dataRef.current.applications || []).find((a) => a.id === id) || {};
       const otherNames = String(updatedForm.otherNames || existingApp.otherNames || '').trim();
       const learnerName = [updatedForm.firstName || existingApp.firstName, otherNames, updatedForm.surname || existingApp.surname]
         .map((part) => String(part || '').trim())
@@ -1991,7 +2147,7 @@ export function PortalDataProvider({ children }) {
         homeAddress: updatedForm.residentialAddress || existingApp.residentialAddress,
         dob: updatedForm.dob || existingApp.dob,
         gender: updatedForm.sex || updatedForm.gender || existingApp.sex,
-        applicationId: id,
+        applicationId: persistId,
       };
 
       const roster = dataRef.current.onboardedStudents || [];
@@ -2037,13 +2193,15 @@ export function PortalDataProvider({ children }) {
       }
 
       setData((current) => {
-        const currentApp = (current.applications || []).find((a) => a.id === id);
-        if (!currentApp) return current;
+        const currentApp = (current.applications || []).find((a) => String(a.id) === String(persistId) || String(a.id) === String(id))
+          || findMatchingApplication(current.applications || [], { id: persistId, ...updatedForm, learner: learnerName, fullName: learnerName, academicYear: updatedForm.academicYear || existingApp.academicYear });
 
         const updatedApplicationRecord = {
-          ...currentApp,
+          ...(currentApp || existingApp || {}),
           ...updatedForm,
+          id: persistId || currentApp?.id || existingApp.id || id,
           learner: learnerName,
+          fullName: learnerName,
           guardian: guardianName,
           email: contactEmail,
           phone: contactPhone,
@@ -2053,7 +2211,7 @@ export function PortalDataProvider({ children }) {
           subClass: classSection,
           rfidCardCode: studentPatch.rfidCardCode,
           formData: {
-            ...(currentApp.formData || {}),
+            ...((currentApp || existingApp || {}).formData || {}),
             ...updatedForm,
             applyingClass: applyingLevel,
             classSection,
@@ -2063,9 +2221,13 @@ export function PortalDataProvider({ children }) {
           updatedAt: new Date().toLocaleString(),
         };
 
-        const updatedApplications = (current.applications || []).map((app) =>
-          app.id === id ? updatedApplicationRecord : app
-        );
+        const updatedApplications = currentApp
+          ? (current.applications || []).map((app) => (
+            applicationsAreSame(app, currentApp) || String(app.id) === String(id) || String(app.id) === String(persistId)
+              ? mergeApplicationRecords(app, updatedApplicationRecord)
+              : app
+          ))
+          : [updatedApplicationRecord, ...(current.applications || [])];
 
         const updatedOnboardedStudents = (current.onboardedStudents || []).map((stu) => {
           const isMatch = matchedStudent
@@ -2102,12 +2264,21 @@ export function PortalDataProvider({ children }) {
 
         return {
           ...current,
-          applications: updatedApplications,
+          applications: deduplicateApplications(updatedApplications),
           onboardedStudents: deduplicateStudents(updatedOnboardedStudents),
           studentFees: updatedStudentFees,
           feeAccounts: updatedFeeAccounts,
         };
       });
+      if (persistId) {
+        await removeDuplicateRemoteApplications(persistId, {
+          id: persistId,
+          ...existingApp,
+          ...updatedForm,
+          learner: learnerName,
+          fullName: learnerName,
+        });
+      }
     },
     updateApplicationOfficeUse: async (id, officeData) => {
       let updatedApp = null;

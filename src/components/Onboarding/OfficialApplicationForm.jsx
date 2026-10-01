@@ -311,20 +311,6 @@ export default function OfficialApplicationForm({
     }));
   };
 
-  const handleFormSubmit = async (e) => {
-    if (e) e.preventDefault();
-    const normalized = normalizeApplicationForm(formData);
-    if (onSubmit) {
-      await onSubmit(normalized);
-    }
-    setSuccessNotice('Official Application Form successfully submitted online!');
-    if (!initialData) {
-      setFormData(getDefaultForm());
-      setActiveTab('page1');
-    }
-    setTimeout(() => setSuccessNotice(''), 6000);
-  };
-
   const handleFormUpdate = async (e) => {
     if (e) e.preventDefault();
     const targetId = formData.id || initialData?.id;
@@ -337,7 +323,7 @@ export default function OfficialApplicationForm({
     try {
       if (onUpdate) {
         await onUpdate(targetId, normalized);
-      } else if (updateApplication && targetId) {
+      } else if (updateApplication) {
         await updateApplication(targetId, normalized);
       }
     } catch (err) {
@@ -346,6 +332,22 @@ export default function OfficialApplicationForm({
 
     setIsEditingMode(false);
     setSuccessNotice('✅ Application Form updated successfully! Changes saved to database and synced across devices.');
+    setTimeout(() => setSuccessNotice(''), 6000);
+  };
+
+  const handleFormSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (initialData) {
+      await handleFormUpdate(e);
+      return;
+    }
+    const normalized = normalizeApplicationForm(formData);
+    if (onSubmit) {
+      await onSubmit(normalized);
+    }
+    setSuccessNotice('Official Application Form successfully submitted online!');
+    setFormData(getDefaultForm());
+    setActiveTab('page1');
     setTimeout(() => setSuccessNotice(''), 6000);
   };
 
@@ -1283,9 +1285,10 @@ export default function OfficialApplicationForm({
               <Download size={14} /> Download Form PDF
             </button>
 
-            {!readOnly && (
+            {(!readOnly || isEditingMode) && (
               <button className="btn-form-action btn-form-action--primary" type="submit">
-                <CheckCircle2 size={14} /> Submit Application
+                {initialData ? <Save size={14} /> : <CheckCircle2 size={14} />}
+                {initialData ? 'Save & Update Application' : 'Submit Application'}
               </button>
             )}
           </div>
