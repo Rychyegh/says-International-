@@ -21,6 +21,14 @@ const ROLES = [
   { value: 'security_driver', label: 'Transport / Security', badgeColor: '#374151', bg: '#f3f4f6', desc: 'Bus routing, RFID gate scans, and safety logging' },
 ];
 
+const CLASS_OPTIONS = [
+  'Creche', 'Nursery 1', 'Nursery 2', 'KG 1', 'KG 2',
+  'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6',
+  'Basic 7', 'Basic 8', 'Basic 9',
+];
+
+const SUB_CLASS_OPTIONS = ['Section A', 'Section B', 'Section C', 'Section D'];
+
 function RoleSelect({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef(null);
@@ -293,8 +301,8 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     role: 'teacher',
     staffId: '',
     studentId: '',
-    department: 'General Staff',
-    assignedClass: 'Primary 1',
+    assignedClass: '',
+    subClass: '',
     password: '',
     status: 'Active',
     mustChangePassword: false,
@@ -379,8 +387,9 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       status: createForm.status || 'Active',
       staffId: autoStaffId,
       studentId: createForm.studentId.trim() || undefined,
-      department: createForm.department.trim() || 'General',
-      assignedClass: createForm.assignedClass.trim() || undefined,
+      assignedClass: [createForm.assignedClass, createForm.subClass].filter(Boolean).join(' · ') || undefined,
+      classLevel: createForm.assignedClass || undefined,
+      subClass: createForm.subClass || undefined,
       password: finalPass,
       createdAt: new Date().toISOString().split('T')[0],
       lastLogin: 'Never',
@@ -413,8 +422,8 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       role: 'teacher',
       staffId: '',
       studentId: '',
-      department: 'General Staff',
-      assignedClass: 'Primary 1',
+      assignedClass: '',
+      subClass: '',
       password: '',
       status: 'Active',
       mustChangePassword: false,
@@ -639,8 +648,8 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                 role: 'teacher',
                 staffId: `CT-2026-${String(users.length + 1).padStart(3, '0')}`,
                 studentId: '',
-                department: 'General Academic Staff',
-                assignedClass: 'Primary 1',
+                assignedClass: '',
+                subClass: '',
                 password: generateSecurePassword('teacher'),
                 status: 'Active',
                 mustChangePassword: true,
@@ -1263,25 +1272,32 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Department / Wing</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Science Dept / JHS"
-                    value={createForm.department}
-                    onChange={(e) => setCreateForm(prev => ({ ...prev, department: e.target.value }))}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13 }}
-                  />
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Assigned Class (Optional)</label>
+                  <select
+                    value={createForm.assignedClass}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, assignedClass: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13, background: '#fff' }}
+                  >
+                    <option value="">Not assigned</option>
+                    {CLASS_OPTIONS.map((level) => (
+                      <option key={level} value={level}>{level}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Assigned Class (Optional)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Grade 4 Section A"
-                    value={createForm.assignedClass}
-                    onChange={(e) => setCreateForm(prev => ({ ...prev, assignedClass: e.target.value }))}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13 }}
-                  />
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Sub Class (Optional)</label>
+                  <select
+                    value={createForm.subClass}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, subClass: e.target.value }))}
+                    disabled={!createForm.assignedClass}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13, background: createForm.assignedClass ? '#fff' : 'var(--bg-muted, #f1f5f9)' }}
+                  >
+                    <option value="">{createForm.assignedClass ? 'No sub class' : 'Select a class first'}</option>
+                    {SUB_CLASS_OPTIONS.map((section) => (
+                      <option key={section} value={section}>{section}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

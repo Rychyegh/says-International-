@@ -1214,6 +1214,10 @@ export const api = {
       photo_url:    userData.photoUrl || userData.photo_url || undefined,
       is_active:    userData.status !== 'Suspended',
       status:       userData.status || 'Active',
+      staff_code:   userData.staffId || userData.staff_id || undefined,
+      student_code: userData.studentId || userData.student_id || undefined,
+      class_assigned: userData.classLevel || userData.class_level || userData.assignedClass || undefined,
+      sub_class:    userData.subClass || userData.sub_class || undefined,
     };
 
     // Strip undefined fields so the backend validator doesn't reject them
