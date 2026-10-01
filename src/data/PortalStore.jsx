@@ -2450,7 +2450,7 @@ export function PortalDataProvider({ children }) {
       }
 
       const settings = current.academicSettings || {};
-      let persistResult = { posted: 0, failed: 0, errors: [] };
+      let persistResult = { posted: 0, skipped: 0, failed: 0, errors: [], postedStudentKeys: [] };
       try {
         persistResult = await api.persistPostedAcademicBills({
           students: targetStudents,
@@ -2458,25 +2458,29 @@ export function PortalDataProvider({ children }) {
           totalAmount: amountToPost,
           term,
           classLevel,
-          academicYear: settings.academicYear || '2026/2027',
+          academicYear: settings.academicYear || '2025/2026',
           billedBy: getUserFullName() || 'Accounts Office',
           dueDate: settings.resumptionDate || '2026-09-15',
         });
       } catch (e) {
-        persistResult = { posted: 0, failed: Math.max(1, targetStudents.length), errors: [e.message] };
+        persistResult = { posted: 0, skipped: 0, failed: Math.max(1, targetStudents.length), errors: [e.message], postedStudentKeys: [] };
         console.warn('Backend bill post fallback:', e);
       }
 
       const postedAt = new Date().toISOString();
-      if (persistResult.posted > 0) {
+      const postedKeys = new Set(persistResult.postedStudentKeys || []);
+      const studentsToWrite = postedKeys.size
+        ? targetStudents.filter((stu) => postedKeys.has(stu.studentId || stu.id))
+        : (persistResult.posted > 0 ? targetStudents : []);
+      if (studentsToWrite.length > 0) {
       setData((latest) => {
-        if (targetStudents.length === 0) return latest;
+        if (studentsToWrite.length === 0) return latest;
 
         const updatedFees = [...(latest.studentFees || [])];
         const updatedFeeAccounts = [...(latest.feeAccounts || [])];
         const updatedLedgerLogs = [...(latest.ledgerLogs || [])];
 
-        targetStudents.forEach(stu => {
+        studentsToWrite.forEach(stu => {
           const feeIndex = updatedFees.findIndex(f =>
             (stu.studentId && f.studentId === stu.studentId) || f.studentName === stu.fullName || f.studentName === stu.name
           );
@@ -2568,13 +2572,29 @@ export function PortalDataProvider({ children }) {
       }
 
       try {
-        if (persistResult.posted > 0) {
+        if ((persistResult.posted || 0) + (persistResult.skipped || 0) > 0) {
           await refreshBackendData();
         }
       } catch (e) {
         console.warn('Fee ledger refresh after bill post failed:', e);
       }
       return persistResult;
+    },
+    fetchStudentLedger: async (studentId) => api.getStudentLedger(studentId),
+    postClassBillsBatch: async ({ classLevel, academicYear, term, excludeStudentIds, billTemplateId } = {}) => {
+      const settings = (dataRef.current || {}).academicSettings || {};
+      const result = await api.persistPostedAcademicBills({
+        classLevel,
+        academicYear: academicYear || settings.academicYear || '2025/2026',
+        term: term || 'Term 1',
+        useBatch: true,
+        excludeStudentIds,
+        billTemplateId,
+      });
+      if ((result.posted || 0) + (result.skipped || 0) > 0) {
+        try { await refreshBackendData(); } catch (e) { console.warn('Fee ledger refresh after class batch failed:', e); }
+      }
+      return result;
     },
     adjustStudentBill: async ({
       studentId,

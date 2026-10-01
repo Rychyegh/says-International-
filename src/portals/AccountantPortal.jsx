@@ -12,7 +12,7 @@ import AcademicSettingsManager from '../components/Academic/AcademicSettingsMana
 import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
 import ApprovePVForm from '../components/Finance/ApprovePVForm';
 import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
-import { getAuthUser } from '../services/api';
+import { getAuthUser, api } from '../services/api';
 
 const ACCOUNT_BG = '#0f3a4b';
 const ACCOUNT_LIGHT = '#e0f2fe';
@@ -1761,18 +1761,28 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
 
   // Post Compulsory Bill to Student Journal
   const handlePostToJournal = async () => {
-    setBillItems((prev) =>
-      prev.map((item) => ({ ...item, status: 'Posted' }))
-    );
     if (portalData?.postAcademicBill) {
-      await portalData.postAcademicBill({
+      const persist = await portalData.postAcademicBill({
         studentName: formStudentName,
+        studentId: enrollmentSid,
         classLevel: formCurrentClass || currClass,
-        items: billItems,
+        items: billItems.map((item) => ({ details: item.description, amount: item.fee })),
         totalAmount: compulsoryTotal + otherTotal,
-        term: `${currTerm || '1st Term'} · ${currYear || '2025/2026'}`
+        term: `${currTerm || 'Term 1'} · ${currYear || '2025/2026'}`
       });
+      if (persist?.failed && !persist?.posted && !persist?.skipped) {
+        setJournalStatusNotice(`Could not save this bill to the database: ${persist.errors?.[0] || 'request failed'}`);
+        alert(`Could not save this bill to the database.\n\n${persist.errors?.[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
+        return;
+      }
+      const skipNote = persist?.skipped ? ` (${persist.skipped} already billed for this term)` : '';
+      setBillItems((prev) => prev.map((item) => ({ ...item, status: 'Posted' })));
+      setJournalStatusNotice(
+        `✓ Posted Next Term Compulsory Bill (GHS ${compulsoryTotal.toLocaleString()}) to Student Ledger & Accounts for ${formStudentName}${persist?.posted ? ' and saved to the database' : ''}${skipNote}!`
+      );
+      return;
     }
+    setBillItems((prev) => prev.map((item) => ({ ...item, status: 'Posted' })));
     setJournalStatusNotice(
       `✓ Posted Next Term Compulsory Bill (GHS ${compulsoryTotal.toLocaleString()}) to Student Ledger & Accounts for ${formStudentName}!`
     );
@@ -5647,6 +5657,167 @@ function ReprintCommercialReceiptForm({ setM }) {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function formatGhs(value) {
+  return (Number(value) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatLedgerDate(value) {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value).slice(0, 16);
+  return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function StudentLedgerPrintForm({ setM, initialStudentId = '', initialStudentName = '' }) {
+  const { onboardedStudents = [], studentFees = [] } = usePortalData() || {};
+  const roster = useMemo(() => {
+    const byId = new Map();
+    (onboardedStudents || []).forEach((student) => {
+      const id = String(student.studentId || student.id || '').trim();
+      if (!id) return;
+      byId.set(id, {
+        id,
+        uuid: student.id,
+        name: student.fullName || student.name,
+        classLevel: student.level || '',
+      });
+    });
+    (studentFees || []).forEach((fee) => {
+      const id = String(fee.studentId || fee.id || '').trim();
+      if (!id || byId.has(id)) return;
+      byId.set(id, {
+        id,
+        name: fee.studentName,
+        classLevel: fee.classLevel || '',
+      });
+    });
+    return Array.from(byId.values()).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  }, [onboardedStudents, studentFees]);
+
+  const [studentId, setStudentId] = useState(initialStudentId || roster[0]?.id || '');
+  const [status, setStatus] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [ledger, setLedger] = useState({
+    studentName: initialStudentName,
+    classLevel: '',
+    currentBalance: 0,
+    entries: [],
+  });
+
+  const selected = roster.find((row) => row.id === studentId) || { id: studentId, name: initialStudentName || ledger.studentName };
+
+  useEffect(() => {
+    if (!studentId && roster[0]?.id) setStudentId(roster[0].id);
+  }, [roster, studentId]);
+
+  useEffect(() => {
+    if (!studentId) return undefined;
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      setStatus('');
+      try {
+        const data = await api.getStudentLedger(studentId);
+        if (cancelled) return;
+        setLedger(data);
+        setStatus(data.entries.length ? '' : 'No ledger entries yet for this student.');
+      } catch (error) {
+        if (cancelled) return;
+        setLedger({
+          studentName: selected.name,
+          classLevel: selected.classLevel || '',
+          currentBalance: 0,
+          entries: [],
+        });
+        setStatus(error.message || 'Could not load the student ledger.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [studentId]);
+
+  return (
+    <div>
+      <div className="no-print" style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 12, fontWeight: 800, color: '#0f3a4b' }}>Student</label>
+        <select
+          value={studentId}
+          onChange={(event) => setStudentId(event.target.value)}
+          style={{ minWidth: 280, padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 6, fontWeight: 700 }}
+        >
+          {roster.length === 0 && <option value={studentId || ''}>{initialStudentName || 'No students found'}</option>}
+          {roster.map((row) => (
+            <option key={row.id} value={row.id}>{row.name} ({row.id})</option>
+          ))}
+        </select>
+        {loading && <span style={{ fontSize: 12, color: '#0369a1', fontWeight: 700 }}>Loading ledger…</span>}
+        {status && !loading && <span style={{ fontSize: 12, color: '#b45309', fontWeight: 700 }}>{status}</span>}
+      </div>
+      <div className="printable-area accountant-printable" style={{ padding: 20, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
+        <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 12 }}>
+          <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 44, width: 'auto', borderRadius: 4, marginBottom: 4, display: 'inline-block' }} />
+          <h3 style={{ fontSize: 16, color: '#0f3a4b', fontWeight: 800, margin: 0 }}>OFFICIAL STUDENT FINANCIAL LEDGER</h3>
+          <p style={{ fontSize: 11, color: '#475569' }}>
+            Student Account Ledger History · {ledger.studentName || selected.name} ({studentId})
+            {ledger.classLevel ? ` · ${ledger.classLevel}` : ''}
+          </p>
+        </div>
+        <table className="data-table" style={{ fontSize: 11 }}>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Ref / Receipt #</th>
+              <th>Transaction Description</th>
+              <th>Debit (GHS)</th>
+              <th>Credit (GHS)</th>
+              <th>Balance (GHS)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ledger.entries.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', padding: 16, color: '#64748b' }}>
+                  {loading ? 'Loading student ledger…' : 'No debit or credit entries yet.'}
+                </td>
+              </tr>
+            ) : ledger.entries.map((entry) => (
+              <tr key={entry.id || `${entry.date}-${entry.reference}`}>
+                <td>{formatLedgerDate(entry.date)}</td>
+                <td>{entry.reference || '—'}</td>
+                <td>{entry.description}</td>
+                <td>{entry.debit ? formatGhs(entry.debit) : '-'}</td>
+                <td>{entry.credit ? formatGhs(entry.credit) : '-'}</td>
+                <td>{formatGhs(entry.balance)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div style={{ marginTop: 10, textAlign: 'right', fontWeight: 800, color: '#0f3a4b' }}>
+          Current balance: GHS {formatGhs(ledger.currentBalance)}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 20, paddingTop: 12, borderTop: '1px dashed #cbd5e1', fontSize: 10.5 }}>
+          <div>
+            <div style={{ fontWeight: 800, color: '#0f3a4b', marginBottom: 16 }}>Accounts Officer Signature:</div>
+            <div style={{ borderBottom: '1px solid #94a3b8', width: '70%', marginBottom: 2 }} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 800, color: '#0f3a4b', marginBottom: 16 }}>Official Audit Seal:</div>
+            <div style={{ borderBottom: '1px solid #94a3b8', width: '70%', marginBottom: 2 }} />
+          </div>
+        </div>
+      </div>
+      <div className="sims-modal-actions no-print">
+        <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Close</button>
+        <button type="button" className="sims-btn sims-btn-primary" onClick={() => window.print()}>
+          <Printer size={14} style={{ display: 'inline', marginRight: 6 }} /> Print Official Ledger
+        </button>
       </div>
     </div>
   );
@@ -10090,11 +10261,16 @@ function TrialBalanceAccountsForm({ setM, initialMode = 'accounts' }) {
 }
 
 function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
+  const portalData = usePortalData() || {};
   const [statementMode, setStatementMode] = useState(initialMode); // 'student' or 'general'
   
   // Student Statement State
   const [enrollmentNo, setEnrollmentNo] = useState('421215');
   const [studentName, setStudentName] = useState('ADAN ALHAJ HAFSAT');
+  const [liveStudentRows, setLiveStudentRows] = useState([]);
+  const [liveBalance, setLiveBalance] = useState(null);
+  const [ledgerStatus, setLedgerStatus] = useState('');
+  const [ledgerLoaded, setLedgerLoaded] = useState(false);
   
   // General Ledger Statement State
   const [accountName, setAccountName] = useState('Admin fees');
@@ -10116,13 +10292,6 @@ function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
     'Staff Salaries Account': '50022',
   };
 
-  const studentDatabase = [
-    { code: '421215', name: 'ADAN ALHAJ HAFSAT' },
-    { code: '420859', name: 'ANDREWS KOJO ANTWI' },
-    { code: '420863', name: 'OTOO PRINCE' },
-    { code: '420874', name: 'CEDRICK NANA AWORTWE' },
-  ];
-
   const handleAccountChange = (name) => {
     setAccountName(name);
     if (accountMap[name]) {
@@ -10130,14 +10299,57 @@ function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
     }
   };
 
-  const handleEnrollmentSearch = () => {
-    const found = studentDatabase.find(s => s.code === enrollmentNo || s.name.toLowerCase().includes(studentName.toLowerCase()));
-    if (found) {
-      setEnrollmentNo(found.code);
-      setStudentName(found.name);
-    } else {
-      alert('Student record located in database!');
+  const loadStudentLedger = async (studentId) => {
+    const code = String(studentId || '').trim();
+    if (!code) return;
+    setLedgerStatus('Loading student ledger…');
+    try {
+      const data = await api.getStudentLedger(code);
+      setLiveStudentRows((data.entries || []).map((entry) => ({
+        date: formatLedgerDate(entry.date),
+        inv: entry.reference || '-',
+        trx: entry.id || '-',
+        desc: entry.description,
+        type: entry.debit ? 'DB' : 'CR',
+        merchant: entry.debit ? 'Billing' : 'Receipt',
+        ref: entry.reference || '-',
+        debit: entry.debit ? formatGhs(entry.debit) : '-',
+        credit: entry.credit ? formatGhs(entry.credit) : '-',
+        bal: formatGhs(entry.balance),
+      })));
+      setLiveBalance(data.currentBalance);
+      if (data.studentName) setStudentName(data.studentName);
+      setLedgerLoaded(true);
+      setLedgerStatus(data.entries.length ? '' : 'No ledger entries yet for this student.');
+    } catch (error) {
+      setLiveStudentRows([]);
+      setLiveBalance(null);
+      setLedgerLoaded(true);
+      setLedgerStatus(error.message || 'Could not load the student ledger.');
     }
+  };
+
+  const handleEnrollmentSearch = () => {
+    const roster = portalData.onboardedStudents || [];
+    const fees = portalData.studentFees || [];
+    const query = String(enrollmentNo || studentName || '').toLowerCase().trim();
+    const found = roster.find((student) =>
+      String(student.studentId || '').toLowerCase() === query
+      || String(student.id || '').toLowerCase() === query
+      || String(student.fullName || student.name || '').toLowerCase().includes(query)
+    ) || fees.find((fee) =>
+      String(fee.studentId || '').toLowerCase() === query
+      || String(fee.studentName || '').toLowerCase().includes(query)
+    );
+    if (found) {
+      const id = found.studentId || found.id;
+      const name = found.fullName || found.name || found.studentName;
+      setEnrollmentNo(id);
+      setStudentName(name);
+      loadStudentLedger(id);
+      return;
+    }
+    loadStudentLedger(enrollmentNo);
   };
 
   const generalStatementRows = [
@@ -10165,15 +10377,17 @@ function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
       r.date.toLowerCase().includes(searchText.toLowerCase())
   );
 
-  const filteredStudentRows = studentStatementRows.filter(
+  const sourceStudentRows = ledgerLoaded ? liveStudentRows : studentStatementRows;
+  const filteredStudentRows = sourceStudentRows.filter(
     (r) =>
-      r.trx.toLowerCase().includes(searchText.toLowerCase()) ||
-      r.desc.toLowerCase().includes(searchText.toLowerCase()) ||
-      r.date.toLowerCase().includes(searchText.toLowerCase())
+      String(r.trx || '').toLowerCase().includes(searchText.toLowerCase()) ||
+      String(r.desc || '').toLowerCase().includes(searchText.toLowerCase()) ||
+      String(r.date || '').toLowerCase().includes(searchText.toLowerCase())
   );
 
   const handlePreviewStatement = () => {
     setReportPeriodSub(`From: 09/05/2026 To: 09/05/2026`);
+    if (statementMode === 'student') loadStudentLedger(enrollmentNo);
   };
 
   return (
@@ -10275,6 +10489,9 @@ function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
                       style={{ width: 190, padding: '3px 6px', fontSize: 11, border: '1px solid #94a3b8', borderRadius: 3, background: '#fff', textTransform: 'uppercase', fontWeight: 700 }}
                     />
                   </div>
+                  {ledgerStatus && (
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: '#b45309' }}>{ledgerStatus}</div>
+                  )}
                 </>
               ) : (
                 /* GENERAL LEDGER STATEMENT PARAMETERS */
@@ -10498,7 +10715,7 @@ function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
                       </div>
 
                       <div style={{ textAlign: 'right' }}>
-                        <div>Balance at period end &nbsp;&nbsp;&nbsp;&nbsp; <strong>0.00</strong></div>
+                        <div>Balance at period end &nbsp;&nbsp;&nbsp;&nbsp; <strong>{formatGhs(liveBalance ?? 0)}</strong></div>
                       </div>
                     </div>
                   </div>
@@ -10582,6 +10799,7 @@ function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
 }
 
 function PrintAllPostClassStudentsBillsForm({ setM }) {
+  const portalData = usePortalData() || {};
   const [academicYear, setAcademicYear] = useState('2026/2027');
   const [academicTerm, setAcademicTerm] = useState('Term 1');
   const [postYear, setPostYear] = useState('2026/2027');
@@ -10592,14 +10810,32 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
   const [subTitleText, setSubTitleText] = useState('Academic Year 2026/2027 · Term 1 · Class: Basic 8 - B');
   const [zoomLevel, setZoomLevel] = useState('100%');
   const [searchText, setSearchText] = useState('');
+  const [batchNotice, setBatchNotice] = useState('');
+  const [batchBusy, setBatchBusy] = useState(false);
 
-  const classStudents = [
-    { id: 'REMALJ-2026-001', name: 'BENJAMIN EDWARDS', dept: 'JHS Department', tuition: 1850, lab: 150, pta: 50, total: 2050 },
-    { id: 'REMALJ-2026-002', name: 'ADWOA EDWARDS', dept: 'JHS Department', tuition: 1850, lab: 150, pta: 50, total: 2050 },
-    { id: 'REMALJ-2026-041', name: 'ABENA MENSAH', dept: 'JHS Department', tuition: 1850, lab: 150, pta: 50, total: 2050 },
-    { id: 'REMALJ-2026-042', name: 'KOFI MENSAH', dept: 'JHS Department', tuition: 1850, lab: 150, pta: 50, total: 2050 },
-    { id: '421215', name: 'ADAN ALHAJ HAFSAT', dept: 'JHS Department', tuition: 1850, lab: 150, pta: 50, total: 2050 },
-  ];
+  const classStudents = useMemo(() => {
+    const roster = (portalData.onboardedStudents || []).filter((student) => {
+      const level = String(student.level || '').toLowerCase();
+      const cls = String(postClass || '').toLowerCase();
+      const matchClass = level.includes(cls) || cls.includes(level.replace(/\s+[a-d]$/i, ''));
+      const section = String(student.classSection || student.subClass || '').toUpperCase();
+      const matchSection = postSubClass === 'All' || section.includes(String(postSubClass).toUpperCase());
+      return matchClass && matchSection;
+    });
+    return roster.map((student) => {
+      const fee = (portalData.studentFees || []).find((row) => row.studentId === student.studentId);
+      const billed = Number(fee?.billedAmount || 0) || 0;
+      return {
+        id: student.studentId || student.id,
+        name: student.fullName || student.name,
+        dept: postDept,
+        tuition: billed,
+        lab: 0,
+        pta: 0,
+        total: billed,
+      };
+    });
+  }, [portalData.onboardedStudents, portalData.studentFees, postClass, postSubClass, postDept]);
 
   const totalBilling = classStudents.reduce((sum, s) => sum + s.total, 0);
 
@@ -10611,6 +10847,37 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
 
   const handlePreviewBills = () => {
     setSubTitleText(`Academic Year ${postYear} · ${postTerm} · Class: ${postClass} - ${postSubClass}`);
+  };
+
+  const handlePostClassBills = async () => {
+    if (!portalData.postClassBillsBatch) {
+      alert('Class batch billing is not available in this session.');
+      return;
+    }
+    setBatchBusy(true);
+    setBatchNotice('');
+    try {
+      const result = await portalData.postClassBillsBatch({
+        classLevel: postClass,
+        academicYear: postYear,
+        term: postTerm,
+      });
+      if (result.failed && !result.posted && !result.skipped) {
+        const message = result.errors?.[0] || 'Class batch billing failed.';
+        setBatchNotice(message);
+        alert(message);
+        return;
+      }
+      const totalNote = result.totalAmountBilled ? ` Total billed: GHS ${formatGhs(result.totalAmountBilled)}.` : '';
+      const skipNote = result.skipped ? ` Skipped ${result.skipped} already billed.` : '';
+      setBatchNotice(`Posted ${result.posted} student bills for ${postClass}.${skipNote}${totalNote}`);
+      setSubTitleText(`Academic Year ${postYear} · ${postTerm} · Class: ${postClass} - ${postSubClass}`);
+    } catch (error) {
+      setBatchNotice(error.message || 'Class batch billing failed.');
+      alert(error.message || 'Class batch billing failed.');
+    } finally {
+      setBatchBusy(false);
+    }
   };
 
   return (
@@ -10718,6 +10985,17 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
               >
                 Preview Bills
               </button>
+              <button
+                type="button"
+                onClick={handlePostClassBills}
+                disabled={batchBusy}
+                style={{ width: '100%', padding: '6px 8px', background: '#0f3a4b', color: '#fff', border: '1px solid #0f3a4b', borderRadius: 3, fontWeight: 800, fontSize: 11, cursor: batchBusy ? 'wait' : 'pointer' }}
+              >
+                {batchBusy ? 'Posting class bills…' : 'Post class bills to ledger'}
+              </button>
+              {batchNotice && (
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: '#0f3a4b' }}>{batchNotice}</div>
+              )}
             </div>
           </fieldset>
         </div>
@@ -11888,50 +12166,7 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
   }
 
   if (link === 'Print student ledger') {
-    return (
-      <div>
-        <div className="printable-area accountant-printable" style={{ padding: 20, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
-          <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 12 }}>
-            <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 44, width: 'auto', borderRadius: 4, marginBottom: 4, display: 'inline-block' }} />
-            <h3 style={{ fontSize: 16, color: '#0f3a4b', fontWeight: 800, margin: 0 }}>OFFICIAL STUDENT FINANCIAL LEDGER</h3>
-            <p style={{ fontSize: 11, color: '#475569' }}>Student Account Ledger History · {m.studentName} ({m.studentId})</p>
-          </div>
-          <table className="data-table" style={{ fontSize: 11 }}>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Ref / Receipt #</th>
-                <th>Transaction Description</th>
-                <th>Debit (GHS)</th>
-                <th>Credit (GHS)</th>
-                <th>Balance (GHS)</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td>01 Sep 2026</td><td>INV-2026-001</td><td>Term 1 Billed Fee</td><td>4,800.00</td><td>-</td><td>4,800.00</td></tr>
-              <tr><td>05 Sep 2026</td><td>REC-992812</td><td>MoMo Payment Received</td><td>-</td><td>3,200.00</td><td>1,600.00</td></tr>
-              <tr><td>10 Sep 2026</td><td>REC-993410</td><td>Cash Payment at Cashier</td><td>-</td><td>1,600.00</td><td>0.00</td></tr>
-            </tbody>
-          </table>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 20, paddingTop: 12, borderTop: '1px dashed #cbd5e1', fontSize: 10.5 }}>
-            <div>
-              <div style={{ fontWeight: 800, color: '#0f3a4b', marginBottom: 16 }}>Accounts Officer Signature:</div>
-              <div style={{ borderBottom: '1px solid #94a3b8', width: '70%', marginBottom: 2 }} />
-            </div>
-            <div>
-              <div style={{ fontWeight: 800, color: '#0f3a4b', marginBottom: 16 }}>Official Audit Seal:</div>
-              <div style={{ borderBottom: '1px solid #94a3b8', width: '70%', marginBottom: 2 }} />
-            </div>
-          </div>
-        </div>
-        <div className="sims-modal-actions no-print">
-          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Close</button>
-          <button type="button" className="sims-btn sims-btn-primary" onClick={() => window.print()}>
-            <Printer size={14} style={{ display: 'inline', marginRight: 6 }} /> Print Official Ledger
-          </button>
-        </div>
-      </div>
-    );
+    return <StudentLedgerPrintForm setM={setM} initialStudentId={m?.studentId} initialStudentName={m?.studentName} />;
   }
 
   // Pay PV Form

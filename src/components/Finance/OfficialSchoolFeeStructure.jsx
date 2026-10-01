@@ -953,13 +953,13 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       databaseError: persist.errors?.[0] || '',
     });
 
-    if (persist.failed && persist.posted === 0) {
+    if ((persist.failed && persist.posted === 0 && !persist.skipped)) {
       setSuccessMsg(`Could not save the ${selectedSubLevel} bills to the database: ${persist.errors[0] || 'request failed'}`);
       alert(`Could not save bills to the database.\n\n${persist.errors[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
       setTimeout(() => setSuccessMsg(''), 7000);
       return;
     }
-    setSuccessMsg(`⚡ Bulk Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${studentsToBill.length} students in ${selectedSubLevel}${persist.posted ? ' and saved to the database' : ''}.`);
+    setSuccessMsg(`⚡ Bulk Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${studentsToBill.length} students in ${selectedSubLevel}${persist.posted ? ' and saved to the database' : ''}${persist.skipped ? ` (${persist.skipped} already billed for this term)` : ''}.`);
     setTimeout(() => setSuccessMsg(''), 7000);
   };
 
@@ -1008,13 +1008,13 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       databaseError: persist.errors?.[0] || '',
     });
 
-    if (persist.failed && persist.posted === 0) {
+    if ((persist.failed && persist.posted === 0 && !persist.skipped)) {
       setSuccessMsg(`Could not save ${sFullName}'s bill to the database: ${persist.errors[0] || 'request failed'}`);
       alert(`Could not save this bill to the database.\n\n${persist.errors[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
       setTimeout(() => setSuccessMsg(''), 7000);
       return;
     }
-    setSuccessMsg(`⚡ Single Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${sFullName}${persist.posted ? ' and saved to the database' : ''}.`);
+    setSuccessMsg(`⚡ Single Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${sFullName}${persist.posted ? ' and saved to the database' : ''}${persist.skipped ? ' (already billed for this term)' : ''}.`);
     setTimeout(() => setSuccessMsg(''), 7000);
   };
 
@@ -1352,7 +1352,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       databaseError: persist.errors?.[0] || '',
     });
 
-    if (persist.failed && persist.posted === 0) {
+    if ((persist.failed && persist.posted === 0 && !persist.skipped)) {
       setSuccessMsg(`Could not save bills to the database: ${persist.errors[0] || 'request failed'}`);
       alert(`Could not save bills to the database.\n\n${persist.errors[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
       setIsPostingModalOpen(false);

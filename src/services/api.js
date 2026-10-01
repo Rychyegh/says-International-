@@ -139,6 +139,8 @@ async function request(endpoint, options = {}) {
           errorMessage = text.trim().slice(0, 300);
         }
         lastError = new Error(errorMessage);
+        lastError.status = response.status;
+        lastError.payload = data;
         if (response.status >= 400 && response.status < 500) throw lastError;
         continue;
       }
@@ -146,6 +148,7 @@ async function request(endpoint, options = {}) {
       return { success: true, status: response.status };
   } catch (err) {
       lastError = err;
+      if (err?.status >= 400 && err?.status < 500) throw err;
       if (err && /FastAPI|HTTP 4/.test(String(err.message || ''))) throw err;
     }
   }
@@ -176,7 +179,7 @@ export function classLevelForBillPost(level) {
 }
 
 function isOfficialStudentCode(value) {
-  return /REMALJ-\d{4}-\d{3,}$/i.test(String(value || '').trim());
+  return /^(REMALJ|RCIS)-\d{4}-/i.test(String(value || '').trim());
 }
 
 function isUuid(value) {
@@ -196,6 +199,25 @@ function resolveBillStudentId(student = {}) {
     return value;
   }
   return '';
+}
+
+function billStudentIdCandidates(student = {}) {
+  const seen = new Set();
+  const ids = [];
+  const push = (value) => {
+    const id = String(value || '').trim();
+    if (!id || seen.has(id)) return;
+    if (/^stu(-bulk)?-/i.test(id) || /^fee-(acc-)?/i.test(id)) return;
+    seen.add(id);
+    ids.push(id);
+  };
+  const code = String(student.studentId || student.student_id || student.student_code || '').trim();
+  const uuid = String(student.id || student.uuid || student.backendId || '').trim();
+  if (isOfficialStudentCode(code)) push(code);
+  if (isUuid(uuid)) push(uuid);
+  push(code);
+  push(uuid);
+  return ids;
 }
 
 function normalizeBillTerm(term) {
@@ -232,23 +254,87 @@ function splitBillItemsForStudentLedger(items = []) {
   let tuitionFee = 0;
   let stationeryFee = 0;
   const optionalServices = [];
-  list.forEach((item, idx) => {
-    const details = item.details.toLowerCase();
-    if (/^optional:/.test(details) || /motivation levy|bus transport|feeding|pick up card/.test(details)) {
+  const stationeryBreakdown = [];
+  list.forEach((item) => {
+    const details = item.details.replace(/^OPTIONAL:\s*/i, '').trim();
+    const lower = item.details.toLowerCase();
+    if (/^optional:/.test(lower) || /motivation levy|bus transport|feeding|pick up card|lunch|canteen/.test(lower)) {
       optionalServices.push({
-        service_id: `opt-${idx + 1}`,
-        name: item.details.replace(/^OPTIONAL:\s*/i, '').slice(0, 255) || `Optional ${idx + 1}`,
+        name: details.slice(0, 255) || 'Optional service',
         amount: item.amount,
       });
       return;
     }
-    if (/stationer/.test(details)) {
+    if (/stationer|textbook|exercise book/.test(lower)) {
       stationeryFee += item.amount;
+      stationeryBreakdown.push({
+        item_name: details.slice(0, 255) || 'Stationery',
+        quantity: 1,
+        unit_price: item.amount,
+        total: item.amount,
+      });
       return;
     }
     tuitionFee += item.amount;
   });
-  return { tuition_fee: tuitionFee, stationery_fee: stationeryFee, optional_services: optionalServices };
+  return {
+    tuition_fee: tuitionFee,
+    stationery_fee: stationeryFee,
+    optional_services: optionalServices,
+    stationery_package_breakdown: stationeryBreakdown,
+  };
+}
+
+function isAlreadyBilledError(error) {
+  const msg = String(error?.message || error || '');
+  return error?.status === 409 || /already exists|already been billed|active bill already exists|duplicate/i.test(msg);
+}
+
+function isLockedPeriodError(error) {
+  const msg = String(error?.message || error || '');
+  return (error?.status === 400 && /lock/i.test(msg)) || /period is currently locked|accounting period.*lock/i.test(msg);
+}
+
+function isStudentMissingError(error) {
+  const msg = String(error?.message || error || '');
+  return error?.status === 404 || /does not match any existing student|student not found/i.test(msg);
+}
+
+function newIdempotencyKey(studentId, term, year) {
+  const uuid = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${uuid}:${studentId}:${term}:${year}`;
+}
+
+export function mapStudentLedgerFromApi(raw = {}) {
+  const source = Array.isArray(raw) ? { ledger_entries: raw } : (raw || {});
+  const entries = Array.isArray(source.ledger_entries)
+    ? source.ledger_entries
+    : (source.entries || source.transactions || source.data || []);
+  return {
+    studentId: source.student_id || source.studentId || '',
+    studentName: source.student_name || source.studentName || '',
+    classLevel: source.class_level || source.classLevel || '',
+    currentBalance: Number(source.current_balance ?? source.balance ?? 0) || 0,
+    entries: (Array.isArray(entries) ? entries : []).map((entry, idx) => {
+      const type = String(entry.type || entry.transaction_type || entry.entry_type || '').toUpperCase();
+      const explicitDebit = Number(entry.debit ?? 0) || 0;
+      const explicitCredit = Number(entry.credit ?? 0) || 0;
+      const amount = Number(entry.amount || 0) || 0;
+      const isDebit = explicitDebit > 0 || /DEBIT|BILL|LEVY|CHARGE/.test(type);
+      const isCredit = explicitCredit > 0 || /CREDIT|RECEIPT|PAYMENT|WAIVER/.test(type);
+      return {
+        id: entry.id || entry.reference || `led-${idx}`,
+        date: entry.date || entry.posted_at || entry.created_at || '',
+        reference: entry.reference || entry.ref || entry.receipt_number || entry.invoice_number || '',
+        description: entry.description || entry.narration || type || 'Ledger entry',
+        type: type || (isDebit ? 'DEBIT' : isCredit ? 'CREDIT' : ''),
+        debit: explicitDebit || (isDebit ? amount : 0),
+        credit: explicitCredit || (isCredit && !isDebit ? amount : 0),
+        amount,
+        balance: Number(entry.balance ?? entry.running_balance ?? 0) || 0,
+      };
+    }),
+  };
 }
 
 async function runInChunks(items, worker, size = 5) {
@@ -1917,11 +2003,12 @@ export const api = {
     }
     const items = sanitizePostedBillItems(bill.items);
     const split = splitBillItemsForStudentLedger(items);
+    const optionalTotal = split.optional_services.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const totalPayable = Number(bill.total_payable ?? bill.totalAmount ?? bill.total_amount)
-      || (split.tuition_fee + split.stationery_fee + split.optional_services.reduce((sum, item) => sum + Number(item.amount || 0), 0));
+      || (split.tuition_fee + split.stationery_fee + optionalTotal - (Number(bill.scholarship_discount || 0) || 0) + (Number(bill.arrears_brought_forward || 0) || 0));
     const payload = {
       student_id: studentId,
-      academic_year: String(bill.academic_year || bill.academicYear || '2026/2027').slice(0, 50),
+      academic_year: String(bill.academic_year || bill.academicYear || '2025/2026').slice(0, 50),
       term: normalizeBillTerm(bill.term),
       class_level: classLevelForBillPost(bill.class_level || bill.classLevel),
       tuition_fee: split.tuition_fee,
@@ -1933,11 +2020,43 @@ export const api = {
       billed_by: String(bill.billed_by || bill.billedBy || getUserFullName() || 'Accounts Office').slice(0, 255) || 'Accounts Office',
       due_date: billDueDate(bill.due_date || bill.dueDate),
     };
+    if (split.stationery_package_breakdown.length) {
+      payload.stationery_package_breakdown = split.stationery_package_breakdown;
+    }
     return await request('/finance/bills/student', {
       method: 'POST',
-      headers: { 'Idempotency-Key': `bill-${studentId}-${payload.term}-${payload.academic_year}-${totalPayable}` },
+      headers: { 'Idempotency-Key': newIdempotencyKey(studentId, payload.term, payload.academic_year) },
       body: JSON.stringify(payload),
     });
+  },
+
+  postClassBillsBatch: async (payload = {}) => {
+    const body = {
+      class_level: classLevelForBillPost(payload.class_level || payload.classLevel),
+      academic_year: String(payload.academic_year || payload.academicYear || '2025/2026').slice(0, 50),
+      term: normalizeBillTerm(payload.term),
+      apply_to_all_enrolled: payload.apply_to_all_enrolled !== false,
+    };
+    const exclude = payload.exclude_student_ids || payload.excludeStudentIds;
+    if (Array.isArray(exclude) && exclude.length) {
+      body.exclude_student_ids = exclude.map((id) => String(id).trim()).filter(Boolean);
+    }
+    const templateId = payload.bill_template_id || payload.billTemplateId;
+    if (templateId) body.bill_template_id = String(templateId);
+    return await request('/finance/bills/batch', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': newIdempotencyKey(body.class_level, body.term, body.academic_year) },
+      body: JSON.stringify(body),
+    });
+  },
+
+  getStudentLedger: async (studentId) => {
+    const id = String(studentId || '').trim();
+    if (!id) {
+      throw new Error('A student id is required to load the student ledger.');
+    }
+    const raw = await request(`/finance/students/${encodeURIComponent(id)}/ledger`);
+    return mapStudentLedgerFromApi(raw);
   },
 
   persistPostedAcademicBills: async ({
@@ -1946,18 +2065,53 @@ export const api = {
     totalAmount,
     term = 'Term 1',
     classLevel,
-    academicYear = '2026/2027',
+    academicYear = '2025/2026',
     billedBy,
     dueDate,
+    useBatch = false,
+    excludeStudentIds = [],
+    billTemplateId,
   } = {}) => {
     const sanitizedItems = sanitizePostedBillItems(items);
     const total = Number(totalAmount) || sanitizedItems.reduce((sum, item) => sum + item.amount, 0);
-    const result = { posted: 0, failed: 0, errors: [] };
+    const result = { posted: 0, skipped: 0, failed: 0, errors: [], billIds: [], postedStudentKeys: [] };
     if (!hasLiveDatabaseSession()) {
       result.failed = Math.max(1, (students || []).length || 1);
       result.errors.push('No live database session. Sign out and sign in again with Head Admin or Accounts credentials so the bill can be saved on the server.');
       return result;
     }
+
+    if (useBatch && classLevel) {
+      try {
+        const batch = await api.postClassBillsBatch({
+          class_level: classLevel,
+          academic_year: academicYear,
+          term,
+          apply_to_all_enrolled: true,
+          exclude_student_ids: excludeStudentIds,
+          bill_template_id: billTemplateId,
+        });
+        result.posted = Number(batch.students_billed_count ?? batch.posted ?? 0) || 0;
+        result.skipped = Number(batch.excluded_count ?? 0) || 0;
+        result.billIds = Array.isArray(batch.bill_ids) ? batch.bill_ids : [];
+        result.totalAmountBilled = Number(batch.total_amount_billed || 0) || 0;
+        if (!result.posted && result.skipped === 0) {
+          result.failed = 1;
+          result.errors.push('Class batch billing did not create any student bills.');
+        }
+        return result;
+      } catch (error) {
+        if (isLockedPeriodError(error)) {
+          result.failed = 1;
+          result.errors.push('The financial accounting period is currently locked. Bills cannot be posted until it is unlocked.');
+          return result;
+        }
+        result.failed = 1;
+        result.errors.push(error.message || 'Class batch billing failed.');
+        return result;
+      }
+    }
+
     if (!sanitizedItems.length) {
       result.failed = 1;
       result.errors.push('A posted bill must include at least one fee item.');
@@ -1991,65 +2145,69 @@ export const api = {
       console.warn('Could not match billed students to the database roster:', error);
     }
 
-    const postFeeLines = (student = {}) => api.postAcademicBill({
-      student_id: resolveBillStudentId(student),
-      student_name: student.fullName || student.name || student.studentName || '',
-      class_level: student.level || student.classLevel || classLevel,
-      items: sanitizedItems,
-      total_amount: total,
-      term,
-    });
-
-    const postOfficialStudentBill = (student = {}) => {
-      const studentId = resolveBillStudentId(student);
-      if (!studentId) {
-        throw new Error(`No database student id for ${student.fullName || student.studentName || 'student'}`);
-      }
-      return api.postStudentAcademicBill({
-        student_id: studentId,
-        class_level: student.level || student.classLevel || classLevel,
-        items: sanitizedItems,
-        total_amount: total,
-        term,
-        academic_year: academicYear,
-        billed_by: billedBy,
-        due_date: dueDate,
-      });
-    };
-
     if (targets.length === 0) {
-      try {
-        await postFeeLines({ level: classLevel });
-        result.posted += 1;
-      } catch (error) {
-        result.failed += 1;
-        result.errors.push(error.message);
-      }
+      result.failed = 1;
+      result.errors.push('No matching student was found to post this bill.');
       return result;
     }
 
-    const outcomes = await runInChunks(targets, async (student) => {
-      try {
-        await postOfficialStudentBill(student);
-      } catch (studentError) {
+    const postOfficialStudentBill = async (student = {}) => {
+      const ids = billStudentIdCandidates(student);
+      if (!ids.length) {
+        throw new Error(`No database student id for ${student.fullName || student.studentName || 'student'}`);
+      }
+      let lastError = null;
+      for (const studentId of ids) {
         try {
-          await postFeeLines(student);
-        } catch (feeError) {
-          throw new Error([studentError.message, feeError.message].filter(Boolean).join(' | '));
+          const response = await api.postStudentAcademicBill({
+            student_id: studentId,
+            class_level: student.level || student.classLevel || classLevel,
+            items: sanitizedItems,
+            total_amount: total,
+            term,
+            academic_year: academicYear,
+            billed_by: billedBy,
+            due_date: dueDate,
+          });
+          return { alreadyBilled: false, studentId, response };
+        } catch (error) {
+          if (isAlreadyBilledError(error)) {
+            return { alreadyBilled: true, studentId, response: null };
+          }
+          if (isLockedPeriodError(error)) {
+            const locked = new Error('The financial accounting period is currently locked. Bills cannot be posted until it is unlocked.');
+            locked.status = 400;
+            throw locked;
+          }
+          lastError = error;
+          if (isStudentMissingError(error)) continue;
+          throw error;
         }
-        throw new Error(studentError.message || 'Official student bill was not saved in the database.');
       }
-      try {
-        await postFeeLines(student);
-      } catch {
-        // Fee-line post is extra; the official student bill already landed.
-      }
-      return true;
+      const missing = new Error(lastError?.message || `Student id does not match any existing student (${ids[0]}).`);
+      missing.status = 404;
+      throw missing;
+    };
+
+    const outcomes = await runInChunks(targets, async (student) => {
+      const outcome = await postOfficialStudentBill(student);
+      return {
+        ...outcome,
+        studentKey: student.studentId || student.id || outcome.studentId,
+      };
     });
 
     outcomes.forEach((outcome) => {
       if (outcome.status === 'fulfilled') {
-        result.posted += 1;
+        const value = outcome.value || {};
+        if (value.alreadyBilled) {
+          result.skipped += 1;
+        } else {
+          result.posted += 1;
+          result.postedStudentKeys.push(value.studentKey);
+          const billId = value.response?.bill_id || value.response?.invoice_number;
+          if (billId) result.billIds.push(billId);
+        }
       } else {
         result.failed += 1;
         result.errors.push(outcome.reason?.message || String(outcome.reason || 'Bill post failed'));
