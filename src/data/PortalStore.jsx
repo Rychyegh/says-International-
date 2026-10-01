@@ -911,40 +911,31 @@ export function PortalDataProvider({ children }) {
           : [...current.timetable, { ...entry, id: entry.id || crypto.randomUUID?.() || String(Date.now()) }],
       }));
     },
-    publishResult: async (result) => {
-      try {
-        await api.recordResult(result);
-      } catch (e) {
-        console.warn('Backend result record fallback:', e);
-      }
+    // Moderation actions apply locally first so a slow or offline backend never blocks the desk
+    publishResult: (result) => {
       setData((current) => ({
         ...current,
         results: current.results.some((item) => item.subject === result.subject)
           ? current.results.map((item) => item.subject === result.subject ? { ...result, id: item.id, status: 'Pending Approval', declineNote: null, updatedAt: new Date().toLocaleString() } : item)
           : [...current.results, { ...result, id: crypto.randomUUID?.() || String(Date.now()), status: 'Pending Approval', declineNote: null, updatedAt: new Date().toLocaleString() }],
       }));
+      api.recordResult(result).catch((e) => console.warn('Backend result record fallback:', e));
     },
-    approveResult: async (id) => {
-      try {
-        await api.updateResultStatus(id, { status: 'Approved' });
-      } catch (e) {
-        console.warn('Backend result approve fallback:', e);
-      }
+    approveResult: (id, approvedBy) => {
       setData((current) => ({
         ...current,
-        results: (current.results || []).map((item) => item.id === id ? { ...item, status: 'Approved', declineNote: null, approvedAt: new Date().toLocaleString() } : item),
+        results: (current.results || []).map((item) => item.id === id ? { ...item, status: 'Approved', declineNote: null, approvedBy: approvedBy || item.approvedBy, approvedAt: new Date().toLocaleString() } : item),
       }));
+      api.updateResultStatus(id, { status: 'Approved', approved_by: approvedBy })
+        .catch((e) => console.warn('Backend result approve fallback:', e));
     },
-    declineResult: async (id, note) => {
-      try {
-        await api.updateResultStatus(id, { status: 'Declined', decline_note: note });
-      } catch (e) {
-        console.warn('Backend result decline fallback:', e);
-      }
+    declineResult: (id, note) => {
       setData((current) => ({
         ...current,
         results: (current.results || []).map((item) => item.id === id ? { ...item, status: 'Declined', declineNote: note || 'Error detected in score breakdown by Academic Head.', declinedAt: new Date().toLocaleString() } : item),
       }));
+      api.updateResultStatus(id, { status: 'Declined', decline_note: note })
+        .catch((e) => console.warn('Backend result decline fallback:', e));
     },
     registerCourse: (course) => setData((current) => ({
       ...current,
@@ -1842,12 +1833,8 @@ export function PortalDataProvider({ children }) {
       }));
     },
     // Score Sheet Entry Persistence
-    saveScoreSheetEntry: async (entry) => {
-      try {
-        await api.saveScoreSheet(entry);
-      } catch (e) {
-        console.warn('Backend score sheet save fallback:', e);
-      }
+    saveScoreSheetEntry: (entry) => {
+      api.saveScoreSheet(entry).catch((e) => console.warn('Backend score sheet save fallback:', e));
       setData((current) => {
       const existingResults = current.results || [];
       const newResult = {
@@ -1862,7 +1849,9 @@ export function PortalDataProvider({ children }) {
         term: entry.term,
         year: entry.year,
         lecturer: entry.instructor || 'Subject Teacher',
-        status: 'Approved',
+        status: 'Pending Approval',
+        declineNote: null,
+        submittedAt: new Date().toLocaleString(),
         updatedAt: new Date().toLocaleDateString()
       };
       const updated = existingResults.some(r => r.id === newResult.id || (r.subject === newResult.subject && r.studentName === newResult.studentName))

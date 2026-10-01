@@ -261,7 +261,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents }) {
                         instructor
                       });
                     }
-                    alert(`✅ Score entry for ${selectedStudent.fullName} (${subject}) saved!\nTotal Score: ${totalScore}% | Grade: ${grade} (${remarks})`);
+                    alert(`✅ Score entry for ${selectedStudent.fullName} (${subject}) submitted for approval!\nTotal Score: ${totalScore}% | Grade: ${grade} (${remarks})\n\nSent to Admin and Sub-Admin for review. It will appear on transcripts once approved.`);
                   }}
                   style={{ padding: '6px 12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 4, fontWeight: 800, color: '#3730a3', cursor: 'pointer' }}
                 >

@@ -54,7 +54,6 @@ export default function DashboardSearch({ activePortal }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const containerRef = useRef(null);
@@ -92,13 +91,17 @@ export default function DashboardSearch({ activePortal }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Only surface functions that belong to the portal the user is signed in to
+  const portalItems = useMemo(
+    () => (activePortal ? SEARCH_CATALOG.filter((item) => item.portal === activePortal) : []),
+    [activePortal]
+  );
+
+  const portalLabel = portalItems[0]?.portalLabel || 'this portal';
+
   // Filter and rank items
   const filteredResults = useMemo(() => {
-    let items = SEARCH_CATALOG;
-
-    if (selectedCategory !== 'All') {
-      items = items.filter((item) => item.category === selectedCategory);
-    }
+    let items = portalItems;
 
     const trimmed = query.trim().toLowerCase();
     if (!trimmed) {
@@ -113,7 +116,6 @@ export default function DashboardSearch({ activePortal }) {
         const titleLower = item.title.toLowerCase();
         const descLower = item.description.toLowerCase();
         const navLower = item.nav.toLowerCase();
-        const portalLower = item.portalLabel.toLowerCase();
         const keywords = (item.keywords || []).map((k) => k.toLowerCase());
 
         // Boost exact / prefix matches in title
@@ -129,7 +131,6 @@ export default function DashboardSearch({ activePortal }) {
           if (titleLower.includes(token)) score += 15;
           if (descLower.includes(token)) score += 10;
           if (navLower.includes(token)) score += 20;
-          if (portalLower.includes(token)) score += 10;
           keywords.forEach((kw) => {
             if (kw.includes(token)) score += 12;
           });
@@ -140,12 +141,12 @@ export default function DashboardSearch({ activePortal }) {
       .filter((res) => res.score > 0)
       .sort((a, b) => b.score - a.score)
       .map((res) => res.item);
-  }, [query, selectedCategory]);
+  }, [query, portalItems]);
 
   // Reset selected index when results change
   useEffect(() => {
     setSelectedIndex(0);
-  }, [query, selectedCategory]);
+  }, [query, portalItems]);
 
   // Handle keyboard navigation in list
   const handleInputKeyDown = (e) => {
@@ -213,8 +214,6 @@ export default function DashboardSearch({ activePortal }) {
     setQuery('');
   };
 
-  const CATEGORIES = ['All', 'Admin', 'Finance', 'Staff', 'Parent', 'Student'];
-
   return (
     <div className="dashboard-search" ref={containerRef}>
       {/* Search Input Bar */}
@@ -224,7 +223,7 @@ export default function DashboardSearch({ activePortal }) {
           ref={inputRef}
           type="text"
           className="dashboard-search__input"
-          placeholder="Search functions, tools, buttons, or pages..."
+          placeholder={`Search ${portalLabel} functions, tools, or pages...`}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -258,23 +257,6 @@ export default function DashboardSearch({ activePortal }) {
       {/* Results Dropdown */}
       {isOpen && (
         <div className="dashboard-search__dropdown animate-fade-down">
-          {/* Category Filter Pills */}
-          <div className="dashboard-search__categories">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                className={`dashboard-search__cat-pill ${selectedCategory === cat ? 'is-active' : ''}`}
-                onClick={() => {
-                  setSelectedCategory(cat);
-                  inputRef.current?.focus();
-                }}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
           {/* Results Header / Hint */}
           <div className="dashboard-search__header">
             <span className="dashboard-search__header-title">
@@ -285,7 +267,7 @@ export default function DashboardSearch({ activePortal }) {
               ) : (
                 <>
                   <Sparkles size={13} style={{ color: '#eab308' }} />
-                  Popular Functions & Quick Page Navigation
+                  {portalLabel} Functions & Quick Page Navigation
                 </>
               )}
             </span>
@@ -317,16 +299,6 @@ export default function DashboardSearch({ activePortal }) {
                       <div className="dashboard-search__item-info">
                         <div className="dashboard-search__item-title-row">
                           <span className="dashboard-search__item-title">{item.title}</span>
-                          <span
-                            className="dashboard-search__portal-tag"
-                            style={{
-                              borderColor: `${item.portalColor}40`,
-                              backgroundColor: `${item.portalColor}10`,
-                              color: item.portalColor,
-                            }}
-                          >
-                            {item.portalLabel}
-                          </span>
                         </div>
 
                         <p className="dashboard-search__item-desc">{item.description}</p>
@@ -334,8 +306,6 @@ export default function DashboardSearch({ activePortal }) {
                         {/* Visual Target Location Breadcrumb */}
                         <div className="dashboard-search__item-path">
                           <span className="dashboard-search__path-label">Click Page:</span>
-                          <span className="dashboard-search__path-step">{item.portalLabel}</span>
-                          <ChevronRight size={12} className="dashboard-search__path-arrow" />
                           <span className="dashboard-search__path-target">{item.nav}</span>
                           {item.tab && (
                             <>
@@ -373,9 +343,9 @@ export default function DashboardSearch({ activePortal }) {
             ) : (
               <div className="dashboard-search__empty">
                 <Search size={32} className="dashboard-search__empty-icon" />
-                <p className="dashboard-search__empty-title">No functions or pages found for "{query}"</p>
+                <p className="dashboard-search__empty-title">No {portalLabel} function or page found for "{query}"</p>
                 <p className="dashboard-search__empty-subtitle">
-                  Try searching for terms like <em>"onboard"</em>, <em>"receipt"</em>, <em>"scores"</em>, <em>"sms"</em>, <em>"exams"</em>, or <em>"timetable"</em>.
+                  Search only covers the portal you are signed in to. Try a different term, or switch portals to reach their tools.
                 </p>
               </div>
             )}

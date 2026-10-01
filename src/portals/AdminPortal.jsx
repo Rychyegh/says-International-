@@ -274,6 +274,11 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     return (pvNotifications || []).filter(n => !n.read).length;
   }, [pvNotifications]);
 
+  // Uploaded scores awaiting Head Admin / Sub-Admin sign-off
+  const pendingResultsCount = useMemo(() => {
+    return (results || []).filter(r => r.status === 'Pending Approval').length;
+  }, [results]);
+
   const [livePVAlert, setLivePVAlert] = useState(null);
   useEffect(() => {
     const handlePVSubmitted = (e) => {
@@ -761,7 +766,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 'Pay PV',
                 'Pay PV (Disbursement)',
                 'User Access Control (UAC)',
-                'Transcripts & Results',
                 'Student Credentials Vault',
                 'Security & Intrusion Alerts'
               ];
@@ -805,6 +809,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     </span>
                   ) : null;
                 })()
+              ) : item.label === 'Transcripts & Results' && pendingResultsCount > 0 ? (
+                <span style={{
+                  background: '#d97706', color: '#fff', fontSize: 10, fontWeight: 900,
+                  borderRadius: 99, padding: '1px 7px', marginLeft: 6, lineHeight: 1.4,
+                  boxShadow: '0 1px 4px rgba(217,119,6,0.4)'
+                }}>
+                  {pendingResultsCount}
+                </span>
               ) : item.badge ? (
                 <span className="sidebar-item__badge" style={{ fontSize: 9, opacity: 0.85 }}>{item.badge}</span>
               ) : null}
@@ -929,7 +941,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             'Pay PV',
             'Pay PV (Disbursement)',
             'User Access Control (UAC)',
-            'Transcripts & Results',
             'Student Credentials Vault',
             'Security & Intrusion Alerts'
           ].includes(activeNav) && (
@@ -2035,7 +2046,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           )}
 
           {/* ── TRANSCRIPTS & RESULTS MASTER REGISTER ── */}
-          {activeNav === 'Transcripts & Results' && adminRole === 'head_admin' && (
+          {activeNav === 'Transcripts & Results' && (
             <div className="animate-fade-up">
               {/* Page Header */}
               <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
@@ -2078,11 +2089,11 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 </div>
               </div>
 
-              {/* Academic Head Results Moderation & Approval Board */}
+              {/* Results Moderation & Approval Board — open to Head Admin and Sub-Admin */}
               <div className="panel" style={{ marginBottom: 24, border: '2px solid #e9d5ff' }}>
                 <div className="panel__header" style={{ background: '#f3e8ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h2 className="panel__title" style={{ color: '#4c1d95', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <FileCheck size={18} /> Academic Head Results Moderation Board
+                    <FileCheck size={18} /> Uploaded Scores — Approval Board
                   </h2>
                   <span className="status-pill status-pill--info">
                     {(results || []).filter(r => r.status === 'Pending Approval').length} Pending Review
@@ -2098,7 +2109,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         <th>Submitted Mark</th>
                         <th>Grade</th>
                         <th>Approval Status</th>
-                        <th style={{ textAlign: 'right' }}>Academic Head Action</th>
+                        <th style={{ textAlign: 'right' }}>{adminRole === 'sub_admin' ? 'Sub-Admin Action' : 'Academic Head Action'}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2111,7 +2122,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                           <td>
                             {r.status === 'Approved' ? (
                               <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800, background: '#dcfce7', color: '#166534' }}>
-                                🟢 Approved by Academic Head
+                                🟢 Approved{r.approvedBy ? ` by ${r.approvedBy}` : ''} & Published
                               </span>
                             ) : r.status === 'Declined' ? (
                               <div>
@@ -2131,16 +2142,17 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                             )}
                           </td>
                           <td style={{ textAlign: 'right' }}>
-                            {adminRole === 'sub_admin' ? (
+                            {r.status === 'Approved' ? (
                               <span style={{ fontSize: 11, color: '#64748b', fontStyle: 'italic' }}>
-                                🔒 Restricted to Head of Admin
+                                No action needed
                               </span>
                             ) : (
                               <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                                 <button
                                   onClick={() => {
-                                    approveResult(r.id);
-                                    setSuccessMsg(`Result for ${r.subject} APPROVED by Academic Head! Published to official transcripts.`);
+                                    const approver = adminRole === 'sub_admin' ? 'Sub-Admin' : 'Academic Head';
+                                    approveResult(r.id, approver);
+                                    setSuccessMsg(`Result for ${r.subject} APPROVED by ${approver}! Published to official transcripts.`);
                                     setTimeout(() => setSuccessMsg(''), 5000);
                                   }}
                                   style={{ padding: '5px 12px', background: '#166534', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 11, cursor: 'pointer' }}

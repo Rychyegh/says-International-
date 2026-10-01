@@ -284,14 +284,28 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
   const [successToast, setSuccessToast] = useState('');
   const [copiedId, setCopiedId] = useState(null);
 
+  const hasOpenOverlay = isCreateModalOpen || !!slipUser;
+
   useEffect(() => {
-    if (!isCreateModalOpen) return undefined;
+    if (!hasOpenOverlay) return undefined;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [isCreateModalOpen]);
+  }, [hasOpenOverlay]);
+
+  // Escape always clears the dimmed overlay, so it can never be left stuck on screen
+  useEffect(() => {
+    if (!hasOpenOverlay) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key !== 'Escape') return;
+      setIsCreateModalOpen(false);
+      setSlipUser(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [hasOpenOverlay]);
 
   // New User Form State
   const [createForm, setCreateForm] = useState({
@@ -396,16 +410,6 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       mustChangePassword: createForm.mustChangePassword,
     };
 
-    // Attempt backend create first
-    try {
-      const res = await api.createUserAccount({ ...newUser });
-      if (res && (res.id || res._id)) {
-        newUser.id = res.id || res._id || newUser.id;
-      }
-    } catch (err) {
-      console.warn('[UAC] Backend user create failed, saving locally:', err?.message || err);
-    }
-
     const updated = [newUser, ...users];
     cacheUsers(updated);
     addAuditLog('Account Created', newUser.email, `Created account for ${newUser.fullName} with role [${newUser.role.toUpperCase()}].`);
@@ -413,6 +417,17 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     setIsCreateModalOpen(false);
     setSlipUser(newUser);
     triggerToast(`✅ User account for ${newUser.fullName} successfully created!`);
+
+    // Sync to the backend after the modal closes so a slow API never holds the overlay open
+    api.createUserAccount({ ...newUser })
+      .then((res) => {
+        const remoteId = res?.id || res?._id;
+        if (!remoteId) return;
+        setUsers((current) => current.map(u => (u.id === newUser.id ? { ...u, id: remoteId } : u)));
+      })
+      .catch((err) => {
+        console.warn('[UAC] Backend user create failed, saved locally:', err?.message || err);
+      });
 
     // Reset form
     setCreateForm({
@@ -1166,6 +1181,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       {/* MODAL 1: CREATE USER MODAL */}
       {isCreateModalOpen && createPortal(
         <div
+          onClick={() => setIsCreateModalOpen(false)}
           style={{
             position: 'fixed',
             top: 0,
@@ -1540,15 +1556,21 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       )}
 
       {/* MODAL 4: CREDENTIAL ACCESS SLIP (PRINTABLE) */}
-      {slipUser && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
-        }}>
-          <div style={{
-            background: '#fff', width: '100%', maxWidth: 500, borderRadius: 'var(--radius-lg)',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden'
-          }}>
+      {slipUser && createPortal(
+        <div
+          onClick={() => setSlipUser(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: 20
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff', width: '100%', maxWidth: 500, borderRadius: 'var(--radius-lg)',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden'
+            }}
+          >
             <div style={{
               padding: '20px 24px', background: 'linear-gradient(135deg, #4a1d6e, #7c3ac8)', color: '#fff',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center'
@@ -1636,10 +1658,22 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                   <Printer size={14} />
                   <span>Print Slip</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSlipUser(null)}
+                  style={{
+                    padding: '10px 20px', background: '#166534', color: '#fff', border: 'none',
+                    borderRadius: 'var(--radius-md)', fontWeight: 800, fontSize: 13, cursor: 'pointer'
+                  }}
+                >
+                  Done
+                </button>
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
