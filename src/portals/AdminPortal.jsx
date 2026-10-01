@@ -42,7 +42,6 @@ const NAV = [
   { icon: <ShieldAlert size={15} />, label: 'Security & Intrusion Alerts', badge: 'Alerts' },
 ];
 
-const HEAD_ADMIN_PV_DESK = 'Pre-Audit & Approve PV';
 const SUB_ADMIN_PV_NAV = ['Submit PV Request', 'Prepare Bills Payables'];
 
 const LEVEL_OPTIONS = [
@@ -105,7 +104,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
   useEffect(() => {
     if (adminRole === 'head_admin' && SUB_ADMIN_PV_NAV.includes(activeNav)) {
-      setActiveNav(HEAD_ADMIN_PV_DESK);
+      setActiveNav('Dashboard');
     }
   }, [adminRole, activeNav]);
 
@@ -982,24 +981,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             </div>
           )}
 
-          {adminRole === 'head_admin' && SUB_ADMIN_PV_NAV.includes(activeNav) && (
-            <div style={{ padding: 40, textAlign: 'center', background: '#fff', borderRadius: 16, margin: '20px 0', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-              <ShieldAlert size={48} color="#4a1d6e" style={{ marginBottom: 12 }} />
-              <h3 style={{ fontSize: 20, fontWeight: 900, color: '#4a1d6e', marginBottom: 8 }}>
-                👑 Head Admin Desk — Pre-Audit & Approval Station
-              </h3>
-              <p style={{ fontSize: 13, color: '#475569', maxWidth: 520, margin: '0 auto 20px', lineHeight: 1.6 }}>
-                Preparing PV requests is handled by Sub-Admin accounts. Head Admin manages pre-auditing, voucher corrections, and final approval via the <strong>Pre-Audit & Approve PV</strong> desk.
-              </p>
-              <button
-                onClick={() => setActiveNav('Pre-Audit & Approve PV')}
-                style={{ padding: '10px 22px', background: '#4a1d6e', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, cursor: 'pointer' }}
-              >
-                Go to Pre-Audit & Approve PV
-              </button>
-            </div>
-          )}
-
           {successMsg && (
             <div style={{
               position: 'fixed', top: 76, right: 24, zIndex: 99999,
@@ -1018,35 +999,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           {/* ── DASHBOARD ── */}
           {activeNav === 'Dashboard' && (
             <div className="animate-fade-up">
-              {adminRole === 'head_admin' && (
-                <div style={{
-                  padding: '28px 28px 24px', marginBottom: 20, textAlign: 'center',
-                  background: 'linear-gradient(180deg, #faf5ff 0%, #fff 100%)',
-                  border: '1px solid #e9d5ff', borderRadius: 16
-                }}>
-                  <div style={{
-                    width: 52, height: 52, borderRadius: 14, margin: '0 auto 14px',
-                    background: '#f3e8ff', color: '#6b21a8',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22
-                  }}>🛡️</div>
-                  <h2 style={{ fontSize: 22, fontWeight: 900, color: '#4a1d6e', margin: '0 0 8px' }}>
-                    👑 Head Admin Desk — Pre-Audit & Approval Station
-                  </h2>
-                  <p style={{ fontSize: 13.5, color: '#64748b', maxWidth: 640, margin: '0 auto 18px', lineHeight: 1.6 }}>
-                    Preparing PV requests is handled by Sub-Admin accounts. Head Admin manages pre-auditing, voucher corrections, and final approval via the <strong>Pre-Audit & Approve PV</strong> desk.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveNav(HEAD_ADMIN_PV_DESK)}
-                    style={{
-                      padding: '10px 22px', background: '#4a1d6e', color: '#fff', border: 'none',
-                      borderRadius: 10, fontWeight: 800, cursor: 'pointer', fontSize: 13.5
-                    }}
-                  >
-                    Go to Pre-Audit & Approve PV
-                  </button>
-                </div>
-              )}
               <div className="page-header">
                 <p className="page-header__eyebrow" style={{ color: ADMIN_ACCENT }}>
                   <span style={{ background: ADMIN_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #e9d5ff' }}>
