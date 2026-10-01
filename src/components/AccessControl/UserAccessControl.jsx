@@ -1038,7 +1038,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                   <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 800, color: '#4a1d6e' }}>Head Admin</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 800, color: '#0369a1' }}>Sub-Admin</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 800, color: '#166534' }}>Accountant</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 800, color: '#b45309' }}>Teacher</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 800, color: '#b45309' }}>Subject Teacher</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 800, color: '#4338ca' }}>Student</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 800, color: '#be185d' }}>Parent</th>
                 </tr>

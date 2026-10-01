@@ -3003,7 +3003,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                             ...newStaffForm,
                             role,
                             subject: NON_TEACHING_DUTIES.includes(newStaffForm.subject) ? newStaffForm.subject : 'Transport',
-                            classAssigned: '',
                           });
                         }}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
@@ -3026,33 +3025,16 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     </label>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <label>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Assigned class (optional)</span>
-                      <select
-                        value={newStaffForm.classAssigned}
-                        onChange={(e) => setNewStaffForm({ ...newStaffForm, classAssigned: e.target.value })}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
-                      >
-                        <option value="">Not assigned to a class</option>
-                        {LEVEL_OPTIONS.map((l) => (
-                          <option key={l}>{l}</option>
-                        ))}
-                        <option>All Levels</option>
-                      </select>
-                    </label>
-
-                    <label>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Phone Number</span>
-                      <input
-                        type="tel"
-                        placeholder="e.g. 024 900 1100"
-                        value={newStaffForm.phone}
-                        onChange={(e) => setNewStaffForm({ ...newStaffForm, phone: e.target.value })}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
-                      />
-                    </label>
-                  </div>
+                  <label>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Phone Number</span>
+                    <input
+                      type="tel"
+                      placeholder="e.g. 024 900 1100"
+                      value={newStaffForm.phone}
+                      onChange={(e) => setNewStaffForm({ ...newStaffForm, phone: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
+                    />
+                  </label>
 
                   <label>
                     <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Official School Email</span>
