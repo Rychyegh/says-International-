@@ -492,19 +492,17 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       try {
         await createPaymentVoucher(newPVRecord);
         setSuccessNotice(`⚡ ✅ Successfully posted Payment Voucher #${newPVRecord.pvNo} (GHS ${totalPVAmount.toFixed(2)}) to Headmaster for Pre-Audit & Approval!`);
+        const currentNum = parseInt(pvNo.replace(/\D/g, ''), 10);
+        const nextPV = isNaN(currentNum) ? generateUniquePvNumber() : String(currentNum + 1);
+        setPvNo(nextPV);
+        setItemRequisitionNo(`REQ-2026-${Math.floor(100 + Math.random() * 900)}`);
+        setPvItems([]);
+        setDescription('');
       } catch (err) {
-        console.warn('Backend posting notice:', err);
-        setSuccessNotice(`⚡ ✅ Saved Payment Voucher #${newPVRecord.pvNo} (GHS ${totalPVAmount.toFixed(2)}) locally (Backend notice: ${err.message || 'Saved offline'}).`);
+        setSuccessNotice(err?.message || 'Saving this payment voucher failed.');
       }
     }
 
-    // Auto-generate next PV number for subsequent submission
-    const currentNum = parseInt(pvNo.replace(/\D/g, ''), 10);
-    const nextPV = isNaN(currentNum) ? generateUniquePvNumber() : String(currentNum + 1);
-    setPvNo(nextPV);
-    setItemRequisitionNo(`REQ-2026-${Math.floor(100 + Math.random() * 900)}`);
-    setPvItems([]);
-    setDescription('');
     setTimeout(() => setSuccessNotice(''), 7000);
   };
 
@@ -594,9 +592,9 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       {successNotice && (
         <div style={{
           padding: '12px 18px',
-          background: '#dcfce7',
-          border: '1px solid #86efac',
-          color: '#166534',
+          background: /failed/i.test(successNotice) ? '#fee2e2' : '#dcfce7',
+          border: /failed/i.test(successNotice) ? '1px solid #fca5a5' : '1px solid #86efac',
+          color: /failed/i.test(successNotice) ? '#991b1b' : '#166534',
           borderRadius: 8,
           fontWeight: 700,
           fontSize: 13,
@@ -606,7 +604,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
           gap: 8,
           boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
         }}>
-          <CheckCircle2 size={17} color="#16a34a" />
+          <CheckCircle2 size={17} color={/failed/i.test(successNotice) ? '#dc2626' : '#16a34a'} />
           <span>{successNotice}</span>
         </div>
       )}

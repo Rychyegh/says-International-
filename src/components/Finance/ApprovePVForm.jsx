@@ -640,22 +640,20 @@ export default function ApprovePVForm({ setM = () => {} }) {
       editedByHeadmaster: true
     };
 
-    const updatedQueue = pvQueue.map(p =>
-      (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
-    );
-
-    setPvQueue(updatedQueue);
-    try {
-      localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue));
-    } catch (e) {}
-
     try {
       if (updatePaymentVoucher) {
         await updatePaymentVoucher(pvNo, updatedFields, 'Headmaster / Pre-Auditor');
       }
+      const updatedQueue = pvQueue.map(p =>
+        (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
+      );
+      setPvQueue(updatedQueue);
+      try {
+        localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue));
+      } catch (e) {}
       setBannerNotice(`✏️ ✅ Successfully saved corrected voucher details for PV #${pvNo}! Corrected by Headmaster prior to approval.`);
     } catch (err) {
-      setBannerNotice(`✏️ Saved corrections locally (${err.message || 'offline'})`);
+      setBannerNotice(err?.message || 'Saving voucher corrections failed.');
     } finally {
       setIsActioning(false);
       setTimeout(() => setBannerNotice(''), 5000);
@@ -711,22 +709,21 @@ export default function ApprovePVForm({ setM = () => {} }) {
       editedByHeadmaster: true
     };
 
-    const updatedQueue = pvQueue.map(p =>
-      (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
-    );
-
-    setPvQueue(updatedQueue);
-    try {
-      localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue));
-    } catch (e) {}
-
     try {
       if (approvePaymentVoucher) {
         await approvePaymentVoucher(pvNo, overallStatus, auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
       }
+      const updatedQueue = pvQueue.map(p =>
+        (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
+      );
+      setPvQueue(updatedQueue);
+      try {
+        localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue));
+      } catch (e) {}
       setBannerNotice(`✅ Applied executive decision "${actionChoice}" for PV #${pvNo} (Item: ${updatedItems[activeItemIndex]?.description || 'Single Item'}).`);
     } catch (err) {
-      setBannerNotice(`⚠️ Action recorded locally (${err.message || 'backend sync issue'})`);
+      setCurrentItems(currentItems);
+      setBannerNotice(err?.message || 'Pre-auditing this payment voucher failed.');
     } finally {
       setIsActioning(false);
       setTimeout(() => setBannerNotice(''), 5000);
@@ -758,31 +755,20 @@ export default function ApprovePVForm({ setM = () => {} }) {
       editedByHeadmaster: true
     };
 
-    const updatedQueue = pvQueue.map(p =>
-      (pvNosMatch(p.pvNo, v.pvNo) || p.id === v.id) ? { ...p, ...updatedFields } : p
-    );
-    setPvQueue(updatedQueue);
-    try { localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue)); } catch (e) {}
-
     try {
       if (approvePaymentVoucher) {
         await approvePaymentVoucher(v.pvNo, overallStatus, auditRemarks || v.auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
       }
+      const updatedQueue = pvQueue.map(p =>
+        (pvNosMatch(p.pvNo, v.pvNo) || p.id === v.id) ? { ...p, ...updatedFields } : p
+      );
+      setPvQueue(updatedQueue);
+      try { localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue)); } catch (e) {}
       const acted = updatedItems.find((i) => i.id === itemId);
-      try {
-        const uuid = v.id;
-        if (uuid) {
-          await api.updatePaymentVoucherItem(uuid, itemId, {
-            status: decision,
-            audit_notes: auditRemarks || v.auditRemarks,
-          });
-        }
-      } catch (e) {
-        console.warn('Backend PV item patch fallback:', e);
-      }
       setBannerNotice(`✅ ${decision === 'Validated' ? 'Approved' : (decision === 'Declined' ? 'Rejected' : decision)} "${acted?.description || 'item'}" in PV #${v.pvNo}. Other lines in this voucher remain unchanged.`);
     } catch (err) {
-      setBannerNotice(`⚠️ Item action recorded locally (${err.message || 'offline'})`);
+      if (v.pvNo === pvNo || v.id === selectedPvId) setCurrentItems(baseItems);
+      setBannerNotice(err?.message || 'Pre-auditing this payment voucher failed.');
     } finally {
       setIsActioning(false);
       setTimeout(() => setBannerNotice(''), 5000);
@@ -814,7 +800,6 @@ export default function ApprovePVForm({ setM = () => {} }) {
       }
       return item;
     });
-    setCurrentItems(updatedItems);
 
     const overallStatus = summarizePvStatusFromItems(updatedItems, normalizedDecision);
     const newCalculatedTotal = payableTotalFromItems(updatedItems, calculatedTotalAmount);
@@ -833,22 +818,21 @@ export default function ApprovePVForm({ setM = () => {} }) {
       editedByHeadmaster: true
     };
 
-    const updatedQueue = pvQueue.map(p =>
-      (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
-    );
-
-    setPvQueue(updatedQueue);
-    try {
-      localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue));
-    } catch (e) {}
-
     try {
       if (approvePaymentVoucher) {
         await approvePaymentVoucher(pvNo, overallStatus, auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
       }
+      setCurrentItems(updatedItems);
+      const updatedQueue = pvQueue.map(p =>
+        (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
+      );
+      setPvQueue(updatedQueue);
+      try {
+        localStorage.setItem('official_pv_queue', JSON.stringify(updatedQueue));
+      } catch (e) {}
       setBannerNotice(`✅ Applied bulk action "${actionChoice}" to ${selectedItemIds.length} item(s) in PV #${pvNo}.`);
     } catch (err) {
-      setBannerNotice(`⚠️ Action recorded locally (${err.message || 'offline'})`);
+      setBannerNotice(err?.message || 'Pre-auditing this payment voucher failed.');
     } finally {
       setIsActioning(false);
       setTimeout(() => setBannerNotice(''), 5000);

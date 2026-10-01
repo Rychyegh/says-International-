@@ -4,7 +4,7 @@ import {
   AlertTriangle, DollarSign, Users, School, MessageSquare, PlusCircle, FileText, Printer, Shield, ShieldCheck, ChevronRight, UserPlus, Sliders, Calendar, FileCheck, UserCheck, Lock, RefreshCw, Layers, Receipt, Download
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
-import { usePortalData } from '../data/PortalStore';
+import { usePortalData, resolveGuardianPhone } from '../data/PortalStore';
 
 import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeStructure';
 import RegisterForExamsForm from '../components/RegisterForExams/RegisterForExamsForm';
@@ -12,6 +12,7 @@ import AcademicSettingsManager from '../components/Academic/AcademicSettingsMana
 import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
 import ApprovePVForm from '../components/Finance/ApprovePVForm';
 import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
+import OfficialPayPVForm from '../components/Finance/PayPVForm';
 import { getAuthUser, api } from '../services/api';
 import { ALL_SUB_CLASSES, getMappedSubClasses } from '../data/classStructure';
 import { SCHOOL_PL_ACCOUNTS, getPlAccountCode, printPvPage } from '../data/chartOfAccounts';
@@ -1055,7 +1056,7 @@ export default function AccountantPortal({ onSignOut }) {
           {/* ── PAY PV VIEW ── */}
           {activeNav === 'Pay PV' && (
             <div style={{ background: '#ffffff', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', padding: 12 }}>
-              <PayPVForm setM={() => {}} />
+              <OfficialPayPVForm />
             </div>
           )}
 
@@ -2798,7 +2799,7 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
     level: 'Grade 4',
     classSection: 'Basic 4B',
     guardianName: 'Mrs. Angela Edwards',
-    guardianPhone: '024 111 2222'
+    guardianPhone: ''
   };
 
   const [studentId, setStudentId] = useState(defaultStudent.studentId || 'REMALJ-2026-001');
@@ -2838,7 +2839,7 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
   const [receivingAccount, setReceivingAccount] = useState('GCB Main Operating Account (55919200085584)');
   const [transactionRef, setTransactionRef] = useState('MM-98471203');
   const [payerName, setPayerName] = useState(defaultStudent.guardianName || 'Mrs. Angela Edwards');
-  const [payerPhone, setPayerPhone] = useState(defaultStudent.guardianPhone || '024 111 2222');
+  const [payerPhone, setPayerPhone] = useState(resolveGuardianPhone(defaultStudent) || '');
   const [payNotes, setPayNotes] = useState('Term 1 School Fee Settlement');
 
   // Institutional Fees, Dues & Levy Breakdown State
@@ -2924,7 +2925,7 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
     setSubClass(sSub);
     setStatusOfEntry(student.status || 'Enrolled');
     setPayerName(student.guardianName || `Guardian of ${sName}`);
-    setPayerPhone(student.guardianPhone || '024 111 2222');
+    setPayerPhone(resolveGuardianPhone(student) || '');
     setCurArrears(Number(balance).toLocaleString(undefined, { minimumFractionDigits: 2 }));
     setAvlArrears(Number(balance).toLocaleString(undefined, { minimumFractionDigits: 2 }));
     setStudentSearchTerm('');
@@ -12147,7 +12148,7 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
 
   // Pay PV Form
   if (link === 'Pay PV' || link === 'Disburse Payment Voucher (PV)') {
-    return <PayPVForm setM={setM} />;
+    return <OfficialPayPVForm />;
   }
 
   // Print PV Form
@@ -12292,7 +12293,7 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
     const applyingLevel = m.applyingLevel !== undefined ? m.applyingLevel : (currentApp.level || currentApp.applyingClass || 'JHS 1');
     const guardianName = m.guardianName !== undefined ? m.guardianName : (currentApp.guardian || currentApp.guardianName || 'Mr. Kwesi Agyeman');
     const contactEmail = m.contactEmail !== undefined ? m.contactEmail : (currentApp.email || currentApp.guardianEmail || 'kwesi.agyeman@example.com');
-    const contactPhone = m.contactPhone !== undefined ? m.contactPhone : (currentApp.phone || currentApp.guardianPhone || '024 000 0000');
+    const contactPhone = m.contactPhone !== undefined ? m.contactPhone : (resolveGuardianPhone(currentApp) || '');
     const status = m.status !== undefined ? m.status : (currentApp.status || 'Documents review');
 
     const handleSaveAdmissionEdit = (e) => {

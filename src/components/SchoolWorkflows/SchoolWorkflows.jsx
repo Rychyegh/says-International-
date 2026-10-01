@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { CalendarPlus, CheckCircle2, ClipboardList, CreditCard, MessageSquare, Send, Settings, UserRound } from 'lucide-react';
-import { usePortalData } from '../../data/PortalStore';
+import { usePortalData, resultsForStudent, hasRecordedClassScore, hasRecordedExamScore, MISSING_SCORE } from '../../data/PortalStore';
 import { getUserFullName } from '../../services/api';
 import './SchoolWorkflows.css';
 
@@ -17,9 +17,25 @@ export function StaffAssignments() {
   return <div className="workflow animate-fade-up"><div className="page-header"><h1 className="page-header__title">Assignment publishing</h1><p className="page-header__subtitle">Send coursework directly to a class representative or the full class group. Students receive published work in their portal.</p></div><div className="workflow-grid"><section className="panel"><div className="panel__header"><h2 className="panel__title">Published assignments</h2></div><div className="workflow-list">{assignments.map((a) => <article key={a.id}><strong>{a.title}</strong><span>{a.audience} · Due {date(a.due)}</span><p>{a.instructions}</p><small>Published by {a.author}</small></article>)}</div></section><form className="panel workflow-form" onSubmit={submit}><div className="panel__header"><h2 className="panel__title"><ClipboardList size={16}/> Send assignment</h2></div><div className="panel__body"><label>Assignment title<input required value={item.title} onChange={(e) => setItem({ ...item, title: e.target.value })}/></label><label>Send to<select value={item.audience} onChange={(e) => setItem({ ...item, audience: e.target.value })}><option>SH2 Class Group</option><option>SH2 Class Representative</option><option>Grade 10-A Class Group</option><option>Grade 10-A Class Representative</option></select></label><label>Instructions<textarea required rows="4" value={item.instructions} onChange={(e) => setItem({ ...item, instructions: e.target.value })}/></label><label>Due date<input type="date" required value={item.due} onChange={(e) => setItem({ ...item, due: e.target.value })}/></label><button className="workflow-button" type="submit"><Send size={15}/> Send to class</button>{notice && <p className="workflow-success"><CheckCircle2 size={15}/>{notice}</p>}</div></form></div></div>;
 }
 
-export function ParentProgress({ childName = 'Benjamin Edwards' }) {
+export function ParentProgress({ childName = 'Benjamin Edwards', studentId = '' }) {
   const { results, academicCalendar } = usePortalData();
-  return <div className="workflow animate-fade-up"><div className="page-header"><h1 className="page-header__title">Progress & academic calendar</h1><p className="page-header__subtitle">Results and dates below are published by teaching staff. Parents can view them but cannot edit them.</p></div><div className="workflow-grid"><section className="panel"><div className="panel__header"><h2 className="panel__title">Staff-published progress · {childName}</h2><span className="status-pill status-pill--success">Verified</span></div><table className="data-table"><thead><tr><th>Subject</th><th>Score</th><th>Grade</th><th>Lecturer</th><th>Published</th></tr></thead><tbody>{results.map((r) => <tr key={r.id}><td>{r.subject}</td><td>{r.score}%</td><td><span className="status-pill status-pill--success">{r.grade}</span></td><td>{r.lecturer}</td><td>{r.updatedAt}</td></tr>)}</tbody></table></section><section className="panel"><div className="panel__header"><h2 className="panel__title">Academic calendar</h2></div><CalendarList items={academicCalendar}/></section></div></div>;
+  const childResults = resultsForStudent(results, { fullName: childName, name: childName, studentId });
+  return <div className="workflow animate-fade-up"><div className="page-header"><h1 className="page-header__title">Progress & academic calendar</h1><p className="page-header__subtitle">Results and dates below are published by teaching staff. Parents can view them but cannot edit them. Subjects without recorded scores show N/A.</p></div><div className="workflow-grid"><section className="panel"><div className="panel__header"><h2 className="panel__title">Staff-published progress · {childName}</h2><span className="status-pill status-pill--success">Verified</span></div><table className="data-table"><thead><tr><th>Subject</th><th>Class</th><th>Exam</th><th>Total</th><th>Grade</th><th>Lecturer</th><th>Published</th></tr></thead><tbody>{childResults.length === 0 ? <tr><td colSpan={7}>{MISSING_SCORE}</td></tr> : childResults.map((r) => {
+    const classOk = hasRecordedClassScore(r);
+    const examOk = hasRecordedExamScore(r);
+    const complete = classOk && examOk;
+    return (
+      <tr key={r.id || r.subject}>
+        <td>{r.subject}</td>
+        <td>{classOk ? r.classScore : MISSING_SCORE}</td>
+        <td>{examOk ? (r.examScoreConverted ?? r.examScore) : MISSING_SCORE}</td>
+        <td>{complete ? `${r.score}%` : MISSING_SCORE}</td>
+        <td><span className="status-pill status-pill--success">{complete ? r.grade : MISSING_SCORE}</span></td>
+        <td>{r.lecturer || MISSING_SCORE}</td>
+        <td>{r.updatedAt || MISSING_SCORE}</td>
+      </tr>
+    );
+  })}</tbody></table></section><section className="panel"><div className="panel__header"><h2 className="panel__title">Academic calendar</h2></div><CalendarList items={academicCalendar}/></section></div></div>;
 }
 
 export function ParentFees({ childName = '', studentId = '', householdOutstanding = 0, childrenCount = 1 }) {

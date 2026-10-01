@@ -16,7 +16,7 @@ import { AdmissionsRegister } from '../components/Onboarding/Onboarding';
 import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
 import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
 import { api, getAuthUser, getUserFullName, setAuthUser, enrichTeacherSession, isClassTeacherAccount } from '../services/api';
-import { usePortalData } from '../data/PortalStore';
+import { usePortalData, resultsForStudent, hasRecordedClassScore, hasRecordedExamScore, MISSING_SCORE } from '../data/PortalStore';
 
 const TEACHER_GREEN = '#204d2d';
 const TEACHER_LIGHT = '#edf8f0';
@@ -40,11 +40,11 @@ const NAV = [
 ];
 
 const FALLBACK_STUDENTS = [
-  { name: 'Abena Mensah', class: 'JHS 3A', score: 92, id: 'REMALJ-2026-041', attendance: 98, mathGrade: 'A+', sciGrade: 'A',  color: '#204d2d' },
-  { name: 'Kwame Asante', class: 'JHS 3A', score: 76, id: 'REMALJ-2026-112', attendance: 82, mathGrade: 'B+', sciGrade: 'A-', color: '#1e3a8a' },
-  { name: 'Efua Darko',   class: 'JHS 2B', score: 64, id: 'REMALJ-2026-088', attendance: 74, mathGrade: 'C+', sciGrade: 'B',  color: '#78350f' },
-  { name: 'Kofi Boateng', class: 'JHS 2B', score: 55, id: 'REMALJ-2026-055', attendance: 61, mathGrade: 'D',  sciGrade: 'C',  color: '#991b1b' },
-  { name: 'Ama Owusu',    class: 'JHS 1C', score: 88, id: 'REMALJ-2026-033', attendance: 96, mathGrade: 'A',  sciGrade: 'A+', color: '#204d2d' },
+  { name: 'Abena Mensah', class: 'JHS 3A', score: 92, id: 'REMALJ-2026-041', attendance: 98, mathGrade: 'N/A', sciGrade: 'N/A',  color: '#204d2d' },
+  { name: 'Kwame Asante', class: 'JHS 3A', score: 76, id: 'REMALJ-2026-112', attendance: 82, mathGrade: 'N/A', sciGrade: 'N/A', color: '#1e3a8a' },
+  { name: 'Efua Darko',   class: 'JHS 2B', score: 64, id: 'REMALJ-2026-088', attendance: 74, mathGrade: 'N/A', sciGrade: 'N/A',  color: '#78350f' },
+  { name: 'Kofi Boateng', class: 'JHS 2B', score: 55, id: 'REMALJ-2026-055', attendance: 61, mathGrade: 'N/A', sciGrade: 'N/A',  color: '#991b1b' },
+  { name: 'Ama Owusu',    class: 'JHS 1C', score: 88, id: 'REMALJ-2026-033', attendance: 96, mathGrade: 'N/A', sciGrade: 'N/A', color: '#204d2d' },
 ];
 
 const ACTIVITY = [
@@ -163,6 +163,20 @@ export default function TeacherPortal() {
   const store = usePortalData();
   const onboardedStudents = store?.onboardedStudents || [];
   const teacherDirectory = store?.teacherDirectory || [];
+  const recordedResults = store?.results || [];
+  const portalMessages = store?.messages || [];
+
+  const subjectGradeFor = (student, needle) => {
+    const row = resultsForStudent(recordedResults, student).find((r) =>
+      String(r.subject || '').toLowerCase().includes(needle)
+    );
+    if (!row || !hasRecordedClassScore(row) || !hasRecordedExamScore(row)) return MISSING_SCORE;
+    return row.grade || MISSING_SCORE;
+  };
+
+  const terminalReadyNotices = (portalMessages || []).filter((m) =>
+    m.type === 'terminal-report' || String(m.subject || '') === 'Terminal Report is ready'
+  );
 
   const authUser = enrichTeacherSession(getAuthUser() || {});
   const isClassTeacher = isClassTeacherAccount(authUser);
@@ -308,8 +322,8 @@ export default function TeacherPortal() {
     score: 85,
     id: s.studentId,
     attendance: 95,
-    mathGrade: 'A',
-    sciGrade: 'A-',
+    mathGrade: subjectGradeFor(s, 'math'),
+    sciGrade: subjectGradeFor(s, 'science'),
     color: TEACHER_GREEN,
     email: s.studentEmail || `${(s.fullName || '').toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`,
     status: 'Enrolled',
@@ -442,6 +456,17 @@ export default function TeacherPortal() {
           {/* ── DASHBOARD VIEW ── */}
           {activeNav === 'Dashboard' && (
             <>
+              {terminalReadyNotices.length > 0 && (
+                <div style={{
+                  background: '#ecfdf5', border: '1.5px solid #6ee7b7', borderRadius: 10,
+                  padding: '12px 16px', marginBottom: 16, color: '#065f46', fontWeight: 800
+                }}>
+                  Terminal Report is ready
+                  <div style={{ fontWeight: 600, fontSize: 12, marginTop: 4, color: '#047857' }}>
+                    {terminalReadyNotices[0].body}
+                  </div>
+                </div>
+              )}
               <div className="page-header">
                 <p className="page-header__eyebrow" style={{ color: TEACHER_ACCENT }}>
                   <span style={{ background: TEACHER_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #c4dfc9' }}>Staff Portal — REMALJ Carewell</span>

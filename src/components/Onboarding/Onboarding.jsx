@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { CheckCircle2, FileText, Eye, Edit3, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, Trash2, Calendar, Clock } from 'lucide-react';
-import { usePortalData } from '../../data/PortalStore';
+import { usePortalData, resolveGuardianPhone } from '../../data/PortalStore';
 import OfficialApplicationForm from './OfficialApplicationForm';
 import BulkStudentUpload from './BulkStudentUpload';
 import './Onboarding.css';
@@ -521,7 +521,7 @@ export function AdmissionsRegister() {
                                 const parentSurname = (item.surname || item.fatherSurname || item.motherSurname || item.learner || 'carewell').toLowerCase().replace(/[^a-z0-9]/g, '');
                                 const contactEmail = `${parentFirstName}.${parentSurname}@remaljcarewell.edu.gh`;
                                 const defaultPass = 'Carewell2026!';
-                                const phone = item.phone || item.guardianPhone || item.fatherPhone || item.motherPhone || '024 111 2222';
+                                const phone = resolveGuardianPhone(item) || 'not on file';
 
                                 setNotice(`📱 AUTOMATIC SMS & EMAIL CREDENTIALS DISPATCHED TO ${parentFirstName.toUpperCase()} (${phone}):\n• School: REMALJ Carewell Inspirational School\n• Email: ${contactEmail}\n• Default Password: ${defaultPass}\n• Direct Access: http://localhost:5173/#/parent (No sign-in required)`);
                                 setTimeout(() => setNotice(''), 10000);

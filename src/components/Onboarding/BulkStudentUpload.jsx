@@ -47,7 +47,7 @@ export default function BulkStudentUpload({ onComplete }) {
       const level = row[3] || 'Primary 4';
       const classSection = row[4] || 'A';
       const guardianName = row[5] || 'Guardian';
-      const guardianPhone = row[6] || '054 176 9621';
+      const guardianPhone = row[6] || '';
       const guardianEmail = row[7] || 'parent@remaljcarewell.edu.gh';
       const homeAddress = row[8] || 'Bogoso';
       const rfidCardCode = row[9] || `CARD-${Math.floor(100 + Math.random() * 900)}`;

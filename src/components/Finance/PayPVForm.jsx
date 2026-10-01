@@ -1,15 +1,33 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   CreditCard, CheckCircle2, DollarSign, Search, FileText, Printer, Clock,
   ArrowRight, ShieldCheck, AlertCircle, Calendar, Building2, Filter,
-  ChevronDown, X, RefreshCw, Send, Check, Hash, UserCheck, Lock
+  ChevronDown, X, RefreshCw, Send, Check, Hash, UserCheck, Lock, Loader2
 } from 'lucide-react';
-import { usePortalData } from '../../data/PortalStore';
+import { usePortalData, pvNosMatch, mapApiPaymentVoucher } from '../../data/PortalStore';
+import { api } from '../../services/api';
 import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
 import { SCHOOL_PL_ACCOUNTS, getPlAccountCode, printPvPage } from '../../data/chartOfAccounts';
 
+function isPvDisbursed(v) {
+  const s = String(v?.status || '').toLowerCase().trim();
+  if (s === 'disbursed' || s === 'paid' || s.includes('disburs') || s.includes('settled')) return true;
+  if (v?.disbursedAt || v?.disbursed_at || v?.disbursedBy || v?.disbursed_by) return true;
+  return false;
+}
+
+function disbursementIdentityKey(v) {
+  const rawNo = String(v?.pvNo || v?.pv_number || '');
+  const tailMatch = rawNo.match(/(\d+)(?!.*\d)/);
+  const tail = tailMatch ? String(tailMatch[1]).replace(/^0+/, '') : '';
+  if (tail.length >= 4) return `no-${tail}`;
+  const id = String(v?.id || '').trim();
+  if (id && !/^pv-\d+$/i.test(id)) return `id-${id.toLowerCase()}`;
+  return `raw-${(rawNo || id).toLowerCase()}`;
+}
+
 export default function PayPVForm() {
-  const { paymentVouchers = [], disbursePaymentVoucher } = usePortalData();
+  const { paymentVouchers = [], disbursePaymentVoucher, refreshBackendData } = usePortalData();
 
   const voucherPayableAmount = (v) => {
     const items = Array.isArray(v?.items) ? v.items : [];
@@ -42,6 +60,36 @@ export default function PayPVForm() {
 
   // Receipt / Advice Print Modal State
   const [receiptVoucher, setReceiptVoucher] = useState(null);
+  const [dbDisbursed, setDbDisbursed] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const [historySourceCount, setHistorySourceCount] = useState(0);
+
+  const loadDisbursementHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError('');
+    try {
+      const raw = await api.getDisbursedPaymentVouchers();
+      const mapped = (Array.isArray(raw) ? raw : []).map(mapApiPaymentVoucher).filter((v) => v && (v.id || v.pvNo));
+      setDbDisbursed(mapped);
+      setHistorySourceCount(mapped.length);
+      if (refreshBackendData) {
+        try { await refreshBackendData(); } catch (_) {}
+      }
+    } catch (err) {
+      setHistoryError(err.message || 'Could not load disbursement history from the database.');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [refreshBackendData]);
+
+  useEffect(() => {
+    loadDisbursementHistory();
+  }, [loadDisbursementHistory]);
+
+  useEffect(() => {
+    if (activeTab === 'history') loadDisbursementHistory();
+  }, [activeTab, loadDisbursementHistory]);
 
   // Filter vouchers that are approved / validated (Ready for Payment)
   const readyVouchers = useMemo(() => {
@@ -58,13 +106,40 @@ export default function PayPVForm() {
     });
   }, [paymentVouchers]);
 
-  // Filter vouchers that are settled / disbursed
+  // All DISBURSED vouchers from the live database, merged with local store copies
   const disbursedVouchers = useMemo(() => {
-    return (paymentVouchers || []).filter((v) => {
-      const s = String(v.status || '').toLowerCase().trim();
-      return s === 'disbursed' || s === 'paid' || s.includes('disburs');
+    const merged = new Map();
+    [...(paymentVouchers || []), ...dbDisbursed].forEach((v) => {
+      if (!v || !isPvDisbursed(v)) return;
+      let key = disbursementIdentityKey(v);
+      const existingKey = [...merged.keys()].find((k) => {
+        if (k === key) return true;
+        const prev = merged.get(k);
+        return pvNosMatch(prev?.pvNo, v.pvNo)
+          || (prev?.id && v.id && String(prev.id) === String(v.id));
+      });
+      if (existingKey) key = existingKey;
+      const prev = merged.get(key) || {};
+      merged.set(key, {
+        ...prev,
+        ...v,
+        status: 'DISBURSED',
+        id: (prev.id && !/^pv-\d+$/i.test(String(prev.id))) ? prev.id : (v.id || prev.id),
+        pvNo: (String(v.pvNo || '').length >= String(prev.pvNo || '').length) ? (v.pvNo || prev.pvNo) : (prev.pvNo || v.pvNo),
+        disbursedAt: v.disbursedAt || prev.disbursedAt,
+        disbursedBy: v.disbursedBy || prev.disbursedBy,
+        disbursementReference: v.disbursementReference || prev.disbursementReference,
+        disbursementNotes: v.disbursementNotes || prev.disbursementNotes,
+        paymentMethod: v.paymentMethod || prev.paymentMethod,
+        total: v.total || prev.total,
+      });
     });
-  }, [paymentVouchers]);
+    return Array.from(merged.values()).sort((a, b) => {
+      const left = new Date(b.disbursedAt || b.updatedAt || b.paymentDate || 0).getTime();
+      const right = new Date(a.disbursedAt || a.updatedAt || a.paymentDate || 0).getTime();
+      return left - right;
+    });
+  }, [paymentVouchers, dbDisbursed]);
 
   // Financial Summary Totals
   const readyTotalGHS = useMemo(() => {
@@ -128,6 +203,8 @@ export default function PayPVForm() {
         }, 'Head Admin / Headmaster');
       }
 
+      await loadDisbursementHistory();
+
       setPaymentNotice(`💸 ✅ Successfully disbursed GHS ${voucherPayableAmount(payingVoucher).toLocaleString(undefined, { minimumFractionDigits: 2 })} for PV #${targetPvNo}. Payment reference: ${referenceNumber}`);
       
       const paidSnapshot = {
@@ -145,7 +222,7 @@ export default function PayPVForm() {
       setPayingVoucher(null);
       setReceiptVoucher(paidSnapshot);
     } catch (err) {
-      setPaymentNotice(`⚠️ Disbursement note: ${err.message || 'Payment processed with local records update'}`);
+      setPaymentNotice(err?.message || 'Disbursing this payment voucher failed.');
     } finally {
       setIsProcessing(false);
       setTimeout(() => setPaymentNotice(''), 8000);
@@ -391,8 +468,30 @@ export default function PayPVForm() {
                 borderRadius: 10,
                 fontWeight: 800
               }}>
-                {disbursedVouchers.length}
+                {historyLoading ? '…' : disbursedVouchers.length}
               </span>
+            </button>
+            <button
+              type="button"
+              onClick={loadDisbursementHistory}
+              disabled={historyLoading}
+              title="Reload disbursed vouchers from the database"
+              style={{
+                padding: '8px 12px',
+                borderRadius: 6,
+                fontWeight: 800,
+                fontSize: 11,
+                cursor: historyLoading ? 'wait' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                border: '1px solid #cbd5e1',
+                background: '#fff',
+                color: '#0f3a4b'
+              }}
+            >
+              {historyLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              {historyLoading ? 'Loading DB…' : 'Refresh from Database'}
             </button>
           </div>
 
@@ -585,7 +684,30 @@ export default function PayPVForm() {
         {/* TAB 2: Payment & Disbursement History */}
         {activeTab === 'history' && (
           <div>
-            {filteredDisbursed.length === 0 ? (
+            {historyError && (
+              <div style={{
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#991b1b',
+                padding: '8px 12px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 700,
+                marginBottom: 12
+              }}>
+                {historyError}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, marginBottom: 10 }}>
+              Showing every payment voucher with status <strong style={{ color: '#166534' }}>DISBURSED</strong> from the live database
+              {historySourceCount ? ` · ${historySourceCount} settled record${historySourceCount === 1 ? '' : 's'} loaded` : ''}.
+            </div>
+            {historyLoading && filteredDisbursed.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '48px 20px', color: '#64748b' }}>
+                <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 10px' }} />
+                <div style={{ fontWeight: 800 }}>Loading disbursed vouchers from the database…</div>
+              </div>
+            ) : filteredDisbursed.length === 0 ? (
               <div style={{
                 textAlign: 'center',
                 padding: '48px 20px',
@@ -595,10 +717,10 @@ export default function PayPVForm() {
               }}>
                 <Clock size={44} color="#64748b" style={{ margin: '0 auto 12px', opacity: 0.6 }} />
                 <h4 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: '#1e293b' }}>
-                  No Disbursed Payment Vouchers Recorded Yet
+                  No DISBURSED Payment Vouchers in the Database
                 </h4>
                 <p style={{ fontSize: 12, color: '#64748b', maxWidth: 440, margin: '8px auto 0' }}>
-                  When payments are made from the "Ready for Payment" list, complete audit vouchers and disbursement receipts will be archived here.
+                  History now reads live from the finance vouchers API. Once a voucher is disbursed, it appears here with status DISBURSED.
                 </p>
               </div>
             ) : (
@@ -679,8 +801,18 @@ export default function PayPVForm() {
                             <div style={{ fontWeight: 900, fontSize: 13, color: '#15803d' }}>
                               GHS {amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
-                            <span style={{ fontSize: 9.5, color: '#15803d', fontWeight: 800 }}>
-                              ● Settled
+                            <span style={{
+                              display: 'inline-block',
+                              marginTop: 3,
+                              fontSize: 9.5,
+                              color: '#166534',
+                              background: '#dcfce7',
+                              border: '1px solid #86efac',
+                              fontWeight: 900,
+                              padding: '1px 6px',
+                              borderRadius: 4
+                            }}>
+                              DISBURSED
                             </span>
                           </td>
 

@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   LayoutDashboard, Users, UserPlus, FileText, Settings,
   TrendingUp, School, CreditCard, Search, Trash2, Edit,
   CheckCircle2, X, Save, ShieldCheck, ShieldAlert, AlertTriangle, Mail, Phone, MapPin,
   Printer, Download, Eye, EyeOff, Copy, Plus, FileCheck, UserCheck, Radio,
-  ArrowUpDown, ArrowUp, ArrowDown, ArrowRight, BellRing, Filter
+  ArrowUpDown, ArrowUp, ArrowDown, ArrowRight, BellRing, Filter, RefreshCw
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
-import { usePortalData, formatClassToBasic } from '../data/PortalStore';
+import { usePortalData, formatClassToBasic, buildStudentTranscriptData, MISSING_SCORE } from '../data/PortalStore';
 import OfficialApplicationForm from '../components/Onboarding/OfficialApplicationForm';
 import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeStructure';
 import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
@@ -109,13 +109,23 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   }, [adminRole, activeNav]);
 
   useEffect(() => {
-    const handleRoleEvent = () => {
-      const stored = localStorage.getItem('says_admin_role');
-      if (stored) setAdminRole(stored);
+    if (activeNav !== 'Student Roster' && activeNav !== 'Applications & Forms') return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (activeNav === 'Student Roster' && syncApplicationsToStudentDatabase) {
+          await syncApplicationsToStudentDatabase();
+        } else if (refreshBackendData) {
+          await refreshBackendData();
+        }
+      } catch (e) {
+        if (!cancelled) console.warn('Admissions/roster database sync failed:', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
     };
-    window.addEventListener('says_admin_role_changed', handleRoleEvent);
-    return () => window.removeEventListener('says_admin_role_changed', handleRoleEvent);
-  }, []);
+  }, [activeNav, refreshBackendData, syncApplicationsToStudentDatabase]);
   const [declineResultModal, setDeclineResultModal] = useState(null);
   const [declineInputNote, setDeclineInputNote] = useState('');
 
@@ -198,83 +208,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     phone: ''
   });
 
-  const getStudentTranscriptData = (student) => {
-    if (!student) {
-      return {
-        courses: [],
-        totalCredits: 0,
-        totalGradePoints: 0,
-        cgpa: '0.00',
-        averageScore: '0.0',
-        academicStanding: 'N/A',
-        classRank: 'N/A',
-        attendancePercentage: '100%',
-        term: 'Term 1 · 2026 Academic Year'
-      };
-    }
-
-    const isSHS = (student.level || '').includes('SHS');
-    const isJHS = (student.level || '').includes('JHS');
-
-    const defaultCourses = isSHS ? [
-      { code: 'ENG-101', title: 'English Language & Literature', credits: 3, score: 88, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
-      { code: 'MTH-101', title: 'Core Mathematics & Analytics', credits: 4, score: 92, grade: 'A+', gradePoint: 4.0, remark: 'Outstanding' },
-      { code: 'SCI-102', title: 'Integrated Science & Biology', credits: 4, score: 84, grade: 'B+', gradePoint: 3.5, remark: 'Very Good' },
-      { code: 'SOC-101', title: 'Social Studies & Citizenship', credits: 3, score: 86, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
-      { code: 'ICT-105', title: 'Information Technology & Data Science', credits: 3, score: 95, grade: 'A+', gradePoint: 4.0, remark: 'Exceptional' },
-      { code: 'ECO-201', title: 'Economics & Financial Literacy', credits: 3, score: 79, grade: 'B', gradePoint: 3.0, remark: 'Good' },
-    ] : isJHS ? [
-      { code: 'ENG-08', title: 'English Language Arts', credits: 3, score: 85, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
-      { code: 'MTH-08', title: 'General Mathematics', credits: 4, score: 89, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
-      { code: 'SCI-08', title: 'Integrated Science', credits: 4, score: 82, grade: 'B+', gradePoint: 3.5, remark: 'Very Good' },
-      { code: 'SOC-08', title: 'Social Studies & Culture', credits: 3, score: 87, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
-      { code: 'ICT-08', title: 'Computer Literacy & Coding', credits: 3, score: 91, grade: 'A+', gradePoint: 4.0, remark: 'Outstanding' },
-      { code: 'RME-08', title: 'Religious & Moral Education', credits: 2, score: 90, grade: 'A+', gradePoint: 4.0, remark: 'Outstanding' },
-    ] : [
-      { code: 'ENG-PRI', title: 'English Language & Reading', credits: 3, score: 88, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
-      { code: 'MTH-PRI', title: 'Primary Mathematics & Numeracy', credits: 4, score: 94, grade: 'A+', gradePoint: 4.0, remark: 'Outstanding' },
-      { code: 'SCI-PRI', title: 'Basic Science & Nature', credits: 3, score: 86, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
-      { code: 'OWOP-PRI', title: 'Our World Our People', credits: 3, score: 90, grade: 'A+', gradePoint: 4.0, remark: 'Outstanding' },
-      { code: 'ICT-PRI', title: 'Basic Computing & Digital Skills', credits: 2, score: 92, grade: 'A+', gradePoint: 4.0, remark: 'Outstanding' },
-      { code: 'CAD-PRI', title: 'Creative Arts & Design', credits: 2, score: 87, grade: 'A', gradePoint: 4.0, remark: 'Excellent' },
-    ];
-
-    const totalCredits = defaultCourses.reduce((acc, c) => acc + c.credits, 0);
-    const totalScoreSum = defaultCourses.reduce((acc, c) => acc + c.score, 0);
-    const averageScore = (totalScoreSum / defaultCourses.length).toFixed(1);
-    
-    const weightedGradePoints = defaultCourses.reduce((acc, c) => acc + (c.gradePoint * c.credits), 0);
-    const cgpa = (weightedGradePoints / totalCredits).toFixed(2);
-    const standing = Number(cgpa) >= 3.5 ? 'First Class Honor Roll' : Number(cgpa) >= 3.0 ? 'Second Class Upper' : 'Good Standing';
-
-    const subjectsWithCalculations = defaultCourses.map(c => {
-      const classScore = Math.round(c.score * 0.3);
-      const examScore = c.score - classScore;
-      return {
-        ...c,
-        name: c.title,
-        classScore,
-        examScore,
-        total: c.score,
-        gpaPoint: c.gradePoint
-      };
-    });
-
-    return {
-      courses: subjectsWithCalculations,
-      subjects: subjectsWithCalculations,
-      totalCredits,
-      totalGradePoints: weightedGradePoints.toFixed(1),
-      cgpa,
-      averageScore,
-      standing,
-      academicStanding: standing,
-      classRank: 'Top 5%',
-      attendancePercentage: '98.5%',
-      term: 'Term 1 · 2026 Academic Year'
-    };
-  };
-
   const {
     onboardedStudents,
     applications,
@@ -283,6 +216,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     classLevels,
     subjects,
     results,
+    messages,
     approveResult,
     declineResult,
     onboardStudent,
@@ -304,6 +238,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     submitApplication,
     deleteApplication,
     refreshBackendData,
+    syncApplicationsToStudentDatabase,
     adminSetUserPassword,
     paymentVouchers,
     pvNotifications,
@@ -324,10 +259,32 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     return (pvNotifications || []).filter(n => !n.read).length;
   }, [pvNotifications]);
 
-  // Uploaded scores awaiting Head Admin / Sub-Admin sign-off
+  // Uploaded exam scores awaiting Head Admin / Sub-Admin sign-off
   const pendingResultsCount = useMemo(() => {
     return (results || []).filter(r => r.status === 'Pending Approval').length;
   }, [results]);
+
+  const examPendingResults = useMemo(() => {
+    return (results || []).filter((r) => r.status === 'Pending Approval' || r.status === 'Declined');
+  }, [results]);
+
+  const terminalReportNotices = useMemo(() => {
+    return (messages || []).filter((m) => m.type === 'terminal-report' || String(m.subject || '') === 'Terminal Report is ready');
+  }, [messages]);
+
+  const getStudentTranscriptData = useCallback((student) => buildStudentTranscriptData(student, results), [results]);
+
+  const numericTranscriptAverage = (students) => {
+    const vals = students.map((s) => Number(getStudentTranscriptData(s).averageScore)).filter((n) => Number.isFinite(n));
+    if (!vals.length) return MISSING_SCORE;
+    return (vals.reduce((acc, n) => acc + n, 0) / vals.length).toFixed(1);
+  };
+
+  const numericTranscriptCgpa = (students) => {
+    const vals = students.map((s) => Number(getStudentTranscriptData(s).cgpa)).filter((n) => Number.isFinite(n));
+    if (!vals.length) return MISSING_SCORE;
+    return (vals.reduce((acc, n) => acc + n, 0) / vals.length).toFixed(2);
+  };
 
   const [livePVAlert, setLivePVAlert] = useState(null);
   useEffect(() => {
@@ -558,7 +515,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     e.preventDefault();
     if (!onboardingForm.fullName || !onboardingForm.guardianName || !onboardingForm.guardianEmail) return;
 
-    await onboardStudent(onboardingForm);
+    try {
+      await onboardStudent(onboardingForm);
+    } catch (err) {
+      setSuccessMsg(err?.message || 'Saving this student failed.');
+      setTimeout(() => setSuccessMsg(''), 8000);
+      return;
+    }
 
     setOnboardingForm({
       fullName: '',
@@ -588,31 +551,36 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     const level = formatClassToBasic(app.level || app.applyingClass || 'Basic 1');
     const homeAddress = app.residentialAddress || app.address || 'Bogoso';
 
-    await onboardStudent({
-      fullName: learnerName,
-      firstName: app.firstName,
-      otherNames: app.otherNames,
-      surname: app.surname,
-      dob: app.dob || '',
-      gender: app.sex || 'Male',
-      level: level,
-      classSection: app.officeFormAssigned || app.classSection || app.subClass || 'A',
-      guardianName: guardianName,
-      guardianEmail: guardianEmail,
-      guardianPhone: guardianPhone,
-      fatherName: app.fatherName || '',
-      fatherPhone: app.fatherPhone || guardianPhone,
-      motherName: app.motherName || '',
-      motherPhone: app.motherPhone || '',
-      applicationId: app.id,
-      homeAddress: homeAddress,
-      rfidCardCode: app.rfidCardCode || '',
-    });
+    try {
+      await onboardStudent({
+        fullName: learnerName,
+        firstName: app.firstName,
+        otherNames: app.otherNames,
+        surname: app.surname,
+        dob: app.dob || '',
+        gender: app.sex || 'Male',
+        level: level,
+        classSection: app.officeFormAssigned || app.classSection || app.subClass || 'A',
+        guardianName: guardianName,
+        guardianEmail: guardianEmail,
+        guardianPhone: guardianPhone,
+        fatherName: app.fatherName || '',
+        fatherPhone: app.fatherPhone || guardianPhone,
+        motherName: app.motherName || '',
+        motherPhone: app.motherPhone || '',
+        applicationId: app.id,
+        homeAddress: homeAddress,
+        rfidCardCode: app.rfidCardCode || '',
+      });
 
-    await updateApplicationStatus(app.id, 'Enrolled');
-    setActiveNav('Dashboard');
-    setSuccessMsg(`Applicant ${learnerName} officially admitted and enrolled into Student Roster!`);
-    setTimeout(() => setSuccessMsg(''), 5000);
+      await updateApplicationStatus(app.id, 'Enrolled');
+      setActiveNav('Dashboard');
+      setSuccessMsg(`Applicant ${learnerName} officially admitted and enrolled into Student Roster!`);
+      setTimeout(() => setSuccessMsg(''), 5000);
+    } catch (err) {
+      setSuccessMsg(err?.message || 'Enrolling this applicant failed.');
+      setTimeout(() => setSuccessMsg(''), 8000);
+    }
   };
 
   const filteredTranscriptStudents = (onboardedStudents || []).filter((s) => {
@@ -634,7 +602,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
         student.level,
         student.classSection || 'A',
         student.guardianName || 'Guardian',
-        `${data.averageScore}%`,
+        `${data.averageScore === MISSING_SCORE ? MISSING_SCORE : `${data.averageScore}%`}`,
         data.cgpa,
         data.standing
       ];
@@ -657,14 +625,21 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       [`Student Name: ${student.fullName}`, `Student ID: ${student.studentId}`, `Class Level: ${student.level}`],
       [`Guardian: ${student.guardianName}`, `Date: ${new Date().toLocaleDateString()}`],
       [],
-      ['Course Code', 'Subject Name', 'Class Assessment (30%)', 'End of Term Exam (70%)', 'Total Score (100%)', 'Letter Grade', 'GPA Point', 'Remark']
+      ['Course Code', 'Subject Name', 'Class Assessment (50%)', 'End of Term Exam (50%)', 'Total Score (100%)', 'Letter Grade', 'GPA Point', 'Remark']
     ];
     const rows = data.subjects.map(s => [
-      s.code, s.name, `${s.classScore}/30`, `${s.examScore}/70`, `${s.total}%`, s.grade, s.gpaPoint, s.remark
+      s.code,
+      s.name,
+      s.classScore == null ? MISSING_SCORE : `${s.classScore}/50`,
+      s.examScore == null ? MISSING_SCORE : `${s.examScore}/50`,
+      s.total == null ? MISSING_SCORE : `${s.total}%`,
+      s.grade || MISSING_SCORE,
+      s.gpaPoint === MISSING_SCORE || s.gpaPoint == null ? MISSING_SCORE : s.gpaPoint,
+      s.remark || MISSING_SCORE,
     ]);
     const footer = [
       [],
-      [`Cumulative GPA: ${data.cgpa} / 4.0`, `Average Mark: ${data.averageScore}%`, `Academic Standing: ${data.standing}`]
+      [`Cumulative GPA: ${data.cgpa}`, `Average Mark: ${data.averageScore === MISSING_SCORE ? MISSING_SCORE : `${data.averageScore}%`}`, `Academic Standing: ${data.standing}`]
     ];
     const csvContent = [...header, ...rows, ...footer].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -677,12 +652,11 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     document.body.removeChild(link);
   };
 
-  const handleSaveOfficeEvaluation = (id, officeData) => {
-    if (updateApplicationOfficeUse) {
-      updateApplicationOfficeUse(id, officeData);
-      setSuccessMsg('Office evaluation and examination results saved to application record.');
-      setTimeout(() => setSuccessMsg(''), 5000);
-    }
+  const handleSaveOfficeEvaluation = async (id, officeData) => {
+    if (!updateApplicationOfficeUse) return;
+    await updateApplicationOfficeUse(id, officeData);
+    setSuccessMsg('Office evaluation and examination results saved to application record.');
+    setTimeout(() => setSuccessMsg(''), 5000);
   };
 
   const [studentSortCol, setStudentSortCol] = useState('fullName');
@@ -703,17 +677,23 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   };
 
   const filteredStudents = useMemo(() => {
+    const q = String(searchQuery || '').toLowerCase();
     return (onboardedStudents || [])
       .map((s) => ({
         ...s,
         level: formatClassToBasic(s.level)
       }))
-      .filter((s) =>
-        s.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.level.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.guardianName.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      .filter((s) => {
+        if (!q) return true;
+        return [
+          s.fullName,
+          s.studentId,
+          s.level,
+          s.guardianName,
+          s.fatherName,
+          s.motherName,
+        ].some((value) => String(value || '').toLowerCase().includes(q));
+      })
       .sort((a, b) => {
         let valA = (a[studentSortCol] || '').toString().toLowerCase();
         let valB = (b[studentSortCol] || '').toString().toLowerCase();
@@ -821,7 +801,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const handlePrintRoster = async () => {
     setSuccessMsg('Loading live student roster from the database…');
     try {
-      if (refreshBackendData) await refreshBackendData();
+      if (syncApplicationsToStudentDatabase) await syncApplicationsToStudentDatabase();
+      else if (refreshBackendData) await refreshBackendData();
     } catch (e) {
       console.warn('Roster refresh before print failed:', e);
     }
@@ -836,6 +817,18 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       setTimeout(cleanup, 400);
       setSuccessMsg('');
     }, 250);
+  };
+
+  const handleRefreshRoster = async () => {
+    setSuccessMsg('Syncing Student Roster with Applications & Forms from the database…');
+    try {
+      if (syncApplicationsToStudentDatabase) await syncApplicationsToStudentDatabase();
+      else if (refreshBackendData) await refreshBackendData();
+      setSuccessMsg('Student Roster updated from the live database.');
+    } catch (e) {
+      setSuccessMsg(e?.message || 'Could not refresh the student roster from the database.');
+    }
+    setTimeout(() => setSuccessMsg(''), 5000);
   };
 
   const handleDelete = (id) => {
@@ -991,6 +984,37 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             </div>
           )}
 
+          {terminalReportNotices.length > 0 && (
+            <div style={{
+              background: '#ecfdf5',
+              border: '1.5px solid #6ee7b7',
+              borderRadius: 'var(--radius-md)',
+              padding: '13px 18px',
+              marginBottom: 16,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 13, color: '#065f46' }}>
+                  Terminal Report is ready
+                </div>
+                <div style={{ fontSize: 11, color: '#047857', marginTop: 2 }}>
+                  {terminalReportNotices[0].body}
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveNav('Transcripts & Results')}
+                style={{
+                  background: '#047857', color: '#fff', border: 'none', borderRadius: 7,
+                  padding: '8px 16px', fontWeight: 800, fontSize: 12, cursor: 'pointer',
+                }}
+              >
+                Open results
+              </button>
+            </div>
+          )}
+
           {/* Persistent Action Required PV Banner for Headmaster */}
           {pendingPVCount > 0 && adminRole !== 'sub_admin' && activeNav !== 'Pre-Audit & Approve PV' && (
             <div style={{
@@ -1078,14 +1102,18 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           {successMsg && (
             <div style={{
               position: 'fixed', top: 76, right: 24, zIndex: 99999,
-              padding: '14px 22px', background: '#14532d', color: '#f0fdf4',
+              padding: '14px 22px',
+              background: /failed/i.test(successMsg) ? '#7f1d1d' : '#14532d',
+              color: /failed/i.test(successMsg) ? '#fef2f2' : '#f0fdf4',
               borderRadius: 12, fontWeight: 800, fontSize: 13.5,
               display: 'flex', alignItems: 'center', gap: 10,
               boxShadow: '0 10px 25px rgba(0,0,0,0.25)',
-              border: '1px solid #22c55e',
+              border: /failed/i.test(successMsg) ? '1px solid #ef4444' : '1px solid #22c55e',
               animation: 'fadeIn 0.25s ease'
             }}>
-              <CheckCircle2 size={18} color="#86efac" />
+              {/failed/i.test(successMsg)
+                ? <AlertTriangle size={18} color="#fecaca" />
+                : <CheckCircle2 size={18} color="#86efac" />}
               <span>{successMsg}</span>
             </div>
           )}
@@ -1619,6 +1647,27 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 <h1 className="page-header__title">Student Roster Database</h1>
                   <p className="page-header__subtitle">View registered learners from the live database, print name and class lists, or manage records.</p>
                 </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="print-keep"
+                  onClick={handleRefreshRoster}
+                  style={{
+                    padding: '10px 16px',
+                    borderRadius: 8,
+                    background: '#fff',
+                    color: ADMIN_BG,
+                    border: `1px solid ${ADMIN_BG}`,
+                    fontWeight: 800,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <RefreshCw size={15} /> Refresh from Database
+                </button>
                 <button
                   type="button"
                   className="print-keep"
@@ -1641,6 +1690,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 >
                   <Printer size={15} /> Print Name & Class List ({filteredStudents.length})
                 </button>
+                </div>
               </div>
 
               <div className="no-print" style={{ position: 'relative', marginBottom: 16 }}>
@@ -1837,33 +1887,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     isAdmin={true}
                     onCancel={() => setIsCreatingApp(false)}
                     onSubmit={async (newForm) => {
-                      const otherNames = (newForm.otherNames || '').trim();
-                      const learnerName = (newForm.firstName || newForm.surname || otherNames)
-                        ? `${newForm.firstName || ''} ${otherNames ? otherNames + ' ' : ''}${newForm.surname || ''}`.replace(/\s+/g, ' ').trim()
-                        : (newForm.learner || newForm.fullName || 'Student');
-                      await onboardStudent({
-                        fullName: learnerName,
-                        firstName: newForm.firstName,
-                        otherNames,
-                        surname: newForm.surname,
-                        dob: newForm.dob,
-                        gender: newForm.sex || newForm.gender,
-                        level: newForm.applyingClass || newForm.level || 'Basic 1',
-                        classSection: newForm.classSection || newForm.subClass || newForm.officeFormAssigned || 'A',
-                        guardianName: newForm.fatherName || newForm.motherName || newForm.guardian,
-                        guardianEmail: newForm.fatherEmail || newForm.email,
-                        guardianPhone: newForm.fatherPhone || newForm.motherPhone || newForm.phone,
-                        fatherName: newForm.fatherName || '',
-                        fatherPhone: newForm.fatherPhone || '',
-                        motherName: newForm.motherName || '',
-                        motherPhone: newForm.motherPhone || '',
-                        homeAddress: newForm.residentialAddress || newForm.homeAddress,
-                        rfidCardCode: newForm.rfidCardCode || '',
-                      });
                       await submitApplication(newForm);
                       setIsCreatingApp(false);
-                      setActiveNav('Dashboard');
-                      setSuccessMsg('Student onboarded. One account created and synced across roster, fees, and portals.');
+                      setActiveNav('Student Roster');
+                      setSuccessMsg('Application saved to the database and synced to Student Roster.');
                       setTimeout(() => setSuccessMsg(''), 5000);
                     }}
                   />
@@ -1988,13 +2015,18 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                                 <td>
                                   <select
                                     value={app.status}
-                                    onChange={(e) => {
+                                    onChange={async (e) => {
                                       const newStatus = e.target.value;
-                                      updateApplicationStatus(app.id, newStatus);
-                                      if (newStatus === 'Accepted' || newStatus === 'Enrolled') {
-                                        const contactEmail = app.email || app.fatherEmail || app.motherEmail || `parent.${(app.surname || app.learner || 'guardian').toLowerCase().replace(/[^a-z0-9]/g, '')}@remaljcarewell.edu.gh`;
-                                        const defaultPass = app.defaultPassword || 'Carewell2026!';
-                                        setSuccessMsg(`🎉 Application ACCEPTED! Default credentials sent to parent: Email: ${contactEmail} | Password: ${defaultPass} (Parent Portal direct access enabled - no sign in required).`);
+                                      try {
+                                        await updateApplicationStatus(app.id, newStatus);
+                                        if (newStatus === 'Accepted' || newStatus === 'Enrolled') {
+                                          const contactEmail = app.email || app.fatherEmail || app.motherEmail || `parent.${(app.surname || app.learner || 'guardian').toLowerCase().replace(/[^a-z0-9]/g, '')}@remaljcarewell.edu.gh`;
+                                          const defaultPass = app.defaultPassword || 'Carewell2026!';
+                                          setSuccessMsg(`🎉 Application ACCEPTED! Default credentials sent to parent: Email: ${contactEmail} | Password: ${defaultPass} (Parent Portal direct access enabled - no sign in required).`);
+                                          setTimeout(() => setSuccessMsg(''), 8000);
+                                        }
+                                      } catch (err) {
+                                        setSuccessMsg(err?.message || 'Updating this application failed.');
                                         setTimeout(() => setSuccessMsg(''), 8000);
                                       }
                                     }}
@@ -2295,21 +2327,34 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   <table className="data-table">
                     <thead>
                       <tr>
+                        <th>Student</th>
                         <th>Course Title</th>
                         <th>Lecturer / Author</th>
-                        <th>Submitted Mark</th>
+                        <th>Class</th>
+                        <th>Exam</th>
+                        <th>Total</th>
                         <th>Grade</th>
                         <th>Approval Status</th>
                         <th style={{ textAlign: 'right' }}>{adminRole === 'sub_admin' ? 'Sub-Admin Action' : 'Academic Head Action'}</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(results || []).map((r) => (
-                        <tr key={r.id || r.subject} style={{ background: r.status === 'Declined' ? '#fff1f2' : r.status === 'Pending Approval' ? '#fffbeb' : 'transparent' }}>
+                      {examPendingResults.length === 0 ? (
+                        <tr>
+                          <td colSpan={9} style={{ color: '#94a3b8', fontWeight: 600 }}>No exam scores awaiting approval.</td>
+                        </tr>
+                      ) : examPendingResults.map((r) => (
+                        <tr key={r.id || `${r.studentId}-${r.subject}`} style={{ background: r.status === 'Declined' ? '#fff1f2' : r.status === 'Pending Approval' ? '#fffbeb' : 'transparent' }}>
+                          <td>
+                            <strong>{r.studentName || MISSING_SCORE}</strong>
+                            <div style={{ fontSize: 11, color: '#64748b' }}>{r.studentId || MISSING_SCORE} · {r.classLevel || ''} {r.subClass || ''}</div>
+                          </td>
                           <td><strong>{r.subject}</strong></td>
-                          <td>{r.lecturer}</td>
-                          <td><span style={{ fontWeight: 800 }}>{r.score}%</span></td>
-                          <td><span className="status-pill status-pill--success">{r.grade}</span></td>
+                          <td>{r.lecturer || r.instructor || MISSING_SCORE}</td>
+                          <td><span style={{ fontWeight: 800 }}>{r.hasClassScore || Number(r.classScore) > 0 ? r.classScore : MISSING_SCORE}</span></td>
+                          <td><span style={{ fontWeight: 800 }}>{r.hasExamScore || r.status === 'Pending Approval' ? (r.examScoreConverted ?? r.examScore) : MISSING_SCORE}</span></td>
+                          <td><span style={{ fontWeight: 800 }}>{r.score != null && r.hasExamScore !== false ? `${r.score}%` : MISSING_SCORE}</span></td>
+                          <td><span className="status-pill status-pill--success">{r.grade || MISSING_SCORE}</span></td>
                           <td>
                             {r.status === 'Approved' ? (
                               <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800, background: '#dcfce7', color: '#166534' }}>
@@ -2343,7 +2388,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                                   onClick={() => {
                                     const approver = adminRole === 'sub_admin' ? 'Sub-Admin' : 'Academic Head';
                                     approveResult(r.id, approver);
-                                    setSuccessMsg(`Result for ${r.subject} APPROVED by ${approver}! Published to official transcripts.`);
+                                    setSuccessMsg(`Exam result for ${r.studentName || r.subject} APPROVED by ${approver}.`);
                                     setTimeout(() => setSuccessMsg(''), 5000);
                                   }}
                                   style={{ padding: '5px 12px', background: '#166534', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 11, cursor: 'pointer' }}
@@ -2457,8 +2502,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#166534' }}>Overall Class Average</div>
                   <div style={{ fontSize: 24, fontWeight: 900, color: '#14532d', marginTop: 4 }}>
                     {filteredTranscriptStudents.length > 0
-                      ? `${(filteredTranscriptStudents.reduce((acc, s) => acc + Number(getStudentTranscriptData(s).averageScore), 0) / filteredTranscriptStudents.length).toFixed(1)}%`
-                      : '0%'}
+                      ? (numericTranscriptAverage(filteredTranscriptStudents) === MISSING_SCORE ? MISSING_SCORE : `${numericTranscriptAverage(filteredTranscriptStudents)}%`)
+                      : MISSING_SCORE}
                   </div>
                   <div style={{ fontSize: 11, color: '#15803d', marginTop: 2 }}>Term Average Score</div>
                 </div>
@@ -2466,8 +2511,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#0369a1' }}>Mean CGPA</div>
                   <div style={{ fontSize: 24, fontWeight: 900, color: '#0c4a6e', marginTop: 4 }}>
                     {filteredTranscriptStudents.length > 0
-                      ? (filteredTranscriptStudents.reduce((acc, s) => acc + Number(getStudentTranscriptData(s).cgpa), 0) / filteredTranscriptStudents.length).toFixed(2)
-                      : '0.00'}
+                      ? numericTranscriptCgpa(filteredTranscriptStudents)
+                      : MISSING_SCORE}
                   </div>
                   <div style={{ fontSize: 11, color: '#0284c7', marginTop: 2 }}>Out of 4.0 Scale</div>
                 </div>
@@ -2518,7 +2563,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                             </td>
                             <td>
                               <span style={{ fontWeight: 800, fontSize: 14, color: Number(tData.averageScore) >= 75 ? '#166534' : '#92400e' }}>
-                                {tData.averageScore}%
+                                {tData.averageScore === MISSING_SCORE ? MISSING_SCORE : `${tData.averageScore}%`}
                               </span>
                             </td>
                             <td>
@@ -3888,8 +3933,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                               <tr style={{ background: '#1e1b4b', color: '#fff' }}>
                                 <th style={{ padding: '5px 8px', border: '1px solid #1e1b4b' }}>Code</th>
                                 <th style={{ padding: '5px 8px', border: '1px solid #1e1b4b' }}>Course Title</th>
-                                <th style={{ padding: '5px 8px', border: '1px solid #1e1b4b', textAlign: 'center' }}>Class (30%)</th>
-                                <th style={{ padding: '5px 8px', border: '1px solid #1e1b4b', textAlign: 'center' }}>Exam (70%)</th>
+                                <th style={{ padding: '5px 8px', border: '1px solid #1e1b4b', textAlign: 'center' }}>Class (50%)</th>
+                                <th style={{ padding: '5px 8px', border: '1px solid #1e1b4b', textAlign: 'center' }}>Exam (50%)</th>
                                 <th style={{ padding: '5px 8px', border: '1px solid #1e1b4b', textAlign: 'center' }}>Total (100%)</th>
                                 <th style={{ padding: '5px 8px', border: '1px solid #1e1b4b', textAlign: 'center' }}>Grade</th>
                                 <th style={{ padding: '5px 8px', border: '1px solid #1e1b4b', textAlign: 'center' }}>GPA Pt</th>
@@ -3897,16 +3942,20 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                               </tr>
                             </thead>
                             <tbody>
-                              {tData.subjects.map((sub, idx) => (
+                              {tData.subjects.length === 0 ? (
+                                <tr>
+                                  <td colSpan={8} style={{ padding: '10px 8px', textAlign: 'center', color: '#94a3b8', fontWeight: 700 }}>{MISSING_SCORE}</td>
+                                </tr>
+                              ) : tData.subjects.map((sub, idx) => (
                                 <tr key={sub.code} style={{ background: idx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                                   <td style={{ padding: '5px 8px', fontFamily: 'monospace', fontWeight: 800 }}>{sub.code}</td>
                                   <td style={{ padding: '5px 8px', fontWeight: 700 }}>{sub.name}</td>
-                                  <td style={{ padding: '5px 8px', textAlign: 'center', color: '#475569' }}>{sub.classScore}/30</td>
-                                  <td style={{ padding: '5px 8px', textAlign: 'center', color: '#475569' }}>{sub.examScore}/70</td>
-                                  <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 900, color: sub.total >= 75 ? '#166534' : '#0f172a' }}>{sub.total}%</td>
-                                  <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 900, color: '#4a1d6e' }}>{sub.grade}</td>
-                                  <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 800 }}>{sub.gpaPoint.toFixed(1)}</td>
-                                  <td style={{ padding: '5px 8px', fontWeight: 700, color: sub.total >= 70 ? '#166534' : '#92400e' }}>{sub.remark}</td>
+                                  <td style={{ padding: '5px 8px', textAlign: 'center', color: '#475569' }}>{sub.classScore == null ? MISSING_SCORE : `${sub.classScore}/50`}</td>
+                                  <td style={{ padding: '5px 8px', textAlign: 'center', color: '#475569' }}>{sub.examScore == null ? MISSING_SCORE : `${sub.examScore}/50`}</td>
+                                  <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 900, color: sub.total >= 75 ? '#166534' : '#0f172a' }}>{sub.total == null ? MISSING_SCORE : `${sub.total}%`}</td>
+                                  <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 900, color: '#4a1d6e' }}>{sub.grade || MISSING_SCORE}</td>
+                                  <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 800 }}>{sub.gpaPoint === MISSING_SCORE || sub.gpaPoint == null ? MISSING_SCORE : Number(sub.gpaPoint).toFixed(1)}</td>
+                                  <td style={{ padding: '5px 8px', fontWeight: 700, color: sub.total >= 70 ? '#166534' : '#92400e' }}>{sub.remark || MISSING_SCORE}</td>
                                 </tr>
                               ))}
                             </tbody>

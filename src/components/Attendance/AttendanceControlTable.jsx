@@ -4,7 +4,7 @@ import {
   CreditCard, Cpu, Sparkles, Filter, Calendar, FileText, Download, Printer,
   Eye, RefreshCw, Layers, UserCheck, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
-import { usePortalData, findStudentByCardUid, mapStudentFromApi, rfidUidsMatch } from '../../data/PortalStore';
+import { usePortalData, findStudentByCardUid, mapStudentFromApi, rfidUidsMatch, resolveGuardianPhone } from '../../data/PortalStore';
 import { api } from '../../services/api';
 import './AttendanceControlTable.css';
 
@@ -137,7 +137,13 @@ export default function AttendanceControlTable() {
 
     setIsSendingDirectSms(true);
     const sId = directSmsModalStudent.studentId || directSmsModalStudent.id;
-    const phone = customPhones[sId] || directSmsModalStudent.guardianPhone || '0541769621';
+    const phone = parentPhoneFor(directSmsModalStudent, sId);
+    if (!phone) {
+      setNotification('⚠ No parent number on file for this student. Enter the guardian phone before sending SMS.');
+      setIsSendingDirectSms(false);
+      setTimeout(() => setNotification(''), 6000);
+      return;
+    }
     const guardianName = directSmsModalStudent.guardianName || 'Guardian';
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const statusToApply = directSmsAttendanceStatus; // 'Present', 'Absent', or null
@@ -212,10 +218,21 @@ export default function AttendanceControlTable() {
     }
   };
 
-  // Editable phone numbers per student ID
-  const [customPhones, setCustomPhones] = useState({
-    'REMALJ-2026-001': '054 176 9621',
-  });
+  // Editable phone numbers per student ID (user overrides only — never seed a default)
+  const [customPhones, setCustomPhones] = useState({});
+
+  const parentPhoneFor = (student, sId) => {
+    const key = sId || student?.studentId || student?.id;
+    const app = (applications || []).find((a) =>
+      String(a.officeStudentID || a.studentId || '') === String(key || '')
+      || String(a.id) === String(student?.applicationId || '')
+    ) || {};
+    const custom = key != null && Object.prototype.hasOwnProperty.call(customPhones, key)
+      ? String(customPhones[key] ?? '')
+      : undefined;
+    if (custom !== undefined) return custom;
+    return resolveGuardianPhone(student, app);
+  };
 
   // Sound chime feedback
   const playBeep = (isSuccess = true) => {
@@ -268,7 +285,7 @@ export default function AttendanceControlTable() {
       method: method, // 'RFID Card Reader' | 'Manual Roll Call'
       status: status, // 'CardScanned' | 'Present' | 'Absent'
       guardianName: guardianName || student.guardianName || 'Guardian',
-      phone: phone || student.guardianPhone || '0541769621',
+      phone: phone || parentPhoneFor(student, sId),
       smsStatus: 'Sent'
     };
 
@@ -286,7 +303,7 @@ export default function AttendanceControlTable() {
     if (simulatedTimeSlot === 'morning') timeStr = '08:15 AM';
     if (simulatedTimeSlot === 'afternoon') timeStr = '02:30 PM';
 
-    const phone = customPhones[sId] || matchedStudent.guardianPhone || '0541769621';
+    const phone = parentPhoneFor(matchedStudent, sId);
     const guardianName = matchedStudent.guardianName || 'Guardian';
 
     // Lock attendance with Check In or Check Out status
@@ -378,7 +395,7 @@ export default function AttendanceControlTable() {
         ...matchedStudent,
         scannedCardCode: rawCode,
         timeStr: existingState.lastSentAt || 'Today',
-        phone: customPhones[sId] || matchedStudent.guardianPhone || '054 176 9621',
+        phone: parentPhoneFor(matchedStudent, sId),
         scanType: currentScanLabel,
         alreadyMarked: true
       });
@@ -409,7 +426,7 @@ export default function AttendanceControlTable() {
     }));
 
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const phone = customPhones[sId] || student.guardianPhone || '0541769621';
+    const phone = parentPhoneFor(student, sId);
     const guardianName = student.guardianName || 'Guardian';
     const messageText = `[RCIS] REMALJ CARE: Dear ${guardianName}, your child ${student.fullName} (${student.level}) has been marked ${newStatus.toUpperCase()} at school today at ${timeStr}.`;
 
@@ -946,7 +963,7 @@ export default function AttendanceControlTable() {
                           <input
                             type="tel"
                             className="editable-phone-input"
-                            value={customPhones[sId] !== undefined ? customPhones[sId] : (student.guardianPhone || '054 176 9621')}
+                            value={parentPhoneFor(student, sId)}
                             onChange={(e) => setCustomPhones({ ...customPhones, [sId]: e.target.value })}
                             placeholder="Parent Phone No."
                             style={{ border: '1px solid var(--gray-300)', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 700, width: 120 }}
@@ -1327,7 +1344,7 @@ export default function AttendanceControlTable() {
                   <div style={{ fontSize: 12, fontWeight: 900, color: '#1e3a8a', marginTop: 4 }}>
                     {selectedStudentHistory.guardianName || 'Guardian'}
                   </div>
-                  <small style={{ color: '#2563eb', fontWeight: 700 }}>{selectedStudentHistory.guardianPhone || '054 176 9621'}</small>
+                  <small style={{ color: '#2563eb', fontWeight: 700 }}>{parentPhoneFor(selectedStudentHistory, selectedStudentHistory.studentId || selectedStudentHistory.id) || 'No parent number on file'}</small>
                 </div>
 
                 <div style={{ padding: 12, background: '#faf5ff', borderRadius: 8, border: '1px solid #e9d5ff', textAlign: 'center' }}>
@@ -1474,7 +1491,7 @@ export default function AttendanceControlTable() {
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray-700)', marginBottom: 4 }}>Recipient Phone Number</label>
                 <input
                   type="text"
-                  value={customPhones[directSmsModalStudent.studentId || directSmsModalStudent.id] || directSmsModalStudent.guardianPhone || '0541769621'}
+                  value={parentPhoneFor(directSmsModalStudent, directSmsModalStudent.studentId || directSmsModalStudent.id)}
                   onChange={(e) => setCustomPhones(prev => ({ ...prev, [directSmsModalStudent.studentId || directSmsModalStudent.id]: e.target.value }))}
                   style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13 }}
                   required

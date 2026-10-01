@@ -10,7 +10,7 @@ import ParentCommunication from '../components/ParentCommunication/ParentCommuni
 import ContactDirectory from '../components/ContactDirectory/ContactDirectory';
 import { ParentReports } from '../components/ReportWorkflow/ReportWorkflow';
 import { ParentFees, ParentProgress } from '../components/SchoolWorkflows/SchoolWorkflows';
-import { usePortalData } from '../data/PortalStore';
+import { usePortalData, resultsForStudent, hasRecordedClassScore, hasRecordedExamScore, MISSING_SCORE } from '../data/PortalStore';
 import { getAuthUser } from '../services/api';
 
 const PARENT_BG    = '#1a3668';
@@ -150,6 +150,16 @@ export default function ParentPortal() {
     photo: '👤',
     bio: 'No student record found.'
   };
+
+  const childResults = useMemo(() => resultsForStudent(staffResults, {
+    studentId: child.studentId,
+    fullName: child.name,
+    name: child.name,
+  }), [staffResults, child.studentId, child.name]);
+
+  const terminalReadyNotices = useMemo(() => (
+    (messages || []).filter((m) => m.type === 'terminal-report' || String(m.subject || '') === 'Terminal Report is ready')
+  ), [messages]);
 
   const feeForChild = (entry) => (studentFees || []).find((f) =>
     (entry?.studentId && String(f.studentId) === String(entry.studentId))
@@ -357,34 +367,41 @@ export default function ParentPortal() {
                     </div>
                     <div className="panel__body">
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                        {staffResults.slice(0, 2).map((r) => {
-                          const { score, grade } = r;
+                        {childResults.slice(0, 2).map((r) => {
+                          const complete = hasRecordedClassScore(r) && hasRecordedExamScore(r);
+                          const score = complete ? Number(r.score) : null;
+                          const grade = complete ? r.grade : MISSING_SCORE;
                           return (
-                            <div key={r.subject} style={{ padding: '14px', background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-200)' }}>
+                            <div key={r.id || r.subject} style={{ padding: '14px', background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-200)' }}>
                               <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--gray-400)', marginBottom: 4 }}>{r.subject}</div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--gray-900)' }}>Published by {r.lecturer}</div>
+                                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--gray-900)' }}>Published by {r.lecturer || MISSING_SCORE}</div>
                                 <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 22, color: score >= 80 ? '#166534' : '#78350f' }}>{grade}</div>
                               </div>
                               <div className="progress-bar" style={{ marginTop: 8 }}>
-                                <div className="progress-bar__fill" style={{ width: `${score}%`, background: score >= 80 ? '#16a34a' : '#d97706' }}/>
+                                <div className="progress-bar__fill" style={{ width: `${score || 0}%`, background: score >= 80 ? '#16a34a' : '#d97706' }}/>
                               </div>
-                              <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>{score}%</div>
+                              <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>{score == null ? MISSING_SCORE : `${score}%`}</div>
                             </div>
                           );
                         })}
                       </div>
                       <div style={{ display: 'flex', gap: 20 }}>
-                        {staffResults.slice(2).map((r) => {
-                          const { score, grade } = r;
+                        {childResults.slice(2).map((r) => {
+                          const complete = hasRecordedClassScore(r) && hasRecordedExamScore(r);
+                          const score = complete ? Number(r.score) : null;
+                          const grade = complete ? r.grade : MISSING_SCORE;
                           return (
-                            <div key={r.subject} style={{ textAlign: 'center' }}>
+                            <div key={r.id || r.subject} style={{ textAlign: 'center' }}>
                               <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--gray-400)', marginBottom: 4 }}>{r.subject}</div>
                               <div style={{ fontSize: 18, fontWeight: 800, color: score >= 80 ? '#166534' : '#78350f' }}>{grade}</div>
                             </div>
                           );
                         })}
                       </div>
+                      {childResults.length === 0 && (
+                        <div style={{ color: '#94a3b8', fontWeight: 600 }}>{MISSING_SCORE}</div>
+                      )}
                     </div>
                   </div>
 
@@ -425,6 +442,19 @@ export default function ParentPortal() {
                       <Bell size={15} color="var(--gray-400)"/>
                     </div>
                     <div className="panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      {terminalReadyNotices.slice(0, 2).map((msg) => (
+                        <div key={msg.id} style={{ display: 'flex', gap: 10, padding: 10, background: '#ecfdf5', borderRadius: 8, border: '1px solid #a7f3d0' }}>
+                          <div className="avatar" style={{ background: '#059669', color: '#fff', flexShrink: 0, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>📄</div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <span style={{ fontWeight: 800, fontSize: 13, color: '#065f46' }}>{msg.from || 'Subject Teacher'}</span>
+                              <span style={{ fontSize: 11, color: '#047857' }}>{msg.sentAt || 'Just now'}</span>
+                            </div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#065f46', marginBottom: 2 }}>{msg.subject || 'Terminal Report is ready'}</div>
+                            <p style={{ fontSize: 12, color: 'var(--gray-700)', lineHeight: 1.5, margin: 0, whiteSpace: 'pre-line' }}>{msg.body}</p>
+                          </div>
+                        </div>
+                      ))}
                       {(messages || []).filter(m => m.senderRole === 'Accountant' || m.from?.includes('Accounts')).slice(0, 2).map((msg) => (
                         <div key={msg.id} style={{ display: 'flex', gap: 10, padding: 10, background: '#fffbeb', borderRadius: 8, border: '1px solid #fef3c7' }}>
                           <div className="avatar" style={{ background: '#f59e0b', color: '#fff', flexShrink: 0, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>💳</div>
@@ -521,8 +551,8 @@ export default function ParentPortal() {
           )}
 
           {(activeNav === 'Teachers' || activeNav === 'Messages') && <ParentCommunication child={child} />}
-          {activeNav === 'Progress' && <ParentProgress childName={child.name} />}
-          {activeNav === 'Calendar' && <ParentProgress childName={child.name} />}
+          {activeNav === 'Progress' && <ParentProgress childName={child.name} studentId={child.studentId} />}
+          {activeNav === 'Calendar' && <ParentProgress childName={child.name} studentId={child.studentId} />}
           {activeNav === 'Fees' && (
             <ParentFees
               childName={child.name}

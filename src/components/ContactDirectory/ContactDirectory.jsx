@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Mail, Phone, Search, Users } from 'lucide-react';
-import { usePortalData } from '../../data/PortalStore';
+import { usePortalData, resolveGuardianPhone } from '../../data/PortalStore';
 import './ContactDirectory.css';
 
 export default function ContactDirectory({ parentMode = false }) {
@@ -20,7 +20,7 @@ export default function ContactDirectory({ parentMode = false }) {
     const students = (onboardedStudents || []).map(s => ({
       name: s.fullName,
       role: `Student · ${s.level} (ID: ${s.studentId})`,
-      phone: s.guardianPhone || '+233 24 111 2222',
+      phone: resolveGuardianPhone(s) || '—',
       email: s.studentEmail || `${s.fullName.toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`
     }));
 
@@ -30,7 +30,7 @@ export default function ContactDirectory({ parentMode = false }) {
         parentsMap.set(s.guardianName, {
           name: s.guardianName,
           role: `Parent / Guardian of ${s.fullName}`,
-          phone: s.guardianPhone || '+233 24 111 2222',
+          phone: resolveGuardianPhone(s) || '—',
           email: s.guardianEmail || `${s.guardianName.toLowerCase().replace(/\s+/g, '.')}@gmail.com`
         });
       }

@@ -29,7 +29,7 @@ function applyAuthSession(res) {
   return token;
 }
 
-function hasLiveDatabaseSession() {
+export function hasLiveDatabaseSession() {
   return String(getAuthToken() || '').startsWith('eyJ');
 }
 const SMS_API_KEY = import.meta.env.VITE_SMS_API_KEY || '67648ed5720ca875d42dc20f5726d94c9c1ea2b149a541784b5ba2194241b022';
@@ -238,10 +238,17 @@ function billDueDate(preferred) {
   return future.toISOString().slice(0, 10);
 }
 
-function extractStudentList(raw) {
+export function extractStudentList(raw) {
   if (Array.isArray(raw)) return raw;
   if (!raw || typeof raw !== 'object') return [];
-  return raw.students || raw.data || raw.records || raw.items || [];
+  for (const key of ['students', 'onboardedStudents', 'onboarded_students', 'learners', 'roster', 'data', 'records', 'items', 'results']) {
+    if (Array.isArray(raw[key])) return raw[key];
+  }
+  if (raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)) {
+    return extractStudentList(raw.data);
+  }
+  if (raw.student && typeof raw.student === 'object') return [raw.student];
+  return [];
 }
 
 function studentNamesMatch(a, b) {
@@ -374,16 +381,22 @@ function scoreSheetPayload(entry) {
         class_test_1: Number(entry.test1 ?? 0),
         class_test_2: Number(entry.test2 ?? 0),
         class_test_3: Number(entry.test3 ?? 0),
-        class_test_total: Number(entry.classTestTotal ?? 0),
-        class_score: Number(entry.classScore ?? 0),
-        exam_score: Number(entry.examScore ?? 0),
-        exam_score_converted: Number(entry.examScoreConverted ?? 0),
-        total_score: Number(entry.score ?? 0),
-        grade: entry.grade,
-        remarks: entry.remarks,
+        class_test_total: entry.classTestTotal == null ? null : Number(entry.classTestTotal),
+        class_score: entry.classScore == null ? null : Number(entry.classScore),
+        exam_score: entry.examScore == null ? null : Number(entry.examScore),
+        exam_score_converted: entry.examScoreConverted == null ? null : Number(entry.examScoreConverted),
+        total_score: entry.score == null ? null : Number(entry.score),
+        grade: entry.grade || null,
+        remarks: entry.remarks || null,
         teacher_note: entry.teacherNote ?? entry.teacher_note ?? '',
+        has_class_score: entry.hasClassScore === true,
+        has_exam_score: entry.hasExamScore === true,
+        status: entry.status || null,
       },
     ],
+    status: entry.status || undefined,
+    has_class_score: entry.hasClassScore === true,
+    has_exam_score: entry.hasExamScore === true,
   };
 }
 
@@ -404,19 +417,21 @@ function mapScoreSheetEntry(raw = {}) {
     term: raw.term,
     year: raw.academic_year || raw.academicYear,
     examDate: raw.exam_date || raw.examDate,
-    arrivalTest: score.arrival_test ?? score.arrivalTest ?? 0,
-    test1: score.class_test_1 ?? score.test1 ?? 0,
-    test2: score.class_test_2 ?? score.test2 ?? 0,
-    test3: score.class_test_3 ?? score.test3 ?? 0,
-    classTestTotal: score.class_test_total ?? score.classTestTotal ?? 0,
-    classScore: score.class_score ?? score.classScore ?? 0,
-    examScore: score.exam_score ?? score.examScore ?? 0,
-    examScoreConverted: score.exam_score_converted ?? score.examScoreConverted ?? 0,
-    score: score.total_score ?? score.score ?? 0,
-    grade: score.grade,
-    remarks: score.remarks,
+    arrivalTest: score.arrival_test ?? score.arrivalTest ?? null,
+    test1: score.class_test_1 ?? score.test1 ?? null,
+    test2: score.class_test_2 ?? score.test2 ?? null,
+    test3: score.class_test_3 ?? score.test3 ?? null,
+    classTestTotal: score.class_test_total ?? score.classTestTotal ?? null,
+    classScore: score.class_score ?? score.classScore ?? null,
+    examScore: score.exam_score ?? score.examScore ?? null,
+    examScoreConverted: score.exam_score_converted ?? score.examScoreConverted ?? null,
+    score: score.total_score ?? score.score ?? null,
+    grade: score.grade || null,
+    remarks: score.remarks || null,
     teacherNote: score.teacher_note ?? score.teacherNote ?? '',
-    status: raw.status || score.status || 'Pending Approval',
+    hasClassScore: raw.has_class_score ?? score.has_class_score ?? raw.hasClassScore ?? score.hasClassScore,
+    hasExamScore: raw.has_exam_score ?? score.has_exam_score ?? raw.hasExamScore ?? score.hasExamScore,
+    status: raw.status || score.status || 'Class Score Recorded',
   };
 }
 
@@ -1000,6 +1015,8 @@ export const api = {
   },
 
   // --- Students & Onboarding ---
+  extractStudentList,
+
   getStudents: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return await request(`/students${query ? `?${query}` : ''}`);
@@ -1254,7 +1271,10 @@ export const api = {
       contact_phone: contactPhone,
       applying_level: applyingLevel,
       status: applicationData.status,
-      form_data: applicationData
+      form_data: {
+        ...applicationData,
+        id: applicationId,
+      }
     };
 
     return await request(`/admissions/applications/${applicationId}`, {
@@ -1565,14 +1585,91 @@ export const api = {
   },
   createVoucher: async (pvData) => api.createPaymentVoucher(pvData),
 
-  getPaymentVouchers: async () => {
-    try {
-      return await request('/finance/vouchers');
-    } catch (e) {
-      return await request('/finance/pv');
+  extractPaymentVoucherList: (raw) => {
+    if (Array.isArray(raw)) return raw;
+    if (!raw || typeof raw !== 'object') return [];
+    for (const key of ['vouchers', 'payment_vouchers', 'paymentVouchers', 'data', 'records', 'items', 'results']) {
+      if (Array.isArray(raw[key])) return raw[key];
     }
+    if (raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)) {
+      return api.extractPaymentVoucherList(raw.data);
+    }
+    return [];
   },
-  getVouchers: async () => api.getPaymentVouchers(),
+
+  isApiDisbursedVoucher: (p = {}) => {
+    const s = String(p.status || '').toLowerCase().trim();
+    return s === 'disbursed' || s === 'paid' || s.includes('disburs') || s.includes('settled')
+      || Boolean(p.disbursed_at || p.disbursedAt || p.disbursed_by || p.disbursedBy);
+  },
+
+  getPaymentVouchers: async (params = {}) => {
+    const fetchList = async (endpoint) => api.extractPaymentVoucherList(await request(endpoint));
+    let list = [];
+    try {
+      list = await fetchList('/finance/vouchers');
+    } catch (e) {
+      try {
+        list = await fetchList('/finance/pv');
+      } catch (e2) {
+        list = [];
+      }
+    }
+
+    const wanted = params.status ? String(params.status).trim().toUpperCase() : '';
+    if (!wanted) return list;
+
+    const matchesStatus = (p) => {
+      const s = String(p.status || '').toUpperCase();
+      if (wanted === 'DISBURSED') return api.isApiDisbursedVoucher(p) || s === 'PAID';
+      return s === wanted;
+    };
+
+    let filtered = list.filter(matchesStatus);
+    if (wanted === 'DISBURSED' && filtered.length === 0) {
+      const extraEndpoints = [
+        '/finance/vouchers?status=DISBURSED',
+        '/finance/vouchers?status=disbursed',
+        '/finance/vouchers/disbursed',
+        '/finance/pv?status=DISBURSED',
+      ];
+      for (const endpoint of extraEndpoints) {
+        try {
+          const extra = await fetchList(endpoint);
+          const extraDisbursed = extra.filter(matchesStatus);
+          if (extraDisbursed.length) {
+            filtered = extraDisbursed;
+            break;
+          }
+        } catch (_) {}
+      }
+    }
+    return filtered;
+  },
+  getVouchers: async (params) => api.getPaymentVouchers(params),
+
+  getDisbursedPaymentVouchers: async () => {
+    const batches = await Promise.allSettled([
+      request('/finance/vouchers?status=DISBURSED'),
+      request('/finance/vouchers?status=disbursed'),
+      request('/finance/vouchers/disbursed'),
+      request('/finance/vouchers'),
+      request('/finance/pv'),
+    ]);
+    const merged = [];
+    const seen = new Set();
+    for (const result of batches) {
+      if (result.status !== 'fulfilled') continue;
+      for (const row of api.extractPaymentVoucherList(result.value)) {
+        if (!api.isApiDisbursedVoucher(row) && String(row.status || '').toUpperCase() !== 'DISBURSED') continue;
+        const key = String(row.id || row.pv_number || row.pvNo || '').toLowerCase();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        merged.push(row);
+      }
+    }
+    return merged;
+  },
 
   getPaymentVoucherById: async (pvId) => {
     try {

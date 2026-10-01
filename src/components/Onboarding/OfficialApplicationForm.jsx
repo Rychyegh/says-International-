@@ -199,6 +199,7 @@ export function normalizeApplicationForm(raw) {
 
   return {
     ...merged,
+    id: merged.id || nested.id || raw.id || '',
     applyingClass: (applyingClass || '').trim(),
     classSection: (classSection || '').trim(),
     subClass: (classSection || '').trim(),
@@ -313,7 +314,7 @@ export default function OfficialApplicationForm({
 
   const handleFormUpdate = async (e) => {
     if (e) e.preventDefault();
-    const targetId = formData.id || initialData?.id;
+    const targetId = initialData?.id || formData.id;
     const normalized = normalizeApplicationForm({
       ...initialData,
       ...formData,
@@ -326,13 +327,13 @@ export default function OfficialApplicationForm({
       } else if (updateApplication) {
         await updateApplication(targetId, normalized);
       }
+      setIsEditingMode(false);
+      setSuccessNotice('✅ Application Form updated successfully! Changes saved to database and synced across devices.');
+      setTimeout(() => setSuccessNotice(''), 6000);
     } catch (err) {
-      console.warn('Form update warning:', err);
+      setSuccessNotice(err?.message || 'Saving this application failed.');
+      setTimeout(() => setSuccessNotice(''), 8000);
     }
-
-    setIsEditingMode(false);
-    setSuccessNotice('✅ Application Form updated successfully! Changes saved to database and synced across devices.');
-    setTimeout(() => setSuccessNotice(''), 6000);
   };
 
   const handleFormSubmit = async (e) => {
@@ -342,18 +343,24 @@ export default function OfficialApplicationForm({
       return;
     }
     const normalized = normalizeApplicationForm(formData);
-    if (onSubmit) {
-      await onSubmit(normalized);
+    try {
+      if (onSubmit) {
+        await onSubmit(normalized);
+      }
+      setSuccessNotice('Official Application Form successfully submitted online!');
+      setFormData(getDefaultForm());
+      setActiveTab('page1');
+      setTimeout(() => setSuccessNotice(''), 6000);
+    } catch (err) {
+      setSuccessNotice(err?.message || 'Saving this application failed.');
+      setTimeout(() => setSuccessNotice(''), 8000);
     }
-    setSuccessNotice('Official Application Form successfully submitted online!');
-    setFormData(getDefaultForm());
-    setActiveTab('page1');
-    setTimeout(() => setSuccessNotice(''), 6000);
   };
 
-  const handleOfficeSave = () => {
-    if (onSaveOfficeUse) {
-      onSaveOfficeUse(formData.id || initialData?.id, {
+  const handleOfficeSave = async () => {
+    if (!onSaveOfficeUse) return;
+    try {
+      await onSaveOfficeUse(formData.id || initialData?.id, {
         officeExamEnglishMark: formData.officeExamEnglishMark,
         officeExamEnglishComments: formData.officeExamEnglishComments,
         officeExamMathMark: formData.officeExamMathMark,
@@ -371,6 +378,9 @@ export default function OfficialApplicationForm({
       });
       setSuccessNotice('Office examination and recommendation saved successfully!');
       setTimeout(() => setSuccessNotice(''), 5000);
+    } catch (err) {
+      setSuccessNotice(err?.message || 'Saving office evaluation failed.');
+      setTimeout(() => setSuccessNotice(''), 8000);
     }
   };
 
@@ -479,8 +489,17 @@ export default function OfficialApplicationForm({
       </div>
 
       {successNotice && (
-        <div style={{ padding: '12px 20px', background: '#dcfce7', color: '#166534', fontWeight: 'bold', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <CheckCircle2 size={16} />
+        <div style={{
+          padding: '12px 20px',
+          background: /failed/i.test(successNotice) ? '#fee2e2' : '#dcfce7',
+          color: /failed/i.test(successNotice) ? '#991b1b' : '#166534',
+          fontWeight: 'bold',
+          fontSize: 13,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8
+        }}>
+          {/failed/i.test(successNotice) ? <ShieldAlert size={16} /> : <CheckCircle2 size={16} />}
           {successNotice}
         </div>
       )}

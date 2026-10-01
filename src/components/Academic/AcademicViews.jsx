@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Download, Plus, Save, CheckCircle2 } from 'lucide-react';
-import { usePortalData } from '../../data/PortalStore';
+import { usePortalData, hasRecordedClassScore, hasRecordedExamScore, MISSING_SCORE, resultsForStudent } from '../../data/PortalStore';
 import { getAuthUser, getUserFullName, isClassTeacherAccount, enrichTeacherSession } from '../../services/api';
 import { downloadPublishedReport } from '../../data/reportDownload';
 import RegisterForExamsForm from '../RegisterForExams/RegisterForExamsForm';
@@ -176,31 +176,35 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
         return true;
       });
 
-      const hasScore = Boolean(entry);
-      const classScore = entry
+      const hasClass = hasRecordedClassScore(entry);
+      const hasExam = hasRecordedExamScore(entry);
+      const classScore = hasClass
         ? (entry.classScore != null ? Number(entry.classScore) : (entry.classTestTotal != null ? (Number(entry.classTestTotal) / 400) * 50 : null))
         : null;
-      const examScore = entry
+      const examScore = hasExam
         ? (entry.examScoreConverted != null ? Number(entry.examScoreConverted) : (entry.examScore != null ? (Number(entry.examScore) / 100) * 50 : null))
         : null;
-      const totalScore = entry
-        ? (entry.score != null ? Number(entry.score) : ((classScore ?? 0) + (examScore ?? 0)))
+      const totalScore = (classScore != null && examScore != null)
+        ? (entry.score != null ? Number(entry.score) : (classScore + examScore))
         : null;
+      const hasScore = hasClass || hasExam;
 
       return {
         index: index + 1,
         student,
-        studentId: student.studentId || student.id || 'N/A',
+        studentId: student.studentId || student.id || MISSING_SCORE,
         studentName: student.fullName || student.name || 'Student',
         subClass: student.classSection || student.subClass || `${selectedClass}A`,
         subject: entry?.subject || selectedSubject,
         hasScore,
+        hasClass,
+        hasExam,
         classScore,
         examScore,
         totalScore,
-        grade: entry?.grade || (hasScore ? 'Pass' : '-'),
-        remarks: entry?.remarks || (hasScore ? 'Recorded' : 'Pending Entry'),
-        status: entry?.status || (hasScore ? 'Pending Review' : 'Not Entered'),
+        grade: totalScore != null ? (entry?.grade || MISSING_SCORE) : MISSING_SCORE,
+        remarks: totalScore != null ? (entry?.remarks || 'Recorded') : (hasClass ? 'Class score recorded' : MISSING_SCORE),
+        status: entry?.status || (hasScore ? 'Class Score Recorded' : 'Not Entered'),
         declineNote: entry?.declineNote,
         entry
       };
@@ -209,13 +213,13 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
 
   // Statistics
   const stats = useMemo(() => {
-    const scored = studentGradeRows.filter((r) => r.hasScore && r.totalScore != null);
+    const scored = studentGradeRows.filter((r) => r.totalScore != null);
     const totalCount = studentGradeRows.length;
     const scoredCount = scored.length;
-    const avgClass = scored.length > 0 ? (scored.reduce((acc, r) => acc + (r.classScore || 0), 0) / scored.length).toFixed(1) : '0.0';
-    const avgExam = scored.length > 0 ? (scored.reduce((acc, r) => acc + (r.examScore || 0), 0) / scored.length).toFixed(1) : '0.0';
-    const avgTotal = scored.length > 0 ? (scored.reduce((acc, r) => acc + (r.totalScore || 0), 0) / scored.length).toFixed(1) : '0.0';
-    const topScore = scored.length > 0 ? Math.max(...scored.map(r => r.totalScore || 0)).toFixed(1) : '0.0';
+    const avgClass = scored.length > 0 ? (scored.reduce((acc, r) => acc + (r.classScore || 0), 0) / scored.length).toFixed(1) : MISSING_SCORE;
+    const avgExam = scored.length > 0 ? (scored.reduce((acc, r) => acc + (r.examScore || 0), 0) / scored.length).toFixed(1) : MISSING_SCORE;
+    const avgTotal = scored.length > 0 ? (scored.reduce((acc, r) => acc + (r.totalScore || 0), 0) / scored.length).toFixed(1) : MISSING_SCORE;
+    const topScore = scored.length > 0 ? Math.max(...scored.map(r => r.totalScore || 0)).toFixed(1) : MISSING_SCORE;
 
     return { totalCount, scoredCount, avgClass, avgExam, avgTotal, topScore };
   }, [studentGradeRows]);
@@ -538,11 +542,11 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
         </div>
         <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '10px 12px', textAlign: 'center' }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Class Avg Total (/100)</div>
-          <div style={{ fontSize: 18, fontWeight: 900, color: '#047857', marginTop: 2 }}>{stats.avgTotal}%</div>
+          <div style={{ fontSize: 18, fontWeight: 900, color: '#047857', marginTop: 2 }}>{stats.avgTotal === MISSING_SCORE ? MISSING_SCORE : `${stats.avgTotal}%`}</div>
         </div>
         <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '10px 12px', textAlign: 'center' }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Highest Score</div>
-          <div style={{ fontSize: 18, fontWeight: 900, color: '#9333ea', marginTop: 2 }}>{stats.topScore}%</div>
+          <div style={{ fontSize: 18, fontWeight: 900, color: '#9333ea', marginTop: 2 }}>{stats.topScore === MISSING_SCORE ? MISSING_SCORE : `${stats.topScore}%`}</div>
         </div>
       </div>
 
@@ -632,7 +636,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
                         {row.classScore != null ? (
                           <span>{Number(row.classScore).toFixed(1)} / 50</span>
                         ) : (
-                          <span style={{ color: '#94a3b8', fontWeight: 600 }}>- / 50</span>
+                          <span style={{ color: '#94a3b8', fontWeight: 600 }}>{MISSING_SCORE}</span>
                         )}
                       </td>
 
@@ -641,7 +645,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
                         {row.examScore != null ? (
                           <span>{Number(row.examScore).toFixed(1)} / 50</span>
                         ) : (
-                          <span style={{ color: '#94a3b8', fontWeight: 600 }}>- / 50</span>
+                          <span style={{ color: '#94a3b8', fontWeight: 600 }}>{MISSING_SCORE}</span>
                         )}
                       </td>
 
@@ -658,7 +662,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
                             {Number(row.totalScore).toFixed(1)} / 100
                           </span>
                         ) : (
-                          <span style={{ color: '#94a3b8', fontWeight: 600 }}>- / 100</span>
+                          <span style={{ color: '#94a3b8', fontWeight: 600 }}>{MISSING_SCORE}</span>
                         )}
                       </td>
 
@@ -691,15 +695,19 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
                           <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 10, fontWeight: 800, background: '#fee2e2', color: '#dc2626' }}>
                             🔴 Declined
                       </span>
-                        ) : row.hasScore ? (
+                        ) : row.status === 'Pending Approval' ? (
                           <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 10, fontWeight: 800, background: '#fef3c7', color: '#92400e' }}>
-                            🟡 Pending
-                      </span>
-                    ) : (
+                            🟡 Pending exam
+                          </span>
+                        ) : row.hasClass ? (
+                          <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 10, fontWeight: 800, background: '#dbeafe', color: '#1e40af' }}>
+                            Class recorded
+                          </span>
+                        ) : (
                           <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 10, fontWeight: 700, background: '#f1f5f9', color: '#94a3b8' }}>
-                            ⚪ Not Entered
-                      </span>
-                    )}
+                            {MISSING_SCORE}
+                          </span>
+                        )}
                   </td>
 
                       {/* Action */}
@@ -953,18 +961,51 @@ export function StudentTimetable() {
 }
 
 export function StudentResults() {
-  const { results, publishedReports } = usePortalData();
+  const { results, publishedReports, onboardedStudents } = usePortalData();
+  const authUser = getAuthUser() || {};
+  const me = (onboardedStudents || []).find((s) => {
+    const sid = String(s.studentId || s.id || '').toLowerCase();
+    const email = String(s.email || '').toLowerCase();
+    const name = String(s.fullName || s.name || '').toLowerCase();
+    return (authUser.studentId && sid === String(authUser.studentId).toLowerCase())
+      || (authUser.email && email && email === String(authUser.email).toLowerCase())
+      || (authUser.fullName && name && name === String(authUser.fullName).toLowerCase());
+  }) || { studentId: authUser.studentId, fullName: authUser.fullName || authUser.name, email: authUser.email };
+  const myResults = resultsForStudent(results, me);
   const download = () => {
-    const rows = [['Course', 'Score', 'Grade', 'Lecturer', 'Published'], ...results.map((item) => [item.subject, `${item.score}%`, item.grade, item.lecturer, item.updatedAt])];
-    const csv = rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n');
+    const rows = [['Course', 'Class score', 'Exam score', 'Total', 'Grade', 'Lecturer', 'Published'], ...myResults.map((item) => [
+      item.subject,
+      hasRecordedClassScore(item) ? item.classScore : MISSING_SCORE,
+      hasRecordedExamScore(item) ? (item.examScoreConverted ?? item.examScore) : MISSING_SCORE,
+      (hasRecordedClassScore(item) && hasRecordedExamScore(item)) ? `${item.score}%` : MISSING_SCORE,
+      (hasRecordedClassScore(item) && hasRecordedExamScore(item)) ? item.grade : MISSING_SCORE,
+      item.lecturer,
+      item.updatedAt,
+    ])];
+    const csv = rows.map((row) => row.map((value) => `"${String(value ?? MISSING_SCORE).replaceAll('"', '""')}"`).join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    const link = document.createElement('a'); link.href = url; link.download = 'Kwame-Edwards-results.csv'; link.click(); URL.revokeObjectURL(url);
+    const link = document.createElement('a'); link.href = url; link.download = `${me.fullName || 'student'}-results.csv`; link.click(); URL.revokeObjectURL(url);
   };
   return (
     <div className="academic-view animate-fade-up">
-      <div className="page-header"><h1 className="page-header__title">My results</h1><p className="page-header__subtitle">Download your current result sheet directly to this computer. Lecturer-uploaded semester files are shared here and with the relevant parent report request.</p></div>
+      <div className="page-header"><h1 className="page-header__title">My results</h1><p className="page-header__subtitle">Only your recorded scores appear here. Subjects without a class or exam score show N/A until the subject teacher submits them.</p></div>
       {publishedReports.length > 0 && <section className="panel" style={{ marginBottom: 18 }}><div className="panel__header"><h2 className="panel__title">Lecturer-uploaded semester reports</h2></div><div className="course-list">{publishedReports.map((report) => <div className="course-row" key={report.id}><span><strong>{report.semester}</strong><small>{report.fileName} · uploaded {report.uploadedAt}</small></span><button className="academic-button" onClick={() => downloadPublishedReport(report)}><Download size={15}/> Download uploaded file</button></div>)}</div></section>}
-      <section className="panel"><div className="panel__header"><h2 className="panel__title">Term 1 result sheet</h2><button className="academic-button" onClick={download}><Download size={15}/> Download CSV</button></div><table className="data-table"><thead><tr><th>Course</th><th>Score</th><th>Grade</th><th>Lecturer</th><th>Last updated</th></tr></thead><tbody>{results.map((item) => <tr key={item.id || item.subject}><td>{item.subject}</td><td>{item.score}%</td><td><span className="status-pill status-pill--success">{item.grade}</span></td><td>{item.lecturer}</td><td>{item.updatedAt}</td></tr>)}</tbody></table></section>
+      <section className="panel"><div className="panel__header"><h2 className="panel__title">Term result sheet</h2><button className="academic-button" onClick={download}><Download size={15}/> Download CSV</button></div><table className="data-table"><thead><tr><th>Course</th><th>Class</th><th>Exam</th><th>Total</th><th>Grade</th><th>Lecturer</th><th>Last updated</th></tr></thead><tbody>{myResults.length === 0 ? <tr><td colSpan={7} style={{ color: '#94a3b8' }}>{MISSING_SCORE}</td></tr> : myResults.map((item) => {
+        const classOk = hasRecordedClassScore(item);
+        const examOk = hasRecordedExamScore(item);
+        const complete = classOk && examOk;
+        return (
+          <tr key={item.id || item.subject}>
+            <td>{item.subject}</td>
+            <td>{classOk ? item.classScore : MISSING_SCORE}</td>
+            <td>{examOk ? (item.examScoreConverted ?? item.examScore) : MISSING_SCORE}</td>
+            <td>{complete ? `${item.score}%` : MISSING_SCORE}</td>
+            <td><span className="status-pill status-pill--success">{complete ? item.grade : MISSING_SCORE}</span></td>
+            <td>{item.lecturer || MISSING_SCORE}</td>
+            <td>{item.updatedAt || MISSING_SCORE}</td>
+          </tr>
+        );
+      })}</tbody></table></section>
     </div>
   );
 }

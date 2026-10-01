@@ -8,7 +8,7 @@ const CLASS_TEST_MAX = 100;
 const CLASS_TEST_COUNT = 4;
 const CLASS_TEST_TOTAL_MAX = CLASS_TEST_MAX * CLASS_TEST_COUNT;
 
-export const STANDARD_SUB_CLASSES = [];
+const STANDARD_SUB_CLASSES = [];
 
 function detectStudentClassAndSub(student) {
   if (!student) return { classLevel: 'Basic 1', subClassLevel: 'Basic 1A' };
@@ -35,8 +35,15 @@ function detectStudentClassAndSub(student) {
   return { classLevel: level, subClassLevel: sub };
 }
 
+function persistStudentScores(saveScoreSheetEntry, payload) {
+  if (typeof saveScoreSheetEntry !== 'function') return;
+  saveScoreSheetEntry(payload);
+}
+
 export default function ScoreSheetEntryForm({ setM, students: propStudents, onViewTestRoll, initialTarget }) {
   const { academicSettings, onboardedStudents, saveScoreSheetEntry, results } = usePortalData();
+  const [saveNotice, setSaveNotice] = useState('');
+  const [saveError, setSaveError] = useState('');
   const students = (propStudents && propStudents.length > 0) ? propStudents : (onboardedStudents || []);
 
   const [studentSearch, setStudentSearch] = useState('');
@@ -160,9 +167,11 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
     setTest1(savedEntry?.test1 ?? 0);
     setTest2(savedEntry?.test2 ?? 0);
     setTest3(savedEntry?.test3 ?? 0);
-    setExamsScore(savedEntry?.examScore ?? 0);
+    setExamsScore(savedEntry?.hasExamScore || savedEntry?.examSubmitted ? (savedEntry?.examScore ?? 0) : 0);
     setTeacherNote(savedEntry?.teacherNote ?? '');
     setSavedAt(savedEntry?.updatedAt || '');
+    setSaveNotice('');
+    setSaveError('');
     if (savedEntry?.classLevel) {
       setCls(savedEntry.classLevel);
     }
@@ -194,6 +203,65 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
     return { grade: '9', remarks: 'Fail' };
   };
   const { grade, remarks } = getGrade(totalScore);
+
+  const buildEntry = (submitKind) => {
+    const submittingExam = submitKind === 'exam';
+    const keepExam = Boolean(savedEntry?.hasExamScore || savedEntry?.examSubmitted);
+    const examRaw = submittingExam ? (Number(examsScore) || 0) : (keepExam ? savedEntry.examScore : null);
+    const examConverted = submittingExam ? exams50 : (keepExam ? savedEntry.examScoreConverted : null);
+    const completeTotal = submittingExam || keepExam
+      ? (test50 + Number(examConverted || 0))
+      : null;
+    const completeGrade = completeTotal == null ? null : getGrade(completeTotal);
+    return {
+      submitKind,
+      studentId: selectedStudent.studentId || selectedStudent.id,
+      studentName: selectedStudent.fullName || selectedStudent.name,
+      classLevel: cls,
+      subClass,
+      subClassLevel: subClass,
+      classSection: subClass,
+      subject,
+      category,
+      examDate,
+      arrivalTest: clampTest(arrivalTest),
+      test1: clampTest(test1),
+      test2: clampTest(test2),
+      test3: clampTest(test3),
+      classTestMax: CLASS_TEST_MAX,
+      classTestTotalMax: CLASS_TEST_TOTAL_MAX,
+      classTestTotal: totalTest,
+      classScore: test50,
+      examScore: examRaw,
+      examScoreMax: 100,
+      examScoreConverted: examConverted,
+      score: completeTotal,
+      grade: completeGrade?.grade || null,
+      remarks: completeGrade?.remarks || (submittingExam ? remarks : 'Class score recorded'),
+      teacherNote,
+      term,
+      year,
+      instructor,
+      hasClassScore: true,
+      hasExamScore: submittingExam || keepExam,
+    };
+  };
+
+  const saveClassScores = () => {
+    persistStudentScores(saveScoreSheetEntry, buildEntry('class'));
+    const when = new Date().toLocaleString();
+    setSavedAt(when);
+    setSaveError('');
+    setSaveNotice(`Class scores saved for ${selectedStudent.fullName || selectedStudent.name}. No Head Admin approval is required.`);
+  };
+
+  const submitExamForApproval = () => {
+    persistStudentScores(saveScoreSheetEntry, buildEntry('exam'));
+    const when = new Date().toLocaleString();
+    setSavedAt(when);
+    setSaveError('');
+    setSaveNotice(`Exam score for ${selectedStudent.fullName || selectedStudent.name} sent to Head Admin for approval. Only this student's ${subject} result was updated.`);
+  };
 
   return (
     <div style={{ background: '#f0f4f8', padding: 16, borderRadius: 6, fontSize: 12, boxSizing: 'border-box', overflowX: 'hidden', width: '100%' }}>
@@ -412,43 +480,22 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
                   type="button"
                   onClick={(e) => {
                     e.preventDefault();
-                    if (typeof saveScoreSheetEntry === 'function') {
-                      saveScoreSheetEntry({
-                        studentId: selectedStudent.studentId || selectedStudent.id,
-                        studentName: selectedStudent.fullName || selectedStudent.name,
-                        classLevel: cls,
-                        subClass,
-                        subClassLevel: subClass,
-                        classSection: subClass,
-                        subject,
-                        category,
-                        examDate,
-                        arrivalTest: clampTest(arrivalTest),
-                        test1: clampTest(test1),
-                        test2: clampTest(test2),
-                        test3: clampTest(test3),
-                        classTestMax: CLASS_TEST_MAX,
-                        classTestTotalMax: CLASS_TEST_TOTAL_MAX,
-                        classTestTotal: totalTest,
-                        classScore: test50,
-                        examScore: Number(examsScore) || 0,
-                        examScoreMax: 100,
-                        examScoreConverted: exams50,
-                        score: totalScore,
-                        grade,
-                        remarks,
-                        teacherNote,
-                        term,
-                        year,
-                        instructor
-                      });
-                    }
-                    setSavedAt(new Date().toLocaleString());
-                    alert(`${savedEntry ? 'Updated' : 'Saved'} score entry for ${selectedStudent.fullName || selectedStudent.name} (${cls} · ${subClass}, ${subject}).\nClass tests: ${totalTest}/400 → ${test50}/50 | Exam: ${exams50}/50 | Total: ${totalScore}%\n\nSent to Admin and Sub-Admin for approval. You can reopen this student to edit and save again.`);
+                    saveClassScores();
+                  }}
+                  style={{ padding: '6px 12px', background: '#dcfce7', border: '1px solid #16a34a', borderRadius: 4, fontWeight: 800, color: '#166534', cursor: 'pointer' }}
+                >
+                  Save class scores
+                </button>
+                {/* Class scores skip Head Admin approval */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    submitExamForApproval();
                   }}
                   style={{ padding: '6px 12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 4, fontWeight: 800, color: '#3730a3', cursor: 'pointer' }}
                 >
-                  {savedEntry ? 'Update saved scores' : '+ Submit scores'}
+                  Submit exam for approval
                 </button>
                 <button
                   type="button"
@@ -483,9 +530,19 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
                 rows={3}
                 style={{ width: '100%', padding: 8, border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 12, resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
               />
+              {saveNotice ? (
+                <div style={{ marginTop: 6, fontSize: 11, color: '#166534', fontWeight: 700, background: '#dcfce7', padding: '6px 8px', borderRadius: 4 }}>
+                  {saveNotice}
+                </div>
+              ) : null}
+              {saveError ? (
+                <div style={{ marginTop: 6, fontSize: 11, color: '#b91c1c', fontWeight: 700, background: '#fee2e2', padding: '6px 8px', borderRadius: 4 }}>
+                  {saveError}
+                </div>
+              ) : null}
               {savedAt ? (
                 <div style={{ marginTop: 4, fontSize: 10, color: '#166534', fontWeight: 700 }}>
-                  Last saved {savedAt}. Reopen this student, subject, term and year to edit.
+                  Last saved {savedAt}. Reopen this student, subject, term and year to edit. Class scores save immediately; exam scores wait for Head Admin approval.
                 </div>
               ) : null}
             </div>

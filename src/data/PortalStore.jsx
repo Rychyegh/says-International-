@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { api, getUserFullName, ensureDemoClassTeacherAccounts } from '../services/api';
+import { api, extractStudentList, getUserFullName, ensureDemoClassTeacherAccounts, hasLiveDatabaseSession } from '../services/api';
 import { cloudSync } from '../services/cloudSync';
 
 const STORAGE_KEY = 'remalj-portal-live-data-v3';
@@ -64,6 +64,36 @@ function isSyntheticLocalId(id) {
     || /^pv-\d+$/i.test(s);
 }
 
+function isBackendUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+}
+
+function failedDatabaseAction(action, error) {
+  const msg = String(error?.message || error || '').trim();
+  if (!hasLiveDatabaseSession() || /401|403|unauthorized|jwt|token/i.test(msg)) {
+    return `${action} failed: you are not signed in to the live database. Sign in again, then retry.`;
+  }
+  if (/failed to fetch|networkerror|offline|load failed|network request failed/i.test(msg)) {
+    return `${action} failed: you appear to be offline. Check your connection and try again.`;
+  }
+  if (!msg || /uuid|no database record/i.test(msg)) {
+    return `${action} failed: no database record id (UUID) is available.`;
+  }
+  return `${action} failed: ${msg}`;
+}
+
+function requireLiveDatabase(action) {
+  if (!hasLiveDatabaseSession()) {
+    throw new Error(failedDatabaseAction(action));
+  }
+}
+
+function requireBackendUuid(id, action) {
+  if (isBackendUuid(id)) return String(id).trim();
+  if (id && !isSyntheticLocalId(id) && String(id).length >= 8) return String(id).trim();
+  throw new Error(failedDatabaseAction(action, 'no UUID'));
+}
+
 export function normalizeRfidUid(value) {
   return String(value || '')
     .toLowerCase()
@@ -76,6 +106,47 @@ export function rfidUidsMatch(a, b) {
   const left = normalizeRfidUid(a);
   const right = normalizeRfidUid(b);
   return Boolean(left && right && left === right);
+}
+
+const PLACEHOLDER_GUARDIAN_PHONES = new Set([
+  '0541769621',
+  '0241112222',
+  '0240000000',
+  '233241112222',
+  '2332411122222',
+]);
+
+export function isPlaceholderGuardianPhone(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return !digits || PLACEHOLDER_GUARDIAN_PHONES.has(digits);
+}
+
+export function resolveGuardianPhone(...sources) {
+  for (const source of sources) {
+    if (source == null || source === false) continue;
+    if (typeof source !== 'object') {
+      const text = String(source || '').trim();
+      if (text && !isPlaceholderGuardianPhone(text)) return text;
+      continue;
+    }
+    const candidates = [
+      source.custom,
+      source.guardianPhone,
+      source.guardian_phone,
+      source.fatherPhone,
+      source.father_phone,
+      source.motherPhone,
+      source.mother_phone,
+      source.phone,
+      source.contactPhone,
+      source.payerPhone,
+    ];
+    for (const value of candidates) {
+      const text = String(value || '').trim();
+      if (text && !isPlaceholderGuardianPhone(text)) return text;
+    }
+  }
+  return '';
 }
 
 function isPlaceholderRfid(value) {
@@ -104,9 +175,66 @@ function applicationMatchesStudent(app, student) {
   return Boolean(appName && stuName && appName === stuName);
 }
 
+function studentDraftFromApplication(app = {}) {
+  const learnerName = applicationLearnerName(app);
+  return {
+    fullName: learnerName,
+    firstName: app.firstName || '',
+    otherNames: app.otherNames || '',
+    surname: app.surname || '',
+    dob: app.dob || app.dateOfBirth || '',
+    gender: app.sex || app.gender || 'Not Specified',
+    level: formatClassToBasic(app.level || app.applyingClass || 'Basic 1'),
+    classSection: app.classSection || app.subClass || app.officeFormAssigned || 'A',
+    guardianName: app.guardian || app.fatherName || app.motherName || app.guardianName || 'Parent/Guardian',
+    guardianEmail: app.email || app.fatherEmail || app.guardianEmail || '',
+    guardianPhone: resolveGuardianPhone(app),
+    fatherName: app.fatherName || '',
+    fatherPhone: app.fatherPhone || '',
+    motherName: app.motherName || '',
+    motherPhone: app.motherPhone || '',
+    homeAddress: app.residentialAddress || app.homeAddress || 'Bogoso',
+    rfidCardCode: preferIssuedRfid(app.rfidCardCode, app.formData?.rfidCardCode),
+    applicationId: app.id || '',
+    studentId: app.officeStudentID || app.studentId || '',
+    status: /reject|declin|withdraw|cancel/i.test(String(app.status || '')) ? 'Inactive' : 'Active',
+  };
+}
+
+function mergeRosterWithApplications(students = [], applications = []) {
+  let roster = [...(students || [])];
+  for (const app of applications || []) {
+    const draft = studentDraftFromApplication(app);
+    if (!draft.fullName) continue;
+    const match = findStudentForUpsert(roster, draft);
+    if (match) {
+      roster = roster.map((s) => (
+        studentsAreSamePerson(s, match)
+          ? mergeStudentRecords(s, {
+            ...draft,
+            id: s.id,
+            studentId: s.studentId || draft.studentId,
+          })
+          : s
+      ));
+    } else {
+      roster.push({
+        ...draft,
+        id: `stu-app-${app.id || normalizePersonName(draft.fullName) || Date.now()}`,
+        studentId: draft.studentId || '',
+        studentEmail: schoolEmailFromName(draft.fullName),
+      });
+    }
+  }
+  return deduplicateStudents(roster);
+}
+
 function applicationsAreSame(a = {}, b = {}) {
   if (!a || !b) return false;
   if (a.id && b.id && String(a.id) === String(b.id)) return true;
+  const aOffice = String(a.officeStudentID || a.studentId || '').toLowerCase().trim();
+  const bOffice = String(b.officeStudentID || b.studentId || '').toLowerCase().trim();
+  if (aOffice && bOffice && aOffice === bOffice) return true;
   const aName = normalizePersonName(applicationLearnerName(a) || a.learner || a.fullName);
   const bName = normalizePersonName(applicationLearnerName(b) || b.learner || b.fullName);
   if (!aName || aName !== bName) return false;
@@ -120,7 +248,34 @@ function applicationsAreSame(a = {}, b = {}) {
 }
 
 function findMatchingApplication(list = [], candidate = {}) {
+  if (!candidate) return null;
+  if (candidate.id) {
+    const byId = (list || []).find((app) => String(app.id) === String(candidate.id));
+    if (byId) return byId;
+  }
   return (list || []).find((app) => applicationsAreSame(app, candidate)) || null;
+}
+
+function overwriteApplicationInList(list = [], incoming, { ids = [], previous = null } = {}) {
+  const keepId = incoming?.id;
+  const matchIds = [...new Set([keepId, ...ids].map((value) => String(value || '').trim()).filter(Boolean))];
+  let replaced = false;
+  const next = [];
+  for (const app of list || []) {
+    const sameId = matchIds.includes(String(app.id || ''))
+      || matchIds.includes(String(app.formData?.id || ''));
+    const samePrevious = previous && applicationsAreSame(app, previous);
+    const sameIncoming = incoming && applicationsAreSame(app, incoming);
+    if (sameId || samePrevious || sameIncoming) {
+      if (replaced) continue;
+      next.push(mergeApplicationRecords(app, { ...incoming, id: keepId || app.id }));
+      replaced = true;
+      continue;
+    }
+    next.push(app);
+  }
+  if (!replaced && incoming) next.unshift(incoming);
+  return deduplicateApplications(next);
 }
 
 function mergeApplicationRecords(prev = {}, incoming = {}) {
@@ -143,13 +298,11 @@ function mergeApplicationRecords(prev = {}, incoming = {}) {
 function mapApiApplication(a = {}) {
   const formData = a.formData || a.form_data || {};
   return {
-    id: a.id,
-    learner: a.learner || a.learner_name,
-    guardian: a.guardian || a.guardian_name,
-    email: a.email || a.contact_email,
-    phone: a.phone || a.contact_phone,
-    level: formatClassToBasic(a.level || a.applying_level),
-    status: a.status,
+    learner: a.learner || a.learner_name || formData.learner,
+    guardian: a.guardian || a.guardian_name || formData.guardian,
+    email: a.email || a.contact_email || formData.email,
+    phone: a.phone || a.contact_phone || formData.phone,
+    level: formatClassToBasic(a.level || a.applying_level || formData.level || formData.applyingClass),
     submittedAt: a.submittedAt || a.submitted_at,
     updatedAt: a.updatedAt || a.updated_at || a.submittedAt || a.submitted_at,
     office_use_notes: a.office_use_notes,
@@ -159,7 +312,9 @@ function mapApiApplication(a = {}) {
     dob: formData.dob || a.dob,
     academicYear: formData.academicYear || a.academicYear,
     ...formData,
-    rfidCardCode: formData.rfidCardCode || a.rfidCardCode || a.rfid_card_code || '',
+    id: preferCanonicalId(a.id, formData.id),
+    status: a.status || formData.status,
+    rfidCardCode: preferIssuedRfid(formData.rfidCardCode, a.rfidCardCode, a.rfid_card_code),
   };
 }
 
@@ -173,7 +328,7 @@ async function findRemoteApplicationId(candidate) {
   }
 }
 
-async function removeDuplicateRemoteApplications(keepId, candidate) {
+async function removeDuplicateRemoteApplications(keepId, candidate, previous = null) {
   if (!keepId || !candidate) return;
   try {
     const raw = await api.getApplications();
@@ -181,7 +336,11 @@ async function removeDuplicateRemoteApplications(keepId, candidate) {
     const extras = list.filter((app) =>
       app.id
       && String(app.id) !== String(keepId)
-      && applicationsAreSame(app, { ...candidate, id: keepId })
+      && (
+        applicationsAreSame(app, { ...candidate, id: keepId })
+        || (previous && applicationsAreSame(app, previous))
+        || String(app.formData?.id || '') === String(keepId)
+      )
     );
     await Promise.all(extras.map((app) => api.deleteApplication(app.id).catch(() => null)));
   } catch {
@@ -217,6 +376,9 @@ function extractApplicationsList(raw) {
   if (!raw || typeof raw !== 'object') return [];
   for (const key of ['applications', 'data', 'records', 'results', 'items']) {
     if (Array.isArray(raw[key])) return raw[key];
+  }
+  if (raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)) {
+    return extractApplicationsList(raw.data);
   }
   return [];
 }
@@ -276,7 +438,7 @@ function pvStatusRank(status) {
   return 15;
 }
 
-function mapApiPaymentVoucher(p = {}) {
+export function mapApiPaymentVoucher(p = {}) {
   let items = Array.isArray(p.items) ? p.items.map((it, idx) => ({
     id: it.id || `it-${p.id || p.pv_number}-${idx}`,
     description: it.description || it.particulars,
@@ -326,8 +488,10 @@ function mapApiPaymentVoucher(p = {}) {
     approvedAt: p.approved_at || p.approvedAt,
     disbursedAt: p.disbursed_at || p.disbursedAt,
     disbursedBy: p.disbursed_by || p.disbursedBy,
-    disbursementReference: p.reference_number || p.disbursementReference,
+    disbursementReference: p.reference_number || p.disbursement_reference || p.disbursementReference,
+    disbursementNotes: p.disbursement_notes || p.disbursementNotes || p.notes || '',
     paymentMethod: p.payment_method || p.paymentMethod,
+    paymentSourceAccount: p.account_number || p.source_account || p.payment_source || p.paymentSourceAccount,
     updatedAt: p.updated_at || p.updatedAt || p.disbursed_at || p.approved_at || p.date_prepared,
     items,
   };
@@ -559,7 +723,7 @@ export function mapStudentFromApi(s = {}, fallback = {}) {
     classSection: s.classSection || s.class_section || fallback.classSection || 'A',
     guardianName: s.guardianName || s.guardian_name || fallback.guardianName || 'Parent/Guardian',
     guardianEmail: s.guardianEmail || s.guardian_email || fallback.guardianEmail || '',
-    guardianPhone: s.guardianPhone || s.guardian_phone || fallback.guardianPhone || '',
+    guardianPhone: resolveGuardianPhone(s, fallback) || '',
     homeAddress: s.homeAddress || s.home_address || fallback.homeAddress || 'Bogoso',
     enrollmentDate: s.enrollmentDate || s.enrollment_date || fallback.enrollmentDate || new Date().toISOString().split('T')[0],
     onboardedAt: s.onboardedAt || s.onboarded_at || s.created_at || s.createdAt || fallback.onboardedAt || s.enrollmentDate || s.enrollment_date || fallback.enrollmentDate || null,
@@ -589,6 +753,9 @@ export function studentsAreSamePerson(a = {}, b = {}) {
 
   if (aSid && bSid && aSid === bSid) return true;
   if (aId && bId && aId === bId) return true;
+  const aAppId = String(a.applicationId || a.application_id || '').trim();
+  const bAppId = String(b.applicationId || b.application_id || '').trim();
+  if (aAppId && bAppId && aAppId === bAppId) return true;
   if (aEmail && bEmail && aEmail === bEmail && aEmail.includes('@')) return true;
   if (aRfid && bRfid && aRfid === bRfid) return true;
   if (aName && bName && aName === bName) {
@@ -603,6 +770,41 @@ export function studentsAreSamePerson(a = {}, b = {}) {
 
 export function findMatchingStudent(list = [], candidate = {}) {
   return (list || []).find((s) => studentsAreSamePerson(s, candidate)) || null;
+}
+
+function findStudentForUpsert(list = [], candidate = {}) {
+  const rows = list || [];
+  const applicationId = String(candidate.applicationId || '').trim();
+  if (applicationId) {
+    const byApp = rows.find((s) => String(s.applicationId || '') === applicationId);
+    if (byApp) return byApp;
+  }
+  const backendId = String(candidate.id || '').trim();
+  if (backendId && !isSyntheticLocalId(backendId)) {
+    const byId = rows.find((s) => String(s.id || '') === backendId);
+    if (byId) return byId;
+  }
+  const code = String(candidate.studentId || candidate.officeStudentID || '').trim().toLowerCase();
+  if (code) {
+    const byCode = rows.find((s) => String(s.studentId || '').trim().toLowerCase() === code);
+    if (byCode) return byCode;
+  }
+  const previousName = candidate.previousName || candidate.previousFullName;
+  if (previousName) {
+    const byPrevious = findMatchingStudent(rows, { ...candidate, fullName: previousName, name: previousName });
+    if (byPrevious) return byPrevious;
+  }
+  return findMatchingStudent(rows, candidate)
+    || rows.find((s) => applicationMatchesStudent({
+      id: candidate.applicationId,
+      officeStudentID: candidate.studentId,
+      firstName: candidate.firstName,
+      otherNames: candidate.otherNames,
+      surname: candidate.surname,
+      learner: candidate.fullName,
+      fullName: candidate.fullName,
+    }, s))
+    || null;
 }
 
 function syncIssuedRfidAcrossIdentities(students = [], applications = []) {
@@ -646,7 +848,7 @@ export function mergeStudentRecords(prev, incoming) {
       ? incoming.guardianName
       : (prev.guardianName || incoming.guardianName || 'Parent/Guardian'),
     guardianEmail: incoming.guardianEmail || prev.guardianEmail,
-    guardianPhone: incoming.guardianPhone || prev.guardianPhone,
+    guardianPhone: resolveGuardianPhone(incoming, prev),
     homeAddress: incoming.homeAddress || prev.homeAddress,
     enrollmentDate: prev.enrollmentDate || incoming.enrollmentDate || new Date().toISOString().split('T')[0],
     onboardedAt: incoming.onboardedAt || prev.onboardedAt || incoming.createdAt || prev.createdAt || prev.enrollmentDate || incoming.enrollmentDate,
@@ -685,6 +887,8 @@ export function deduplicateStudents(students = []) {
 }
 
 function studentIdentityKey(student = {}) {
+  const appId = String(student.applicationId || '').toLowerCase().trim();
+  if (appId) return `app:${appId}`;
   const sid = String(student.studentId || '').toLowerCase().trim();
   const email = String(student.studentEmail || student.guardianEmail || '').toLowerCase().trim();
   const name = normalizePersonName(student.fullName || student.name);
@@ -763,9 +967,11 @@ function applyCanonicalStudentToState(current, canonical) {
   const existingFee = (current.studentFees || []).find((f) =>
     (f.studentId && canonical.studentId && String(f.studentId) === String(canonical.studentId))
     || normalizePersonName(f.studentName) === normalizePersonName(canonical.fullName)
+    || (canonical.previousName && normalizePersonName(f.studentName) === normalizePersonName(canonical.previousName))
   );
   const existingFeeAccount = (current.feeAccounts || []).find((a) =>
     normalizePersonName(a.child) === normalizePersonName(canonical.fullName)
+    || (canonical.previousName && normalizePersonName(a.child) === normalizePersonName(canonical.previousName))
   );
 
   const newFee = {
@@ -793,7 +999,11 @@ function applyCanonicalStudentToState(current, canonical) {
     status: existingFeeAccount?.status || newFee.status,
   };
 
-  const otherStudents = (current.onboardedStudents || []).filter((s) => !studentsAreSamePerson(s, canonical));
+  const otherStudents = (current.onboardedStudents || []).filter((s) => {
+    if (studentsAreSamePerson(s, canonical)) return false;
+    if (canonical.previousName && normalizePersonName(s.fullName) === normalizePersonName(canonical.previousName)) return false;
+    return true;
+  });
   const otherFees = (current.studentFees || []).filter((f) => f !== existingFee);
   const otherFeeAccounts = (current.feeAccounts || []).filter((a) => a !== existingFeeAccount);
 
@@ -918,6 +1128,165 @@ export function scoreSheetEntryKey(entry = {}) {
     entry.year || entry.academicYear,
   ];
   return parts.map((p) => String(p || '').trim().toLowerCase()).join('::');
+}
+
+export const MISSING_SCORE = 'N/A';
+
+export function hasRecordedClassScore(entry) {
+  if (!entry) return false;
+  if (entry.hasClassScore === true || entry.classSubmitted === true) return true;
+  if (entry.hasClassScore === false) return false;
+  return Number(entry.classScore) > 0 || Number(entry.classTestTotal) > 0
+    || Number(entry.arrivalTest) > 0 || Number(entry.test1) > 0
+    || Number(entry.test2) > 0 || Number(entry.test3) > 0;
+}
+
+export function hasRecordedExamScore(entry) {
+  if (!entry) return false;
+  if (entry.hasExamScore === true || entry.examSubmitted === true) return true;
+  if (entry.hasExamScore === false) return false;
+  return Number(entry.examScore) > 0 || Number(entry.examScoreConverted) > 0;
+}
+
+export function displayScoreValue(value, suffix = '') {
+  if (value == null || value === '' || Number.isNaN(Number(value))) return MISSING_SCORE;
+  const n = Number(value);
+  const text = Number.isInteger(n) ? String(n) : n.toFixed(1);
+  return suffix ? `${text}${suffix}` : text;
+}
+
+function resultMatchesStudent(entry, student) {
+  if (!entry || !student) return false;
+  const sid = String(student.studentId || student.id || '').toLowerCase().trim();
+  const name = normalizePersonName(student.fullName || student.name);
+  const eSid = String(entry.studentId || '').toLowerCase().trim();
+  const eName = normalizePersonName(entry.studentName);
+  if (sid && eSid && sid === eSid) return true;
+  return Boolean(name && eName && name === eName);
+}
+
+function gpaPointFromTotal(total) {
+  if (total == null || Number.isNaN(Number(total))) return null;
+  const n = Number(total);
+  if (n >= 80) return 4.0;
+  if (n >= 75) return 3.5;
+  if (n >= 70) return 3.0;
+  if (n >= 65) return 2.5;
+  if (n >= 60) return 2.0;
+  if (n >= 50) return 1.5;
+  return 1.0;
+}
+
+export function resultsForStudent(results = [], student) {
+  return (results || []).filter((entry) => resultMatchesStudent(entry, student));
+}
+
+export function buildStudentTranscriptData(student, results = []) {
+  if (!student) {
+    return {
+      courses: [],
+      subjects: [],
+      totalCredits: 0,
+      totalGradePoints: '0.0',
+      cgpa: 'N/A',
+      averageScore: 'N/A',
+      standing: 'N/A',
+      academicStanding: 'N/A',
+      classRank: 'N/A',
+      attendancePercentage: 'N/A',
+      term: '',
+    };
+  }
+
+  const studentResults = resultsForStudent(results, student);
+  const subjects = studentResults.map((entry, idx) => {
+    const classScore = hasRecordedClassScore(entry) ? Number(entry.classScore) : null;
+    const examScore = hasRecordedExamScore(entry)
+      ? Number(entry.examScoreConverted != null ? entry.examScoreConverted : entry.examScore)
+      : null;
+    const total = (classScore != null && examScore != null)
+      ? Number(entry.score != null ? entry.score : classScore + examScore)
+      : null;
+    const gpaPoint = gpaPointFromTotal(total);
+    return {
+      code: `SUB-${String(idx + 1).padStart(2, '0')}`,
+      title: entry.subject || 'Subject',
+      name: entry.subject || 'Subject',
+      credits: 3,
+      score: total,
+      classScore,
+      examScore,
+      total,
+      grade: total != null ? (entry.grade || MISSING_SCORE) : MISSING_SCORE,
+      gpaPoint: gpaPoint == null ? MISSING_SCORE : gpaPoint,
+      remark: total != null ? (entry.remarks || 'Recorded') : MISSING_SCORE,
+      status: entry.status,
+    };
+  });
+
+  const complete = subjects.filter((s) => s.total != null);
+  const averageScore = complete.length
+    ? (complete.reduce((acc, s) => acc + Number(s.total), 0) / complete.length).toFixed(1)
+    : MISSING_SCORE;
+  const gpaVals = complete.map((s) => Number(s.gpaPoint)).filter((n) => Number.isFinite(n));
+  const cgpa = gpaVals.length
+    ? (gpaVals.reduce((acc, n) => acc + n, 0) / gpaVals.length).toFixed(2)
+    : MISSING_SCORE;
+  const standing = cgpa === MISSING_SCORE
+    ? MISSING_SCORE
+    : (Number(cgpa) >= 3.5 ? 'First Class Honor Roll' : Number(cgpa) >= 3.0 ? 'Second Class Upper' : 'Good Standing');
+
+  return {
+    courses: subjects,
+    subjects,
+    totalCredits: subjects.length * 3,
+    totalGradePoints: gpaVals.length ? gpaVals.reduce((acc, n) => acc + n, 0).toFixed(1) : MISSING_SCORE,
+    cgpa,
+    averageScore,
+    standing,
+    academicStanding: standing,
+    classRank: MISSING_SCORE,
+    attendancePercentage: MISSING_SCORE,
+    term: studentResults[0]?.term || '',
+  };
+}
+
+function terminalReportNoticeKey(entry = {}) {
+  return [
+    'terminal-ready',
+    entry.classLevel,
+    entry.subClass || entry.classSection,
+    entry.subject,
+    entry.term,
+    entry.year || entry.academicYear,
+  ].map((p) => String(p || '').trim().toLowerCase()).join('::');
+}
+
+function studentInScoreCohort(student, entry) {
+  if (!student || !entry) return false;
+  const sCls = formatClassToBasic(student.level || student.classLevel || student.class || '');
+  const eCls = formatClassToBasic(entry.classLevel || '');
+  if (sCls && eCls && sCls.toLowerCase() !== eCls.toLowerCase()) return false;
+  const eSub = String(entry.subClass || entry.subClassLevel || entry.classSection || '').trim().toLowerCase();
+  if (!eSub || eSub === 'all') return true;
+  const sSub = String(student.classSection || student.subClass || student.section || '').trim().toLowerCase();
+  return !sSub || sSub === eSub || sSub.includes(eSub) || eSub.includes(sSub);
+}
+
+function classHasCompleteExamCoverage(results = [], students = [], entry = {}) {
+  const cohort = (students || []).filter((s) => studentInScoreCohort(s, entry));
+  if (cohort.length === 0) return false;
+  const matching = (r) => (
+    String(r.subject || '').toLowerCase() === String(entry.subject || '').toLowerCase()
+    && String(r.term || '') === String(entry.term || '')
+    && String(r.year || r.academicYear || '') === String(entry.year || entry.academicYear || '')
+  );
+  const classScoreRows = cohort.map((student) => (
+    (results || []).find((r) => matching(r) && resultMatchesStudent(r, student))
+  )).filter(hasRecordedClassScore);
+  if (classScoreRows.length === 0) return false;
+  if (classScoreRows.length < cohort.length) return false;
+  return classScoreRows.every(hasRecordedExamScore);
 }
 
 export function isDeepEqual(a, b) {
@@ -1534,8 +1903,7 @@ export function PortalDataProvider({ children }) {
 
         // Onboarded Students
         if (studentsRes.status === 'fulfilled') {
-          const sRaw = studentsRes.value;
-          const students = Array.isArray(sRaw) ? sRaw : (sRaw?.students || sRaw?.data || sRaw?.records || []);
+          const students = extractStudentList(studentsRes.value);
           if (Array.isArray(students) && students.length > 0) {
             const mapped = students.map((s) => mapStudentFromApi(s));
             const merged = deduplicateStudents([...(current.onboardedStudents || []), ...mapped]);
@@ -1621,10 +1989,9 @@ export function PortalDataProvider({ children }) {
           }
         }
 
-        // Payment Vouchers
+        // Payment Vouchers (all statuses, including DISBURSED)
         if (pvsRes.status === 'fulfilled') {
-          const pRaw = pvsRes.value;
-          const pvs = Array.isArray(pRaw) ? pRaw : (pRaw?.vouchers || pRaw?.paymentVouchers || pRaw?.data || []);
+          const pvs = api.extractPaymentVoucherList(pvsRes.value);
           if (Array.isArray(pvs) && pvs.length > 0) {
             const mapped = pvs.map(mapApiPaymentVoucher);
             const mergedPVs = deduplicatePaymentVouchers([...(current.paymentVouchers || []), ...mapped]);
@@ -1717,14 +2084,17 @@ export function PortalDataProvider({ children }) {
           }
         }
 
-        const nextStudents = updates.onboardedStudents || current.onboardedStudents;
         const nextApps = updates.applications || current.applications;
+        const nextStudents = mergeRosterWithApplications(
+          updates.onboardedStudents || current.onboardedStudents,
+          nextApps,
+        );
         const syncedIdentities = syncIssuedRfidAcrossIdentities(nextStudents, nextApps);
-        if (!isDeepEqual(nextStudents, syncedIdentities.students)) {
+        if (!isDeepEqual(current.onboardedStudents, syncedIdentities.students)) {
           updates.onboardedStudents = syncedIdentities.students;
           hasChanges = true;
         }
-        if (!isDeepEqual(nextApps, syncedIdentities.applications)) {
+        if (!isDeepEqual(current.applications, syncedIdentities.applications)) {
           updates.applications = syncedIdentities.applications;
           hasChanges = true;
         }
@@ -1806,7 +2176,8 @@ export function PortalDataProvider({ children }) {
     if (existingLock) return existingLock;
 
     const run = (async () => {
-      const existing = findMatchingStudent(dataRef.current.onboardedStudents || [], draft);
+      requireLiveDatabase('Saving this student');
+      const existing = findStudentForUpsert(dataRef.current.onboardedStudents || [], draft);
       const billed = billedAmountForLevel(draft.level);
       const payload = {
         fullName: draft.fullName,
@@ -1839,6 +2210,8 @@ export function PortalDataProvider({ children }) {
         mother_name: draft.motherName,
         motherPhone: draft.motherPhone,
         mother_phone: draft.motherPhone,
+        applicationId: draft.applicationId,
+        application_id: draft.applicationId,
       };
 
       let createdFromApi = null;
@@ -1854,28 +2227,29 @@ export function PortalDataProvider({ children }) {
         if (/409|already|exists|duplicate/i.test(msg)) {
           try {
             const all = await api.getStudents();
-            const list = Array.isArray(all) ? all : (all?.students || all?.data || []);
-            createdFromApi = findMatchingStudent((list || []).map((s) => mapStudentFromApi(s)), draft);
-          } catch (_) { /* keep local upsert */ }
-        } else if (existingBackendId) {
-          try {
-            createdFromApi = await api.onboardStudent(payload);
-          } catch (e2) {
-            console.warn('Backend onboard student fallback:', e2);
+            const list = extractStudentList(all).map((s) => mapStudentFromApi(s));
+            createdFromApi = findStudentForUpsert(list, draft) || findMatchingStudent(list, draft);
+          } catch (lookupErr) {
+            throw new Error(failedDatabaseAction('Saving this student', lookupErr));
+          }
+          if (!createdFromApi?.id) {
+            throw new Error(failedDatabaseAction('Saving this student', 'no UUID'));
           }
         } else {
-          console.warn('Backend onboard student fallback:', e);
+          throw new Error(failedDatabaseAction('Saving this student', e));
         }
       }
 
       const apiStudent = unwrapApiStudent(createdFromApi);
       const mappedApi = apiStudent ? mapStudentFromApi(apiStudent, { ...draft, ...(existing || {}) }) : null;
+      const backendId = preferCanonicalId(mappedApi?.id, existingBackendId);
+      requireBackendUuid(backendId, 'Saving this student');
       const rosterCount = (dataRef.current.onboardedStudents || []).length + 1;
-      const fallbackCode = existing?.studentId || draft.studentId || `REMALJ-${new Date().getFullYear()}-${String(rosterCount).padStart(3, '0')}`;
+      const fallbackCode = existing?.studentId || draft.studentId || mappedApi?.studentId || `REMALJ-${new Date().getFullYear()}-${String(rosterCount).padStart(3, '0')}`;
       const canonical = mapStudentFromApi(mappedApi || {}, {
         ...existing,
         ...draft,
-        id: mappedApi?.id || existing?.id,
+        id: backendId,
         studentId: mappedApi?.studentId || fallbackCode,
         studentEmail: mappedApi?.studentEmail || existing?.studentEmail || schoolEmailFromName(fullComputed),
         defaultPassword: mappedApi?.defaultPassword || existing?.defaultPassword || draft.defaultPassword
@@ -1883,7 +2257,7 @@ export function PortalDataProvider({ children }) {
         rfidCardCode: preferIssuedRfid(mappedApi?.rfidCardCode, draft.rfidCardCode, existing?.rfidCardCode),
       });
 
-      if (!canonical.id) canonical.id = crypto.randomUUID?.() || String(Date.now());
+      canonical.id = backendId;
       if (!canonical.studentId) canonical.studentId = fallbackCode;
       if (!canonical.studentEmail) canonical.studentEmail = schoolEmailFromName(canonical.fullName);
       if (!canonical.defaultPassword) {
@@ -1910,6 +2284,37 @@ export function PortalDataProvider({ children }) {
       onboardLocksRef.current.delete(lockKey);
     }
   }, [refreshBackendData]);
+
+  const rosterDbSyncRef = useRef(false);
+  const syncApplicationsToStudentDatabase = useCallback(async () => {
+    if (rosterDbSyncRef.current) return;
+    rosterDbSyncRef.current = true;
+    try {
+      await refreshBackendData();
+      let waits = 0;
+      while (isRefreshingRef.current && waits < 20) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        waits += 1;
+      }
+      const apps = dataRef.current.applications || [];
+      const roster = dataRef.current.onboardedStudents || [];
+      for (const app of apps) {
+        const draft = studentDraftFromApplication(app);
+        if (!draft.fullName) continue;
+        const match = findStudentForUpsert(roster, draft);
+        if (match && !isSyntheticLocalId(match.id)) continue;
+        try {
+          await performOnboardStudent(draft);
+        } catch (e) {
+          console.warn('Application-to-roster database sync skipped a learner:', e);
+        }
+      }
+    } catch (e) {
+      console.warn('Application-to-roster database sync failed:', e);
+    } finally {
+      rosterDbSyncRef.current = false;
+    }
+  }, [refreshBackendData, performOnboardStudent]);
 
   const lastAutoRefreshedAtRef = useRef(new Date().toLocaleTimeString());
 
@@ -1938,6 +2343,7 @@ export function PortalDataProvider({ children }) {
     onboardedStudents: sortedOnboardedStudents,
     studentFees: sortedStudentFees,
     refreshBackendData,
+    syncApplicationsToStudentDatabase,
     lastAutoRefreshedAt: lastAutoRefreshedAtRef.current,
     saveTimetableEntry: async (entry) => {
       try {
@@ -1952,14 +2358,31 @@ export function PortalDataProvider({ children }) {
           : [...current.timetable, { ...entry, id: entry.id || crypto.randomUUID?.() || String(Date.now()) }],
       }));
     },
-    // Moderation actions apply locally first so a slow or offline backend never blocks the desk
+    // Exam submissions go to Head Admin; class-only scores do not
     publishResult: (result) => {
-      setData((current) => ({
-        ...current,
-        results: current.results.some((item) => item.subject === result.subject)
-          ? current.results.map((item) => item.subject === result.subject ? { ...result, id: item.id, status: 'Pending Approval', declineNote: null, updatedAt: new Date().toLocaleString() } : item)
-          : [...current.results, { ...result, id: crypto.randomUUID?.() || String(Date.now()), status: 'Pending Approval', declineNote: null, updatedAt: new Date().toLocaleString() }],
-      }));
+      setData((current) => {
+        const existingResults = current.results || [];
+        const key = scoreSheetEntryKey(result);
+        const existing = existingResults.find((item) => scoreSheetEntryKey(item) === key)
+          || (result.id ? existingResults.find((item) => item.id === result.id) : null);
+        const next = {
+          ...existing,
+          ...result,
+          id: existing?.id || result.id || crypto.randomUUID?.() || String(Date.now()),
+          entryKey: key,
+          hasExamScore: true,
+          examSubmitted: true,
+          status: 'Pending Approval',
+          declineNote: null,
+          updatedAt: new Date().toLocaleString(),
+        };
+        return {
+          ...current,
+          results: existing
+            ? existingResults.map((item) => item.id === next.id ? { ...item, ...next } : item)
+            : [...existingResults, next],
+        };
+      });
       api.recordResult(result).catch((e) => console.warn('Backend result record fallback:', e));
     },
     approveResult: (id, approvedBy) => {
@@ -2103,13 +2526,14 @@ export function PortalDataProvider({ children }) {
       }));
     },
     submitApplication: async (application) => {
+      requireLiveDatabase('Saving this application');
       const otherNames = (application.otherNames || '').trim();
       const learnerName = (application.firstName || application.surname || otherNames)
         ? `${application.firstName || ''} ${otherNames ? otherNames + ' ' : ''}${application.surname || ''}`.replace(/\s+/g, ' ').trim()
         : (application.learner || application.fullName || 'Applicant');
       const guardianName = application.fatherName || application.motherName || application.guardian || application.guardianName || 'Parent/Guardian';
       const contactEmail = application.fatherEmail || application.motherEmail || application.email || application.guardianEmail || `${(application.surname || 'parent').toLowerCase()}@remaljcarewell.edu.gh`;
-      const contactPhone = application.fatherPhone || application.motherPhone || application.phone || application.guardianPhone || '024 111 2222';
+      const contactPhone = resolveGuardianPhone(application) || '';
       const applyingLevel = formatClassToBasic(application.applyingClass || application.level || 'Basic 1');
       const academicYear = application.academicYear || '2025/2026';
       const academicTerm = application.academicTerm || application.term || 'Term 1';
@@ -2125,18 +2549,23 @@ export function PortalDataProvider({ children }) {
         academicTerm,
       };
       const existingMatch = findMatchingApplication(dataRef.current.applications || [], candidate);
-      const remoteId = existingMatch?.id || await findRemoteApplicationId(candidate);
-
-      if (remoteId) {
-        await api.updateApplication(remoteId, {
-          ...application,
-          ...candidate,
-          id: remoteId,
-        }).catch((e) => console.warn('Backend application overwrite fallback:', e));
+      let persistId = existingMatch?.id && !isSyntheticLocalId(existingMatch.id) ? existingMatch.id : null;
+      if (!persistId) {
+        persistId = await findRemoteApplicationId(candidate);
       }
 
-      let createdFromApi = null;
-      if (!remoteId) {
+      if (persistId) {
+        try {
+          await api.updateApplication(persistId, {
+            ...application,
+            ...candidate,
+            id: persistId,
+          });
+        } catch (e) {
+          throw new Error(failedDatabaseAction('Saving this application', e));
+        }
+      } else {
+        let createdFromApi = null;
         try {
           createdFromApi = await api.submitApplication({
             learner_name: learnerName,
@@ -2152,12 +2581,13 @@ export function PortalDataProvider({ children }) {
             }
           });
         } catch (e) {
-          console.warn('Backend application submit fallback:', e);
+          throw new Error(failedDatabaseAction('Saving this application', e));
         }
+        persistId = unwrapApiApplication(createdFromApi)?.id;
+        requireBackendUuid(persistId, 'Saving this application');
       }
 
-      const apiApp = unwrapApiApplication(createdFromApi);
-      const resolvedId = apiApp?.id || remoteId || crypto.randomUUID?.() || String(Date.now());
+      const resolvedId = persistId;
 
       setData((current) => {
         const newApp = {
@@ -2208,12 +2638,30 @@ export function PortalDataProvider({ children }) {
       if (resolvedId) {
         await removeDuplicateRemoteApplications(resolvedId, candidate);
       }
+      await performOnboardStudent({
+        ...studentDraftFromApplication({
+          ...application,
+          ...candidate,
+          id: resolvedId,
+          rfidCardCode: application.rfidCardCode || existingMatch?.rfidCardCode || '',
+        }),
+        id: findStudentForUpsert(dataRef.current.onboardedStudents || [], {
+          fullName: learnerName,
+          studentId: application.officeStudentID || application.studentId,
+          applicationId: resolvedId,
+          previousName: existingMatch?.learner || existingMatch?.fullName || learnerName,
+        })?.id,
+        applicationId: resolvedId,
+        previousName: existingMatch?.learner || existingMatch?.fullName || learnerName,
+      });
     },
     updateApplicationStatus: async (id, status) => {
+      requireLiveDatabase('Updating this application');
+      requireBackendUuid(id, 'Updating this application');
       try {
         await api.updateApplicationStatus(id, { status });
       } catch (e) {
-        console.warn('Backend application status fallback:', e);
+        throw new Error(failedDatabaseAction('Updating this application', e));
       }
       setData((current) => {
         const targetApp = (current.applications || []).find((item) => item.id === id);
@@ -2249,7 +2697,7 @@ export function PortalDataProvider({ children }) {
             contactEmail = `${parentFirstName}.${parentSurname}@remaljcarewell.edu.gh`;
           }
           const defaultPassword = 'Carewell2026!';
-          const parentPhone = targetApp.phone || targetApp.guardianPhone || targetApp.fatherPhone || targetApp.motherPhone || '024 111 2222';
+          const parentPhone = resolveGuardianPhone(targetApp) || '';
 
           const welcomeMsg = {
             id: `msg-accept-${id}`,
@@ -2282,6 +2730,7 @@ export function PortalDataProvider({ children }) {
             ? `${app.firstName || ''} ${app.otherNames ? app.otherNames + ' ' : ''}${app.surname || ''}`.replace(/\s+/g, ' ').trim()
             : (app.learner || app.fullName || 'Student');
           await performOnboardStudent({
+            ...studentDraftFromApplication({ ...app, id }),
             fullName: learnerName,
             firstName: app.firstName,
             otherNames: app.otherNames,
@@ -2292,35 +2741,43 @@ export function PortalDataProvider({ children }) {
             classSection: app.officeFormAssigned || app.classSection || app.subClass || 'A',
             guardianName: app.guardian || app.fatherName || app.motherName,
             guardianEmail: app.email || app.fatherEmail || app.guardianEmail,
-            guardianPhone: app.phone || app.fatherPhone || app.guardianPhone,
+            guardianPhone: resolveGuardianPhone(app),
+            fatherName: app.fatherName,
+            fatherPhone: app.fatherPhone,
+            motherName: app.motherName,
+            motherPhone: app.motherPhone,
             homeAddress: app.residentialAddress || app.homeAddress,
             rfidCardCode: app.rfidCardCode || '',
+            applicationId: id,
           });
         }
       }
     },
     updateApplication: async (id, updatedForm) => {
+      requireLiveDatabase('Saving this application');
       const rosterApps = dataRef.current.applications || [];
       const existingApp = rosterApps.find((a) => String(a.id) === String(id))
         || findMatchingApplication(rosterApps, { id, ...updatedForm })
         || {};
       let persistId = existingApp.id || id || await findRemoteApplicationId({ id, ...updatedForm, ...existingApp });
+      if (persistId && isSyntheticLocalId(persistId)) {
+        persistId = await findRemoteApplicationId({ id, ...updatedForm, ...existingApp });
+      }
+      persistId = requireBackendUuid(persistId, 'Saving this application');
 
-      if (persistId) {
-        try {
-          await api.updateApplication(persistId, { ...existingApp, ...updatedForm, id: persistId });
-        } catch (e) {
-          const remoteId = await findRemoteApplicationId({ id: persistId, ...existingApp, ...updatedForm });
-          if (remoteId) {
-            persistId = remoteId;
-            try {
-              await api.updateApplication(remoteId, { ...existingApp, ...updatedForm, id: remoteId });
-            } catch (retryErr) {
-              console.warn('Backend update application fallback:', retryErr);
-            }
-          } else {
-            console.warn('Backend update application fallback:', e);
+      try {
+        await api.updateApplication(persistId, { ...existingApp, ...updatedForm, id: persistId });
+      } catch (e) {
+        const remoteId = await findRemoteApplicationId({ id: persistId, ...existingApp, ...updatedForm });
+        if (remoteId) {
+          persistId = remoteId;
+          try {
+            await api.updateApplication(remoteId, { ...existingApp, ...updatedForm, id: remoteId });
+          } catch (retryErr) {
+            throw new Error(failedDatabaseAction('Saving this application', retryErr));
           }
+        } else {
+          throw new Error(failedDatabaseAction('Saving this application', e));
         }
       }
 
@@ -2356,55 +2813,24 @@ export function PortalDataProvider({ children }) {
       };
 
       const roster = dataRef.current.onboardedStudents || [];
-      const previousName = existingApp.learner || existingApp.fullName || learnerName;
-      const matchedStudent = findMatchingStudent(roster, {
-        fullName: learnerName,
+      const previousName = existingApp.learner || existingApp.fullName || applicationLearnerName(existingApp) || learnerName;
+      const matchedStudent = findStudentForUpsert(roster, {
+        ...studentPatch,
         studentId: updatedForm.officeStudentID || existingApp.officeStudentID || existingApp.studentId,
-      })
-        || findMatchingStudent(roster, { fullName: previousName, studentId: existingApp.officeStudentID })
-        || roster.find((stu) => String(stu.applicationId || '') === String(id))
-        || roster.find((stu) => stu.fullName === previousName || stu.fullName === learnerName)
-        || null;
+        applicationId: persistId || id,
+        previousName,
+        fullName: learnerName,
+      });
 
       const issuedRfid = String(matchedStudent?.rfidCardCode || '').trim();
       const formRfid = String(updatedForm.rfidCardCode || existingApp.rfidCardCode || '').trim();
       studentPatch.rfidCardCode = issuedRfid || formRfid;
 
-      if (matchedStudent) {
-        const backendId = matchedStudent.id && !isSyntheticLocalId(matchedStudent.id)
-          ? matchedStudent.id
-          : matchedStudent.studentId;
-        try {
-          if (backendId) {
-            await api.updateStudent(backendId, {
-              ...studentPatch,
-              full_name: learnerName,
-              class_level: applyingLevel,
-              class_section: classSection,
-              guardian_name: guardianName,
-              guardian_email: contactEmail,
-              guardian_phone: contactPhone,
-              father_name: studentPatch.fatherName,
-              father_phone: studentPatch.fatherPhone,
-              mother_name: studentPatch.motherName,
-              mother_phone: studentPatch.motherPhone,
-              rfid_card_code: studentPatch.rfidCardCode,
-              rfidCardCode: studentPatch.rfidCardCode,
-            });
-          }
-        } catch (e) {
-          console.warn('Backend cascade student update fallback:', e);
-        }
-      }
-
       setData((current) => {
-        const currentApp = (current.applications || []).find((a) => String(a.id) === String(persistId) || String(a.id) === String(id))
-          || findMatchingApplication(current.applications || [], { id: persistId, ...updatedForm, learner: learnerName, fullName: learnerName, academicYear: updatedForm.academicYear || existingApp.academicYear });
-
         const updatedApplicationRecord = {
-          ...(currentApp || existingApp || {}),
+          ...(existingApp || {}),
           ...updatedForm,
-          id: persistId || currentApp?.id || existingApp.id || id,
+          id: persistId || existingApp.id || id,
           learner: learnerName,
           fullName: learnerName,
           guardian: guardianName,
@@ -2416,8 +2842,9 @@ export function PortalDataProvider({ children }) {
           subClass: classSection,
           rfidCardCode: studentPatch.rfidCardCode,
           formData: {
-            ...((currentApp || existingApp || {}).formData || {}),
+            ...((existingApp || {}).formData || {}),
             ...updatedForm,
+            id: persistId || existingApp.id || id,
             applyingClass: applyingLevel,
             classSection,
             subClass: classSection,
@@ -2426,24 +2853,47 @@ export function PortalDataProvider({ children }) {
           updatedAt: new Date().toLocaleString(),
         };
 
-        const updatedApplications = currentApp
-          ? (current.applications || []).map((app) => (
-            applicationsAreSame(app, currentApp) || String(app.id) === String(id) || String(app.id) === String(persistId)
-              ? mergeApplicationRecords(app, updatedApplicationRecord)
-              : app
-          ))
-          : [updatedApplicationRecord, ...(current.applications || [])];
+        const updatedApplications = overwriteApplicationInList(
+          current.applications || [],
+          updatedApplicationRecord,
+          { ids: [id, persistId, existingApp.id], previous: existingApp },
+        );
 
-        const updatedOnboardedStudents = (current.onboardedStudents || []).map((stu) => {
+        let rosterTouched = false;
+        const updatedOnboardedStudents = [];
+        for (const stu of current.onboardedStudents || []) {
           const isMatch = matchedStudent
             ? studentsAreSamePerson(stu, matchedStudent)
-            : (stu.id === id || stu.studentId === id || stu.fullName === previousName || stu.fullName === learnerName || String(stu.applicationId || '') === String(id));
-          if (!isMatch) return stu;
-          return mergeStudentRecords(stu, {
+            : (
+              String(stu.applicationId || '') === String(id)
+              || String(stu.applicationId || '') === String(persistId)
+              || stu.fullName === previousName
+              || stu.fullName === learnerName
+            );
+          if (!isMatch) {
+            updatedOnboardedStudents.push(stu);
+            continue;
+          }
+          if (rosterTouched) continue;
+          rosterTouched = true;
+          updatedOnboardedStudents.push(mergeStudentRecords(stu, {
             ...studentPatch,
+            id: stu.id,
+            studentId: stu.studentId || studentPatch.studentId,
+            previousName,
             passportPhoto: updatedForm.passportPhoto || stu.passportPhoto,
+          }));
+        }
+        if (!rosterTouched && persistId) {
+          updatedOnboardedStudents.push({
+            ...studentPatch,
+            id: matchedStudent?.id || `stu-app-${persistId || id}`,
+            studentId: matchedStudent?.studentId || studentPatch.studentId || '',
+            studentEmail: matchedStudent?.studentEmail || schoolEmailFromName(learnerName),
+            passportPhoto: updatedForm.passportPhoto || '',
+            status: 'Active',
           });
-        });
+        }
 
         const updatedStudentFees = (current.studentFees || []).map((fee) => {
           if (fee.studentName === previousName || fee.studentName === learnerName || fee.studentId === id || (matchedStudent && (fee.studentId === matchedStudent.studentId || fee.studentId === matchedStudent.id))) {
@@ -2469,41 +2919,55 @@ export function PortalDataProvider({ children }) {
 
         return {
           ...current,
-          applications: deduplicateApplications(updatedApplications),
+          applications: updatedApplications,
           onboardedStudents: deduplicateStudents(updatedOnboardedStudents),
           studentFees: updatedStudentFees,
           feeAccounts: updatedFeeAccounts,
         };
       });
       if (persistId) {
-        await removeDuplicateRemoteApplications(persistId, {
-          id: persistId,
+        await removeDuplicateRemoteApplications(
+          persistId,
+          {
+            id: persistId,
+            ...existingApp,
+            ...updatedForm,
+            learner: learnerName,
+            fullName: learnerName,
+          },
+          existingApp,
+        );
+      }
+      await performOnboardStudent({
+        ...studentDraftFromApplication({
           ...existingApp,
           ...updatedForm,
-          learner: learnerName,
-          fullName: learnerName,
-        });
-      }
+          id: persistId || id,
+          rfidCardCode: studentPatch.rfidCardCode,
+        }),
+        ...studentPatch,
+        id: matchedStudent?.id,
+        studentId: matchedStudent?.studentId || studentPatch.studentId,
+        applicationId: persistId || id,
+        previousName,
+      });
     },
     updateApplicationOfficeUse: async (id, officeData) => {
-      let updatedApp = null;
-      setData((current) => {
-        const apps = (current.applications || []).map((item) => {
-          if (item.id === id) {
-            updatedApp = { ...item, ...officeData };
-            return updatedApp;
-          }
-          return item;
-        });
-        return { ...current, applications: apps };
-      });
-      if (updatedApp) {
-        try {
-          await api.updateApplication(id, updatedApp);
-        } catch (e) {
-          console.warn('Backend update application office use fallback:', e);
-        }
+      requireLiveDatabase('Saving office evaluation');
+      requireBackendUuid(id, 'Saving office evaluation');
+      const currentApp = (dataRef.current.applications || []).find((item) => String(item.id) === String(id));
+      const updatedApp = { ...(currentApp || {}), ...officeData, id };
+      try {
+        await api.updateApplication(id, updatedApp);
+      } catch (e) {
+        throw new Error(failedDatabaseAction('Saving office evaluation', e));
       }
+      setData((current) => ({
+        ...current,
+        applications: (current.applications || []).map((item) => (
+          String(item.id) === String(id) ? { ...item, ...officeData } : item
+        )),
+      }));
     },
     deleteApplication: async (id) => {
       try {
@@ -2884,32 +3348,85 @@ export function PortalDataProvider({ children }) {
     // Score Sheet Entry Persistence — upserts on the entry key so a saved sheet can be edited later
     saveScoreSheetEntry: (entry) => {
       const entryKey = scoreSheetEntryKey(entry);
+      const submitKind = entry.submitKind === 'exam' ? 'exam' : 'class';
       let persisted = null;
 
       setData((current) => {
         const existingResults = current.results || [];
         const existing = existingResults.find((r) => scoreSheetEntryKey(r) === entryKey);
+        const existingHasExam = hasRecordedExamScore(existing);
+        const merged = { ...(existing || {}), ...entry };
+
+        if (submitKind === 'class' && existingHasExam && entry.hasExamScore !== true) {
+          merged.examScore = existing.examScore;
+          merged.examScoreConverted = existing.examScoreConverted;
+          merged.hasExamScore = existing.hasExamScore;
+          merged.examSubmitted = existing.examSubmitted;
+          merged.score = Number(entry.classScore ?? merged.classScore ?? 0)
+            + Number(existing.examScoreConverted ?? existing.examScore ?? 0);
+          merged.grade = existing.grade;
+          merged.remarks = existing.remarks;
+        } else if (submitKind === 'class' && !existingHasExam) {
+          merged.examScore = null;
+          merged.examScoreConverted = null;
+          merged.score = null;
+          merged.grade = null;
+          merged.remarks = 'Class score recorded';
+          merged.hasExamScore = false;
+          merged.examSubmitted = false;
+        }
+
+        const hasExam = submitKind === 'exam' || hasRecordedExamScore(merged);
+        const keepApproved = existing?.status === 'Approved' && submitKind !== 'exam';
 
         persisted = {
-          ...entry,
+          ...merged,
           id: existing?.id || entry.id || `res-${Date.now()}`,
           entryKey,
           backendId: existing?.backendId,
-          subject: entry.subject || 'General Subject',
-          lecturer: entry.instructor || 'Subject Teacher',
-          teacherNote: entry.teacherNote || '',
-          status: 'Pending Approval',
-          declineNote: null,
-          approvedBy: null,
+          subject: merged.subject || 'General Subject',
+          lecturer: merged.instructor || existing?.lecturer || 'Subject Teacher',
+          teacherNote: merged.teacherNote || '',
+          hasClassScore: true,
+          classSubmitted: true,
+          hasExamScore: hasExam,
+          examSubmitted: hasExam,
+          status: hasExam ? (keepApproved ? 'Approved' : 'Pending Approval') : 'Class Score Recorded',
+          declineNote: submitKind === 'exam' ? null : (existing?.declineNote || null),
+          approvedBy: keepApproved ? existing.approvedBy : (submitKind === 'exam' ? null : existing?.approvedBy),
           submittedAt: existing?.submittedAt || new Date().toLocaleString(),
           updatedAt: new Date().toLocaleString(),
         };
 
+        const nextResults = existing
+          ? existingResults.map((r) => (r.id === persisted.id ? { ...r, ...persisted } : r))
+          : [persisted, ...existingResults];
+
+        let nextMessages = current.messages || [];
+        if (submitKind === 'exam') {
+          const noticeKey = terminalReportNoticeKey(persisted);
+          const complete = classHasCompleteExamCoverage(nextResults, current.onboardedStudents || [], persisted);
+          const alreadySent = nextMessages.some((m) => m.noticeKey === noticeKey);
+          if (complete && !alreadySent) {
+            nextMessages = [{
+              id: `msg-terminal-${Date.now()}`,
+              noticeKey,
+              from: persisted.lecturer || persisted.instructor || 'Subject Teacher',
+              senderRole: 'Staff',
+              to: 'All',
+              recipient: 'Head Admin',
+              subject: 'Terminal Report is ready',
+              body: `Terminal Report is ready for ${persisted.subject} · ${persisted.classLevel} ${persisted.subClass || ''} · ${persisted.term} ${persisted.year || ''}. All exam scores have been added to the existing class scores.`,
+              sentAt: new Date().toLocaleString(),
+              type: 'terminal-report',
+            }, ...nextMessages];
+          }
+        }
+
         return {
           ...current,
-          results: existing
-            ? existingResults.map((r) => r.id === persisted.id ? { ...r, ...persisted } : r)
-            : [persisted, ...existingResults],
+          results: nextResults,
+          messages: nextMessages,
         };
       });
 
@@ -3748,6 +4265,7 @@ export function PortalDataProvider({ children }) {
     },
     // Payment Voucher (PV) Management Methods
     addPaymentVoucher: async (pvData) => {
+      requireLiveDatabase('Saving this payment voucher');
       let apiRecord = null;
       try {
         const created = await api.createPaymentVoucher({
@@ -3767,8 +4285,9 @@ export function PortalDataProvider({ children }) {
         });
         apiRecord = unwrapApiPaymentVoucher(created);
       } catch (e) {
-        console.warn('Backend PV create fallback:', e);
+        throw new Error(failedDatabaseAction('Saving this payment voucher', e));
       }
+      requireBackendUuid(apiRecord?.id, 'Saving this payment voucher');
       setData((current) => {
         const existing = current.paymentVouchers || [];
         const existingNotifs = current.pvNotifications || [];
@@ -3881,6 +4400,7 @@ export function PortalDataProvider({ children }) {
     },
     // Alias so SubmitPVRequest can call createPaymentVoucher too
     createPaymentVoucher: async (pvData) => {
+      requireLiveDatabase('Saving this payment voucher');
       let apiRecord = null;
       try {
         const created = await api.createPaymentVoucher({
@@ -3905,8 +4425,9 @@ export function PortalDataProvider({ children }) {
         apiRecord = unwrapApiPaymentVoucher(created);
         console.log('[PV] Saved to backend ✅', apiRecord?.pv_number || apiRecord?.pvNo || pvData.pvNo, apiRecord?.id || '');
       } catch (e) {
-        console.warn('[PV] Backend offline — saving locally:', e.message);
+        throw new Error(failedDatabaseAction('Saving this payment voucher', e));
       }
+      requireBackendUuid(apiRecord?.id, 'Saving this payment voucher');
 
       setData((current) => {
         const existing = current.paymentVouchers || [];
@@ -4002,13 +4523,18 @@ export function PortalDataProvider({ children }) {
       };
     }),
     updatePaymentVoucher: async (pvNo, updatedFields, editorRole = 'Headmaster / Pre-Auditor') => {
+      requireLiveDatabase('Saving voucher corrections');
+      const currentVouchers = dataRef.current.paymentVouchers || [];
+      const existingVoucher = currentVouchers.find((p) => pvMatchesRef(p, pvNo));
+      const targetUuid = existingVoucher?.id;
+      requireBackendUuid(targetUuid, 'Saving voucher corrections');
       try {
-        await api.correctPaymentVoucher(pvNo, {
+        await api.correctPaymentVoucher(targetUuid, {
           reason: `Voucher details corrected by ${editorRole} prior to approval`,
           changes: updatedFields
         });
       } catch (e) {
-        console.warn('Backend PV correction fallback:', e);
+        throw new Error(failedDatabaseAction('Saving voucher corrections', e));
       }
       setData((current) => {
         const existing = current.paymentVouchers || [];
@@ -4062,16 +4588,20 @@ export function PortalDataProvider({ children }) {
       if (!targetUuid) {
         try {
           const remoteList = await api.getPaymentVouchers();
-          if (Array.isArray(remoteList)) {
-            const remoteMatch = remoteList.find(r =>
-              String(r.pv_number || '').toLowerCase() === String(pvNo).toLowerCase() ||
-              String(r.id || '').toLowerCase() === String(pvNo).toLowerCase()
-            );
-            if (remoteMatch?.id && uuidRegex.test(remoteMatch.id)) {
-              targetUuid = remoteMatch.id;
-            }
+          const rows = Array.isArray(remoteList) ? remoteList : [];
+          const remoteMatch = rows.find(r =>
+            String(r.pv_number || '').toLowerCase() === String(pvNo).toLowerCase() ||
+            String(r.id || '').toLowerCase() === String(pvNo).toLowerCase()
+          );
+          if (remoteMatch?.id && uuidRegex.test(remoteMatch.id)) {
+            targetUuid = remoteMatch.id;
           }
         } catch (_) {}
+      }
+
+      requireLiveDatabase('Pre-auditing this payment voucher');
+      if (!targetUuid) {
+        throw new Error(failedDatabaseAction('Pre-auditing this payment voucher', 'no UUID'));
       }
 
       // 2. Map frontend action choice to valid backend status enum
@@ -4086,36 +4616,26 @@ export function PortalDataProvider({ children }) {
         backendStatus = 'DRAFT';
       }
 
-      // 3. Dispatch to backend API
-      if (targetUuid) {
-        try {
-          if (backendStatus === 'APPROVED') {
-            try {
-              await api.preAuditPaymentVoucher(targetUuid, {
-                decision: 'APPROVED',
-                audit_notes: remarks || 'Pre-audited & verified by Headmaster.'
-              });
-            } catch (e1) {
-              console.warn('Pre-audit call note:', e1.message);
-            }
-            try {
-              await api.approvePaymentVoucher(targetUuid, {
-                approval_notes: remarks || 'Approved for disbursement by Headmaster.'
-              });
-            } catch (e2) {
-              console.warn('Approve call note:', e2.message);
-            }
-          } else {
-            await api.updatePaymentVoucherStatus(targetUuid, {
-              status: backendStatus,
-              notes: remarks || undefined,
-              comments: remarks || undefined,
-              rejectionReason: backendStatus === 'REJECTED' ? (remarks || 'Declined during pre-audit') : undefined
-            });
-          }
-        } catch (e) {
-          console.warn('Backend PV status update fallback:', e);
+      // 3. Dispatch to backend API — never apply locally unless this succeeds
+      try {
+        if (backendStatus === 'APPROVED') {
+          await api.preAuditPaymentVoucher(targetUuid, {
+            decision: 'APPROVED',
+            audit_notes: remarks || 'Pre-audited & verified by Headmaster.'
+          });
+          await api.approvePaymentVoucher(targetUuid, {
+            approval_notes: remarks || 'Approved for disbursement by Headmaster.'
+          });
+        } else {
+          await api.updatePaymentVoucherStatus(targetUuid, {
+            status: backendStatus,
+            notes: remarks || undefined,
+            comments: remarks || undefined,
+            rejectionReason: backendStatus === 'REJECTED' ? (remarks || 'Declined during pre-audit') : undefined
+          });
         }
+      } catch (e) {
+        throw new Error(failedDatabaseAction('Pre-auditing this payment voucher', e));
       }
       setData((current) => {
         const existing = current.paymentVouchers || [];
@@ -4235,23 +4755,26 @@ export function PortalDataProvider({ children }) {
         } catch (_) {}
       }
 
-      // 2. Dispatch to backend API
-      if (targetUuid) {
+      requireLiveDatabase('Disbursing this payment voucher');
+      if (!targetUuid) {
+        throw new Error(failedDatabaseAction('Disbursing this payment voucher', 'no UUID'));
+      }
+
+      try {
+        await api.disbursePaymentVoucher(targetUuid, {
+          payment_method: paymentDetails.paymentMethod || 'Bank Transfer',
+          account_number: paymentDetails.accountNumber || '',
+          reference_number: paymentDetails.referenceNumber || '',
+          disbursement_notes: paymentDetails.notes || 'Disbursed and paid by Head Admin.'
+        });
+      } catch (e) {
         try {
-          await api.disbursePaymentVoucher(targetUuid, {
-            payment_method: paymentDetails.paymentMethod || 'Bank Transfer',
-            account_number: paymentDetails.accountNumber || '',
-            reference_number: paymentDetails.referenceNumber || '',
-            disbursement_notes: paymentDetails.notes || 'Disbursed and paid by Head Admin.'
+          await api.updatePaymentVoucherStatus(targetUuid, {
+            status: 'DISBURSED',
+            notes: paymentDetails.notes || 'Disbursed by Head Admin'
           });
-        } catch (e) {
-          console.warn('Backend disburse voucher call:', e);
-          try {
-            await api.updatePaymentVoucherStatus(targetUuid, {
-              status: 'DISBURSED',
-              notes: paymentDetails.notes || 'Disbursed by Head Admin'
-            });
-          } catch (e2) {}
+        } catch (e2) {
+          throw new Error(failedDatabaseAction('Disbursing this payment voucher', e));
         }
       }
 
@@ -4378,7 +4901,7 @@ export function PortalDataProvider({ children }) {
 
       return true;
     },
-  }), [data, refreshBackendData, performOnboardStudent]);
+  }), [data, refreshBackendData, performOnboardStudent, syncApplicationsToStudentDatabase]);
 
   return <PortalDataContext.Provider value={value}>{children}</PortalDataContext.Provider>;
 }
