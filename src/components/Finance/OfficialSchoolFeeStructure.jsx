@@ -959,9 +959,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       setTimeout(() => setSuccessMsg(''), 7000);
       return;
     }
-    } else {
-      setSuccessMsg(`⚡ Bulk Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${studentsToBill.length} students in ${selectedSubLevel}${persist.posted ? ' and saved to the database' : ''}.`);
-    }
+    setSuccessMsg(`⚡ Bulk Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${studentsToBill.length} students in ${selectedSubLevel}${persist.posted ? ' and saved to the database' : ''}.`);
     setTimeout(() => setSuccessMsg(''), 7000);
   };
 
@@ -1016,9 +1014,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       setTimeout(() => setSuccessMsg(''), 7000);
       return;
     }
-    } else {
-      setSuccessMsg(`⚡ Single Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${sFullName}${persist.posted ? ' and saved to the database' : ''}.`);
-    }
+    setSuccessMsg(`⚡ Single Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${sFullName}${persist.posted ? ' and saved to the database' : ''}.`);
     setTimeout(() => setSuccessMsg(''), 7000);
   };
 
@@ -1363,9 +1359,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       setTimeout(() => setSuccessMsg(''), 7000);
       return;
     }
-    } else {
-      setSuccessMsg(`⚡ Successfully posted Academic Bill of GHS ${totalToPost.toFixed(2)} (${baseBillItems.length} compulsory + ${optionalItemsToPost.length} optional) to ${finalScopeText} (${affectedCount} student accounts)${persist.posted ? ' and saved to the database' : ''}.`);
-    }
+    setSuccessMsg(`⚡ Successfully posted Academic Bill of GHS ${totalToPost.toFixed(2)} (${baseBillItems.length} compulsory + ${optionalItemsToPost.length} optional) to ${finalScopeText} (${affectedCount} student accounts)${persist.posted ? ' and saved to the database' : ''}.`);
     setIsPostingModalOpen(false);
     setPreparingStudentBill(null); // Close child modal so the foremost success dialog box is unobstructed
     setSelectedPostingStudent(null);
