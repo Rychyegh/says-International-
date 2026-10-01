@@ -8281,7 +8281,7 @@ function PrintPVForm({ setM }) {
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a' }}>
       {/* ── TOP BLUE TITLE BAR ── */}
-      <div style={{
+      <div className="no-print" style={{
         background: '#0f3a4b',
         color: '#ffffff',
         padding: '10px 16px',

@@ -1643,6 +1643,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       {/* Printable PV Memo Modal */}
       {isPrintMemoOpen && printedPV && (
         <div
+          className="pv-print-overlay"
           onClick={(e) => { if (e.target === e.currentTarget) setIsPrintMemoOpen(false); }}
           style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,

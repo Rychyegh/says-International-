@@ -252,7 +252,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   body:has(.fee-structure-printable) .portal__content > *:not(div:has(.fee-structure-printable)),
   body:has(.credential-slip-printable) .portal__content > *:not(div:has(.credential-slip-printable)),
   body:has(.accountant-printable) .portal__content > *:not(div:has(.accountant-printable)),
-  body:has(.sims-printable) .portal__content > *:not(div:has(.sims-printable)) {
+  body:has(.sims-printable) .portal__content > *:not(div:has(.sims-printable)),
+  body:has(.pv-print-page) .portal__content > *:not(div:has(.pv-print-page)) {
     display: none !important;
   }
 
@@ -532,19 +533,49 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     font-size: 12px !important;
   }
 
+  body.print-pv * {
+    visibility: hidden !important;
+  }
+
   body.print-pv .topbar,
   body.print-pv .pre-header,
   body.print-pv .portal__sidebar,
   body.print-pv .page-header,
   body.print-pv .no-print,
+  body.print-pv .pv-desk-screen,
+  body.print-pv .pv-print-chrome,
   body.print-pv button:not(.print-keep) {
     display: none !important;
   }
 
+  body.print-pv .pv-print-overlay,
+  body.print-pv .pv-print-overlay > div {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border-radius: 0 !important;
+  }
+
+  body.print-pv .pv-print-page,
+  body.print-pv .pv-print-page * {
+    visibility: visible !important;
+  }
+
   body.print-pv .pv-print-page {
     display: block !important;
-    visibility: visible !important;
-    position: static !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
     max-height: 270mm !important;

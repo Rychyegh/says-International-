@@ -154,7 +154,7 @@ export default function PayPVForm() {
 
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a', paddingBottom: 40 }}>
-      
+      <div className="no-print pv-desk-screen">
       {/* Top Header Card */}
       <div style={{
         background: 'linear-gradient(135deg, #092c3e 0%, #0f3a4b 100%)',
@@ -963,9 +963,11 @@ export default function PayPVForm() {
         </div>
       )}
 
+      </div>
+
       {/* DISBURSEMENT RECEIPT / ADVICE PRINT MODAL */}
       {receiptVoucher && (
-        <div style={{
+        <div className="pv-print-overlay" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -990,7 +992,7 @@ export default function PayPVForm() {
             border: '1px solid #cbd5e1'
           }}>
             {/* Action Bar */}
-            <div style={{
+            <div className="no-print pv-print-chrome" style={{
               background: '#0f3a4b',
               color: '#ffffff',
               padding: '12px 18px',

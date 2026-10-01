@@ -876,14 +876,6 @@ export default function ApprovePVForm({ setM = () => {} }) {
     });
   }, [pvQueue, actionedStatusFilter, actionedSearchQuery]);
 
-  // Summary Totals Calculation (Matching Image 2 Bottom Summary Bar)
-  const totalPendingAmount = pvQueue.filter(p => p.status === 'Pending approval' || p.status === 'Pending Audit').reduce((acc, p) => acc + (p.total || p.cost || 0), 0);
-  const totalPostponedAmount = pvQueue.filter(p => p.status === 'Postponed').reduce((acc, p) => acc + (p.total || p.cost || 0), 0);
-  const totalValidatedAmount = pvQueue.filter(p => p.status === 'Validated' || p.status?.includes('Approved')).reduce((acc, p) => acc + (p.total || p.cost || 0), 0);
-  const totalDeclinedAmount = pvQueue.filter(p => p.status === 'Declined' || p.status === 'Rejected').reduce((acc, p) => acc + (p.total || p.cost || 0), 0);
-  const totalCancelledAmount = pvQueue.filter(p => p.status === 'Cancel PV' || p.status === 'Cancelled').reduce((acc, p) => acc + (p.total || p.cost || 0), 0);
-  const totalNonAccrualAmount = pvQueue.filter(p => p.status === 'Non-accrual').reduce((acc, p) => acc + (p.total || p.cost || 0), 0);
-
   // Filtered Queue for Table
   const filteredQueue = pvQueue.filter(p =>
     !searchFilter ||
@@ -1827,64 +1819,6 @@ export default function ApprovePVForm({ setM = () => {} }) {
               {isActioning ? <Loader2 size={14} className="animate-spin" /> : null}
               Action Next PV / All Items
             </button>
-          </div>
-        </div>
-
-        {/* BOTTOM SECTION: Summary Totals Bar (Exact Match to Image 2 Bottom Summary Grid) */}
-        <div style={{
-          background: '#f1f5f9',
-          border: '1px solid #cbd5e1',
-          borderRadius: 8,
-          padding: 12,
-          marginTop: 16
-        }}>
-          <div style={{ fontSize: 11.5, fontWeight: 900, color: '#334155', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            📊 Executive Pre-Audit Summary Totals (GHS)
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
-            
-            <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
-              <div style={{ fontSize: 9.5, fontWeight: 800, color: '#64748b', marginBottom: 2 }}>Total Pending Amount</div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: '#d97706' }}>
-                {totalPendingAmount.toFixed(2)}
-              </div>
-            </div>
-
-            <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
-              <div style={{ fontSize: 9.5, fontWeight: 800, color: '#64748b', marginBottom: 2 }}>Total Postponed Amount</div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: '#0284c7' }}>
-                {totalPostponedAmount.toFixed(2)}
-              </div>
-            </div>
-
-            <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
-              <div style={{ fontSize: 9.5, fontWeight: 800, color: '#64748b', marginBottom: 2 }}>Total Validated Amount</div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: '#16a34a' }}>
-                {totalValidatedAmount.toFixed(2)}
-              </div>
-            </div>
-
-            <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
-              <div style={{ fontSize: 9.5, fontWeight: 800, color: '#64748b', marginBottom: 2 }}>Total Amount Declined</div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: '#dc2626' }}>
-                {totalDeclinedAmount.toFixed(2)}
-              </div>
-            </div>
-
-            <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
-              <div style={{ fontSize: 9.5, fontWeight: 800, color: '#64748b', marginBottom: 2 }}>Total Amount Cancelled</div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>
-                {totalCancelledAmount.toFixed(2)}
-              </div>
-            </div>
-
-            <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
-              <div style={{ fontSize: 9.5, fontWeight: 800, color: '#64748b', marginBottom: 2 }}>Total Non-Accruals Amount</div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: '#6b21a8' }}>
-                {totalNonAccrualAmount.toFixed(2)}
-              </div>
-            </div>
-
           </div>
         </div>
 
