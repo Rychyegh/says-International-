@@ -565,7 +565,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   return (
     <div className="login-page">
       {/* Left branding panel */}
-      <div className="login-left">
+      <div className={`login-left${portal === 'student' ? ' login-left--student' : ''}`}>
         <div className="login-left__circles" />
         <div className="login-left__content">
           {/* School logo */}
@@ -600,7 +600,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
       </div>
 
       {/* Right form panel */}
-      <div className={`login-right${portal === 'student' ? ' login-right--student' : ''}`}>
+      <div className="login-right">
         <div className="login-form-wrap">
           {success ? (
             <div className="login-success animate-fade-up">
