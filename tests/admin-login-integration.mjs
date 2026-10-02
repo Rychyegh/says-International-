@@ -45,6 +45,7 @@ for (const portal of ['accountant','teacher','parent','student']) {
    if(path.endsWith('/auth/me')||path.endsWith('/verify-admin-pin'))sessionChecks++;
    let data=[];
    if(path.endsWith('/auth/login'))data={token:'eyJ-test-token',user:{id:'user-'+portal,email:'test@example.com',role:portal,fullName:'Test User'}};
+   if(portal==='teacher' && path.endsWith('/auth/me')) data={user:{id:'user-teacher',email:'test@example.com',role:'teacher'},requiresSecondFactor:false};
    if(path.endsWith('/students/me/dashboard'))data={stats:[],schedule:[],assignments:[],deadlines:[]};
    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
  });
@@ -56,7 +57,7 @@ for (const portal of ['accountant','teacher','parent','student']) {
  assert.equal(await page.evaluate(p=>JSON.parse(localStorage.getItem('says_authed_portals'))?.[p],portal),true);
  await page.reload();
  await page.getByRole('button',{name:'Sign Out',exact:true}).waitFor();
- assert.equal(sessionChecks,0);
+ assert.equal(sessionChecks,portal==='teacher'?1:0);
  await page.getByRole('button',{name:'Sign Out',exact:true}).click();
  await page.locator(`#${portal}-email`).waitFor();
  await page.close();

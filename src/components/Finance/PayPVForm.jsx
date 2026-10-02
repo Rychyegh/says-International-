@@ -1,3 +1,4 @@
+import ViewportModal from '../Modal/ViewportModal';
 import { payableAmount, voucherIdentityKey as disbursementIdentityKey } from '../../lib/recordRules.js';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
@@ -869,7 +870,7 @@ export default function PayPVForm() {
 
       {/* DISBURSEMENT PAYMENT MODAL */}
       {payingVoucher && (
-        <div style={{
+        <ViewportModal onClose={() => setPayingVoucher(null)} style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -1110,14 +1111,14 @@ export default function PayPVForm() {
               </div>
             </form>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       </div>
 
       {/* DISBURSEMENT RECEIPT / ADVICE PRINT MODAL */}
       {receiptVoucher && (
-        <div className="pv-print-overlay" style={{
+        <ViewportModal onClose={() => setReceiptVoucher(null)} className="pv-print-overlay" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -1386,7 +1387,7 @@ export default function PayPVForm() {
 
             </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
     </div>

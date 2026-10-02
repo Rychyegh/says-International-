@@ -233,3 +233,19 @@ test('ambiguous successful provider response cannot retire its retry key',async(
  globalThis.fetch=async(url,opts)=>{keys.push(opts.headers['Idempotency-Key']);return json({id:'11111111-1111-4111-8111-111111111111',name:'Unconfirmed'});};
  await api.createServiceProvider({name:'Unconfirmed'});assert.equal(keys[0],keys[1]);
 });
+
+test('Accounts fee feed rejects malformed success instead of interpreting it as an empty ledger', async () => {
+ globalThis.fetch=async()=>json({success:true});await assert.rejects(api.getFees(),/invalid fee list/);
+ globalThis.fetch=async()=>json({data:{fees:[]}});assert.deepEqual(await api.getFees(),{data:{fees:[]}});
+});
+
+test('application page retains server count without changing legacy list reads', async () => {
+  const records = [{ id: 'page-record' }];
+  globalThis.fetch = async () => new Response(JSON.stringify(records), { headers: { 'X-Total-Count': '125' } });
+  assert.deepEqual(await api.getApplicationsPage(), { data: records, total: 125 });
+  assert.deepEqual(await api.getApplications(), records);
+  for (const count of [null, '', 'unknown', '-1']) {
+    globalThis.fetch = async () => new Response(JSON.stringify(records), { headers: count == null ? {} : { 'X-Total-Count': count } });
+    assert.equal((await api.getApplicationsPage()).total, null);
+  }
+});

@@ -57,10 +57,11 @@ export function TimetableManager() {
         {entries.map((item, index) => <tr key={item.id || index}><td>{item.day} {item.start_time}–{item.end_time}</td>{[['classes', 'class_id'], ['subjects', 'subject_id'], ['teachers', 'teacher_id'], ['rooms', 'room_id']].map(([catalog, key]) => <td key={key}>{label(workspace.catalogs, catalog, item[key])}</td>)}<td>{workspace.can_manage && <><button disabled={busy || editing != null} onClick={() => { setEditing(index); setEntry({ ...item }); }}>Edit</button> <button disabled={busy || editing != null} onClick={() => setEntries(current => current.filter((_, i) => i !== index))}>Remove from draft</button></>}</td></tr>)}
         {!entries.length && <tr><td colSpan={6}>No lessons in this draft.</td></tr>}
       </tbody></table></div>
+      {workspace.can_manage && workspace.can_publish !== true && <p>You can prepare and save drafts. Publication requires an authorised publisher.</p>}
       {errors.length > 0 && <p role="alert">{errors.join(' ')}</p>}
-      {workspace.can_manage && <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
-        <button className="academic-button" disabled={busy || !dirty || errors.length > 0 || editing != null} onClick={() => run(async () => { accept(await api.saveTimetableDraft({ ...workspace, entries })); setNotice('Draft saved to the database. Published schedules are unchanged until you publish.'); })}>Save draft to database</button>
-        <button className="academic-button" disabled={busy || dirty || errors.length > 0 || editing != null || workspace.published_revision === workspace.revision} onClick={() => run(async () => { accept(await api.publishTimetable(workspace)); setNotice('Published. Students, teachers, class teachers and linked parents can now see their relevant lessons.'); })}>Publish saved timetable</button>
+      {(workspace.can_manage || workspace.can_publish === true) && <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+        {workspace.can_manage && <button className="academic-button" disabled={busy || !dirty || errors.length > 0 || editing != null} onClick={() => run(async () => { accept(await api.saveTimetableDraft({ ...workspace, entries })); setNotice('Draft saved to the database. Published schedules are unchanged until you publish.'); })}>Save draft to database</button>}
+        {workspace.can_publish === true && <button className="academic-button" disabled={busy || dirty || errors.length > 0 || editing != null || workspace.published_revision === workspace.revision} onClick={() => run(async () => { accept(await api.publishTimetable(workspace)); setNotice('Published. Students, teachers, class teachers and linked parents can now see their relevant lessons.'); })}>Publish saved timetable</button>}
       </div>}
     </>}
   </div>;

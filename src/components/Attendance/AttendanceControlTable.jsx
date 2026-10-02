@@ -1,3 +1,4 @@
+import ViewportModal from '../Modal/ViewportModal';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   CheckCircle2, XCircle, Send, Radio, Search, ShieldCheck, Phone, Check,
@@ -1280,7 +1281,7 @@ export default function AttendanceControlTable() {
 
       {/* ── STUDENT ATTENDANCE HISTORY PROFILE MODAL ── */}
       {selectedStudentHistory && (
-        <div style={{
+        <ViewportModal onClose={() => setSelectedStudentHistory(null)} style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', zIndex: 1000,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
@@ -1376,11 +1377,11 @@ export default function AttendanceControlTable() {
               </div>
             </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
       {/* ── DIRECT CUSTOM SMS MODAL ── */}
       {directSmsModalStudent && (
-        <div style={{
+        <ViewportModal style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', zIndex: 1100,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
@@ -1528,7 +1529,7 @@ export default function AttendanceControlTable() {
               </div>
             </form>
           </div>
-        </div>
+        </ViewportModal>
       )}
     </div>
   );

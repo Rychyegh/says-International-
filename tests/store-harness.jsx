@@ -1,3 +1,6 @@
+import PayPVForm from '../src/components/Finance/PayPVForm';
+import UserAccessControl from '../src/components/AccessControl/UserAccessControl';
+import AccountantPortal from '../src/portals/AccountantPortal';
 import { TimetableManager, PublishedTimetable } from '../src/components/Academic/Timetable';
 import SubmitPVRequest from '../src/components/Finance/SubmitPVRequest';
 import ApprovePVForm from '../src/components/Finance/ApprovePVForm';
@@ -11,7 +14,7 @@ function Probe() {
   const data = usePortalData();
   useEffect(() => { window.testStore = data; }, [data]);
   const view = new URLSearchParams(location.search).get('view');
-  return view === 'timetable' ? <TimetableManager /> : view === 'published-timetable' ? <PublishedTimetable /> : view === 'pv' ? <SubmitPVRequest /> : view === 'approve' ? <ApprovePVForm /> : view === 'settings' ? <AcademicSettingsManager inline /> : view === 'scores' ? <ScoreSheetEntryForm /> : <p>Database integration test harness</p>;
+  return view === 'pay-pv' ? <PayPVForm /> : view === 'uac' ? <div style={{ transform: 'translateY(0)', minHeight: 3000 }}><UserAccessControl /></div> : view === 'accounts' ? <AccountantPortal /> : view === 'timetable' ? <TimetableManager /> : view === 'published-timetable' ? <PublishedTimetable /> : view === 'pv' ? <SubmitPVRequest /> : view === 'approve' ? <ApprovePVForm /> : view === 'settings' ? <AcademicSettingsManager inline /> : view === 'scores' ? <ScoreSheetEntryForm /> : <p>Database integration test harness</p>;
 }
 let mountVersion = 0;
 const root = createRoot(document.getElementById('root'));

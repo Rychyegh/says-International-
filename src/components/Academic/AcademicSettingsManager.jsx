@@ -1,3 +1,4 @@
+import ViewportModal from '../Modal/ViewportModal';
 import React, { useState, useEffect, useRef } from 'react';
 import { validateAcademicSettings } from '../../lib/assessmentRules.js';
 import { usePortalData } from '../../data/PortalStore';
@@ -261,13 +262,13 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
   if (inline) return content;
 
   return (
-    <div
+    <ViewportModal
       onClick={(e) => { if (e.target === e.currentTarget && onClose) onClose(); }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16 }}
     >
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 720 }}>
         {content}
       </div>
-    </div>
+    </ViewportModal>
   );
 }

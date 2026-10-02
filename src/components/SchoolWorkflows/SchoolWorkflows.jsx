@@ -137,7 +137,7 @@ export function StudentMessagesAssignments({ showMessages = false }) {
     if (!body.trim()) return;
     sendMessage({ from: 'Kwame Edwards', senderRole: 'Student', to: 'Staff', recipient: 'Mr. Samuel Amponsah', subject: 'Student message', body: body.trim() });
     setBody('');
-    setNotice('Your message has been delivered to the Staff Portal inbox.');
+    setNotice('Your message has been delivered to the Teacher Portal inbox.');
   };
   return (
     <div className="workflow animate-fade-up">

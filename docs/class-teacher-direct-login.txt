@@ -1,0 +1,24 @@
+Class Teacher direct login — requested 2 October 2026
+
+Frontend removes the separate Class Teacher passcode form. After email/password
+login it checks GET /api/v1/auth/me and opens the Teacher Portal immediately only
+when the server confirms requiresSecondFactor:false and role teacher/class_teacher.
+It uses server-provided class designation and assignment, without directory/email
+matching, role elevation or fabricated verification. Admin/Sub-Admin PIN stays intact.
+New UAC class-teacher account payloads request requires_class_teacher_passcode:false.
+
+Backend developer action required:
+- Make successful password authentication for class teachers issue a fully authorised
+  session directly. Update both login and /auth/me second-factor policy consistently.
+- Apply the new class-teacher policy to existing accounts as well as newly created
+  accounts; honour the false account flag. Existing provisional sessions should be
+  replaced through a fresh password sign-in, not a frontend token rewrite.
+- Preserve class/teacher identity and authorised class scope in the session.
+- Keep Head Admin and Sub-Admin server PIN requirements unchanged.
+- Verify protected teacher records, timetable and class requests succeed after
+  password login and refresh. Wrong credentials and wrong roles must remain denied.
+
+No backend source is available in this workspace. If the current server still
+requires a class-teacher second factor, the frontend shows an explicit error rather
+than entering a portal whose database requests would all fail. Deploy coordinated
+backend and frontend releases; this local change alone cannot remove server policy.

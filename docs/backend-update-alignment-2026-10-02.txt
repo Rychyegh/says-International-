@@ -1,0 +1,36 @@
+Backend report alignment — 2 October 2026
+
+The supplied backend record reports the Sub-Admin directory fixes and timetable
+migration b74e2a19c605 as local only. It reports the earlier production release
+805abbb52b89d11c59a159cdc87c88ae29c41425 at migration f03b9c1a72de.
+These release claims are supplied by the backend developer, not independently
+verified by this frontend change. No deployment or database mutation was performed.
+
+Frontend changes
+- Sub-Admin shared loader skips /users and /auth/class-teachers; teaching directory
+  comes from /staff. Rejected unrelated requests preserve successful directories.
+- Timetable publication requires can_publish:true independently of can_manage.
+  Missing publication capability fails closed. Draft editors can still save.
+- Dashboard admissions total reads X-Total-Count, or the envelope total. It never
+  labels the current page length as the full school count. An unavailable total
+  is displayed as unavailable without discarding the application list.
+- Accounts sync changes remain documented in accounts-ledger-sync-handoff.txt.
+
+Backend release requirements
+1. Deploy the directory permission changes and verify with completed Sub-Admin
+   sessions. Keep PIN verification and endpoint-specific permissions enforced.
+2. Expose X-Total-Count through Access-Control-Expose-Headers for the frontend
+   origin. A response header alone is not readable by a cross-origin browser.
+3. Deploy the timetable API and migration with the documented database safeguards.
+   Return both can_manage and can_publish; Sub-Admin publication remains denied.
+4. Timetable resource setup is still required: sections, rooms, staff-account links,
+   teaching assignments, homerooms and student-section UUID links. This alignment
+   change does not implement a resource-configuration UI. Supply the exact resources
+   response schema for that follow-up; never infer UUID relationships from names.
+5. Exact student billing remains explicitly pending in the supplied backend report.
+   The report therefore does not prove bill-to-invoice-to-ledger synchronization is
+   live. Complete accounts-ledger-sync-handoff.txt and verify the same saved amount
+   and invoice identity through posting, Accounts reads and reload.
+
+Verification is local. Mocked browser tests establish frontend behavior, not live
+PostgreSQL persistence, live role grants, or a deployed end-to-end billing result.

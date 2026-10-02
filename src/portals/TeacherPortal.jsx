@@ -1,3 +1,4 @@
+import ViewportModal from '../components/Modal/ViewportModal';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   LayoutDashboard, Users, BookOpen, Calendar, ClipboardList,
@@ -349,7 +350,7 @@ export default function TeacherPortal() {
         <aside className="portal__sidebar">
           <div style={{ margin: '0 0 16px', padding: '14px', background: TEACHER_LIGHT, borderRadius: 'var(--radius-md)', borderLeft: `4px solid ${TEACHER_GREEN}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontWeight: 800, fontSize: 13, color: TEACHER_GREEN }}>Staff Portal</div>
+              <div style={{ fontWeight: 800, fontSize: 13, color: TEACHER_GREEN }}>Teacher Portal</div>
               <span style={{ fontSize: 10, fontWeight: 900, padding: '3px 8px', borderRadius: 4, background: isClassTeacher ? '#204d2d' : '#2563eb', color: '#fff' }}>
                 {isClassTeacher ? '👑 CLASS TEACHER' : '👨‍🔬 SUBJECT TEACHER'}
               </span>
@@ -476,7 +477,7 @@ export default function TeacherPortal() {
               )}
               <div className="page-header">
                 <p className="page-header__eyebrow" style={{ color: TEACHER_ACCENT }}>
-                  <span style={{ background: TEACHER_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #c4dfc9' }}>Staff Portal — REMALJ Carewell</span>
+                  <span style={{ background: TEACHER_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #c4dfc9' }}>Teacher Portal — REMALJ Carewell</span>
                 </p>
                 <h1 className="page-header__title">Good morning, {teacherName} 👋</h1>
                 <p className="page-header__subtitle">
@@ -815,7 +816,7 @@ export default function TeacherPortal() {
             }));
 
             return (
-              <div style={{
+              <ViewportModal onClose={() => setSelectedReportStudent(null)} style={{
                 position: 'fixed', inset: 0, zIndex: 10000,
                 background: 'rgba(15,23,42,0.7)', backdropFilter: 'blur(4px)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -967,7 +968,7 @@ export default function TeacherPortal() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </ViewportModal>
             );
           })()}
 

@@ -192,6 +192,7 @@ async function originalAuthRequest(endpoint, options = {}) {
 
 export async function request(endpoint, options = {}) {
   if (endpoint.startsWith('/auth/') || endpoint.startsWith('/sims-auth/')) return originalAuthRequest(endpoint, options);
+  const { includeResponseMetadata = false, ...fetchOptions } = options;
   const token = getAuthToken();
   const headers = { ...options.headers };
   if (!(options.body instanceof FormData)) headers['Content-Type'] ||= 'application/json';
@@ -199,7 +200,7 @@ export async function request(endpoint, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30000);
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers, signal: controller.signal });
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, { ...fetchOptions, headers, signal: controller.signal });
     const text = await response.text();
     if (token !== getAuthToken()) throw new Error('Session changed. Please retry from the current account.');
     let data;
@@ -214,7 +215,7 @@ export async function request(endpoint, options = {}) {
     }
     if (response.status === 204) return { success: true, status: 204 };
     if (!data || typeof data !== 'object') throw new Error('The server did not confirm this operation.');
-    return data;
+    return includeResponseMetadata ? { data, totalCount: response.headers.get('X-Total-Count') } : data;
   } catch (error) {
     if (error.name === 'AbortError') throw new Error('The server timed out. Check the record before retrying.');
     throw error;
@@ -1230,7 +1231,10 @@ export const api = {
   // --- Finance & Fees ---
   getFees: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
-    return await request(`/finance/fees${query ? `?${query}` : ''}`);
+    const raw = await request(`/finance/fees${query ? `?${query}` : ''}`);
+    const valid = value => Array.isArray(value) || Boolean(value && typeof value === 'object' && (['fees', 'student_fees', 'studentFees', 'ledgers', 'accounts', 'records', 'items', 'results', 'bills'].some(key => Array.isArray(value[key])) || (value.data && valid(value.data))));
+    if (!valid(raw)) throw new Error('The Accounts API returned an invalid fee list. No records were replaced.');
+    return raw;
   },
 
   recordFeePayment: async (feeId, paymentData) => {
@@ -1279,6 +1283,14 @@ export const api = {
   getApplications: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return await request(`/admissions/applications${query ? `?${query}` : ''}`);
+  },
+
+  getApplicationsPage: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    const { data, totalCount } = await request(`/admissions/applications${query ? `?${query}` : ''}`, { includeResponseMetadata: true });
+    const rawTotal = totalCount ?? data?.total;
+    const total = rawTotal != null && String(rawTotal).trim() !== '' && Number.isSafeInteger(Number(rawTotal)) && Number(rawTotal) >= 0 ? Number(rawTotal) : null;
+    return { data, total };
   },
 
   updateApplicationStatus: async (applicationId, statusData) => {
@@ -1965,7 +1977,7 @@ export const api = {
       payload.teacher_designation = 'class_teacher';
       payload.teacherDesignation = 'class_teacher';
       payload.is_class_teacher = true;
-      payload.requires_class_teacher_passcode = true;
+      payload.requires_class_teacher_passcode = false;
     }
 
     // Strip undefined fields so the backend validator doesn't reject them
@@ -2425,7 +2437,8 @@ export const api = {
         } else {
           result.posted += 1;
           result.postedStudentKeys.push(value.studentKey);
-          const billId = value.response?.bill_id || value.response?.invoice_number;
+          const savedBill = value.response?.bill || value.response?.data?.bill || value.response?.data || value.response;
+          const billId = savedBill?.bill_id || savedBill?.id;
           if (billId) result.billIds.push(billId);
         }
       } else {

@@ -1,3 +1,4 @@
+import ViewportModal from '../Modal/ViewportModal';
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Download, Plus, Save, CheckCircle2 } from 'lucide-react';
 import { usePortalData, hasRecordedClassScore, hasRecordedExamScore, MISSING_SCORE, resultsForStudent } from '../../data/PortalStore';
@@ -725,7 +726,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
 
       {/* OPTIONAL MANUAL RESULT SUBMISSION MODAL */}
       {showManualSubmitModal && (
-        <div style={{
+        <ViewportModal onClose={() => setShowManualSubmitModal(false)} style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -780,7 +781,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
           </div>
         </form>
       </div>
-        </div>
+        </ViewportModal>
       )}
     </div>
   );

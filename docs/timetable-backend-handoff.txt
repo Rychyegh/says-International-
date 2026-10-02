@@ -9,7 +9,7 @@ Frontend locations
 src/components/Academic/Timetable.jsx: admin planning workspace and shared published reader.
 src/lib/timetableRules.js: client conflict validation and contract checks.
 src/services/api.js: authenticated API integration.
-Admin portal: Timetable navigation. Backend can_manage controls editing; only the head of academics or explicitly authorised delegates receive it. This does not grant every admin/sub-admin edit permission. Existing login, PIN and session behavior is unchanged.
+Admin portal: Timetable navigation. Backend can_manage controls draft editing. The latest backend policy grants Sub-Admin draft management but denies publication; can_publish separately controls publication. Existing login, PIN and session behavior is unchanged.
 Student portal: Timetable; teacher/class-teacher portal: Schedule; parent portal: Timetable for selected linked child's database UUID.
 Removed hardcoded student lessons and disabled the obsolete store save path that claimed success after an API failure. New timetable reads do not consume cached legacy slot records. Readers reload on mount, manual refresh, window focus and every 60 seconds. Failed reads are shown as errors, not as an empty successful schedule. No client-only database-write fallback exists.
 
@@ -26,6 +26,7 @@ Response example:
   "term": "Term 1",
   "timezone": "Africa/Accra",
   "can_manage": true,
+  "can_publish": true,
   "catalogs": {
     "classes": [{"id":"<class/section UUID>","name":"Basic 7A"}],
     "teachers": [{"id":"<staff UUID>","name":"Teacher One"}],
@@ -50,7 +51,7 @@ Frontend retains edited rows on failed saves. After a network-ambiguous save, us
 3. POST /timetables/workspace/publish
 Body: {"id":"<workspace UUID>","revision":5}
 Header Idempotency-Key: timetable-<workspace UUID>-<revision>
-Require timetable.publish (head of academics or explicitly authorised delegate) and timetable.manage. Frontend currently uses can_manage for both actions, so can_manage must imply both grants until separate capabilities are implemented.
+Require timetable.publish (head of academics or explicitly authorised delegate) and timetable.manage. Frontend checks can_publish === true independently of can_manage. Return can_publish:false for Sub-Admin; draft management must not grant publication. Missing can_publish also hides publication.
 In one transaction: check exact saved revision; revalidate resource assignments, conflicts and scope; atomically replace the published snapshot for this school/term; write actor/time/revision audit trail. Readers must never observe a partial new schedule. Return full workspace with published_revision exactly equal to requested revision. Store idempotency response scoped to school, actor and request fingerprint; repeat identical publication returns original result; mismatched reuse409. Empty draft publication intentionally clears that term's published schedule.
 
 4. GET /timetables/published[?student_id=<database student UUID>]

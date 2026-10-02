@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_EXECUTABLE });
-let workspace = { contract_version: 1, id: 'w1', revision: 1, published_revision: null, academic_year: '2026/2027', term: 'Term 1', can_manage: true, entries: [], catalogs: { classes: [{ id: 'c1', name: 'Basic 7A' }], teachers: [{ id: 't1', name: 'Teacher One' }], subjects: [{ id: 's1', name: 'Mathematics' }], rooms: [{ id: 'r1', name: 'Room One' }] } };
+let workspace = { contract_version: 1, id: 'w1', revision: 1, published_revision: null, academic_year: '2026/2027', term: 'Term 1', can_manage: true, can_publish: true, entries: [], catalogs: { classes: [{ id: 'c1', name: 'Basic 7A' }], teachers: [{ id: 't1', name: 'Teacher One' }], subjects: [{ id: 's1', name: 'Mathematics' }], rooms: [{ id: 'r1', name: 'Room One' }] } };
 let published = [], rejectSave = true, saves = 0, publishes = 0;
 const errors = [];
 async function pageFor(view) {
@@ -38,6 +38,15 @@ try {
   await admin.getByText('Published. Students, teachers', { exact: false }).waitFor();
   await student.reload(); await student.getByText('Mathematics · Basic 7A').waitFor();
   await admin.reload(); await admin.getByRole('cell', { name: 'Mathematics', exact: true }).waitFor();
+  workspace = { ...workspace, can_publish: false };
+  await admin.reload();
+  await admin.getByText('You can prepare and save drafts.', { exact: false }).waitFor();
+  assert.equal(await admin.getByRole('button', { name: 'Publish saved timetable' }).count(), 0);
+  assert.equal(await admin.getByRole('button', { name: 'Save draft to database' }).count(), 1);
+  delete workspace.can_publish;
+  await admin.reload();
+  await admin.getByText('You can prepare and save drafts.', { exact: false }).waitFor();
+  assert.equal(await admin.getByRole('button', { name: 'Publish saved timetable' }).count(), 0);
   assert.equal(saves, 2); assert.equal(publishes, 1); assert.deepEqual(errors, []);
   console.log('PASS: draft errors retain edits; save, publish, separate reader and reload use API records.');
 } finally { await browser.close(); }

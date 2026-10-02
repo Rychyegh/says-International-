@@ -7,7 +7,7 @@ import { pvNosMatch, isApprovedItem, normalizePvItemStatus, payableAmount, resol
 export { pvNosMatch } from '../lib/recordRules.js';
 
 const SNAPSHOT_KEY = 'says-session-snapshot-v1';
-const SNAPSHOT_FIELDS = ['applications', 'onboardedStudents', 'studentFees', 'feeAccounts', 'paymentVouchers', 'serviceProviders', 'academicSettings', 'timetable', 'results', 'reportRequests', 'incidents', 'assetTasks', 'messages', 'assignments', 'teacherDirectory', 'teachingAssignments', 'classLevels', 'subjects', 'busRoutes', 'definedBills', 'semesterRegistrations', 'examRegistrations'];
+const SNAPSHOT_FIELDS = ['applications', 'applicationsTotal', 'onboardedStudents', 'studentFees', 'feeAccounts', 'paymentVouchers', 'serviceProviders', 'academicSettings', 'timetable', 'results', 'reportRequests', 'incidents', 'assetTasks', 'messages', 'assignments', 'teacherDirectory', 'teachingAssignments', 'classLevels', 'subjects', 'busRoutes', 'definedBills', 'semesterRegistrations', 'examRegistrations'];
 function snapshotScope() {
   const user = getAuthUser();
   return user?.id ? JSON.stringify([user.id, user.role, user.schoolId || user.school_id || user.tenantId || '']) : '';
@@ -1102,6 +1102,7 @@ export function mapFeeFromApi(f = {}) {
     || (balance <= 0 && billedAmount > 0 ? 'Paid' : paidAmount > 0 ? 'Balance Due' : 'Not Paid');
   return {
     id: f.id || f.fee_id || f.bill_id || `fee-${f.student_id || f.studentId || Date.now()}`,
+    billId: f.bill_id || f.invoice_id || f.id || f.fee_id || '',
     studentId: f.studentId || f.student_id || f.student_code || f.student_id_code || '',
     studentName: f.studentName || f.student_name || f.full_name || f.learner || f.child || '',
     guardianName: f.guardianName || f.guardian_name || f.parent_name || '',
@@ -1342,6 +1343,7 @@ const INITIAL_DATA = {
   messages: [],
   assignments: [],
   applications: [],
+  applicationsTotal: null,
   serviceRecords: [],
   profiles: {
     teacher: { name: 'Teacher', photo: '' },
@@ -1379,7 +1381,7 @@ const INITIAL_DATA = {
   },
   theme: 'light',
   backendConnected: false,
-  resourceStatus: { studentsRes: 'loading', appsRes: 'loading', staffRes: 'loading' },
+  resourceStatus: { studentsRes: 'loading', appsRes: 'loading', staffRes: 'loading', feesRes: 'loading' },
   isLoadingBackend: true,
 };
 
@@ -1436,17 +1438,22 @@ export function PortalDataProvider({ children, enabled = false }) {
     isRefreshingRef.current = true;
 
     try {
-      const role = portalForRole(getAuthUser()?.role);
+      const databaseRole = String(getAuthUser()?.role || "").toLowerCase();
+      const role = portalForRole(databaseRole);
+      const accountAdministration = role === "admin" && databaseRole !== "sub_admin";
       const privileged = ['admin', 'accountant'].includes(role);
       const staff = privileged || role === 'teacher';
       const allowed = (condition, fetcher) => condition ? fetcher() : Promise.resolve(null);
-      const coreKeys = { students: 'studentsRes', applications: 'appsRes' };
+      const coreKeys = { students: 'studentsRes', applications: 'appsRes', fees: 'feesRes' };
       const progressive = (resource, promise) => promise.then(value => {
         if (!mountedRef.current || sessionToken !== getAuthToken() || refreshEpoch !== mutationEpochRef.current) return value;
         setData(current => {
           const patch = {};
           if (resource === 'students') patch.onboardedStudents = deduplicateStudents(extractStudentList(value).map(s => mapStudentFromApi(s)).filter(s => isBackendUuid(s.id) && s.is_active !== false && s.status === 'Active'));
-          if (resource === 'applications') patch.applications = deduplicateApplications(extractApplicationsList(value).map(mapApiApplication).filter(app => isBackendUuid(app.id)));
+          if (resource === 'applications') {
+            patch.applications = deduplicateApplications(extractApplicationsList(value).map(mapApiApplication).filter(app => isBackendUuid(app.id)));
+            patch.applicationsTotal = value.total;
+          }
           if (resource === 'payment-vouchers') patch.paymentVouchers = deduplicatePaymentVouchers(api.extractPaymentVoucherList(value).map(mapApiPaymentVoucher));
           if (resource === 'providers') patch.serviceProviders = (Array.isArray(value) ? value : value.providers || value.data || []).filter(p => p.is_active !== false);
           if (resource === 'fees') {
@@ -1464,7 +1471,7 @@ export function PortalDataProvider({ children, enabled = false }) {
         if (key && mountedRef.current && sessionToken === getAuthToken()) setData(current => ({ ...current, resourceStatus: { ...current.resourceStatus, [key]: 'error' }, syncErrors: { ...current.syncErrors, [key]: `${error.status ? `HTTP ${error.status}: ` : ''}${error.message}` } }));
         throw error;
       });
-      setData(current => ({ ...current, isRefreshingBackend: true, resourceStatus: { studentsRes: 'loading', appsRes: 'loading', staffRes: 'loading' } }));
+      setData(current => ({ ...current, isRefreshingBackend: true, resourceStatus: { studentsRes: 'loading', appsRes: 'loading', staffRes: 'loading', feesRes: 'loading' } }));
       // 1. Fetch all backend endpoints in a single concurrent burst
       const [
         settingsRes,
@@ -1502,12 +1509,12 @@ export function PortalDataProvider({ children, enabled = false }) {
         allowed(privileged, () => api.getAssetTasks()),
         api.getMessages(),
         api.getAssignments(),
-        allowed(privileged, () => progressive('applications', api.getApplications())),
+        allowed(privileged, () => progressive('applications', api.getApplicationsPage())),
         role === 'parent' ? progressive('students', api.getMyChildren().then(raw => raw.children || raw.data || raw)) : allowed(staff, () => progressive('students', api.getStudents())),
         allowed(privileged || role === "parent" || role === "student", () => progressive('fees', api.getFees())),
         allowed(staff, () => api.getStaff()),
-        allowed(role === "admin", () => api.listClassTeacherCredentials()),
-        allowed(role === "admin", () => api.getUsers()),
+        allowed(accountAdministration, () => api.listClassTeacherCredentials()),
+        allowed(accountAdministration, () => api.getUsers()),
         allowed(privileged, () => api.getDefinedBills()),
         allowed(privileged, () => progressive('payment-vouchers', api.getPaymentVouchers())),
         allowed(staff, () => api.getSemesterRegistrations()),
@@ -2018,7 +2025,7 @@ export function PortalDataProvider({ children, enabled = false }) {
           ...updates,
           backendConnected: successful > 0,
           syncErrors,
-          resourceStatus: Object.fromEntries(['studentsRes', 'appsRes', 'staffRes'].map(key => [key, responses[key].status === 'rejected' ? 'error' : responses[key].value === null ? 'unavailable' : 'ready'])),
+          resourceStatus: Object.fromEntries(['studentsRes', 'appsRes', 'staffRes', 'feesRes'].map(key => [key, responses[key].status === 'rejected' ? 'error' : responses[key].value === null ? 'unavailable' : 'ready'])),
           lastSyncedAt: successful ? new Date().toISOString() : current.lastSyncedAt,
           isLoadingBackend: false, isRefreshingBackend: false, showingCachedData: false
         };
@@ -2032,6 +2039,36 @@ export function PortalDataProvider({ children, enabled = false }) {
       setData(current => ({ ...current, isRefreshingBackend: false }));
     }
   }, [enabled, setData]);
+
+  const refreshAccounts = useCallback(async () => {
+    if (!enabled || !hasLiveDatabaseSession()) throw new Error('Sign in with a verified Accounts session to load the ledger.');
+    const token = getAuthToken();
+    const epoch = ++mutationEpochRef.current;
+    setData(current => ({ ...current, resourceStatus: { ...current.resourceStatus, feesRes: 'loading' } }));
+    try {
+      const fees = deduplicateFees(extractApiList(await api.getFees()).map(mapFeeFromApi));
+      if (!mountedRef.current || token !== getAuthToken() || epoch !== mutationEpochRef.current) throw new Error('The account changed while refreshing. Refresh again.');
+      setData(current => {
+        const errors = { ...current.syncErrors }; delete errors.feesRes;
+        return { ...current, studentFees: fees, feeAccounts: buildFeeAccountsFromStudentFees(fees), isLoadingBackend: false, backendConnected: true, syncErrors: errors, resourceStatus: { ...current.resourceStatus, feesRes: 'ready' }, financeRevision: (current.financeRevision || 0) + 1 };
+      });
+      return fees;
+    } catch (error) {
+      if (mountedRef.current && token === getAuthToken() && epoch === mutationEpochRef.current) setData(current => ({ ...current, syncErrors: { ...current.syncErrors, feesRes: `${error.status ? `HTTP ${error.status}: ` : ''}${error.message}` }, resourceStatus: { ...current.resourceStatus, feesRes: 'error' } }));
+      throw error;
+    }
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const changed = event => {
+      if (event.type === 'storage' && event.key !== 'says_finance_changed') return;
+      if (portalForRole(getAuthUser()?.role) === 'accountant') refreshAccounts().catch(() => {});
+    };
+    window.addEventListener('storage', changed);
+    window.addEventListener('says_finance_changed', changed);
+    return () => { window.removeEventListener('storage', changed); window.removeEventListener('says_finance_changed', changed); };
+  }, [enabled, refreshAccounts]);
 
   const invalidateQueries = useCallback(async (keys = []) => {
     const jobs = [];
@@ -2051,7 +2088,7 @@ export function PortalDataProvider({ children, enabled = false }) {
       cacheGenerationRef.current.admissions = generation;
       jobs.push((async () => {
         const [appsRes, studentsRes] = await Promise.allSettled([
-          api.getApplications(),
+          api.getApplicationsPage(),
           api.getStudents(),
         ]);
         if (cacheGenerationRef.current.admissions !== generation || tokenAtStart !== getAuthToken() || epoch !== mutationEpochRef.current) return;
@@ -2065,8 +2102,8 @@ export function PortalDataProvider({ children, enabled = false }) {
             const mapped = deduplicateApplications(
               (Array.isArray(appList) ? appList : []).map(mapApiApplication).filter(app => isBackendUuid(app.id))
             );
-            if (!isDeepEqual(next.applications, mapped)) {
-              next = { ...next, applications: mapped };
+            if (!isDeepEqual(next.applications, mapped) || next.applicationsTotal !== appsRes.value.total) {
+              next = { ...next, applications: mapped, applicationsTotal: appsRes.value.total };
               changed = true;
             }
           }
@@ -2402,6 +2439,7 @@ export function PortalDataProvider({ children, enabled = false }) {
     onboardedStudents: sortedOnboardedStudents,
     studentFees: sortedStudentFees,
     refreshBackendData,
+    refreshAccounts,
     invalidateQueries,
     syncApplicationsToStudentDatabase,
     lastAutoRefreshedAt: lastAutoRefreshedAtRef.current,
@@ -3479,14 +3517,16 @@ export function PortalDataProvider({ children, enabled = false }) {
       }
 
       if ((persistResult.posted || 0) + (persistResult.skipped || 0) > 0) {
+        try { localStorage.setItem('says_finance_changed', String(Date.now())); } catch { /* Polling still refreshes other tabs. */ }
         try {
-          const fees = deduplicateFees(extractApiList(await api.getFees()).map(mapFeeFromApi));
-          mutationEpochRef.current += 1;
-          setData(latest => ({ ...latest, studentFees: fees, feeAccounts: buildFeeAccountsFromStudentFees(fees) }));
+          const fees = await refreshAccounts();
+          const missing = (persistResult.billIds || []).filter(id => !fees.some(fee => [fee.id, fee.billId].some(reference => String(reference) === String(id))));
+          if (missing.length) throw new Error(`The database confirmed bill(s) ${missing.join(', ')}, but /finance/fees does not include them. Backend reconciliation is required; do not post again.`);
         } catch (error) {
-          persistResult.errors.push(`Bill submitted, but the account could not be reloaded: ${error.message}. Refresh before retrying.`);
+          persistResult.errors.push(`Bill submitted, but Accounts could not confirm visibility: ${error.message}`);
           persistResult.failed = Math.max(1, persistResult.failed);
           persistResult.reconciliationPending = true;
+          setData(latest => ({ ...latest, syncErrors: { ...latest.syncErrors, feesRes: persistResult.errors.at(-1) } }));
         }
       }
       return persistResult;
@@ -4071,7 +4111,7 @@ export function PortalDataProvider({ children, enabled = false }) {
 
       return true;
     },
-  }), [data, refreshBackendData, invalidateQueries, performOnboardStudent, syncApplicationsToStudentDatabase]);
+  }), [data, refreshBackendData, refreshAccounts, invalidateQueries, performOnboardStudent, syncApplicationsToStudentDatabase]);
 
   return <PortalDataContext.Provider value={value}>{children}</PortalDataContext.Provider>;
 }

@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, Phone, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
-import { api, setAuthToken, setAuthUser, getAuthUser, isClassTeacherAccount, enrichTeacherSession, extractAuthToken } from '../../services/api';
+import { api, setAuthToken, setAuthUser, getAuthUser, isClassTeacherAccount, extractAuthToken } from '../../services/api';
 import { usePortalData } from '../../data/PortalStore';
 import './Login.css';
 
 const PORTAL_CONFIG = {
   teacher: {
-    label:    'Staff Portal',
+    label:    'Teacher Portal',
     badgeBg:  '#e0f2fe',
     badgeCol: '#0284c7',
     accentBg: '#0284c7',
@@ -144,11 +144,6 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   const [pinStep, setPinStep] = useState(false);
   const [adminPin, setAdminPin] = useState('');
 
-  // Class teacher passcode is a second step, only after email and password succeed
-  const [classTeacherStep, setClassTeacherStep] = useState(false);
-  const [classPasscode, setClassPasscode] = useState('');
-  const [pendingClassTeacher, setPendingClassTeacher] = useState(null);
-
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const scanTimerRef = useRef(null);
@@ -273,6 +268,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
       setSuccess(true);
       setTimeout(() => onLoginSuccess(), 900);
     } catch (err) {
+      if (portal === 'teacher') { setAuthToken(null); setAuthUser(null); }
       setLoading(false);
       if (addSecurityAlert) {
         addSecurityAlert({
@@ -286,134 +282,30 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     }
   };
 
-  const completeClassTeacherLogin = (userObj = {}) => {
-    const session = enrichTeacherSession({
-      ...userObj,
-      email: userObj.email || email,
-      teacherDesignation: 'class_teacher',
-      teacher_designation: 'class_teacher',
-      isClassTeacher: true,
-      classAssigned: userObj.classAssigned || userObj.class_assigned || pendingClassTeacher?.classAssigned || '',
-      staffId: userObj.staffId || userObj.staff_id || pendingClassTeacher?.staffId || '',
-    });
+  const finishTeacherLogin = async () => {
+    // Only the server can declare password authentication complete.
+    const verified = await api.getVerifiedSession();
+    if (verified.requiresSecondFactor || verified.user.requiresSecondFactor === true) {
+      throw new Error('The backend still requires additional verification for this teacher account. Ask the administrator to enable direct email-and-password login for class teachers.');
+    }
+    const role = String(verified.user.role || '').toLowerCase();
+    if (!['teacher', 'class_teacher'].includes(role)) {
+      throw new Error('This account is not authorised for the Teacher Portal.');
+    }
+    const user = verified.user;
+    const classTeacher = role === 'class_teacher' || isClassTeacherAccount(user);
     setAuthUser({
-      ...session,
-      teacherDesignation: 'class_teacher',
-      teacher_designation: 'class_teacher',
-      isClassTeacher: true,
-      is_class_teacher: true,
-      role: 'teacher',
+      ...user,
+      fullName: user.fullName || user.full_name || user.name || email,
+      classAssigned: user.classAssigned || user.class_assigned || '',
+      staffId: user.staffId || user.staff_id || '',
+      teacherDesignation: classTeacher ? 'class_teacher' : 'subject_teacher',
+      isClassTeacher: classTeacher,
+      requiresSecondFactor: false,
     });
     setLoading(false);
     setSuccess(true);
-    setTimeout(() => onLoginSuccess(), 900);
-  };
-
-  const finishTeacherLogin = async (userObj) => {
-    const session = enrichTeacherSession({
-      ...userObj,
-      email: userObj.email || email,
-      password: undefined,
-      passcode: undefined,
-    });
-    let classTeacher = isClassTeacherAccount(session);
-    let staffId = session.staffId || '';
-    let classAssigned = session.classAssigned || '';
-
-    if (!classTeacher) {
-      try {
-        const status = await api.getClassTeacherStatus();
-        if (status && (status.is_class_teacher === true || status.isClassTeacher === true || isClassTeacherAccount(status))) {
-          classTeacher = true;
-          staffId = status.staff_id || status.staffId || staffId;
-          classAssigned = status.class_assigned || status.classAssigned || classAssigned;
-        }
-      } catch {
-        // Local registry / staff directory still decide class-teacher access below.
-      }
-    }
-
-    if (!classTeacher) {
-      try {
-        const staffRes = await api.getStaff();
-        const staffList = Array.isArray(staffRes)
-          ? staffRes
-          : (staffRes?.staff || staffRes?.data || staffRes?.items || []);
-        const emailKey = String(session.email || email || '').trim().toLowerCase();
-        const match = staffList.find((member) => {
-          const memberEmail = String(member.email || '').trim().toLowerCase();
-          const memberStaff = String(member.staffId || member.staff_id || member.staff_code || '').trim();
-          return (emailKey && memberEmail === emailKey)
-            || (staffId && memberStaff && memberStaff === staffId);
-        });
-        if (match && (isClassTeacherAccount(match) || String(match.role || '').toLowerCase().includes('class teacher'))) {
-          classTeacher = true;
-          staffId = match.staffId || match.staff_id || staffId;
-          classAssigned = match.classAssigned || match.class_assigned || classAssigned;
-        }
-      } catch {
-        // Staff directory is optional when the login payload already identifies the teacher.
-      }
-    }
-
-    if (classTeacher) {
-      const pending = {
-        staffId,
-        classAssigned,
-        fullName: session.fullName,
-        email: session.email || email,
-        user: { ...session, staffId, classAssigned },
-      };
-      setPendingClassTeacher(pending);
-      setClassPasscode('');
-      setClassTeacherStep(true);
-      setLoading(false);
-      setError('');
-      return;
-    }
-
-    setAuthUser({
-      ...session,
-      role: 'teacher',
-      teacherDesignation: 'subject_teacher',
-      teacher_designation: 'subject_teacher',
-      isClassTeacher: false,
-      classAssigned: session.classAssigned || '',
-    });
-    setLoading(false);
-    setSuccess(true);
-    setTimeout(() => onLoginSuccess(), 900);
-  };
-
-  const handleClassTeacherPasscode = async (e) => {
-    e.preventDefault();
-    setError('');
-    const passcode = classPasscode.trim();
-    if (!passcode) {
-      setError('Please enter the class teacher passcode issued by the administrator.');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const result = await api.verifyClassTeacherPasscode({
-        staffId: pendingClassTeacher?.staffId,
-        passcode,
-      });
-      completeClassTeacherLogin(result?.user || pendingClassTeacher?.user || getAuthUser() || {});
-    } catch (err) {
-      setLoading(false);
-      if (addSecurityAlert) {
-        addSecurityAlert({
-          portal: 'teacher',
-          targetAccount: email || pendingClassTeacher?.staffId || 'Class Teacher',
-          reason: err.message || 'Invalid class teacher passcode',
-          severity: 'High',
-        });
-      }
-      setError(err.message || 'Invalid class teacher passcode. Please check the passcode issued by Super Admin.');
-    }
+    onLoginSuccess();
   };
 
   // Step 2: Handle Admin Security PIN Verification
@@ -669,62 +561,6 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                   style={{ background: cfg.accentBg }}
                 >
                   {loading ? 'Verifying Authorization PIN…' : 'Verify PIN & Complete Sign In'}
-                </button>
-              </form>
-            </div>
-          ) : classTeacherStep ? (
-            <div className="animate-fade-up">
-              <button
-                type="button"
-                onClick={() => { setClassTeacherStep(false); setClassPasscode(''); setError(''); }}
-                className="form-forgot"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 20 }}
-              >
-                <ArrowLeft size={15} /> Back to Sign In
-              </button>
-
-              <div className="login-form__portal-badge" style={{ background: '#edf8f0', color: '#166534' }}>
-                <span>🔑</span> Class Teacher Verification
-              </div>
-
-              <h2 className="login-form__title">Enter your passcode</h2>
-              <p className="login-form__subtitle">
-                Your email and password were accepted. Enter the class teacher passcode issued by the administrator to open the class teacher portal.
-              </p>
-
-              <form onSubmit={handleClassTeacherPasscode} noValidate>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="class-teacher-passcode">Class teacher passcode</label>
-                  <div className="form-input-wrap">
-                    <Lock size={16} className="form-input-icon" />
-                    <input
-                      id="class-teacher-passcode"
-                      type={showPass ? 'text' : 'password'}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={6}
-                      className="form-input"
-                      placeholder="Enter passcode"
-                      value={classPasscode}
-                      onChange={(e) => setClassPasscode(e.target.value.replace(/\D/g, ''))}
-                      autoFocus
-                      style={{ letterSpacing: '0.35em', fontSize: 20, fontWeight: 900, textAlign: 'center' }}
-                    />
-                    <button type="button" className="form-input-action" onClick={() => setShowPass(!showPass)} aria-label={showPass ? 'Hide passcode' : 'Show passcode'}>
-                      {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-
-                {error && <div className="form-error" style={{ marginBottom: 16 }}>⚠ {error}</div>}
-
-                <button
-                  type="submit"
-                  className={`login-submit${loading ? ' login-submit--loading' : ''}`}
-                  disabled={loading}
-                  style={{ background: '#204d2d' }}
-                >
-                  {loading ? 'Verifying passcode…' : 'Verify passcode'}
                 </button>
               </form>
             </div>

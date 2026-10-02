@@ -7,7 +7,7 @@ import DashboardSearch from '../DashboardSearch/DashboardSearch';
 import './Topbar.css';
 
 const PORTAL_INFO = {
-  teacher: { label: 'Staff Portal', icon: <GraduationCap size={15} />, color: '#1b4d3e' },
+  teacher: { label: 'Teacher Portal', icon: <GraduationCap size={15} />, color: '#1b4d3e' },
   parent: { label: 'Parent Portal', icon: <Users size={15} />, color: '#1a3668' },
   student: { label: 'Student Portal', icon: <BookOpen size={15} />, color: '#5e2d0e' },
   admin: { label: 'Admin Portal', icon: <ShieldCheck size={15} />, color: '#4a1d6e' },

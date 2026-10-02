@@ -1,3 +1,4 @@
+import ViewportModal from '../Modal/ViewportModal';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -8,7 +9,7 @@ import {
 } from 'lucide-react';
 import { usePortalData, directoryProfileFromUser } from '../../data/PortalStore';
 import { api, getAuthUser, getAuthToken, ensureDemoClassTeacherAccounts } from '../../services/api';
-import { ALL_SUB_CLASSES, CLASS_LEVELS, CLASS_SUBCLASS_MAP } from '../../data/classStructure';
+import { ALL_SUB_CLASSES, CLASS_LEVELS } from '../../data/classStructure';
 
 const ROLES = [
   { value: 'admin', label: 'Head Administrator', badgeColor: '#4a1d6e', bg: '#f3e8ff', desc: 'Full institutional control and administrative governance' },
@@ -20,11 +21,6 @@ const ROLES = [
   { value: 'parent', label: 'Parent / Guardian', badgeColor: '#be185d', bg: '#fce7f3', desc: 'Child progress, tuition fees, bus tracking, and messaging' },
   { value: 'security_driver', label: 'Transport / Security', badgeColor: '#374151', bg: '#f3f4f6', desc: 'Bus routing, RFID gate scans, and safety logging' },
 ];
-
-function sectionsForClass(level) {
-  if (!level || !CLASS_SUBCLASS_MAP[level]) return [];
-  return CLASS_SUBCLASS_MAP[level];
-}
 
 function RoleSelect({ value, onChange }) {
   const [open, setOpen] = useState(false);
@@ -153,10 +149,6 @@ function mapBackendUser(item) {
 
 export default function UserAccessControl({ adminRole = 'head_admin' }) {
   const { addStaffMember, refreshBackendData, classLevels } = usePortalData();
-  const assignedClassOptions = useMemo(
-    () => Array.from(new Set([...(CLASS_LEVELS || []), ...(classLevels || [])].filter(Boolean))),
-    [classLevels]
-  );
   const mainClassOptions = useMemo(() => {
     const custom = (classLevels || []).filter((level) => level && !ALL_SUB_CLASSES.includes(level) && !CLASS_LEVELS.includes(level));
     return [...ALL_SUB_CLASSES, ...custom];
@@ -262,8 +254,6 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     role: 'teacher',
     staffId: '',
     studentId: '',
-    assignedClass: '',
-    subClass: '',
     mainClass: '',
     password: '',
     status: 'Active',
@@ -327,7 +317,6 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     );
     const classPasscode = isClassTeacher ? String(Math.floor(1000 + Math.random() * 9000)) : undefined;
     const mainClass = isClassTeacher ? createForm.mainClass : '';
-    const assignedClass = mainClass || createForm.subClass || createForm.assignedClass || undefined;
 
     const newUser = {
       id: `usr_${createForm.role}_${Date.now()}`,
@@ -340,9 +329,8 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       staffId: autoStaffId,
       studentId: createForm.studentId.trim() || undefined,
       mainClass: mainClass || undefined,
-      assignedClass,
-      classLevel: createForm.assignedClass || mainClass || undefined,
-      subClass: createForm.subClass || undefined,
+      assignedClass: mainClass || undefined,
+      classLevel: mainClass || undefined,
       password: finalPass,
       passcode: classPasscode,
       createdAt: new Date().toISOString().split('T')[0],
@@ -404,8 +392,6 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       role: 'teacher',
       staffId: '',
       studentId: '',
-      assignedClass: '',
-      subClass: '',
       mainClass: '',
       password: '',
       status: 'Active',
@@ -645,8 +631,6 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                 role: 'teacher',
                 staffId: '',
                 studentId: '',
-                assignedClass: '',
-                subClass: '',
                 mainClass: '',
                 password: generateSecurePassword('teacher'),
                 status: 'Active',
@@ -1174,7 +1158,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
 
       {/* MODAL 1: CREATE USER MODAL */}
       {isCreateModalOpen && createPortal(
-        <div
+        <ViewportModal
           onClick={() => setIsCreateModalOpen(false)}
           style={{
             position: 'fixed',
@@ -1299,47 +1283,6 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                    Assigned Class (Optional)
-                  </label>
-                  <select
-                    value={createForm.assignedClass}
-                    onChange={(e) => {
-                      const assignedClass = e.target.value;
-                      const mapped = sectionsForClass(assignedClass);
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        assignedClass,
-                        subClass: mapped.includes(prev.subClass) ? prev.subClass : (mapped[0] || ''),
-                      }));
-                    }}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13, background: '#fff' }}
-                  >
-                    <option value="">Not assigned</option>
-                    {assignedClassOptions.map((level) => (
-                      <option key={level} value={level}>{level}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Sub Class (Optional)</label>
-                  <select
-                    value={createForm.subClass}
-                    onChange={(e) => setCreateForm(prev => ({ ...prev, subClass: e.target.value }))}
-                    disabled={!createForm.assignedClass}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13, background: createForm.assignedClass ? '#fff' : 'var(--bg-muted, #f1f5f9)' }}
-                  >
-                    <option value="">{createForm.assignedClass ? 'No sub class' : 'Select a class first'}</option>
-                    {sectionsForClass(createForm.assignedClass).map((section) => (
-                      <option key={section} value={section}>{section}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <label style={{ fontSize: 12, fontWeight: 700 }}>Initial Account Password</label>
@@ -1391,13 +1334,13 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
               </div>
             </form>
           </div>
-        </div>,
+        </ViewportModal>,
         document.body
       )}
 
       {/* MODAL 2: RESET PASSWORD MODAL */}
       {resetPassUser && (
-        <div style={{
+        <ViewportModal onClose={() => setResetPassUser(null)} style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
         }}>
@@ -1476,12 +1419,12 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
               </div>
             </form>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       {/* MODAL 3: EDIT USER DETAILS */}
       {editingUser && (
-        <div style={{
+        <ViewportModal onClose={() => setEditingUser(null)} style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
         }}>
@@ -1575,12 +1518,12 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
               </div>
             </form>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       {/* MODAL 4: CREDENTIAL ACCESS SLIP (PRINTABLE) */}
       {slipUser && createPortal(
-        <div
+        <ViewportModal
           onClick={() => setSlipUser(null)}
           style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
@@ -1702,7 +1645,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
               </div>
             </div>
           </div>
-        </div>,
+        </ViewportModal>,
         document.body
       )}
     </div>

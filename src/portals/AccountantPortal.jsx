@@ -1,3 +1,4 @@
+import ViewportModal from '../components/Modal/ViewportModal';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   LayoutDashboard, CreditCard, Send, Search, CheckCircle2,
@@ -99,20 +100,28 @@ export default function AccountantPortal({ onSignOut }) {
     postAcademicBill,
     adminSetUserPassword,
     refreshBackendData,
+    refreshAccounts,
+    syncErrors = {},
+    resourceStatus = {},
+    isLoadingBackend,
   } = usePortalData();
 
   const totalBilled = (studentFees || []).reduce((acc, item) => acc + (item.billedAmount || 0), 0);
   const totalPaid = (studentFees || []).reduce((acc, item) => acc + (item.paidAmount || 0), 0);
-  const totalOutstanding = totalBilled - totalPaid;
+  const totalOutstanding = (studentFees || []).reduce((sum, fee) => sum + (Number(fee.balance) || 0), 0);
   const owingCount = (studentFees || []).filter((item) => item.balance > 0).length;
   const paidCount = (studentFees || []).filter((item) => item.balance === 0).length;
 
+  const accountError = syncErrors.feesRes || syncErrors.connection;
+  const accountsLoading = resourceStatus.feesRes === 'loading' || isLoadingBackend;
+  const [refreshError, setRefreshError] = useState('');
+  const reloadAccounts = async () => { setRefreshError(''); try { await refreshAccounts(); } catch (error) { setRefreshError(error.message); } };
   const STATS = [
     { label: 'Total Revenue Billed', value: `GHS ${totalBilled.toLocaleString()}`, trend: 'Term 1 · 2026', icon: '💳', bg: '#e0f2fe', ic: '#0369a1', nav: 'Fee Structure & Rates' },
     { label: 'Total Collected', value: `GHS ${totalPaid.toLocaleString()}`, trend: `${Math.round((totalPaid / (totalBilled || 1)) * 100)}% collected`, icon: '✅', bg: '#dcfce7', ic: '#15803d', nav: 'Daily Collection Summary' },
     { label: 'Outstanding Balance', value: `GHS ${totalOutstanding.toLocaleString()}`, trend: `${owingCount} accounts owing`, icon: '⚠️', bg: '#fee2e2', ic: '#b91c1c', nav: 'Fee Debtors & Arrears' },
     { label: 'Settled Accounts', value: String(paidCount), trend: `Out of ${studentFees.length} students`, icon: '🎉', bg: '#fef3c7', ic: '#b45309', nav: 'Fee Ledgers & Payments' },
-  ];
+  ].map(stat => ({ ...stat, value: accountError ? 'Unavailable' : accountsLoading && !studentFees.length ? '…' : stat.value, trend: accountError ? 'Accounts data could not be loaded' : accountsLoading ? 'Refreshing database records' : stat.trend }));
 
   const filteredFees = (studentFees || []).filter((fee) => {
     const studentName = String(fee?.studentName || '').toLowerCase();
@@ -360,6 +369,10 @@ export default function AccountantPortal({ onSignOut }) {
 
         {/* Main Content */}
         <main className="portal__content">
+          <section style={{ padding: 14, marginBottom: 16, borderRadius: 10, background: accountError || refreshError ? '#fff1f2' : '#f0f9ff' }}>
+            {(accountError || refreshError) && <p role="alert">Accounts records could not be loaded: {accountError || refreshError}. This does not mean the ledger is empty.</p>}
+            <button className="academic-button" disabled={accountsLoading} onClick={reloadAccounts}>{accountsLoading ? 'Loading accounts…' : 'Refresh Accounts from database'}</button>
+          </section>
           {successNotice && (
             <div style={{
               padding: '12px 18px', background: '#dcfce7', border: '1px solid #86efac', color: '#166534',
@@ -996,7 +1009,7 @@ export default function AccountantPortal({ onSignOut }) {
 
           {/* ── MESSAGE PARENT MODAL ── */}
           {selectedFeeForReminder && (
-            <div
+            <ViewportModal
               onClick={(e) => { if (e.target === e.currentTarget) setSelectedFeeForReminder(null); }}
               style={{
                 position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex',
@@ -1064,12 +1077,12 @@ export default function AccountantPortal({ onSignOut }) {
                   </div>
                 </form>
               </div>
-            </div>
+            </ViewportModal>
           )}
 
           {/* ── RECORD PAYMENT MODAL ── */}
           {selectedFeeForPayment && (
-            <div
+            <ViewportModal
               onClick={(e) => { if (e.target === e.currentTarget) setSelectedFeeForPayment(null); }}
               style={{
                 position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex',
@@ -1165,7 +1178,7 @@ export default function AccountantPortal({ onSignOut }) {
                   </div>
                 </form>
               </div>
-            </div>
+            </ViewportModal>
           )}
         </main>
       </div>
@@ -1190,7 +1203,7 @@ function SimsModalRenderer({ modalData, setModalData, onClose, onSubmit, student
   const portalStore = usePortalData() || {};
 
   return (
-    <div className="sims-modal-overlay" onClick={onClose}>
+    <ViewportModal className="sims-modal-overlay" onClick={onClose}>
       <div className="sims-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: (isPrepareBill || isReceivePayment) ? 1280 : 960, width: (isPrepareBill || isReceivePayment) ? '96vw' : '94vw', boxSizing: 'border-box', overflowX: 'hidden' }}>
         <div className="sims-modal-header" style={{ display: 'flex', alignItems: 'center' }}>
           <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 38, width: 'auto', borderRadius: 4, marginRight: 12, border: '1px solid rgba(255,255,255,0.3)' }} />
@@ -1207,7 +1220,7 @@ function SimsModalRenderer({ modalData, setModalData, onClose, onSubmit, student
           {renderSpecificContent(link, modalData, setModalData, students, portalStore)}
         </form>
       </div>
-    </div>
+    </ViewportModal>
   );
 }
 
@@ -1398,7 +1411,7 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
   // Selected Academic Period
   const [currYear, setCurrYear] = useState('2025/2026');
   const [currTerm, setCurrTerm] = useState('1st Term');
-  const [currClass, setCurrClass] = useState('Nursery 1');
+  const [currClass, setCurrClass] = useState('');
 
   const [postYear, setPostYear] = useState('2025/2026');
   const [postTerm, setPostTerm] = useState('1st Term');
@@ -1417,10 +1430,10 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
 
   // Student Details Form Fields
   const [studentIndex, setStudentIndex] = useState(0);
-  const [formStudentName, setFormStudentName] = useState('Benjamin Edwards');
+  const [formStudentName, setFormStudentName] = useState('');
   const [formStatus, setFormStatus] = useState('Active');
-  const [formCurrentClass, setFormCurrentClass] = useState('Nursery 1');
-  const [formSubClass, setFormSubClass] = useState('A - Sunflower');
+  const [formCurrentClass, setFormCurrentClass] = useState('');
+  const [formSubClass, setFormSubClass] = useState('');
   const [formEntryStatus, setFormEntryStatus] = useState('Enrolled');
   const [formDateReported, setFormDateReported] = useState('2026-01-15');
 
@@ -1433,14 +1446,7 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
   const [itemFee, setItemFee] = useState('');
 
   // Bill Items List
-  const [billItems, setBillItems] = useState([
-    { id: '1', description: 'Tuition & Academic Instruction', billAccount: 'Tuition Account', fee: 2200, category: 'Compulsory', status: 'Posted', dateAdded: '2026-07-28' },
-    { id: '2', description: 'ICT, Computer & Lab Maintenance', billAccount: 'Facility & ICT Account', fee: 450, category: 'Compulsory', status: 'Posted', dateAdded: '2026-07-28' },
-    { id: '3', description: 'PTA & School Development Levy', billAccount: 'PTA Account', fee: 350, category: 'Compulsory', status: 'Posted', dateAdded: '2026-07-28' },
-    { id: '4', description: 'Terminal Examinations & Assessment', billAccount: 'Exams Account', fee: 500, category: 'Compulsory', status: 'Posted', dateAdded: '2026-07-28' },
-    { id: '5', description: 'School Bus Transport Route (Pre-school)', billAccount: 'Transport Account', fee: 600, category: 'Other Requisition', status: 'Draft', dateAdded: '2026-07-28' },
-    { id: '6', description: 'Daily Feeding & Mid-day Snack', billAccount: 'Feeding Account', fee: 400, category: 'Other Requisition', status: 'Draft', dateAdded: '2026-07-28' },
-  ]);
+  const [billItems, setBillItems] = useState([]);
 
   const portalData = usePortalData();
   const definedBills = portalData?.definedBills || [];
@@ -1460,7 +1466,7 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
           billAccount: b.billCategory?.includes('Tuition') ? 'Tuition Account' : b.billCategory?.includes('Bus') ? 'Transport Account' : b.billCategory?.includes('ICT') ? 'Facility & ICT Account' : 'Sundry / Miscellaneous',
           fee: Number(b.amount) || 0,
           category: b.specification === 'Compulsory' ? 'Compulsory' : 'Other Requisition',
-          status: 'Posted',
+          status: 'Draft',
           dateAdded: b.dateDefined || new Date().toISOString().split('T')[0]
         }));
 
@@ -1563,9 +1569,7 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
 
   const handleRefreshBills = async () => {
     try {
-      if (typeof refreshBackendData === 'function') {
-        await refreshBackendData();
-      }
+      await portalData.refreshAccounts();
       setJournalStatusNotice('Bills refreshed from the accounting database.');
     } catch {
       setJournalStatusNotice('Could not refresh bills from the database.');
@@ -1614,42 +1618,34 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
   };
 
   // Post Compulsory Bill to Student Journal
+  const journalPostLock = useRef(false);
+  const [journalPosting, setJournalPosting] = useState(false);
   const handlePostToJournal = async () => {
-    if (portalData?.postAcademicBill) {
+    if (journalPostLock.current) return;
+    journalPostLock.current = true; setJournalPosting(true);
+    try {
+      if (!enrollmentSid) throw new Error('Select a database student before posting a bill.');
+      if (!portalData?.postAcademicBill) throw new Error('Database billing is unavailable. No bill was posted.');
       const persist = await portalData.postAcademicBill({
-        studentName: formStudentName,
-        studentId: enrollmentSid,
+        studentName: formStudentName, studentId: enrollmentSid,
         classLevel: formCurrentClass || currClass,
-        items: billItems.map((item) => ({ details: item.description, amount: item.fee })),
+        items: billItems.map(item => ({ details: item.description, amount: item.fee })),
         totalAmount: compulsoryTotal + otherTotal,
-        term: `${currTerm || 'Term 1'} · ${currYear || '2025/2026'}`
+        term: `${currTerm || 'Term 1'} · ${currYear || '2025/2026'}`,
       });
-      if (persist?.failed && !persist?.posted && !persist?.skipped) {
-        setJournalStatusNotice(`Could not save this bill to the database: ${persist.errors?.[0] || 'request failed'}`);
-        alert(`Could not save this bill to the database.\n\n${persist.errors?.[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
+      if (persist?.failed || persist?.reconciliationPending || !((persist?.posted || 0) + (persist?.skipped || 0))) {
+        setJournalStatusNotice(`${persist?.posted ? 'Bill saved; Accounts reconciliation needed. Do not post again.' : 'Bill posting was not confirmed.'} ${persist?.errors?.join(' ') || 'Check the database before retrying.'}`);
         return;
       }
-      const skipNote = persist?.skipped ? ` (${persist.skipped} already billed for this term)` : '';
-      setBillItems((prev) => prev.map((item) => ({ ...item, status: 'Posted' })));
-      setJournalStatusNotice(
-        `✓ Posted Next Term Compulsory Bill (GHS ${compulsoryTotal.toLocaleString()}) to Student Ledger & Accounts for ${formStudentName}${persist?.posted ? ' and saved to the database' : ''}${skipNote}!`
-      );
-      return;
-    }
-    setBillItems((prev) => prev.map((item) => ({ ...item, status: 'Posted' })));
-    setJournalStatusNotice(
-      `✓ Posted Next Term Compulsory Bill (GHS ${compulsoryTotal.toLocaleString()}) to Student Ledger & Accounts for ${formStudentName}!`
-    );
+      setBillItems(prev => prev.map(item => ({ ...item, status: 'Posted' })));
+      setJournalStatusNotice(`Posted GHS ${(compulsoryTotal + otherTotal).toFixed(2)} for ${formStudentName}. The database invoice is visible in Accounts.`);
+    } catch (error) { setJournalStatusNotice(error.message); }
+    finally { journalPostLock.current = false; setJournalPosting(false); }
   };
 
-  // Reverse Compulsory Bill from Student Journal
+  // A saved bill must be corrected through the audited database workflow.
   const handleReverseJournal = () => {
-    setBillItems((prev) =>
-      prev.map((item) => ({ ...item, status: 'Draft' }))
-    );
-    setJournalStatusNotice(
-      `<< Reversed Next Term Compulsory Bill from Student Journal for ${formStudentName}. Items reset to Draft status.`
-    );
+    setJournalStatusNotice('No database bill was reversed. Use the invoice correction/cancellation workflow with its exact invoice ID and a reason.');
   };
 
   // Quick Preset Handlers
@@ -2087,6 +2083,7 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
               <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
                 <button
                   type="button"
+                  disabled={journalPosting}
                   onClick={handlePostToJournal}
                   style={{
                     padding: '8px 14px',
@@ -3816,7 +3813,7 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
 
       {/* ── 1-PAGE PRINTABLE RECEIVING ACCOUNT VOUCHER MODAL & PRINT ROOT ── */}
       {showVoucherModal && voucherData && (
-        <div
+        <ViewportModal
           onClick={(e) => { if (e.target === e.currentTarget) setShowVoucherModal(false); }}
           className="voucher-modal-overlay"
           style={{
@@ -4110,12 +4107,12 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
               </div>
             </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       {/* ── OPTIONAL BILL DIALOG MODAL ── */}
       {showOptionalDialog && (
-        <div
+        <ViewportModal
           onClick={(e) => { if (e.target === e.currentTarget) setShowOptionalDialog(false); }}
           style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}
         >
@@ -4220,12 +4217,12 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
               </button>
             </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       {/* ── PREVIEW STUDENT LEDGER MODAL ── */}
       {showLedgerPreview && (
-        <div
+        <ViewportModal
           onClick={(e) => { if (e.target === e.currentTarget) setShowLedgerPreview(false); }}
           style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}
         >
@@ -4279,12 +4276,12 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
               </button>
             </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       {/* ── PREVIEW STUDENT BILL MODAL ── */}
       {showBillPreview && (
-        <div
+        <ViewportModal
           onClick={(e) => { if (e.target === e.currentTarget) setShowBillPreview(false); }}
           style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}
         >
@@ -4312,7 +4309,7 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
               </button>
             </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
     </div>
   );
@@ -5921,7 +5918,7 @@ function formatLedgerDate(value) {
 }
 
 function StudentLedgerPrintForm({ setM, initialStudentId = '', initialStudentName = '' }) {
-  const { onboardedStudents = [], studentFees = [] } = usePortalData() || {};
+  const { onboardedStudents = [], studentFees = [], financeRevision = 0 } = usePortalData() || {};
   const roster = useMemo(() => {
     return buildStudentOptions(onboardedStudents, studentFees);
   }, [onboardedStudents, studentFees]);
@@ -5968,7 +5965,7 @@ function StudentLedgerPrintForm({ setM, initialStudentId = '', initialStudentNam
     };
     load();
     return () => { cancelled = true; };
-  }, [studentId]);
+  }, [studentId, financeRevision, studentFees]);
 
   return (
     <div>

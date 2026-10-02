@@ -1,3 +1,4 @@
+import ViewportModal from '../Modal/ViewportModal';
 import React, { useState } from 'react';
 import { usePortalData } from '../../data/PortalStore';
 import {
@@ -1158,7 +1159,7 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
 
       {/* ── PRINTABLE HALL PASS ADMIT CARD MODAL ── */}
       {printingPass && (
-        <div
+        <ViewportModal
           onClick={(e) => { if (e.target === e.currentTarget) setPrintingPass(null); }}
           style={{
             position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
@@ -1258,12 +1259,12 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
               </button>
             </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       {/* ── PRINTABLE COMPLETE EXAMINATION ROSTER (DEDICATED 1 PAGE PER STUDENT) ── */}
       {isPrintingRoster && (
-        <div
+        <ViewportModal
           onClick={(e) => { if (e.target === e.currentTarget) setIsPrintingRoster(false); }}
           style={{
             position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
@@ -1516,7 +1517,7 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
               );
             })}
           </div>
-        </div>
+        </ViewportModal>
       )}
     </div>
   );

@@ -1,0 +1,28 @@
+ACCOUNTS / STUDENT LEDGER SYNCHRONIZATION
+2026-10-02 — frontend implementation; no production deployment or financial writes performed.
+
+Confirmed frontend gaps repaired
+- Accounts dashboard displayed zero totals on failed fee reads. It now has per-fee loading/error state, shows Unavailable for failed totals, preserves previously read records and offers a dedicated database refresh.
+- The individual academic-bill form referenced an out-of-scope refresh function. It now calls the store's dedicated Accounts refresh.
+- Bill submission could show success with a failed follow-up read, or even without a store write function. It now requires a confirmed posting and Accounts visibility; partial/failed reads show reconciliation required and instruct against reposting.
+- Confirmed bill IDs (including nested API response envelopes) are compared with canonical fee.id/bill_id/invoice_id references from /finance/fees. Missing confirmed invoices are a backend projection/reconciliation error, not silently assumed linked.
+- Successful bill writes signal other tabs on the same origin to re-fetch Accounts data. No financial records are copied between users or stored in that signal. Other devices continue to refresh through existing focus/30-second backend polling.
+- Open printable student ledgers re-fetch when Accounts records change or a manual refresh completes.
+- Removed sample pupil/bill items from the individual posting form; required an explicitly selected database student, added an in-flight posting guard and report the full posted amount.
+- The old local-only Reverse Journal action no longer claims a database reversal. Use the existing audited invoice correction/cancellation flow.
+- Accounts outstanding total uses canonical returned balances. Malformed fee API success bodies no longer clear the account list as if it were legitimately empty.
+
+Required backend linkage
+POST /api/v1/finance/bills/student must commit the bill, linked fee invoice/receivable and ledger debit consistently. Return bill_id or id plus exact total_billed. Key identity by student UUID and invoice UUID, not names.
+GET /api/v1/finance/fees must include the committed bill as a canonical fee invoice or expose its bill_id/invoice_id link. Include student UUID/code, student name, academic period, original billed amount, paid amount and current balance. Do not return a separate legacy-only fee list which omits newly posted bills.
+GET /api/v1/finance/students/{student_uuid}/ledger must include the same bill debit and its payments/corrections, with canonical invoice reference and running/current balances. A bill posting and its ledger entry are one receivable, not two charges.
+Authorize the verified accountant role for its school-wide fee/student reads and approved billing/payment actions. Return401/403 clearly on incomplete session/denied permission; never convert denial to an empty200 response. Do not grant user administration, arbitrary role changes or unrestricted financial corrections merely to allow Accounts reads.
+If the fee feed intentionally aggregates multiple invoices, add explicit invoice IDs and adapt the contract/client mapping before rollout; do not use an unrelated aggregate ID as proof a particular bill is visible.
+A read failure after confirmed POST must not trigger another financial create. Retry reads/reconcile the invoice ID; preserve original posting idempotency.
+Same-origin storage events improve responsiveness only; backend reads, authorization and persistence remain authoritative. Cross-device propagation depends on the backend returning committed invoices on subsequent reads.
+
+Validation
+Unit/API test covers malformed fee-feed rejection and valid nested empty lists.
+New mocked browser integration covers posting in one tab, immediate appearance in another open Accounts tab, exact amount123.45, reload persistence, denied reads retaining previous data, successful recovery and backend-saved invoices missing from the fee feed.
+Existing student-billing regression verifies identity, exact billing, repeat posting idempotency and failures preserving balances.
+All API traffic in browser tests is intercepted. A staging/live test with the actual accountant account and real backend permissions/data is still required. These local changes have not been deployed by this task.

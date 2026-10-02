@@ -1,3 +1,4 @@
+import ViewportModal from '../Modal/ViewportModal';
 import RetryRecovery from './RetryRecovery';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
@@ -807,7 +808,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   </option>
                   <optgroup label="Registered Vendors & Service Providers">
                     {serviceProviders.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} {p.id ? `(${p.id})` : ''}</option>
+                      <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </optgroup>
                 </select>
@@ -1446,7 +1447,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
 
       {/* Search PV Records Modal */}
       {isSearchModalOpen && (
-        <div
+        <ViewportModal
           onClick={(e) => { if (e.target === e.currentTarget) setIsSearchModalOpen(false); }}
           style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -1551,12 +1552,12 @@ export default function SubmitPVRequest({ setM = () => {} }) {
               </table>
             </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       {/* Printable PV Memo Modal */}
       {isPrintMemoOpen && printedPV && (
-        <div
+        <ViewportModal
           className="pv-print-overlay"
           onClick={(e) => { if (e.target === e.currentTarget) setIsPrintMemoOpen(false); }}
           style={{
@@ -1650,12 +1651,12 @@ export default function SubmitPVRequest({ setM = () => {} }) {
               </button>
             </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       {/* Quick Add Service Provider Modal (Instantly saves to DB & Syncs across all devices) */}
       {showAddProviderModal && (
-        <div style={{
+        <ViewportModal onClose={() => setShowAddProviderModal(false)} style={{
           position: 'fixed',
           top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(15, 23, 42, 0.65)',
@@ -1889,7 +1890,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
               </div>
             </form>
           </div>
-        </div>
+        </ViewportModal>
       )}
     </div>
   );

@@ -1,3 +1,4 @@
+import ViewportModal from '../Modal/ViewportModal';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Printer, CheckCircle2, DollarSign, BookOpen, Layers, Plus, Trash2, FileText, Send, X, UserCheck, Upload, Camera, User, Bus, Utensils, Award, CreditCard, Sparkles, ChevronRight, GraduationCap, Edit3, Save, Check, Users, CheckSquare, Square, RefreshCw, Search, ArrowRight } from 'lucide-react';
 import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
@@ -1577,7 +1578,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
   return (
     <div className="fee-structure-container">
       {cancellation && (
-        <div role="dialog" aria-modal="true" aria-label="Cancel invoice" style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#0008', display: 'grid', placeItems: 'center' }}>
+        <ViewportModal onClose={() => setCancellation(null)} role="dialog" aria-modal="true" aria-label="Cancel invoice" style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#0008', display: 'grid', placeItems: 'center' }}>
           <form onSubmit={submitCancellation} style={{ background: 'white', padding: 24, borderRadius: 12, width: 'min(480px, 90vw)', display: 'grid', gap: 16 }}>
             <h3>Cancel invoice for {cancellation.name}</h3>
             <p>Choose the exact invoice. Existing receipts are retained. Cancellation does not issue a refund.</p>
@@ -1593,7 +1594,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
             <button type="submit" disabled={cancelBusy || !cancellation.feeId || !cancellation.reason.trim()}>{cancelBusy ? 'Cancelling…' : 'Confirm cancellation'}</button>
             <button type="button" disabled={cancelBusy} onClick={() => setCancellation(null)}>Close</button>
           </form>
-        </div>
+        </ViewportModal>
       )}
       {/* Toast Notification Banner */}
       {successMsg && (
@@ -2973,7 +2974,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
       {/* Add New Fee Component Modal */}
       {isAddingFeeModal && (
-        <div
+        <ViewportModal
           onClick={(e) => { if (e.target === e.currentTarget) setIsAddingFeeModal(false); }}
           style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -3067,12 +3068,12 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
               </div>
             </form>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       {/* Edit Fee Component Modal */}
       {isEditingFeeModal && (
-        <div
+        <ViewportModal
           onClick={(e) => { if (e.target === e.currentTarget) setIsEditingFeeModal(false); }}
           style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -3142,12 +3143,12 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
               </div>
             </form>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       {/* Post Student Academic Bill Confirmation Modal */}
       {isPostingModalOpen && (
-        <div
+        <ViewportModal
           onClick={(e) => { if (e.target === e.currentTarget) setIsPostingModalOpen(false); }}
           style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -3377,12 +3378,12 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
               </button>
             </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       {/* ── FOREMOST LAYER: POST BILL TO STUDENT LEDGER SUCCESS DIALOG BOX (Requirement 2) ── */}
       {postBillSuccessData && (
-        <div
+        <ViewportModal
           style={{
             position: 'fixed',
             top: 0,
@@ -3555,13 +3556,13 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
               </div>
             </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       {/* ── WHOLE CLASS MULTI-PAGE PRINTING MODAL ── */}
       {/* Each page is an official bill addressed to each individual student in the selected class */}
       {isPrintingClassBillsModal && (
-        <div
+        <ViewportModal
           className="print-class-bills-overlay"
           onClick={(e) => { if (e.target === e.currentTarget) setIsPrintingClassBillsModal(false); }}
           style={{
@@ -3808,7 +3809,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
               )}
             </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
     </div>
   );

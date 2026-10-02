@@ -1,3 +1,4 @@
+import ViewportModal from '../components/Modal/ViewportModal';
 import { TimetableManager } from '../components/Academic/Timetable';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
@@ -142,6 +143,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     isRefreshingBackend,
     syncErrors = {},
     resourceStatus = {},
+    applicationsTotal = null,
   } = usePortalData();
 
   const [activeNav, setActiveNavState] = useState(() => {
@@ -790,9 +792,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
   const activeStudents = (onboardedStudents || []).filter((s) => isBackendUuid(s?.id) && s?.status === 'Active' && s?.is_active !== false).length;
   const totalStudents = activeStudents;
-  const totalApplications = (applications || []).filter((a) => isBackendUuid(a?.id)).length;
+  const totalApplications = applicationsTotal;
   const coreErrors = Object.entries({ studentsRes: 'Student roster', appsRes: 'Applications', staffRes: 'Teaching staff', connection: 'Connection' }).filter(([key]) => syncErrors[key]);
-  const recordCount = (key, count) => syncErrors[key] || syncErrors.connection || resourceStatus[key] === 'unavailable' ? 'Unavailable' : (resourceStatus[key] === 'loading' || isLoadingBackend) && !count ? '…' : String(count);
+  const recordCount = (key, count) => syncErrors[key] || syncErrors.connection || resourceStatus[key] === 'unavailable' ? 'Unavailable' : (resourceStatus[key] === 'loading' || isLoadingBackend) && !count ? '…' : count == null ? 'Unavailable' : String(count);
   const recordHint = key => syncErrors[key] || syncErrors.connection ? 'Could not load — see error above' : resourceStatus[key] === 'loading' ? 'Refreshing from the database' : null;
 
   const recentOnboardedStudents = useMemo(() => {
@@ -3451,7 +3453,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
           {/* ── ONBOARD NEW STAFF MODAL ── */}
           {isAddingStaff && (
-            <div
+            <ViewportModal
               onClick={(e) => { if (e.target === e.currentTarget) setIsAddingStaff(false); }}
               style={{
                 position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
@@ -3559,12 +3561,12 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </div>
                 </form>
               </div>
-            </div>
+            </ViewportModal>
           )}
 
           {/* ── EDIT STAFF DETAILS MODAL ── */}
           {editingStaff && (
-            <div
+            <ViewportModal
               onClick={(e) => { if (e.target === e.currentTarget) setEditingStaff(null); }}
               style={{
                 position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
@@ -3701,12 +3703,12 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   )}
                 </form>
               </div>
-            </div>
+            </ViewportModal>
           )}
 
           {/* ── OFFBOARD STAFF CONFIRMATION MODAL ── */}
           {offboardingStaff && (
-            <div
+            <ViewportModal
               onClick={(e) => { if (e.target === e.currentTarget) setOffboardingStaff(null); }}
               style={{
                 position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
@@ -3727,7 +3729,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     Are you sure you want to offboard <strong>{offboardingStaff.name}</strong> ({offboardingStaff.staffId || offboardingStaff.email})?
                   </p>
                   <div style={{ padding: 12, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#991b1b', fontSize: 12, fontWeight: 700, marginBottom: 20 }}>
-                    ⚠ This action will mark their account status as Offboarded and disable their active staff portal sign-in credentials.
+                    ⚠ This action will mark their account status as Offboarded and disable their active teacher portal sign-in credentials.
                   </div>
 
                   <div style={{ display: 'flex', gap: 10 }}>
@@ -3752,12 +3754,12 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   )}
                 </div>
               </div>
-            </div>
+            </ViewportModal>
           )}
 
           {/* ── ADD NEW CLASS LEVEL MODAL ── */}
           {isAddingClass && (
-            <div
+            <ViewportModal
               onClick={(e) => { if (e.target === e.currentTarget) setIsAddingClass(false); }}
               style={{
                 position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
@@ -3888,12 +3890,12 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </div>
                 </form>
               </div>
-            </div>
+            </ViewportModal>
           )}
 
           {/* ── ADD NEW SUBJECT / DEPARTMENT MODAL ── */}
           {isAddingSubject && (
-            <div
+            <ViewportModal
               onClick={(e) => { if (e.target === e.currentTarget) setIsAddingSubject(false); }}
               style={{
                 position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
@@ -3940,7 +3942,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </div>
                 </form>
               </div>
-            </div>
+            </ViewportModal>
           )}
 
           {/* ── VIEW STUDENT RECORD MODAL ── */}
@@ -3958,7 +3960,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
               { label: 'Mother contact', value: rec.motherContact },
             ];
             return (
-              <div
+              <ViewportModal
                 className="no-print"
                 onClick={(e) => { if (e.target === e.currentTarget) setViewingRecordStudent(null); }}
               style={{
@@ -3987,13 +3989,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     </button>
                   </div>
                 </div>
-              </div>
+              </ViewportModal>
             );
           })()}
 
           {/* ── ISSUE / ENCODE STUDENT RFID CARD MODAL ── */}
           {issuingCardStudent && (
-            <div
+            <ViewportModal
               onClick={(e) => { if (e.target === e.currentTarget) setIssuingCardStudent(null); }}
               style={{
                 position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
@@ -4069,12 +4071,12 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </div>
                 </form>
               </div>
-            </div>
+            </ViewportModal>
           )}
 
           {/* ── ISSUE PARENT PICKUP CARD MODAL ── */}
           {issuingParentCardStudent && (
-            <div
+            <ViewportModal
               onClick={(e) => { if (e.target === e.currentTarget) setIssuingParentCardStudent(null); }}
               style={{
                 position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
@@ -4126,11 +4128,11 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </div>
                 </form>
               </div>
-            </div>
+            </ViewportModal>
           )}
           {/* Decline Result Error Note Modal */}
           {declineResultModal && (
-            <div
+            <ViewportModal
               onClick={(e) => { if (e.target === e.currentTarget) setDeclineResultModal(null); }}
               style={{
                 position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -4187,12 +4189,12 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </button>
                 </div>
               </div>
-            </div>
+            </ViewportModal>
           )}
 
           {/* Printable Official Transcript Document Modal */}
           {viewingTranscriptStudent && (
-            <div
+            <ViewportModal
               onClick={(e) => { if (e.target === e.currentTarget) setViewingTranscriptStudent(null); }}
               style={{
                 position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -4409,11 +4411,11 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   })()}
                 </div>
               </div>
-            </div>
+            </ViewportModal>
           )}
           {/* Modal 1: Viewing Student Credential Modal */}
           {viewingCredentialStudent && (
-            <div
+            <ViewportModal
               className="modal-overlay animate-fade-in"
               onClick={(e) => { if (e.target === e.currentTarget) setViewingCredentialStudent(null); }}
               style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '85px 16px 40px', overflowY: 'auto' }}
@@ -4503,12 +4505,12 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   );
                 })()}
               </div>
-            </div>
+            </ViewportModal>
           )}
 
           {/* Modal 2: Reset Default Password Modal */}
           {editingPasswordStudent && (
-            <div
+            <ViewportModal
               className="modal-overlay animate-fade-in"
               onClick={(e) => { if (e.target === e.currentTarget) setEditingPasswordStudent(null); }}
               style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '85px 16px 40px', overflowY: 'auto' }}
@@ -4578,12 +4580,12 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </div>
                 </form>
               </div>
-            </div>
+            </ViewportModal>
           )}
 
           {/* Modal 3: Printable Credential Slip Modal */}
           {printingCredentialSlip && (
-            <div
+            <ViewportModal
               className="modal-overlay animate-fade-in"
               onClick={(e) => { if (e.target === e.currentTarget) setPrintingCredentialSlip(null); }}
               style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15,23,42,0.75)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '85px 16px 40px', overflowY: 'auto' }}
@@ -4692,12 +4694,12 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </div>
                 </div>
               </div>
-            </div>
+            </ViewportModal>
           )}
 
           {/* ── ACADEMIC SIMS MODAL (SCORE SHEET OR REPORT PREVIEWS) ── */}
           {academicSimsModal && (
-            <div style={{
+            <ViewportModal onClose={() => setAcademicSimsModal(null)} style={{
               position: 'fixed', inset: 0, zIndex: 10000,
               background: 'rgba(15,23,42,0.7)', backdropFilter: 'blur(4px)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -4823,7 +4825,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </div>
                 )}
               </div>
-            </div>
+            </ViewportModal>
           )}
         </main>
       </div>
