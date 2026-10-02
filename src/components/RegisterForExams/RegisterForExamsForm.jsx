@@ -990,7 +990,6 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
                         })
                         .catch((err) => setNotice(err?.message || 'The database did not delete these exam registrations.'));
                     }
-                    }
                   }}
                   style={{
                     padding: '10px 16px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #ef4444',
