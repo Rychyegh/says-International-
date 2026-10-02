@@ -35,11 +35,13 @@ function applyAuthSession(res) {
 }
 
 export function hasLiveDatabaseSession() {
-  return String(getAuthToken() || '').startsWith('eyJ');
+  // Token presence permits a request; only the server establishes validity.
+  // Bearer tokens are not required to have a particular JWT header prefix.
+  return Boolean(getAuthToken());
 }
 
 export function getAuthToken() {
-  return localStorage.getItem('auth_token') || '';
+  return (localStorage.getItem('auth_token') || '').trim();
 }
 
 export function setAuthToken(token) {
@@ -127,7 +129,7 @@ async function originalAuthRequest(endpoint, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  if (token && String(token).startsWith('eyJ')) {
+  if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 

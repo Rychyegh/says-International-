@@ -22,7 +22,7 @@ import ApprovePVForm from '../components/Finance/ApprovePVForm';
 import PayPVForm from '../components/Finance/PayPVForm';
 import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
 import UserAccessControl from '../components/AccessControl/UserAccessControl';
-import { getAuthUser } from '../services/api';
+import { getAuthUser, hasLiveDatabaseSession } from '../services/api';
 import { getMappedSubClasses, formatDetailedClass, CLASS_SUBCLASS_MAP, registerCustomSubClass } from '../data/classStructure';
 
 const ADMIN_BG = '#4a1d6e';
@@ -1017,7 +1017,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             <strong>Some school records could not be loaded.</strong>
             <p>These errors do not mean your records have been deleted.</p>
             <ul>{coreErrors.map(([key, label]) => <li key={key}>{label}: {syncErrors[key]}</li>)}</ul>
-            <button className="academic-button" disabled={isRefreshingBackend} onClick={() => refreshBackendData()}>{isRefreshingBackend ? 'Refreshing…' : 'Retry loading records'}</button>
+            {!hasLiveDatabaseSession()
+              ? <button className="academic-button" onClick={() => window.dispatchEvent(new Event('says_reauthenticate'))}>Sign in again</button>
+              : <button className="academic-button" disabled={isRefreshingBackend} onClick={() => refreshBackendData()}>{isRefreshingBackend ? 'Refreshing…' : 'Retry loading records'}</button>}
           </section>}
 
           {/* Live PV Submission Toast Alert */}

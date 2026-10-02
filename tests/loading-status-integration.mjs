@@ -14,9 +14,11 @@ try {
  await page.waitForFunction(()=>window.testStore?.resourceStatus?.studentsRes==='error');
  assert.match(await page.evaluate(()=>window.testStore.syncErrors.studentsRes),/HTTP 403: Session verification required/);
  failed=false;
+ await page.evaluate(async()=>{const {setAuthToken}=await import('/src/services/api.js');setAuthToken('opaque-live-token');});
  await page.waitForFunction(()=>window.testStore?.isRefreshingBackend===false);
  await page.evaluate(()=>window.testStore.refreshBackendData());
  await page.waitForFunction(()=>window.testStore?.resourceStatus?.studentsRes==='ready');
  assert.equal(await page.evaluate(()=>window.testStore.syncErrors.studentsRes),undefined);
+ assert.equal(await page.evaluate(()=>window.testStore.syncErrors.connection),undefined);
  console.log('PASS: denied core reads expose status and detail; successful retry clears errors.');
 } finally { await browser.close(); }

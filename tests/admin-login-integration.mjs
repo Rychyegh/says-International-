@@ -8,16 +8,16 @@ for(const [pin,role] of [['2468','head_admin'],['2468','sub_admin']]){
  const user={id:'admin-uuid',email:'admin@test.com',role,portalRole:'admin',fullName:'Test Admin'};
  await page.route('**/api/**',async route=>{
   const req=route.request(),path=new URL(req.url()).pathname;let data=[],status=200;
-  if(path.endsWith('/auth/login')) data={token:'eyJ-provisional',requiresSecondFactor:true,user};
+  if(path.endsWith('/auth/login')) data={token:'opaque-provisional',requiresSecondFactor:true,user};
   else if(path.endsWith('/auth/me')) {if(delaySession) await new Promise(resolve=>setTimeout(resolve,350));sessionChecks++;if(!req.headers().authorization){status=401;data={detail:'Sign in required'};}else data={user,requiresSecondFactor:verified?false:true,pinSetupRequired:false};}
   else if(path.endsWith('/verify-admin-pin')) {
    pinCalls++;
-   assert.equal(req.headers().authorization,'Bearer eyJ-provisional');
+   assert.equal(req.headers().authorization,'Bearer opaque-provisional');
    if(req.postDataJSON().pin!==pin) {status=401;data={detail:'Invalid PIN'};}
-   else {verified=true;data={token:'eyJ-verified',user,requiresSecondFactor:false};}
+   else {verified=true;data={token:'opaque-verified',user,requiresSecondFactor:false};}
   } else {
    if(!verified) protectedBeforeVerified++;
-   assert.equal(req.headers().authorization,'Bearer eyJ-verified');
+   assert.equal(req.headers().authorization,'Bearer opaque-verified');
   }
   await route.fulfill({status,contentType:'application/json',body:JSON.stringify(data)});
  });
@@ -32,7 +32,9 @@ for(const [pin,role] of [['2468','head_admin'],['2468','sub_admin']]){
  await page.locator('#admin-pin-input').fill(pin);
  await page.getByRole('button',{name:'Verify PIN & Complete Sign In'}).click();
  await page.getByRole('button',{name:'Sign Out',exact:true}).waitFor();
- assert.equal(await page.evaluate(()=>localStorage.getItem('auth_token')),'eyJ-verified');
+ await page.waitForFunction(()=>!document.body.textContent.includes('Connecting to live database'));
+ assert.equal(await page.getByText('Connection: No usable database session.',{exact:false}).count(),0);
+ assert.equal(await page.evaluate(()=>localStorage.getItem('auth_token')),'opaque-verified');
  assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('auth_user')).role),role);
  // Missing or stale cached roles must never establish portal privileges.
  for (const cachedRole of [null, 'head_admin', 'sub_admin']) {

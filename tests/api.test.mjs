@@ -1,9 +1,26 @@
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { api, request, getAuthToken, setAuthToken, setAuthUser } from '../src/services/api.js';
+import { api, request, getAuthToken, setAuthToken, setAuthUser, hasLiveDatabaseSession } from '../src/services/api.js';
 function storage(){ const items=new Map(); return {getItem:k=>items.get(k)||null,setItem:(k,v)=>items.set(k,String(v)),removeItem:k=>items.delete(k)}; }
 beforeEach(()=>{globalThis.localStorage=storage();globalThis.sessionStorage=storage();globalThis.window=new EventTarget();});
 const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});
+test('session checks send opaque bearer tokens and still reject server-denied sessions', async () => {
+  assert.equal(hasLiveDatabaseSession(), false);
+  setAuthToken('   ');
+  assert.equal(hasLiveDatabaseSession(), false);
+  setAuthToken('opaque-server-token');
+  assert.equal(hasLiveDatabaseSession(), true);
+  globalThis.fetch = async (url, options) => {
+    assert.ok(url.endsWith('/auth/me'));
+    assert.equal(options.headers.Authorization, 'Bearer opaque-server-token');
+    return json({ user: { id: 'sub-admin', role: 'sub_admin' }, requiresSecondFactor: false });
+  };
+  assert.equal((await api.getVerifiedSession()).user.role, 'sub_admin');
+  globalThis.fetch = async () => json({ detail: 'Session expired' }, 401);
+  await assert.rejects(api.getVerifiedSession(), error => error.status === 401);
+  setAuthToken(null);
+  assert.equal(hasLiveDatabaseSession(), false);
+});
 test('sends authenticated JSON to the configured database API',async()=>{
   setAuthToken('opaque-token');let called;
   globalThis.fetch=async(url,opts)=>{called={url,opts};return json({ok:true});};
