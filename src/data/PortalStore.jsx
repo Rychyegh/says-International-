@@ -476,6 +476,7 @@ function buildAdmissionEnrollPayload(app = {}) {
   const level = formatClassToBasic(app.level || app.applyingClass || '') || null;
   const section = String(app.classSection || app.subClass || 'A').trim() || 'A';
   return {
+    initial_billed_amount: 0,
     academic_year: app.academicYear || null,
     term: app.academicTerm || app.term || null,
     class_section: section,
@@ -925,7 +926,7 @@ export function mapStudentFromApi(s = {}, fallback = {}) {
       ? 'Inactive'
       : (/^(active|enrolled|approved)$/i.test(String(s.status || fallback.status || 'Active')) ? 'Active' : (s.status || fallback.status)),
     is_active: s.is_active !== false && s.isActive !== false && !/inactive|withdrawn|declin|cancel|suspend|deleted|archived/i.test(String(s.status || '')),
-    studentEmail: s.studentEmail || s.student_email || s.school_email || fallback.studentEmail || '',
+    studentEmail: s.studentEmail || s.student_email || s.school_email || s.email || fallback.studentEmail || '',
     defaultPassword: s.defaultPassword || s.default_password || fallback.defaultPassword || '',
     fatherName: s.fatherName || s.father_name || fallback.fatherName || '',
     fatherPhone: s.fatherPhone || s.father_phone || fallback.fatherPhone || '',
@@ -1326,31 +1327,9 @@ export const DEFAULT_SUBJECTS = [
   'Physics', 'Chemistry', 'Biology', 'Literature in English'
 ];
 
-export const DEFAULT_TIMETABLE = [
-  { id: 'tt-1', day: 'Monday', time: '08:00 AM', subject: 'Pure Mathematics', room: 'Room 402', lecturer: 'Prof. Mensah' },
-  { id: 'tt-2', day: 'Wednesday', time: '08:00 AM', subject: 'Literature in English', room: 'Auditorium B', lecturer: 'Dr. Anane' },
-  { id: 'tt-3', day: 'Tuesday', time: '10:30 AM', subject: 'Physics Lab', room: 'Science Block 1', lecturer: 'Mr. Boateng' },
-  { id: 'tt-4', day: 'Monday', time: '01:00 PM', subject: 'ICT Project', room: 'Lab 2', lecturer: 'Ms. Mensah' },
-  { id: 'tt-5', day: 'Tuesday', time: '01:00 PM', subject: 'English Essay', room: 'Room 204', lecturer: 'Mrs. Adjei' },
-  { id: 'tt-6', day: 'Wednesday', time: '01:00 PM', subject: 'Mathematics', room: 'Room 402', lecturer: 'Prof. Mensah' },
-  { id: 'tt-7', day: 'Thursday', time: '08:00 AM', subject: 'Integrated Science', room: 'Science Block 1', lecturer: 'Mr. Boateng' },
-  { id: 'tt-8', day: 'Thursday', time: '01:00 PM', subject: 'ICT Project', room: 'Lab 2', lecturer: 'Ms. Mensah' },
-  { id: 'tt-9', day: 'Friday', time: '08:00 AM', subject: 'Pure Mathematics', room: 'Room 402', lecturer: 'Prof. Mensah' },
-  { id: 'tt-10', day: 'Friday', time: '10:30 AM', subject: 'Social Studies', room: 'Room 204', lecturer: 'Mrs. Adjei' },
-  { id: 'tt-11', day: 'Friday', time: '01:00 PM', subject: 'English Essay', room: 'Auditorium B', lecturer: 'Dr. Anane' },
-];
+export const DEFAULT_TIMETABLE = [];
 
-export const DEFAULT_SERVICE_PROVIDERS = [
-  { id: '931001', name: 'AUNTI LIZZY', address: 'Bogoso Main Market', phone: '024 456 7890', email: 'auntilizzy@gmail.com' },
-  { id: '931002', name: 'Electricity Company of Ghana (ECG)', address: 'Bogoso District Office', phone: '0302-611611', email: 'callcenter@ecggh.com' },
-  { id: '931003', name: 'Ghana Water Company Limited (GWCL)', address: 'Bogoso Water Works', phone: '0800 40000', email: 'customercare@gwcl.com.gh' },
-  { id: '931004', name: 'Telecel Ghana (Telecom & Internet)', address: 'Takoradi Regional Office', phone: '020 000 0100', email: 'business@telecel.com.gh' },
-  { id: '931005', name: 'Distrikt 24 Ghana Limited (Stationery & Office)', address: 'Accra / Bogoso Depot', phone: '024 111 2233', email: 'supplies@distrikt24.com' },
-  { id: '931006', name: 'Modern Lab & Science Equipment', address: 'Kumasi Tech Center', phone: '024 555 6677', email: 'sales@modernlab.edu.gh' },
-  { id: '931007', name: 'Isaac Addae Transport & Fleet Care', address: 'Bogoso Central Garage', phone: '024 888 9900', email: 'i.addae.transport@gmail.com' },
-  { id: '931008', name: 'Accra Book Depot & Publishing Ltd', address: 'Barnes Road, Accra', phone: '0302 223344', email: 'orders@accrabooks.com' },
-  { id: '931009', name: 'Market Depot (Hardware & General Repairs)', address: 'Bogoso High Street', phone: '024 332 2110', email: 'marketdepot.bogoso@gmail.com' },
-];
+export const DEFAULT_SERVICE_PROVIDERS = [];
 
 const INITIAL_DATA = {
   timetable: DEFAULT_TIMETABLE,
@@ -1440,6 +1419,7 @@ export function PortalDataProvider({ children, enabled = false }) {
   }, []);
   useEffect(() => { if (enabled) persistSnapshot(data); }, [data, enabled]);
   const onboardLocksRef = useRef(new Map());
+  const applicationSubmitLocksRef = useRef(new Map());
   const recentRosterIdsRef = useRef(new Set());
   const cacheGenerationRef = useRef({ admissions: 0, 'payment-vouchers': 0 });
   useEffect(() => { document.documentElement.dataset.theme = data.theme || 'light'; }, [data.theme]);
@@ -1669,10 +1649,11 @@ export function PortalDataProvider({ children, enabled = false }) {
             ...r,
             backendId: r.backendId || r.id,
             lecturer: r.instructor || r.lecturer,
-            status: r.status || 'Pending Approval',
+            status: r.status || (r.hasExamScore ? 'Pending Approval' : 'Class Score Recorded'),
+            assessmentRecord: true,
           }));
           const base = updates.results || current.results || [];
-          const mergedSheets = mergeByKey(base, mappedSheets, r => scoreSheetEntryKey(r) || r.id);
+          const mergedSheets = mergeByKey(base.filter(r => !r.assessmentRecord), mappedSheets, r => scoreSheetEntryKey(r) || r.id);
           if (!isDeepEqual(base, mergedSheets)) {
             updates.results = mergedSheets;
             hasChanges = true;
@@ -2195,7 +2176,8 @@ export function PortalDataProvider({ children, enabled = false }) {
         const remote = extractStudentList(await api.getStudents()).map(s => mapStudentFromApi(s));
         existing = findStudentForUpsert(remote, draft);
       }
-      const billed = billedAmountForLevel(draft.level);
+      // Admission creates the student; explicit bill posting creates charges.
+      const billed = 0;
       const payload = {
         fullName: draft.fullName,
         full_name: draft.fullName,
@@ -2235,7 +2217,12 @@ export function PortalDataProvider({ children, enabled = false }) {
       const existingBackendId = existing?.id && !isSyntheticLocalId(existing.id) ? existing.id : null;
       try {
         if (existingBackendId) {
-          createdFromApi = await api.updateStudent(existingBackendId, payload);
+          const { initialBilledAmount, initial_billed_amount, ...studentUpdate } = payload;
+          createdFromApi = await api.updateStudent(existingBackendId, studentUpdate);
+        } else if (draft.applicationId) {
+          // An application has one enrollment endpoint; never create a second
+          // standalone student/account for the same application.
+          createdFromApi = await api.enrollApplication(draft.applicationId, buildAdmissionEnrollPayload({ ...student, ...draft }));
         } else {
           createdFromApi = await api.onboardStudent(payload);
         }
@@ -2268,7 +2255,7 @@ export function PortalDataProvider({ children, enabled = false }) {
         ...draft,
         id: backendId,
         studentId: mappedApi?.studentId || fallbackCode,
-        studentEmail: mappedApi?.studentEmail || existing?.studentEmail || schoolEmailFromName(fullComputed),
+        studentEmail: mappedApi?.studentEmail || existing?.studentEmail || '',
         defaultPassword: mappedApi?.defaultPassword || existing?.defaultPassword || draft.defaultPassword
           || `StuPass#${String(mappedApi?.studentId || fallbackCode).replace(/REMALJ-/i, '')}`,
         rfidCardCode: preferIssuedRfid(mappedApi?.rfidCardCode, draft.rfidCardCode, existing?.rfidCardCode),
@@ -2277,7 +2264,6 @@ export function PortalDataProvider({ children, enabled = false }) {
       canonical.id = backendId;
       recentRosterIdsRef.current.add(String(backendId));
       if (!canonical.studentId) canonical.studentId = fallbackCode;
-      if (!canonical.studentEmail) canonical.studentEmail = schoolEmailFromName(canonical.fullName);
       if (!canonical.defaultPassword) {
         canonical.defaultPassword = `StuPass#${String(canonical.studentId).replace(/REMALJ-/i, '')}`;
       }
@@ -2452,7 +2438,7 @@ export function PortalDataProvider({ children, enabled = false }) {
     },
     approveResult: async (id, note) => {
       const record = dataRef.current.results.find(r => r.id === id || r.backendId === id);
-      if (record?.backendId) {
+      if (record?.assessmentRecord) {
         if (!hasRecordedExamScore(record)) throw new Error('Class-only drafts cannot be published.');
         await api.publishScoreSheet(record.backendId);
       } else await api.updateResultStatus(id, { status: 'Approved' });
@@ -2587,6 +2573,9 @@ export function PortalDataProvider({ children, enabled = false }) {
       }));
     },
     submitApplication: async (application) => {
+      const submissionKey = JSON.stringify(application);
+      if (applicationSubmitLocksRef.current.has(submissionKey)) return applicationSubmitLocksRef.current.get(submissionKey);
+      const operation = (async () => {
       requireLiveDatabase('Saving this application');
       const otherNames = (application.otherNames || '').trim();
       const learnerName = (application.firstName || application.surname || otherNames)
@@ -2722,7 +2711,14 @@ export function PortalDataProvider({ children, enabled = false }) {
         applicationId: resolvedId,
         previousName: existingMatch?.learner || existingMatch?.fullName || learnerName,
       });
-      void invalidateQueries(['admissions']);
+      await invalidateQueries(['admissions']);
+      return resolvedId;
+      })();
+      applicationSubmitLocksRef.current.set(submissionKey, operation);
+      try { return await operation; } catch (error) {
+        applicationSubmitLocksRef.current.delete(submissionKey);
+        throw error;
+      }
     },
     updateApplicationStatus: async (id, status) => {
       requireLiveDatabase('Updating this application');
@@ -3381,7 +3377,7 @@ export function PortalDataProvider({ children, enabled = false }) {
         const saved = mapScoreSheetEntry(record);
         if (!saved.id || !saved.studentId) throw new Error('The server did not return the saved score sheet. Refresh before retrying.');
         if (![entry.studentId, rosterStudent?.studentId].filter(Boolean).some(id => String(saved.studentId) === String(id))) throw new Error('The server returned a different student record. Refresh before retrying.');
-        const persisted = { ...saved, studentId: entry.studentId, backendId: saved.id, entryKey };
+        const persisted = { ...saved, assessmentRecord: true, studentId: entry.studentId, backendId: saved.id, entryKey };
         setData(current => ({ ...current, results: [persisted, ...(current.results || []).filter(r => r.id !== existing?.id && scoreSheetEntryKey(r) !== entryKey)] }));
         return persisted;
       } finally {
@@ -3453,24 +3449,10 @@ export function PortalDataProvider({ children, enabled = false }) {
       let targetStudents = [];
       if (Array.isArray(requestedStudents) && requestedStudents.length > 0) {
         targetStudents = requestedStudents.map((req) => (
-          findMatchingStudent(current.onboardedStudents || [], req) || req
+          findStudentForUpsert(current.onboardedStudents || [], { id: req.id, studentId: req.studentId }) || req
         )).filter((s) => s && (s.studentId || s.id || s.fullName || s.name));
       } else if (studentId) {
-        targetStudents = (current.onboardedStudents || []).filter(s => s.studentId === studentId || s.id === studentId || s.fullName === studentName);
-      } else if (studentName) {
-        const n = String(studentName).toLowerCase().trim();
-        targetStudents = (current.onboardedStudents || []).filter((s) => {
-          const full = String(s.fullName || s.name || '').toLowerCase().trim();
-          return full === n || (n && full.includes(n));
-        });
-        if (targetStudents.length === 0) {
-          targetStudents = [{
-            studentId: studentId || null,
-            fullName: studentName,
-            name: studentName,
-            level: classLevel,
-          }];
-        }
+        targetStudents = (current.onboardedStudents || []).filter(s => String(s.studentId) === String(studentId) || String(s.id) === String(studentId));
       } else if (classLevel && classLevel !== 'All Classes') {
         const cleanClass = classLevel.toLowerCase();
         targetStudents = (current.onboardedStudents || []).filter(s => {
@@ -3497,116 +3479,16 @@ export function PortalDataProvider({ children, enabled = false }) {
         console.warn('Backend bill post fallback:', e);
       }
 
-      const postedAt = new Date().toISOString();
-      const postedKeys = new Set(persistResult.postedStudentKeys || []);
-      const studentsToWrite = postedKeys.size
-        ? targetStudents.filter((stu) => postedKeys.has(stu.studentId || stu.id))
-        : (persistResult.posted > 0 ? targetStudents : []);
-      if (studentsToWrite.length > 0) {
-      setData((latest) => {
-        if (studentsToWrite.length === 0) return latest;
-
-        const updatedFees = [...(latest.studentFees || [])];
-        const updatedFeeAccounts = [...(latest.feeAccounts || [])];
-        const updatedLedgerLogs = [...(latest.ledgerLogs || [])];
-
-        studentsToWrite.forEach(stu => {
-          const feeIndex = updatedFees.findIndex(f =>
-            (stu.studentId && f.studentId === stu.studentId) || f.studentName === stu.fullName || f.studentName === stu.name
-          );
-          if (feeIndex >= 0) {
-            const existing = updatedFees[feeIndex];
-            const newBilled = (existing.billedAmount || 0) + amountToPost;
-            const newBalance = Math.max(0, newBilled - (existing.paidAmount || 0));
-            const newStatus = newBalance <= 0 ? 'Paid' : (existing.paidAmount || 0) > 0 ? 'Balance Due' : 'Not Paid';
-            updatedFees[feeIndex] = {
-              ...existing,
-              billedAmount: newBilled,
-              balance: newBalance,
-              status: newStatus,
-              lastBillPostedAt: postedAt,
-              updatedAt: postedAt,
-              itemsBreakdown: items || existing.itemsBreakdown,
-              guardianName: stu.guardianName || existing.guardianName,
-              guardianEmail: stu.guardianEmail || existing.guardianEmail,
-              studentId: stu.studentId || existing.studentId,
-            };
-          } else {
-            updatedFees.unshift({
-              id: `fee-${stu.id || stu.studentId || Date.now()}`,
-              studentId: stu.studentId,
-              studentName: stu.fullName || stu.name,
-              guardianName: stu.guardianName,
-              guardianEmail: stu.guardianEmail || 'parent@remaljcarewell.edu.gh',
-              term,
-              billedAmount: amountToPost,
-              paidAmount: 0,
-              balance: amountToPost,
-              status: 'Not Paid',
-              dueDate: settings.resumptionDate || '2026-09-15',
-              paymentDate: null,
-              itemsBreakdown: items,
-              lastBillPostedAt: postedAt,
-              updatedAt: postedAt,
-            });
-          }
-
-          const accIndex = updatedFeeAccounts.findIndex(a =>
-            (stu.studentId && a.studentId === stu.studentId) || a.child === stu.fullName || a.child === stu.name
-          );
-          if (accIndex >= 0) {
-            const existingAcc = updatedFeeAccounts[accIndex];
-            const newBilled = (existingAcc.billed || 0) + amountToPost;
-            const newPaid = existingAcc.paid || 0;
-            updatedFeeAccounts[accIndex] = {
-              ...existingAcc,
-              billed: newBilled,
-              status: (newBilled - newPaid) <= 0 ? 'Paid' : 'Balance due',
-              guardianEmail: stu.guardianEmail || existingAcc.guardianEmail,
-              studentId: stu.studentId || existingAcc.studentId,
-            };
-          } else {
-            updatedFeeAccounts.unshift({
-              id: `fee-acc-${stu.id || stu.studentId || Date.now()}`,
-              child: stu.fullName || stu.name,
-              studentId: stu.studentId,
-              guardianEmail: stu.guardianEmail,
-              school: 'REMALJ Carewell Inspirational School',
-              term,
-              billed: amountToPost,
-              paid: 0,
-              status: 'Not Paid',
-            });
-          }
-
-          updatedLedgerLogs.unshift({
-            id: `ledg-${Date.now()}-${stu.studentId || stu.id || Math.random().toString(36).slice(2, 8)}`,
-            studentId: stu.studentId,
-            studentName: stu.fullName || stu.name,
-            classLevel: stu.level || classLevel,
-            transactionType: 'DEBIT (ACADEMIC BILL POSTING)',
-            amount: amountToPost,
-            description: `Term Academic Fee Bill Posted (${term}) - Total: GHS ${amountToPost.toFixed(2)}`,
-            postedBy: getUserFullName() || 'Admin / Accounts Office',
-            postedAt: new Date().toLocaleString(),
-          });
-        });
-
-        return {
-          ...latest,
-          studentFees: updatedFees,
-          feeAccounts: updatedFeeAccounts,
-          ledgerLogs: updatedLedgerLogs,
-        };
-      });
-      }
-
-      try {
-        if ((persistResult.posted || 0) + (persistResult.skipped || 0) > 0) {
-          await refreshBackendData();
+      if ((persistResult.posted || 0) + (persistResult.skipped || 0) > 0) {
+        try {
+          const fees = deduplicateFees(extractApiList(await api.getFees()).map(mapFeeFromApi));
+          mutationEpochRef.current += 1;
+          setData(latest => ({ ...latest, studentFees: fees, feeAccounts: buildFeeAccountsFromStudentFees(fees) }));
+        } catch (error) {
+          persistResult.errors.push(`Bill submitted, but the account could not be reloaded: ${error.message}. Refresh before retrying.`);
+          persistResult.failed = Math.max(1, persistResult.failed);
+          persistResult.reconciliationPending = true;
         }
-      } catch (e) {
-        console.warn('Fee ledger refresh after bill post failed:', e);
       }
       return persistResult;
     },
@@ -3626,213 +3508,41 @@ export function PortalDataProvider({ children, enabled = false }) {
       }
       return result;
     },
-    adjustStudentBill: async ({
-      studentId,
-      studentName,
-      classLevel,
-      targetYearGroup,
-      adjustmentType = 'CREDIT',
-      amount = 0,
-      reason = 'Bill Ledger Adjustment',
-      invoiceNo = '',
-      items = null,
-      postedBy = 'Mrs. Grace Accountant (Finance Office)'
-    }) => {
-      api.adjustStudentBill({
-        studentId,
-        studentName,
-        classLevel,
-        adjustmentType,
-        amount,
-        reason,
-        invoiceNo,
-        postedBy,
-      }).catch((e) => console.warn('Backend bill adjust fallback:', e));
-      setData((current) => {
-      const adjAmount = Math.abs(Number(amount) || 0);
-      const cleanClass = (classLevel || targetYearGroup || '').toLowerCase();
-      const cleanStudentName = (studentName || '').toLowerCase();
-      const cleanStudentId = String(studentId || '').toLowerCase();
-
-      let targetStudents = [];
-
-      if (cleanStudentId || cleanStudentName) {
-        targetStudents = (current.onboardedStudents || []).filter(s =>
-          (cleanStudentId && (String(s.studentId).toLowerCase() === cleanStudentId || String(s.id).toLowerCase() === cleanStudentId)) ||
-          (cleanStudentName && (s.fullName || s.name || '').toLowerCase().includes(cleanStudentName))
-        );
-        if (targetStudents.length === 0) {
-          const matchFee = (current.studentFees || []).find(f =>
-            (cleanStudentId && (String(f.studentId).toLowerCase() === cleanStudentId || String(f.id).toLowerCase() === cleanStudentId)) ||
-            (cleanStudentName && (f.studentName || '').toLowerCase().includes(cleanStudentName))
-          );
-          if (matchFee) {
-            targetStudents = [{
-              id: matchFee.id,
-              studentId: matchFee.studentId || matchFee.id,
-              fullName: matchFee.studentName,
-              level: matchFee.classLevel || 'General',
-              guardianName: matchFee.guardianName,
-              guardianEmail: matchFee.guardianEmail
-            }];
-          }
-        }
-      } else if (cleanClass && cleanClass !== 'all classes' && cleanClass !== 'all') {
-        targetStudents = (current.onboardedStudents || []).filter(s => {
-          const sLvl = (s.level || '').toLowerCase();
-          return sLvl.includes(cleanClass) || cleanClass.includes(sLvl) ||
-                 (cleanClass.includes('jhs 1') && sLvl.includes('jhs 1')) ||
-                 (cleanClass.includes('jhs 2') && sLvl.includes('jhs 2')) ||
-                 (cleanClass.includes('jhs 3') && sLvl.includes('jhs 3')) ||
-                 (cleanClass.includes('jhs') && sLvl.includes('jhs')) ||
-                 (cleanClass.includes('creche') && (sLvl.includes('creche') || sLvl.includes('nursery'))) ||
-                 (cleanClass.includes('nursery') && (sLvl.includes('nursery') || sLvl.includes('creche'))) ||
-                 (cleanClass.includes('primary') && (sLvl.includes('primary') || sLvl.includes('grade')));
+    adjustStudentBill: async (adjustment) => {
+      requireLiveDatabase('Correcting this invoice');
+      const student = (dataRef.current.onboardedStudents || []).find(s => [s.id, s.studentId].includes(adjustment.studentId));
+      const feeId = adjustment.feeId || adjustment.fee_id;
+      const matching = feeId
+        ? (dataRef.current.studentFees || []).filter(f => String(f.id) === String(feeId))
+        : (dataRef.current.studentFees || []).filter(f => [student?.id, student?.studentId, adjustment.studentId].filter(Boolean).some(id => String(f.studentId) === String(id)));
+      if (matching.length !== 1) throw new Error('Select one existing invoice, including its term, before correcting it.');
+      const fee = matching[0];
+      const type = String(adjustment.adjustmentType || 'CREDIT').toUpperCase();
+      if (!['CREDIT', 'DEBIT', 'CANCEL'].includes(type)) throw new Error('Choose Credit, Debit or Cancel for the selected invoice.');
+      const amount = Number(adjustment.amount);
+      if (type !== 'CANCEL' && (!Number.isFinite(amount) || amount <= 0)) throw new Error('Enter a positive adjustment amount.');
+      if (!String(adjustment.reason || '').trim()) throw new Error('An adjustment reason is required.');
+      const lock = `adjust:${fee.id}`;
+      if (writeLocksRef.current.has(lock)) throw new Error('This invoice is already being updated.');
+      const fingerprint = JSON.stringify([fee.id, type, amount, adjustment.reason]);
+      const key = paymentKeysRef.current.get(fingerprint) || crypto.randomUUID();
+      paymentKeysRef.current.set(fingerprint, key);
+      writeLocksRef.current.add(lock); mutationEpochRef.current += 1;
+      try {
+        const raw = type === 'CANCEL'
+          ? await api.cancelStudentBill(fee.id, adjustment.reason, key)
+          : await api.adjustStudentBill({ ...adjustment, feeId: fee.id, adjustmentType: type }, key);
+        const candidate = raw.fee || raw.data?.fee || (raw.billed_amount !== undefined || raw.billedAmount !== undefined ? raw : null);
+        const fees = candidate ? [mapFeeFromApi(candidate)] : extractApiList(await api.getFees()).map(mapFeeFromApi);
+        const saved = fees.find(f => String(f.id) === String(fee.id));
+        if (!saved) throw new Error('The operation was submitted, but the updated invoice could not be loaded. Refresh before retrying.');
+        setData(current => {
+          const updated = current.studentFees.map(f => String(f.id) === String(saved.id) ? saved : f);
+          return { ...current, studentFees: updated, feeAccounts: buildFeeAccountsFromStudentFees(updated) };
         });
-      }
-
-      if (targetStudents.length === 0 && (!cleanClass || cleanClass === 'all classes' || cleanClass === 'all')) {
-        targetStudents = current.onboardedStudents || [];
-      }
-
-      const updatedFees = [...(current.studentFees || [])];
-      const updatedFeeAccounts = [...(current.feeAccounts || [])];
-      const updatedLedgerLogs = [...(current.ledgerLogs || [])];
-      const nowStr = new Date().toLocaleString();
-
-      const typeLower = (adjustmentType || '').toLowerCase();
-      const isCreditType = ['credit', 'bulk discount / scholarship', 'waiver fee credit', 'discount', 'waiver', 'scholarship'].some(t => typeLower.includes(t));
-      const isDebitType = ['debit', 'add special infrastructure levy', 'fine', 'penalty', 'surcharge', 'levy', 'add'].some(t => typeLower.includes(t));
-      const isCancelType = ['cancel', 'cancellation', 'delete'].some(t => typeLower.includes(t));
-      const isOverrideType = ['override', 'set', 'recalculate', 'post'].some(t => typeLower.includes(t));
-
-      targetStudents.forEach(stu => {
-        const feeIndex = updatedFees.findIndex(f => f.studentId === stu.studentId || f.studentName === stu.fullName || (stu.id && f.id === stu.id));
-        
-        let existingBilled = 0;
-        let existingPaid = 0;
-        let existingRecord = null;
-
-        if (feeIndex >= 0) {
-          existingRecord = updatedFees[feeIndex];
-          existingBilled = Number(existingRecord.billedAmount || 0);
-          existingPaid = Number(existingRecord.paidAmount || 0);
-        }
-
-        let newBilled = existingBilled;
-
-        if (isCancelType) {
-          newBilled = existingPaid;
-        } else if (isCreditType) {
-          newBilled = Math.max(0, existingBilled - adjAmount);
-        } else if (isDebitType) {
-          newBilled = existingBilled + adjAmount;
-        } else if (isOverrideType) {
-          newBilled = adjAmount;
-        } else {
-          newBilled = Math.max(0, existingBilled - adjAmount);
-        }
-
-        const newBalance = Math.max(0, newBilled - existingPaid);
-        let newStatus = 'Not Paid';
-        if (isCancelType && newBalance === 0) {
-          newStatus = 'Cancelled';
-        } else if (newBalance <= 0) {
-          newStatus = 'Paid';
-        } else if (existingPaid > 0) {
-          newStatus = 'Balance Due';
-        } else {
-          newStatus = 'Not Paid';
-        }
-
-        const adjustmentRecord = {
-          id: `adj-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          date: new Date().toLocaleDateString(),
-          type: adjustmentType,
-          amount: adjAmount,
-          reason,
-          invoiceNo,
-          previousBilled: existingBilled,
-          newBilled,
-          postedBy
-        };
-
-        if (feeIndex >= 0) {
-          updatedFees[feeIndex] = {
-            ...existingRecord,
-            billedAmount: newBilled,
-            balance: newBalance,
-            status: newStatus,
-            lastAdjustedAt: nowStr,
-            itemsBreakdown: items || existingRecord.itemsBreakdown,
-            adjustmentHistory: [adjustmentRecord, ...(existingRecord.adjustmentHistory || [])]
-          };
-        } else {
-          const newFee = {
-            id: `fee-${stu.id || Date.now()}`,
-            studentId: stu.studentId || `SID-${stu.id}`,
-            studentName: stu.fullName || stu.name,
-            guardianName: stu.guardianName || 'Parent',
-            guardianEmail: stu.guardianEmail || 'parent@remaljcarewell.edu.gh',
-            term: 'Term 1 · 2026',
-            billedAmount: newBilled,
-            paidAmount: 0,
-            balance: newBalance,
-            status: newStatus,
-            dueDate: '2026-09-15',
-            paymentDate: null,
-            itemsBreakdown: items || [],
-            lastAdjustedAt: nowStr,
-            adjustmentHistory: [adjustmentRecord]
-          };
-          updatedFees.unshift(newFee);
-        }
-
-        const accIndex = updatedFeeAccounts.findIndex(a => a.child === (stu.fullName || stu.name));
-        if (accIndex >= 0) {
-          const existingAcc = updatedFeeAccounts[accIndex];
-          const accPaid = Number(existingAcc.paid || 0);
-          const accBalance = Math.max(0, newBilled - accPaid);
-          updatedFeeAccounts[accIndex] = {
-            ...existingAcc,
-            billed: newBilled,
-            status: accBalance <= 0 ? (isCancelType ? 'Cancelled' : 'Paid') : 'Balance due',
-          };
-        } else {
-          updatedFeeAccounts.unshift({
-            id: `fee-acc-${stu.id || Date.now()}`,
-            child: stu.fullName || stu.name,
-            school: 'REMALJ Carewell Inspirational School',
-            term: 'Term 1 · 2026',
-            billed: newBilled,
-            paid: 0,
-            status: newBalance <= 0 ? 'Paid' : 'Balance due',
-          });
-        }
-
-        updatedLedgerLogs.unshift({
-          id: `ledg-adj-${Date.now()}-${stu.studentId || Math.random()}`,
-          studentId: stu.studentId || `SID-${stu.id}`,
-          studentName: stu.fullName || stu.name,
-          classLevel: stu.level || classLevel || targetYearGroup || 'General',
-          transactionType: `BILL ADJUSTMENT (${adjustmentType.toUpperCase()})`,
-          amount: adjAmount,
-          previousBilled: existingBilled,
-          newBilledAmount: newBilled,
-          newBalance,
-          description: `Bill Ledger Adjusted [${adjustmentType}]: ${reason}${invoiceNo ? ` (Ref: ${invoiceNo})` : ''}`,
-          postedBy,
-          postedAt: nowStr,
-        });
-      });
-
-      return {
-        ...current,
-        studentFees: updatedFees,
-        feeAccounts: updatedFeeAccounts,
-        ledgerLogs: updatedLedgerLogs,
-      };
-    });
+        paymentKeysRef.current.delete(fingerprint);
+        return saved;
+      } finally { mutationEpochRef.current += 1; writeLocksRef.current.delete(lock); }
     },
     sendAccountantMessage: async (msg) => {
       try {

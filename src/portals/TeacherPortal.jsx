@@ -29,40 +29,22 @@ const NAV = [
   { icon: <Users size={15}/>,           label: 'Students',     badge: null },
   { icon: <FileCheck size={15}/>,       label: 'Exam Registration', badge: null },
   { icon: <ClipboardCheck size={15}/>,  label: 'Admissions',   badge: null },
-  { icon: <ClipboardList size={15}/>,   label: 'Assignments',  badge: '3'  },
+  { icon: <ClipboardList size={15}/>,   label: 'Assignments',  badge: null  },
   { icon: <BookOpen size={15}/>,        label: 'Grades',       badge: null },
   { icon: <Calendar size={15}/>,        label: 'Schedule',     badge: null },
   { icon: <Calendar size={15}/>,        label: 'Academic Calendar', badge: null },
-  { icon: <MessageSquare size={15}/>,   label: 'Messages',     badge: '12' },
+  { icon: <MessageSquare size={15}/>,   label: 'Messages',     badge: null },
   { icon: <Bus size={15}/>,             label: 'Transport',    badge: null },
   { icon: <TrendingUp size={15}/>,      label: 'Reports',      badge: null },
   { icon: <Award size={15}/>,           label: 'Performance',  badge: null },
   { icon: <Settings size={15}/>,        label: 'Settings',     badge: null },
 ];
 
-const FALLBACK_STUDENTS = [
-  { name: 'Abena Mensah', class: 'JHS 3A', score: 92, id: 'REMALJ-2026-041', attendance: 98, mathGrade: 'N/A', sciGrade: 'N/A',  color: '#204d2d' },
-  { name: 'Kwame Asante', class: 'JHS 3A', score: 76, id: 'REMALJ-2026-112', attendance: 82, mathGrade: 'N/A', sciGrade: 'N/A', color: '#1e3a8a' },
-  { name: 'Efua Darko',   class: 'JHS 2B', score: 64, id: 'REMALJ-2026-088', attendance: 74, mathGrade: 'N/A', sciGrade: 'N/A',  color: '#78350f' },
-  { name: 'Kofi Boateng', class: 'JHS 2B', score: 55, id: 'REMALJ-2026-055', attendance: 61, mathGrade: 'N/A', sciGrade: 'N/A',  color: '#991b1b' },
-  { name: 'Ama Owusu',    class: 'JHS 1C', score: 88, id: 'REMALJ-2026-033', attendance: 96, mathGrade: 'N/A', sciGrade: 'N/A', color: '#204d2d' },
-];
+const FALLBACK_STUDENTS = [];
 
-const ACTIVITY = [
-  { text: 'You graded 14 assignments for JHS 3A Mathematics.',      time: '10 mins ago', color: TEACHER_ACCENT },
-  { text: 'Parent meeting: Mensah family – Friday 3 PM.',            time: '1 hr ago',    color: '#3a72c8'     },
-  { text: 'New curriculum update available for Primary Science.',    time: '3 hrs ago',   color: '#c89a3a'     },
-  { text: 'Kofi Boateng marked absent – 3rd time this week.',       time: 'Yesterday',   color: '#c84a4a'     },
-  { text: 'Term results uploaded to admin successfully.',            time: '2 days ago',  color: TEACHER_ACCENT },
-];
+const ACTIVITY = [];
 
-const SUBJECTS = [
-  { subject: 'Mathematics',     pct: 78, color: TEACHER_ACCENT },
-  { subject: 'English Language',pct: 85, color: '#3a72c8'      },
-  { subject: 'Science',         pct: 71, color: '#c89a3a'      },
-  { subject: 'Social Studies',  pct: 90, color: '#c8703a'      },
-  { subject: 'ICT',             pct: 82, color: '#7c3ac8'      },
-];
+const SUBJECTS = [];
 
 const SUBJECT_COLORS = [TEACHER_ACCENT, '#3a72c8', '#c89a3a', '#c8703a', '#7c3ac8'];
 const ACTIVITY_COLORS = {
@@ -72,15 +54,7 @@ const ACTIVITY_COLORS = {
   danger: '#c84a4a',
 };
 
-const FALLBACK_TRANSPORT = {
-  routeLabel: 'Bus 01 – Route A',
-  studentsOnBoard: 22,
-  capacity: 25,
-  nextStop: 'Anikoko',
-  eta: '15:45',
-  progressPercent: 62,
-  stopsLeft: 3,
-};
+const FALLBACK_TRANSPORT = null;
 
 function asList(res, keys) {
   if (Array.isArray(res)) return res;
@@ -264,7 +238,7 @@ export default function TeacherPortal() {
   const [gradesTarget, setGradesTarget] = useState(null);
   const [scoreSheetTarget, setScoreSheetTarget] = useState(null);
   const [selectedReportStudent, setSelectedReportStudent] = useState(null);
-  const [classMasterComment, setClassMasterComment] = useState('Exemplary conduct and strong academic commitment throughout the term.');
+  const [classMasterComment, setClassMasterComment] = useState('');
   const [reportSearchTerm, setReportSearchTerm] = useState('');
 
   const classStudents = useMemo(() => {
@@ -340,13 +314,13 @@ export default function TeacherPortal() {
   const rosterFromStore = onboardedStudents.length > 0 ? onboardedStudents.map(s => ({
     name: s.fullName,
     class: s.level,
-    score: 85,
+    score: null,
     id: s.studentId,
-    attendance: 95,
+    attendance: s.attendancePercent ?? s.attendance_percent ?? null,
     mathGrade: subjectGradeFor(s, 'math'),
     sciGrade: subjectGradeFor(s, 'science'),
     color: TEACHER_GREEN,
-    email: s.studentEmail || `${(s.fullName || '').toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`,
+    email: s.studentEmail || '',
     status: 'Enrolled',
   })) : FALLBACK_STUDENTS;
 
@@ -356,9 +330,9 @@ export default function TeacherPortal() {
     if (assignedKey && classLabelsMatch(studentClass, classAssignedLabel)) return true;
     return assignedClasses.some((name) => classLabelsMatch(name, studentClass));
   });
-  const displayStudents = classDashboard?.students?.length
+  const displayStudents = Array.isArray(classDashboard?.students)
     ? classDashboard.students.map((student) => ({ ...student, color: TEACHER_GREEN }))
-    : (classRoster.length ? classRoster : rosterFromStore);
+    : classRoster;
   const usingLiveRoster = Boolean(classDashboard?.students?.length) || onboardedStudents.length > 0;
 
   const STATS = [
@@ -465,16 +439,16 @@ export default function TeacherPortal() {
                 </p>
                 <h1 className="page-header__title">Bus Tracking & Fleet Management 🚌</h1>
                 <p className="page-header__subtitle">
-                  Monitor all <strong style={{ color: TEACHER_ACCENT }}>4 active routes</strong> in real-time, manage student manifests, and contact drivers.
+                  View recorded routes and available transport updates.
                 </p>
               </div>
               {/* Quick stats */}
               <div className="stats-grid" style={{ marginBottom: 20 }}>
                 {[
-                  { label: 'Buses On Route',   value: '3', icon: '🚌', bg: '#dcfce7', ic: '#166534' },
-                  { label: 'Students In Transit', value: '60', icon: '👥', bg: '#dbeafe', ic: '#1e3a8a' },
-                  { label: 'At School',         value: '1', icon: '🏫', bg: '#fef9c3', ic: '#78350f' },
-                  { label: 'Avg ETA Accuracy',  value: '97%', icon: '⏱', bg: '#dcfce7', ic: '#166534' },
+                  { label: 'Buses On Route',   value: 'Not available', icon: '🚌', bg: '#dcfce7', ic: '#166534' },
+                  { label: 'Students In Transit', value: 'Not available', icon: '👥', bg: '#dbeafe', ic: '#1e3a8a' },
+                  { label: 'At School',         value: 'Not available', icon: '🏫', bg: '#fef9c3', ic: '#78350f' },
+                  { label: 'Avg ETA Accuracy',  value: 'Not available', icon: '⏱', bg: '#dcfce7', ic: '#166534' },
                 ].map((s, i) => (
                   <div className="stat-card" key={s.label} style={{ animationDelay: `${i * 60}ms` }}>
                     <div className="stat-card__icon" style={{ background: s.bg, color: s.ic, fontSize: 20 }}>{s.icon}</div>
@@ -531,14 +505,15 @@ export default function TeacherPortal() {
                   <table className="data-table">
                     <thead><tr><th>Student Name</th><th>ID Number</th><th>Attendance</th><th>Maths Grade</th><th>Science Grade</th><th>Status</th></tr></thead>
                     <tbody>
+                      {displayStudents.length === 0 && <tr><td colSpan={6}>No student records available.</td></tr>}
                       {displayStudents.map((s) => (
-                        <tr key={s.name}>
+                        <tr key={s.id}>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                               <div className="avatar" style={{ background: s.color }}>{s.name.charAt(0)}</div>
                               <div>
                                 <div style={{ fontWeight: 600, color: 'var(--gray-900)' }}>{s.name}</div>
-                                <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{s.email || `${s.name.toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`}</div>
+                                <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{s.email || 'Not provided'}</div>
                               </div>
                             </div>
                           </td>
@@ -546,9 +521,9 @@ export default function TeacherPortal() {
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <div style={{ width: 40, height: 4, background: 'var(--gray-200)', borderRadius: 9999, overflow: 'hidden' }}>
-                                <div style={{ height: '100%', width: `${s.attendance}%`, background: s.attendance >= 90 ? '#16a34a' : s.attendance >= 75 ? '#d97706' : '#dc2626', borderRadius: 9999 }} />
+                                <div style={{ height: '100%', width: `${s.attendance ?? 0}%`, background: s.attendance >= 90 ? '#16a34a' : s.attendance >= 75 ? '#d97706' : '#dc2626', borderRadius: 9999 }} />
                               </div>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: s.attendance >= 90 ? '#166534' : '#78350f' }}>{s.attendance}%</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: s.attendance >= 90 ? '#166534' : '#78350f' }}>{s.attendance == null ? 'Not available' : `${s.attendance}%`}</span>
                             </div>
                           </td>
                           <td><span style={{ background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 800 }}>{s.mathGrade}</span></td>
@@ -570,6 +545,7 @@ export default function TeacherPortal() {
                     <div className="panel__header"><h2 className="panel__title">Recent Activity</h2><Bell size={15} color="var(--gray-400)"/></div>
                     <div className="panel__body">
                       <div className="activity-feed">
+                        {activityFeed.length === 0 && <p>No recorded activity.</p>}
                         {activityFeed.map((a, i) => (
                           <div className="activity-item" key={i}>
                             <div className="activity-item__dot" style={{ background: a.color }}/>
@@ -583,6 +559,7 @@ export default function TeacherPortal() {
                     </div>
                   </div>
                   {/* Transport mini */}
+                  {liveTransport ? <>
                   <div
                     className="transport-widget"
                     style={{ cursor: 'pointer' }}
@@ -607,13 +584,14 @@ export default function TeacherPortal() {
                     </div>
                     <div className="transport-stops"><span>School</span><span>{liveTransport.stopsLeft} stops left</span><span>{liveTransport.nextStop}</span></div>
                     <div style={{ marginTop: 10, fontSize: 11, color: 'rgba(255,255,255,.5)', textAlign: 'center' }}>Click to open full tracker →</div>
-                  </div>
+                  </div></> : <div className="panel"><p>Transport updates are not available.</p></div>}
                 </div>
               </div>
               {/* Subject bars */}
               <div className="panel" style={{ marginTop: 18 }}>
                 <div className="panel__header"><h2 className="panel__title">Class Subject Performance</h2></div>
                 <div className="panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {subjectRows.length === 0 && <p>No recorded subject performance.</p>}
                   {subjectRows.map((row) => (
                     <div className="progress-bar-wrap" key={row.subject}>
                       <div className="progress-bar-label"><span>{row.subject}</span><span style={{ color: row.color, fontWeight: 700 }}>{row.pct}%</span></div>
@@ -780,7 +758,7 @@ export default function TeacherPortal() {
                           return (
                             <tr key={st.id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                               <td style={{ padding: '10px 12px', fontWeight: 800, color: idx < 3 ? '#b45309' : '#64748b' }}>
-                                {idx === 0 ? '🥇 1st' : idx === 1 ? '🥈 2nd' : idx === 2 ? '🥉 3rd' : `${idx + 1}th`}
+                                {'Not ranked'}
                               </td>
                               <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontWeight: 700, color: '#334155' }}>
                                 {st.studentId || st.id || `REMALJ-2026-${String(idx + 1).padStart(3, '0')}`}
@@ -795,7 +773,7 @@ export default function TeacherPortal() {
                                 {st.gender || '-'}
                               </td>
                               <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#0284c7' }}>
-                                {tData?.averageScore ? `${tData.averageScore}%` : '85.4%'}
+                                {tData?.averageScore != null ? `${tData.averageScore}%` : 'Not available'}
                               </td>
                               <td style={{ padding: '10px 12px', textAlign: 'right' }}>
                                 <button
@@ -827,21 +805,14 @@ export default function TeacherPortal() {
           {selectedReportStudent && isClassTeacher && (() => {
             const st = selectedReportStudent;
             const studentIdx = classStudents.findIndex(s => (s.id && s.id === st.id) || (s.studentId && s.studentId === st.studentId));
-            const rankStr = studentIdx >= 0 ? `${studentIdx + 1}${studentIdx === 0 ? 'st' : studentIdx === 1 ? 'nd' : studentIdx === 2 ? 'rd' : 'th'} out of ${classStudents.length || 35}` : '2nd out of 35';
-            
-            // Build subjects list from results or default curriculum
-            const stResults = resultsForStudent(recordedResults, st);
-            const reportSubjects = stResults.length > 0 ? stResults.map(r => ({
+            const rankStr = st.classPosition || 'Not available';
+            const stResults = resultsForStudent(recordedResults, st).filter(r => r.hasExamScore === true);
+            const reportSubjects = stResults.map(r => ({
               subject: r.subject,
-              score: r.score != null ? `${r.score}%` : '85%',
-              grade: r.grade || 'A',
-              remarks: r.remarks || (Number(r.score) >= 80 ? 'Excellent performance' : Number(r.score) >= 70 ? 'Very good performance' : 'Good performance')
-            })) : [
-              { subject: 'Pure Mathematics', score: '91%', grade: 'A', remarks: 'Excellent numerical skills' },
-              { subject: 'Physics & Science', score: '86%', grade: 'A-', remarks: 'Very good lab performance' },
-              { subject: 'Literature in English', score: '88%', grade: 'A-', remarks: 'Articulate & expressive writer' },
-              { subject: 'Social Studies', score: '84%', grade: 'B+', remarks: 'Good understanding of civic duties' },
-            ];
+              score: r.score != null ? `${r.score}%` : 'Not available',
+              grade: String(r.grade || 'Not available'),
+              remarks: r.remarks || 'Not provided',
+            }));
 
             return (
               <div style={{
@@ -906,7 +877,7 @@ export default function TeacherPortal() {
                           OFFICIAL STUDENT PROGRESSIVE TERMINAL REPORT
                         </p>
                         <small style={{ color: '#9ca3af', fontSize: 10.5 }}>
-                          Term 1 · Academic Year 2026/2027
+                          Saved assessment records
                         </small>
                         <div style={{ height: 2, background: '#0f3a4b', width: '100%', marginTop: 8 }} />
                       </div>
@@ -918,7 +889,7 @@ export default function TeacherPortal() {
                         border: '1px solid #e2e8f0', marginBottom: 14, fontSize: 12
                       }}>
                         <div><strong style={{ color: '#334155' }}>Student Name:</strong> <span style={{ fontWeight: 700, color: '#0f172a' }}>{st.fullName || st.name}</span></div>
-                        <div><strong style={{ color: '#334155' }}>Student ID:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{st.studentId || st.id || 'REMALJ-2026-001'}</span></div>
+                        <div><strong style={{ color: '#334155' }}>Student ID:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{st.studentId || st.id || 'Not available'}</span></div>
                         <div><strong style={{ color: '#334155' }}>Class / Level:</strong> <span style={{ fontWeight: 700 }}>{st.level || st.classLevel || classAssignedLabel || 'Basic 1'}</span></div>
                         <div><strong style={{ color: '#334155' }}>Class Position:</strong> <span style={{ fontWeight: 800, color: '#0f3a4b' }}>{rankStr}</span></div>
                       </div>
@@ -934,6 +905,7 @@ export default function TeacherPortal() {
                           </tr>
                         </thead>
                         <tbody>
+                          {reportSubjects.length === 0 && <tr><td colSpan={4}>No complete assessment records.</td></tr>}
                           {reportSubjects.map((sub, i) => (
                             <tr key={sub.subject || i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                               <td style={{ padding: '8px 10px', color: '#1e293b', fontWeight: 600 }}>{sub.subject}</td>
@@ -948,10 +920,10 @@ export default function TeacherPortal() {
                       {/* Comments & Endorsements */}
                       <div style={{ marginTop: 14, borderTop: '1px dashed #cbd5e1', paddingTop: 10, fontSize: 11, color: '#334155', lineHeight: 1.6 }}>
                         <div style={{ marginBottom: 6 }}>
-                          <strong>Class Master Comment:</strong> {classMasterComment}
+                          <strong>Class Master Comment:</strong> {classMasterComment || 'Not provided'}
                         </div>
                         <div>
-                          <strong>Headmaster Endorsement:</strong> Promoted with distinction to the next level. [SIGNED & SEALED]
+                          <strong>Headmaster Endorsement:</strong> Not provided
                         </div>
                       </div>
                     </div>
@@ -963,7 +935,7 @@ export default function TeacherPortal() {
                       </label>
                       <input
                         type="text"
-                        value={classMasterComment}
+                        value={classMasterComment || 'Not provided'}
                         onChange={(e) => setClassMasterComment(e.target.value)}
                         style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11.5 }}
                       />

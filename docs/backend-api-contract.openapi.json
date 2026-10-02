@@ -3,7 +3,7 @@
   "info": {
     "title": "School Portal Database Integration Contract",
     "version": "2026-10-02",
-    "description": "Required contract for the corrected frontend workflows. Existing client routes are not evidence of deployed backend support. Implement server-side persistence, authorization, transactions and validation before rollout."
+    "description": "Required contract for the corrected frontend workflows. Existing client routes are not evidence of deployed backend support. Implement server-side persistence, authorization, transactions and validation before rollout. Non-login assessment and invoice contracts aligned with FRONTEND_REMEDIATION_HANDOFF.md on 2 October 2026. Login and PIN flows remain unchanged. Backend migration a1c2e3f4b5d6 and deployment must be verified separately; synthetic frontend tests do not prove live database persistence. Bulk billing is disabled until approved fee structures and a server preview are available."
   },
   "servers": [
     {
@@ -1354,86 +1354,10 @@
         }
       }
     },
-    "/sims/score-sheets/entries": {
-      "get": {
-        "summary": "Read authorized single-student score sheets",
-        "description": "",
-        "responses": {
-          "200": {
-            "description": "Authorized database records",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ScoreSheet"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Session missing or expired",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not authorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Version conflict or idempotency key reused with different payload",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Database or dependent service unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
     "/sims/score-sheets/entry": {
       "post": {
         "summary": "Upsert score sheet by natural identity",
-        "description": "Enforce uniqueness by school, student, subject, academic year, term. Derive final grades and status server-side; exam submission and changes to an approved total require approval. Return id and the complete saved scores.",
+        "description": "Upsert by student, subject and period. Send raw percentages with score_format raw and four tests/class_test_max. Recalculate once server-side. Return the saved score UUID in scores[0].id, raw values, breakdown, converted total, grade and status. A missing exam is null; a zero exam is submitted. Published edits return 409.",
         "responses": {
           "200": {
             "description": "Committed database result",
@@ -1499,99 +1423,6 @@
         "security": [
           {
             "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ScoreSheet"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/sims/score-sheets/entry/{id}": {
-      "put": {
-        "summary": "Update an existing score sheet",
-        "description": "",
-        "responses": {
-          "200": {
-            "description": "Committed database result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ScoreSheet"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Session missing or expired",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not authorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Version conflict or idempotency key reused with different payload",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Database or dependent service unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "requestBody": {
@@ -2341,7 +2172,7 @@
       },
       "put": {
         "summary": "Persist academic settings",
-        "description": "",
+        "description": "Validate weights total 100 and date order. Preserve approved gradingBands. School/campus profile changes are not persisted by this endpoint.",
         "responses": {
           "200": {
             "description": "Committed database result",
@@ -2736,6 +2567,771 @@
           }
         }
       }
+    },
+    "/sims/score-sheets": {
+      "get": {
+        "summary": "Read authorized single-student score sheets",
+        "description": "",
+        "responses": {
+          "200": {
+            "description": "Authorized database records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScoreSheet"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session missing or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not authorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict or idempotency key reused with different payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "academic_year",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "term",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "class_level",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/sims/score-sheets/{id}": {
+      "get": {
+        "summary": "Read a saved assessment",
+        "description": "Return raw_class_score, raw_exam_score, class_breakdown, draft state and the saved UUID.",
+        "responses": {
+          "200": {
+            "description": "Committed database result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScoreSheet"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session missing or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not authorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict or idempotency key reused with different payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Update an existing score sheet",
+        "description": "Use the saved score UUID. Send raw percentages. Published records and partial edits across changed weights return 409. Use POST with all four tests to retain individual-test breakdown.",
+        "responses": {
+          "200": {
+            "description": "Committed database result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScoreSheet"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session missing or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not authorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict or idempotency key reused with different payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "class_score": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "exam_score": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "score_format": {
+                    "type": "string",
+                    "enum": [
+                      "raw"
+                    ]
+                  }
+                },
+                "required": [
+                  "score_format"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sims/test-results/{id}/publish": {
+      "post": {
+        "summary": "Publish a complete saved assessment",
+        "description": "Require an approval role and a submitted exam, including a valid zero mark. Reject incomplete drafts.",
+        "responses": {
+          "200": {
+            "description": "Committed database result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScoreSheet"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session missing or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not authorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict or idempotency key reused with different payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/finance/fees/{id}/adjust": {
+      "post": {
+        "summary": "Adjust exactly one invoice",
+        "description": "Use an exact fee UUID, a reason and a stable Idempotency-Key on retry. Commit atomically, enforce period locks, and return the canonical fee. Preserve negative credit balances and existing payment receipts. Cancellation does not issue a refund.",
+        "responses": {
+          "200": {
+            "description": "Committed database result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "fee": {
+                      "$ref": "#/components/schemas/Fee"
+                    }
+                  },
+                  "required": [
+                    "fee"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session missing or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not authorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict or idempotency key reused with different payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "adjustment_type": {
+                    "type": "string",
+                    "enum": [
+                      "CREDIT",
+                      "DEBIT"
+                    ]
+                  },
+                  "amount": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "reason",
+                  "adjustment_type",
+                  "amount"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/fees/{id}/cancel": {
+      "post": {
+        "summary": "Cancel exactly one invoice",
+        "description": "Use an exact fee UUID, a reason and a stable Idempotency-Key on retry. Commit atomically, enforce period locks, and return the canonical fee. Preserve negative credit balances and existing payment receipts. Cancellation does not issue a refund.",
+        "responses": {
+          "200": {
+            "description": "Committed database result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "fee": {
+                      "$ref": "#/components/schemas/Fee"
+                    }
+                  },
+                  "required": [
+                    "fee"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session missing or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not authorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict or idempotency key reused with different payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "reason"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/students/merges/preview": {
+      "post": {
+        "summary": "Preview student merge dependencies",
+        "description": "PROPOSED; not present in deployed schema on 2 October 2026. Admin-only, school-scoped. Never infer identity by names. Preview must expose dependent accounts, applications, fees, payments, cards and results. Commit checks preview version and atomically preserves dependencies and audit history; conflicting financial records require explicit reconciliation.",
+        "x-deployment-status": "proposed-not-deployed",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "canonical_student_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "duplicate_student_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                },
+                "required": [
+                  "canonical_student_id",
+                  "duplicate_student_ids"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Version-bound preview_token and dependency/conflict summary"
+          },
+          "409": {
+            "description": "Stale preview or unresolved financial/account conflict"
+          },
+          "404": {
+            "description": "Endpoint not deployed or record not found"
+          },
+          "403": {
+            "description": "Not permitted"
+          }
+        }
+      }
+    },
+    "/students/merges": {
+      "post": {
+        "summary": "Commit reviewed student merge",
+        "description": "PROPOSED; not present in deployed schema on 2 October 2026. Admin-only, school-scoped. Never infer identity by names. Preview must expose dependent accounts, applications, fees, payments, cards and results. Commit checks preview version and atomically preserves dependencies and audit history; conflicting financial records require explicit reconciliation.",
+        "x-deployment-status": "proposed-not-deployed",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "canonical_student_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "duplicate_student_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "preview_token": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "canonical_student_id",
+                  "duplicate_student_ids",
+                  "preview_token",
+                  "reason"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Canonical student plus merge audit ID"
+          },
+          "409": {
+            "description": "Stale preview or unresolved financial/account conflict"
+          },
+          "404": {
+            "description": "Endpoint not deployed or record not found"
+          },
+          "403": {
+            "description": "Not permitted"
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -3020,6 +3616,35 @@
           },
           "status": {
             "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "raw_class_score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "raw_exam_score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "class_breakdown": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "grade": {
+            "type": "string",
+            "readOnly": true
           }
         },
         "required": [
@@ -3083,6 +3708,16 @@
           },
           "has_exam_score": {
             "type": "boolean"
+          },
+          "score_format": {
+            "type": "string",
+            "enum": [
+              "raw"
+            ]
+          },
+          "class_test_max": {
+            "type": "number",
+            "exclusiveMinimum": 0
           }
         },
         "required": [
@@ -3169,12 +3804,6 @@
           "examWeight": {
             "type": "number"
           },
-          "schoolName": {
-            "type": "string"
-          },
-          "schoolBranch": {
-            "type": "string"
-          },
           "gradingSystem": {
             "type": "string"
           },
@@ -3183,11 +3812,20 @@
           },
           "vacationDate": {
             "type": "string"
+          },
+          "gradingBands": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object"
+            },
+            "description": "Preserve existing school-approved band objects; no frontend-invented boundaries."
           }
         },
         "required": [
           "academicYear",
-          "academicTerm"
+          "academicTerm",
+          "gradingBands"
         ]
       },
       "Batch": {
@@ -3442,5 +4080,14 @@
         ]
       }
     }
+  },
+  "x-student-billing-remediation": {
+    "handoff": "student-identity-and-billing-handoff.txt",
+    "studentIdentity": "One application -> one student UUID -> one linked login account. Name and email appear on the same student record.",
+    "onboardingBilling": "No automatic preset charges. Zero initial billed amount must remain zero.",
+    "billConsistency": "POST /finance/bills/student, GET /finance/fees and student ledger must share canonical invoice identity and exact decimal amounts. Honor stable Idempotency-Key.",
+    "existingDuplicates": "Require a reviewed, transactional merge preserving financial and academic dependencies; no name-only automatic deletion.",
+    "verification": "Frontend synthetic tests only. Backend and production reconciliation pending.",
+    "publishedSchema": "https://rcis-backend.onrender.com/api/v1/openapi.json"
   }
 }

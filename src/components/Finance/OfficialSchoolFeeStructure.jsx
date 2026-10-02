@@ -714,6 +714,9 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
   const [selectedSubLevel, setSelectedSubLevel] = useState('Creche');
   
   const [successMsg, setSuccessMsg] = useState('');
+  const [cancellation, setCancellation] = useState(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelError, setCancelError] = useState('');
 
   // Add & Edit Fee Item Modal State
   const [isAddingFeeModal, setIsAddingFeeModal] = useState(false);
@@ -925,11 +928,11 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       }) || persist;
     }
 
-    if ((persist.failed && persist.posted === 0 && !persist.skipped)) {
+    if (persist.failed || persist.reconciliationPending || (!persist.posted && !persist.skipped)) {
+      const notice = `${persist.posted || 0} bill(s) confirmed; ${persist.failed || 0} failed or awaiting reconciliation. ${persist.errors?.[0] || 'No bill was confirmed.'}`;
       setPostBillSuccessData(null);
-      setSuccessMsg(`Could not save the ${selectedSubLevel} bills to the database: ${persist.errors[0] || 'request failed'}`);
-      alert(`Could not save bills to the database.\n\n${persist.errors[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
-      setTimeout(() => setSuccessMsg(''), 7000);
+      setSuccessMsg(notice);
+      alert(notice);
       return;
     }
 
@@ -979,11 +982,11 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       }) || persist;
     }
 
-    if ((persist.failed && persist.posted === 0 && !persist.skipped)) {
+    if (persist.failed || persist.reconciliationPending || (!persist.posted && !persist.skipped)) {
+      const notice = `${persist.posted || 0} bill(s) confirmed; ${persist.failed || 0} failed or awaiting reconciliation. ${persist.errors?.[0] || 'No bill was confirmed.'}`;
       setPostBillSuccessData(null);
-      setSuccessMsg(`Could not save ${sFullName}'s bill to the database: ${persist.errors[0] || 'request failed'}`);
-      alert(`Could not save this bill to the database.\n\n${persist.errors[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
-      setTimeout(() => setSuccessMsg(''), 7000);
+      setSuccessMsg(notice);
+      alert(notice);
       return;
     }
 
@@ -1300,12 +1303,11 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     const finalScopeText = scopeLabel || (studentToUse ? getStudentFullName(studentToUse) : 'All Students');
 
     // Trigger Foremost Layer Success Banner/Dialog Box (Requirement 2)
-    if ((persist.failed && persist.posted === 0 && !persist.skipped)) {
+    if (persist.failed || persist.reconciliationPending || (!persist.posted && !persist.skipped)) {
+      const notice = `${persist.posted || 0} bill(s) confirmed; ${persist.failed || 0} failed or awaiting reconciliation. ${persist.errors?.[0] || 'No bill was confirmed.'}`;
       setPostBillSuccessData(null);
-      setSuccessMsg(`Could not save bills to the database: ${persist.errors[0] || 'request failed'}`);
-      alert(`Could not save bills to the database.\n\n${persist.errors[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
-      setIsPostingModalOpen(false);
-      setTimeout(() => setSuccessMsg(''), 7000);
+      setSuccessMsg(notice);
+      alert(notice);
       return;
     }
 
@@ -1543,31 +1545,56 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
   const handleCancelPostedBill = (student) => {
     const target = student || preparingStudentBill;
-    if (!target) {
-      alert('Select a student whose posted bill you want to cancel.');
-      return;
-    }
-    const name = getStudentFullName(target);
-    if (!window.confirm(`Cancel the posted academic bill for ${name}? This zeros the billed amount against payments already received.`)) {
-      return;
-    }
-    if (portalData?.adjustStudentBill) {
-      portalData.adjustStudentBill({
-        studentId: target.studentId || target.id,
-        studentName: name,
-        classLevel: target.level || selectedSubLevel,
+    if (!target) return;
+    const identities = [target.id, target.studentId].filter(Boolean).map(String);
+    const invoices = studentFees.filter(fee => identities.includes(String(fee.studentId || fee.student_id)));
+    setCancelError('');
+    setCancellation({ name: getStudentFullName(target), invoices, feeId: invoices.length === 1 ? invoices[0].id : '', reason: '' });
+  };
+
+  const submitCancellation = async (event) => {
+    event.preventDefault();
+    if (cancelBusy || !cancellation?.feeId || !cancellation.reason.trim()) return;
+    setCancelBusy(true);
+    setCancelError('');
+    try {
+      await portalData.adjustStudentBill({
+        feeId: cancellation.feeId,
         adjustmentType: 'CANCEL',
         amount: 0,
-        reason: `Posted bill cancelled by ${resolvedAdminRole || 'administrator'}`,
-        postedBy: getAuthUser()?.fullName || getAuthUser()?.name || 'Administrator',
+        reason: cancellation.reason.trim(),
       });
+      setSuccessMsg(`Invoice cancelled for ${cancellation.name}. Receipts retained; no refund issued.`);
+      setCancellation(null);
+      setTimeout(() => setSuccessMsg(''), 5000);
+    } catch (error) {
+      setCancelError(error.message);
+    } finally {
+      setCancelBusy(false);
     }
-    setSuccessMsg(`Posted bill cancelled for ${name}.`);
-    setTimeout(() => setSuccessMsg(''), 5000);
   };
 
   return (
     <div className="fee-structure-container">
+      {cancellation && (
+        <div role="dialog" aria-modal="true" aria-label="Cancel invoice" style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#0008', display: 'grid', placeItems: 'center' }}>
+          <form onSubmit={submitCancellation} style={{ background: 'white', padding: 24, borderRadius: 12, width: 'min(480px, 90vw)', display: 'grid', gap: 16 }}>
+            <h3>Cancel invoice for {cancellation.name}</h3>
+            <p>Choose the exact invoice. Existing receipts are retained. Cancellation does not issue a refund.</p>
+            <label>Invoice
+              <select aria-label="Invoice to cancel" required disabled={cancelBusy} value={cancellation.feeId} onChange={e => setCancellation({ ...cancellation, feeId: e.target.value })} style={{ width: '100%' }}>
+                <option value="">Select an invoice</option>
+                {cancellation.invoices.map(fee => <option key={fee.id} value={fee.id}>{fee.id} · {fee.academicYear || fee.year || ''} {fee.term || ''} · Balance {fee.balance}</option>)}
+              </select>
+            </label>
+            {!cancellation.invoices.length && <p>No saved invoice is available for this student.</p>}
+            <label>Reason<textarea required disabled={cancelBusy} value={cancellation.reason} onChange={e => setCancellation({ ...cancellation, reason: e.target.value })} style={{ width: '100%' }} /></label>
+            {cancelError && <p role="alert" style={{ color: '#b91c1c' }}>{cancelError}</p>}
+            <button type="submit" disabled={cancelBusy || !cancellation.feeId || !cancellation.reason.trim()}>{cancelBusy ? 'Cancelling…' : 'Confirm cancellation'}</button>
+            <button type="button" disabled={cancelBusy} onClick={() => setCancellation(null)}>Close</button>
+          </form>
+        </div>
+      )}
       {/* Toast Notification Banner */}
       {successMsg && (
         <div style={{

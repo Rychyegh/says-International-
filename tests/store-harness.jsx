@@ -1,3 +1,5 @@
+import AcademicSettingsManager from '../src/components/Academic/AcademicSettingsManager';
+import ScoreSheetEntryForm from '../src/components/ScoreSheet/ScoreSheetEntryForm';
 import React, { useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PortalDataProvider, usePortalData, studentsAreSamePerson } from '../src/data/PortalStore';
@@ -5,7 +7,8 @@ import { setAuthToken, setAuthUser } from '../src/services/api';
 function Probe() {
   const data = usePortalData();
   useEffect(() => { window.testStore = data; }, [data]);
-  return <p>Database integration test harness</p>;
+  const view = new URLSearchParams(location.search).get('view');
+  return view === 'settings' ? <AcademicSettingsManager inline /> : view === 'scores' ? <ScoreSheetEntryForm /> : <p>Database integration test harness</p>;
 }
 let mountVersion = 0;
 const root = createRoot(document.getElementById('root'));

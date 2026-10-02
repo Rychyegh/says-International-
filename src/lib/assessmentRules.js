@@ -4,6 +4,7 @@ export function rawAssessment(entry) {
   if (!Number.isFinite(max) || max <= 0) throw new Error('A positive class-test maximum is required.');
   const marks = [entry.arrivalTest, entry.test1, entry.test2, entry.test3].map(numberOrNull);
   const hasBreakdown = marks.every(value => value !== null);
+  if (!hasBreakdown && marks.some(value => value !== null)) throw new Error('Supply all four class tests or a raw class percentage.');
   if (hasBreakdown && marks.some(value => !Number.isFinite(value) || value < 0 || value > max)) throw new Error(`Class tests must be between 0 and ${max}.`);
   const classScore = hasBreakdown ? marks.reduce((a, b) => a + b, 0) / (max * 4) * 100 : numberOrNull(entry.rawClassScore ?? entry.classScore);
   const examScore = numberOrNull(entry.rawExamScore ?? entry.examScore);
@@ -20,8 +21,8 @@ export function normalizeAssessment(raw = {}) {
   const hasExam = field('has_exam_score', 'hasExamScore') ?? (rawExam !== null && rawExam !== undefined);
   const subClass = field('sub_class', 'subClass') || raw.sub_class_level || '';
   return {
-    id: score.id || raw.id || raw._id,
-    backendId: score.id || raw.id || raw._id,
+    id: score.id || score._id,
+    backendId: score.id || score._id,
     entryKey: raw.entry_key || raw.entryKey,
     studentId: field('student_id', 'studentId') || score.student_code,
     studentName: field('student_name', 'studentName'),
@@ -34,7 +35,7 @@ export function normalizeAssessment(raw = {}) {
     test1: breakdown.class_test_1 ?? breakdown.test1 ?? field('class_test_1', 'test1') ?? null,
     test2: breakdown.class_test_2 ?? breakdown.test2 ?? field('class_test_2', 'test2') ?? null,
     test3: breakdown.class_test_3 ?? breakdown.test3 ?? field('class_test_3', 'test3') ?? null,
-    classTestMax: breakdown.class_test_max ?? raw.class_test_max ?? 100,
+    classTestMax: breakdown.class_test_max ?? field('class_test_max', 'classTestMax') ?? 100,
     classTestTotal: field('class_test_total', 'classTestTotal') ?? null,
     rawClassScore: numberOrNull(rawClass), rawExamScore: numberOrNull(rawExam),
     classScore: field('class_score', 'classScore') ?? null,

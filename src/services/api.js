@@ -81,15 +81,23 @@ export function setAuthUser(user) {
 }
 
 const pendingCreates = new Map();
-async function createOnce(endpoint, payload) {
+async function createOnce(endpoint, payload, { multipart = false } = {}) {
   const body = JSON.stringify(payload);
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body));
   const key = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
   const scope = `${getAuthToken()}:${endpoint}:${key}`;
   if (pendingCreates.has(scope)) return pendingCreates.get(scope);
-  const operation = request(endpoint, { method: 'POST', headers: { 'Idempotency-Key': key }, body });
+  const requestBody = multipart ? new FormData() : body;
+  if (multipart) requestBody.append('metadata', body);
+  const operation = request(endpoint, { method: 'POST', headers: { 'Idempotency-Key': key }, body: requestBody });
   pendingCreates.set(scope, operation);
-  try { return await operation; } finally { pendingCreates.delete(scope); }
+  try { return await operation; } catch (error) { pendingCreates.delete(scope); throw error; }
+}
+
+
+async function stableBillKey(payload) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(payload)));
+  return `bill:${Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('')}`;
 }
 
 async function originalAuthRequest(endpoint, options = {}) {
@@ -283,6 +291,14 @@ function resolveBillStudentId(student = {}) {
   return '';
 }
 
+function studentMergeIdentities(canonicalId, duplicateIds) {
+  const ids = Array.isArray(duplicateIds) ? [...new Set(duplicateIds)] : [];
+  if (!isUuid(canonicalId) || !ids.length || ids.some(id => !isUuid(id) || id === canonicalId)) {
+    throw new Error('Choose distinct database student UUIDs for the merge; names and email addresses are not identifiers.');
+  }
+  return { canonical_student_id: canonicalId, duplicate_student_ids: ids.sort() };
+}
+
 function billStudentIdCandidates(student = {}) {
   const seen = new Set();
   const ids = [];
@@ -295,8 +311,8 @@ function billStudentIdCandidates(student = {}) {
   };
   const code = String(student.studentId || student.student_id || student.student_code || '').trim();
   const uuid = String(student.id || student.uuid || student.backendId || '').trim();
-  if (isOfficialStudentCode(code)) push(code);
   if (isUuid(uuid)) push(uuid);
+  if (isOfficialStudentCode(code)) push(code);
   push(code);
   push(uuid);
   return ids;
@@ -480,15 +496,15 @@ function scoreSheetPayload(entry) {
         class_score: raw.classScore,
         exam_score: raw.examScore,
         teacher_note: entry.teacherNote ?? entry.teacher_note ?? '',
-        has_class_score: entry.hasClassScore === true,
-        has_exam_score: entry.hasExamScore === true,
+        has_class_score: true,
+        has_exam_score: raw.examScore !== null,
         status: entry.status || null,
       },
     ],
     submit_kind: entry.submitKind,
     status: entry.status || undefined,
-    has_class_score: entry.hasClassScore === true,
-    has_exam_score: entry.hasExamScore === true,
+    has_class_score: true,
+    has_exam_score: raw.examScore !== null,
   };
 }
 
@@ -527,7 +543,7 @@ function mapClassTeacherDashboard(res) {
         name,
         class: student.classLevel || student.class_level || student.level || student.class || '',
         id: student.studentId || student.student_id || student.id || '',
-        attendance: Number(student.attendancePercent ?? student.attendance_percent ?? student.attendance ?? 0),
+        attendance: student.attendancePercent ?? student.attendance_percent ?? student.attendance ?? null,
         mathGrade: student.mathGrade || student.math_grade || '—',
         sciGrade: student.scienceGrade || student.science_grade || student.sciGrade || '—',
         email: student.email || student.studentEmail || student.student_email || '',
@@ -1099,6 +1115,19 @@ export const api = {
     });
   },
 
+  // Proposed backend contract; not yet listed in the deployed OpenAPI schema.
+  // Never call commit until an administrator has reviewed the backend preview.
+  previewStudentMerge: async ({ canonicalStudentId, duplicateStudentIds }) => {
+    const identities = studentMergeIdentities(canonicalStudentId, duplicateStudentIds);
+    return request('/students/merges/preview', { method: 'POST', body: JSON.stringify(identities) });
+  },
+  commitStudentMerge: async ({ canonicalStudentId, duplicateStudentIds, previewToken, reason }) => {
+    const identities = studentMergeIdentities(canonicalStudentId, duplicateStudentIds);
+    if (!previewToken || !String(reason || '').trim()) throw new Error('A reviewed backend preview and merge reason are required.');
+    const payload = { ...identities, preview_token: previewToken, reason: reason.trim() };
+    return request('/students/merges', { method: 'POST', headers: { 'Idempotency-Key': await stableBillKey(payload) }, body: JSON.stringify(payload) });
+  },
+
   // --- Attendance & SMS Alerts ---
   recordAttendanceScan: async (scanData) => {
     // scanData: { identifier, scanType, busRouteId, sendSms }
@@ -1199,7 +1228,7 @@ export const api = {
   // --- Admissions & Applications ---
   submitApplication: async (appData) => {
     // appData: { learner_name, guardian_name, contact_email, contact_phone, applying_level, form_data }
-    return await createOnce('/admissions/applications', appData);
+    return await createOnce('/admissions/applications', appData, { multipart: true });
   },
 
   getApplications: async (params = {}) => {
@@ -2146,11 +2175,18 @@ export const api = {
     if (!studentId) {
       throw new Error('A student id is required to post an official academic bill.');
     }
+    if ((bill.items || []).some(item => !Number.isFinite(Number(item.amount ?? item.fee ?? 0)))) throw new Error('Every bill item needs a valid amount.');
     const items = sanitizePostedBillItems(bill.items);
+    if (!items.length || items.some(item => !Number.isFinite(item.amount) || item.amount < 0)) {
+      throw new Error('Bill items must contain valid non-negative amounts.');
+    }
     const split = splitBillItemsForStudentLedger(items);
     const optionalTotal = split.optional_services.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const totalPayable = Number(bill.total_payable ?? bill.totalAmount ?? bill.total_amount)
-      || (split.tuition_fee + split.stationery_fee + optionalTotal - (Number(bill.scholarship_discount || 0) || 0) + (Number(bill.arrears_brought_forward || 0) || 0));
+    const calculatedTotal = Math.round((split.tuition_fee + split.stationery_fee + optionalTotal - Number(bill.scholarship_discount ?? 0) + Number(bill.arrears_brought_forward ?? 0)) * 100) / 100;
+    const totalPayable = Number(bill.total_payable ?? bill.totalAmount ?? bill.total_amount ?? calculatedTotal);
+    if (!Number.isFinite(totalPayable) || totalPayable <= 0 || Math.round(totalPayable * 100) !== Math.round(calculatedTotal * 100)) {
+      throw new Error('The bill total must equal its fee items, arrears and discount. No bill was posted.');
+    }
     const payload = {
       student_id: studentId,
       academic_year: String(bill.academic_year || bill.academicYear || '2025/2026').slice(0, 50),
@@ -2168,31 +2204,24 @@ export const api = {
     if (split.stationery_package_breakdown.length) {
       payload.stationery_package_breakdown = split.stationery_package_breakdown;
     }
-    return await request('/finance/bills/student', {
+    const saved = await request('/finance/bills/student', {
       method: 'POST',
-      headers: { 'Idempotency-Key': newIdempotencyKey(studentId, payload.term, payload.academic_year) },
+      headers: { 'Idempotency-Key': await stableBillKey(payload) },
       body: JSON.stringify(payload),
     });
+    const record = saved.bill || saved.data?.bill || saved.data || saved;
+    const savedTotal = record.total_billed ?? record.total_payable ?? record.total_amount;
+    if (!(record.bill_id || record.id) || savedTotal == null || !Number.isFinite(Number(savedTotal))) {
+      throw new Error('The backend did not confirm the saved bill ID and amount. Refresh the ledger before retrying.');
+    }
+    if (savedTotal != null && Math.round(Number(savedTotal) * 100) !== Math.round(totalPayable * 100)) {
+      throw new Error('The backend returned a different bill amount. Refresh the ledger and have Accounts reconcile this invoice before posting again.');
+    }
+    return saved;
   },
 
-  postClassBillsBatch: async (payload = {}) => {
-    const body = {
-      class_level: classLevelForBillPost(payload.class_level || payload.classLevel),
-      academic_year: String(payload.academic_year || payload.academicYear || '2025/2026').slice(0, 50),
-      term: normalizeBillTerm(payload.term),
-      apply_to_all_enrolled: payload.apply_to_all_enrolled !== false,
-    };
-    const exclude = payload.exclude_student_ids || payload.excludeStudentIds;
-    if (Array.isArray(exclude) && exclude.length) {
-      body.exclude_student_ids = exclude.map((id) => String(id).trim()).filter(Boolean);
-    }
-    const templateId = payload.bill_template_id || payload.billTemplateId;
-    if (templateId) body.bill_template_id = String(templateId);
-    return await request('/finance/bills/batch', {
-      method: 'POST',
-      headers: { 'Idempotency-Key': newIdempotencyKey(body.class_level, body.term, body.academic_year) },
-      body: JSON.stringify(body),
-    });
+  postClassBillsBatch: async () => {
+    throw new Error('Bulk billing is unavailable until the backend provides approved fee structures and a confirmed preview. No bills were posted.');
   },
 
   getStudentLedger: async (studentId) => {
@@ -2270,18 +2299,18 @@ export const api = {
         const name = stu.fullName || stu.name || stu.studentName;
         const code = String(stu.studentId || '').trim();
         const match = remote.find((row) => {
-          const remoteCode = String(row.student_id || row.studentId || row.student_code || '').trim();
+          const remoteCode = String(row.student_id_code || row.student_id || row.studentId || row.student_code || '').trim();
           const remoteName = row.full_name || row.fullName || row.name;
           const remoteId = String(row.id || '').trim();
           if (code && (code === remoteCode || code === remoteId)) return true;
           if (stu.id && String(stu.id) === remoteId) return true;
-          return studentNamesMatch(name, remoteName);
+          return false;
         });
         if (!match) return stu;
         return {
           ...stu,
           id: match.id || stu.id,
-          studentId: match.student_id || match.studentId || match.student_code || stu.studentId,
+          studentId: match.student_id_code || match.student_id || match.studentId || match.student_code || stu.studentId,
           fullName: stu.fullName || match.full_name || match.fullName,
           level: stu.level || match.level || match.class_level,
         };
@@ -2316,9 +2345,6 @@ export const api = {
           });
           return { alreadyBilled: false, studentId, response };
         } catch (error) {
-          if (isAlreadyBilledError(error)) {
-            return { alreadyBilled: true, studentId, response: null };
-          }
           if (isLockedPeriodError(error)) {
             const locked = new Error('The financial accounting period is currently locked. Bills cannot be posted until it is unlocked.');
             locked.status = 400;
@@ -2334,6 +2360,7 @@ export const api = {
       throw missing;
     };
 
+    targets = [...new Map(targets.map(student => [billStudentIdCandidates(student)[0], student])).values()];
     const outcomes = await runInChunks(targets, async (student) => {
       const outcome = await postOfficialStudentBill(student);
       return {
@@ -2361,10 +2388,15 @@ export const api = {
     return result;
   },
 
-  adjustStudentBill: async (adjustment) => {
-    const feeId = adjustment.feeId || adjustment.fee_id || adjustment.studentId;
-    return await request(`/finance/fees/${feeId}/adjust`, {
+  cancelStudentBill: (feeId, reason, key) => request(`/finance/fees/${encodeURIComponent(feeId)}/cancel`, {
+    method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify({ reason }),
+  }),
+  adjustStudentBill: async (adjustment, key) => {
+    const feeId = adjustment.feeId || adjustment.fee_id;
+    if (!feeId) throw new Error('A fee invoice UUID is required.');
+    return await request(`/finance/fees/${encodeURIComponent(feeId)}/adjust`, {
       method: 'POST',
+      headers: { 'Idempotency-Key': key },
       body: JSON.stringify({
         adjustment_type: adjustment.adjustmentType || adjustment.adjustment_type || 'CREDIT',
         amount: Number(adjustment.amount) || 0,

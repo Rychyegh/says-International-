@@ -87,7 +87,7 @@ function persistStudentScores(saveScoreSheetEntry, payload) {
 }
 
 export default function ScoreSheetEntryForm({ setM, students: propStudents, onViewTestRoll, initialTarget }) {
-  const { academicSettings, onboardedStudents, saveScoreSheetEntry, results } = usePortalData();
+  const { academicSettings, onboardedStudents, saveScoreSheetEntry, results, subjects = [], classLevels = [] } = usePortalData();
   const [saving, setSaving] = useState(false);
   const dirty = useRef(false);
   const hydratedKey = useRef('');
@@ -139,7 +139,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
   const availableSubClasses = useMemo(() => {
     const list = [];
     const add = (val) => {
-      const v = (val || '').trim();
+      const v = normalizeSubClass(cls, (val || '').trim());
       if (v && !list.includes(v)) list.push(v);
     };
 
@@ -215,18 +215,18 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
 
   useEffect(() => {
     const key = [studentKey, subject, term, year].join(':');
+    const changedStudentOrPeriod = hydratedKey.current !== key;
     if (dirty.current && hydratedKey.current === key) return;
     hydratedKey.current = key;
     dirty.current = false;
-    setArrivalTest(savedEntry?.arrivalTest ?? 0);
-    setTest1(savedEntry?.test1 ?? 0);
-    setTest2(savedEntry?.test2 ?? 0);
-    setTest3(savedEntry?.test3 ?? 0);
+    setArrivalTest(savedEntry ? savedEntry.arrivalTest ?? '' : 0);
+    setTest1(savedEntry ? savedEntry.test1 ?? '' : 0);
+    setTest2(savedEntry ? savedEntry.test2 ?? '' : 0);
+    setTest3(savedEntry ? savedEntry.test3 ?? '' : 0);
     setExamsScore(savedEntry?.hasExamScore || savedEntry?.examSubmitted ? (savedEntry?.rawExamScore ?? savedEntry?.examScore ?? 0) : 0);
     setTeacherNote(savedEntry?.teacherNote ?? '');
     setSavedAt(savedEntry?.updatedAt || '');
-    setSaveNotice('');
-    setSaveError('');
+    if (changedStudentOrPeriod) { setSaveNotice(''); setSaveError(''); }
   }, [savedEntry, studentKey, subject, term, year]);
 
   const clampTest = value => value === '' ? '' : Number(value);
@@ -279,6 +279,8 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
   const saveScores = async (kind) => {
     if (saving) return;
     if (!studentKey) { setSaveError('Select a student before saving.'); return; }
+    if ([arrivalTest, test1, test2, test3].some(value => value === '' || !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > CLASS_TEST_MAX)) { setSaveError('Enter all four class tests, each between 0 and 100.'); return; }
+    if (kind === 'exam' && (examsScore === '' || !Number.isFinite(Number(examsScore)) || Number(examsScore) < 0 || Number(examsScore) > 100)) { setSaveError('Enter an exam mark between 0 and 100. Zero is a valid submitted score.'); return; }
     setSaving(true); setSaveError(''); setSaveNotice('');
     try {
       await persistStudentScores(saveScoreSheetEntry, buildEntry(kind));
@@ -334,25 +336,19 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Academic year</label>
             <select value={year} onChange={(e) => setYear(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }}>
-              <option value="2023/2024">2023/2024</option>
-              <option value="2024/2025">2024/2025</option>
-              <option value="2025/2026">2025/2026</option>
-              <option value="2026/2027">2026/2027</option>
-              <option value="2027/2028">2027/2028</option>
-              <option value="2028/2029">2028/2029</option>
-              <option value="2029/2030">2029/2030</option>
+              {Array.from(new Set([academicSettings?.academicYear, year, ...(results || []).map(r => r.year)].filter(Boolean))).map(value => <option key={value}>{value}</option>)}
             </select>
           </div>
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Academic term</label>
             <select value={term} onChange={(e) => setTerm(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }}>
-              <option>Term 1</option><option>Term 2</option><option>Term 3</option>
+              {Array.from(new Set([academicSettings?.academicTerm, term, ...(results || []).map(r => r.term)].filter(Boolean))).map(value => <option key={value}>{value}</option>)}
             </select>
           </div>
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Subject title</label>
             <select value={subject} onChange={(e) => setSubject(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }}>
-              <option>Mathematics</option><option>English Language</option><option>Integrated Science</option><option>Social Studies</option><option>RME</option><option>ICT / Computing</option><option>Creative Arts</option><option>OWOP</option>
+              {Array.from(new Set([subject, ...subjects].filter(Boolean))).map(value => <option key={value}>{value}</option>)}
             </select>
           </div>
           <div style={{ marginBottom: 8 }}>
@@ -381,7 +377,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
           <div style={{ display: 'grid', gridTemplateColumns: '110px 90px 2.2fr 1.3fr', gap: 10, marginBottom: 16, alignItems: 'flex-start' }}>
             <div>
               <label style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 2 }}>Enrollment ID</label>
-              <input type="text" value={selectedStudent.studentId || 'ENR-4212'} readOnly style={{ width: '100%', padding: '5px 8px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 4, fontWeight: 700, fontSize: 11.5 }} />
+              <input type="text" value={selectedStudent.studentId || selectedStudent.id || ''} readOnly style={{ width: '100%', padding: '5px 8px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 4, fontWeight: 700, fontSize: 11.5 }} />
             </div>
             <div>
               <label style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 2 }}>Index N/o.</label>

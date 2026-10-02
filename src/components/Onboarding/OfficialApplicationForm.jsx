@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   FileText, Download, Printer, CheckCircle2, Save, Edit3,
   ArrowLeft, ArrowRight, UserCheck, ShieldAlert, Upload, Image as ImageIcon
@@ -363,12 +363,17 @@ export default function OfficialApplicationForm({
     }
   };
 
+  const submittingRef = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
   const handleFormSubmit = async (e) => {
     if (e) e.preventDefault();
     if (initialData) {
       await handleFormUpdate(e);
       return;
     }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
     const normalized = normalizeApplicationForm(formData);
     try {
       if (onSubmit) {
@@ -381,6 +386,9 @@ export default function OfficialApplicationForm({
     } catch (err) {
       setSuccessNotice(err?.message || 'Saving this application failed.');
       setTimeout(() => setSuccessNotice(''), 8000);
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -1353,9 +1361,9 @@ export default function OfficialApplicationForm({
             </button>
 
             {(!readOnly || isEditingMode) && (
-              <button className="btn-form-action btn-form-action--primary" type="submit">
+              <button className="btn-form-action btn-form-action--primary" type="submit" disabled={submitting}>
                 {initialData ? <Save size={14} /> : <CheckCircle2 size={14} />}
-                {initialData ? 'Save & Update Application' : 'Submit Application'}
+                {submitting ? 'Saving application…' : initialData ? 'Save & Update Application' : 'Submit Application'}
               </button>
             )}
           </div>

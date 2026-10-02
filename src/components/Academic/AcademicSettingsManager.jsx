@@ -133,6 +133,7 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
             </label>
             <input
               type="number"
+              aria-label="Class weight"
               value={classWeight}
               onChange={(e) => setClassWeight(e.target.value)}
               style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #f59e0b', fontWeight: 900, fontSize: 14 }}
@@ -150,6 +151,7 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
             </label>
             <input
               type="number"
+              aria-label="Exam weight"
               value={examWeight}
               onChange={(e) => setExamWeight(e.target.value)}
               style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #ea580c', fontWeight: 900, fontSize: 14 }}
@@ -214,6 +216,7 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
             </label>
             <input
               type="date"
+              aria-label="Resumption date"
               value={resumptionDate}
               onChange={(e) => setResumptionDate(e.target.value)}
               style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 700, fontSize: 12 }}
@@ -225,6 +228,7 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
             </label>
             <input
               type="date"
+              aria-label="Vacation date"
               value={vacationDate}
               onChange={(e) => setVacationDate(e.target.value)}
               style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 700, fontSize: 12 }}

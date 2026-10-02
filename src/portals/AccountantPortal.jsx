@@ -256,27 +256,29 @@ export default function AccountantPortal({ onSignOut }) {
     try {
     if (link === 'Adjust Bills on Year Group Accounts') {
       if (adjustStudentBill) {
-        adjustStudentBill({
+        await adjustStudentBill({
+          feeId: activeSimsModal.feeId,
           classLevel: targetYearGroup,
-          adjustmentType: adjType || 'Bulk Discount / Scholarship',
+          adjustmentType: adjType === 'DEBIT' ? 'DEBIT' : 'CREDIT',
           amount: Number(amount) || 0,
           reason: notes || 'Year Group Accounts Adjustment',
           postedBy: getAuthUser()?.fullName || 'Mrs. Grace Accountant'
         });
       }
-      setSuccessNotice(`[Ledger Updated] Successfully applied "${adjType || 'Adjustment'}" of GHS ${Number(amount || 0).toFixed(2)} to ${targetYearGroup || 'Year Group'}!`);
+      setSuccessNotice('Invoice adjustment confirmed by the database.');
     } else if (link === 'Cancel Student Bill') {
       if (adjustStudentBill) {
-        adjustStudentBill({
+        await adjustStudentBill({
+          feeId: activeSimsModal.feeId,
           studentName,
           adjustmentType: 'CANCEL',
           amount: 0,
           reason: cancelReason || 'Student Bill Cancellation',
-          invoiceNo: invoiceNo || 'INV-2026-0881',
+          invoiceNo: invoiceNo || '',
           postedBy: getAuthUser()?.fullName || 'Mrs. Grace Accountant'
         });
       }
-      setSuccessNotice(`[Ledger Updated] Cancelled bill for ${studentName || 'Student'} (Ref: ${invoiceNo || 'INV-2026-0881'}). Ledger balance updated.`);
+      setSuccessNotice('Invoice cancellation confirmed. Existing receipts are retained; no refund was issued.');
     } else if (link === 'Reset User Password') {
       const targetUser = activeSimsModal.userName || studentName;
       const targetPass = activeSimsModal.newPassword || 'Pass-998124#';
@@ -313,7 +315,8 @@ export default function AccountantPortal({ onSignOut }) {
     } else {
       if (amount || adjType || notes) {
         if (adjustStudentBill) {
-          adjustStudentBill({
+          await adjustStudentBill({
+          feeId: activeSimsModal.feeId,
             studentName,
             classLevel: targetYearGroup,
             adjustmentType: adjType || 'CREDIT',
@@ -11199,7 +11202,8 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
               <button
                 type="button"
                 onClick={handlePostClassBills}
-                disabled={batchBusy}
+                title="Unavailable until approved fee structures and preview are implemented by the backend"
+                disabled={true}
                 style={{ width: '100%', padding: '6px 8px', background: '#0f3a4b', color: '#fff', border: '1px solid #0f3a4b', borderRadius: 3, fontWeight: 800, fontSize: 11, cursor: batchBusy ? 'wait' : 'pointer' }}
               >
                 {batchBusy ? 'Posting class bills…' : 'Post class bills to ledger'}
@@ -13359,73 +13363,25 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
     );
   }
 
-  if (link === 'Adjust Bills on Year Group Accounts') {
-    return (
-      <div>
-        <div className="sims-form-group">
-          <label>Target Year Group / Class</label>
-          <select value={m.targetYearGroup || 'JHS 1 (2026 Batch)'} onChange={(e) => update('targetYearGroup', e.target.value)}>
-            <option>Creche & Nursery</option>
-            <option>Primary 1 - 6</option>
-            <option>JHS 1 (2026 Batch)</option>
-            <option>JHS 2 Batch</option>
-            <option>JHS 3 BECE Candidate Batch</option>
-          </select>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div className="sims-form-group">
-            <label>Adjustment Type</label>
-            <select value={m.adjType || 'Bulk Discount / Scholarship'} onChange={(e) => update('adjType', e.target.value)}>
-              <option>Bulk Discount / Scholarship</option>
-              <option>Add Special Infrastructure Levy</option>
-              <option>Waiver Fee Credit</option>
-            </select>
-          </div>
-          <div className="sims-form-group">
-            <label>Adjustment Value (GHS)</label>
-            <input type="number" placeholder="200" value={m.amount || ''} onChange={(e) => update('amount', e.target.value)} required />
-          </div>
-        </div>
-        <div className="sims-form-group">
-          <label>Authorization Reference & Reason</label>
-          <textarea rows="2" placeholder="e.g. Board Resolution #2026-04" value={m.notes} onChange={(e) => update('notes', e.target.value)} />
-        </div>
-        <div className="sims-modal-actions">
-          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
-          <button type="submit" className="sims-btn sims-btn-primary">Apply Year Group Adjustment</button>
-        </div>
+  if (link === 'Adjust Bills on Year Group Accounts' || link === 'Cancel Student Bill') {
+    const cancelling = link === 'Cancel Student Bill';
+    return <div>
+      <p>Choose one issued invoice. Corrections preserve receipts and audit history.</p>
+      <div className="sims-form-group">
+        <label htmlFor="correction-invoice">Invoice and term</label>
+        <select id="correction-invoice" required value={m.feeId || ''} onChange={e => update('feeId', e.target.value)}>
+          <option value="">Select an invoice</option>
+          {(portalStore.studentFees || []).map(f => <option key={f.id} value={f.id}>{f.studentName} · {f.studentId} · {f.term} · {f.id} · Balance GHS {Number(f.balance).toFixed(2)}</option>)}
+        </select>
       </div>
-    );
-  }
-
-  if (link === 'Cancel Student Bill') {
-    return (
-      <div>
-        <div className="sims-form-group">
-          <label>Target Student Account</label>
-          <select value={m.studentName} onChange={(e) => update('studentName', e.target.value)}>
-            {students.map((s) => <option key={s.id} value={s.fullName}>{s.fullName} ({s.studentId} - {s.level})</option>)}
-          </select>
-        </div>
-        <div className="sims-form-group">
-          <label>Bill Invoice Reference to Cancel</label>
-          <input type="text" placeholder="INV-2026-0881" value={m.invoiceNo || 'INV-2026-0881'} onChange={(e) => update('invoiceNo', e.target.value)} required />
-        </div>
-        <div className="sims-form-group">
-          <label>Reason for Bill Cancellation</label>
-          <select value={m.cancelReason || 'Duplicate Invoice'} onChange={(e) => update('cancelReason', e.target.value)}>
-            <option>Duplicate Invoice Issued</option>
-            <option>Student Transferred / Withdrawn</option>
-            <option>Incorrect Fee Applied</option>
-            <option>Full Executive Waiver Granted</option>
-          </select>
-        </div>
-        <div className="sims-modal-actions">
-          <button type="button" className="sims-btn sims-btn-secondary" onClick={() => setM(null)}>Cancel</button>
-          <button type="submit" className="sims-btn sims-btn-primary" style={{ background: '#dc2626' }}>Cancel Bill Record</button>
-        </div>
-      </div>
-    );
+      {!cancelling && <>
+        <label>Adjustment type <select value={m.adjType === 'DEBIT' ? 'DEBIT' : 'CREDIT'} onChange={e => update('adjType', e.target.value)}><option value="CREDIT">Credit / discount</option><option value="DEBIT">Debit / penalty</option></select></label>
+        <label>Amount (GHS) <input required type="number" min="0.01" step="0.01" value={m.amount || ''} onChange={e => update('amount', e.target.value)} /></label>
+      </>}
+      <label>Reason <textarea required value={(cancelling ? m.cancelReason : m.notes) || ''} onChange={e => update(cancelling ? 'cancelReason' : 'notes', e.target.value)} /></label>
+      {cancelling && <p>Cancellation does not refund money already received.</p>}
+      <button type="submit" className="sims-btn sims-btn-primary" disabled={!m.feeId}>{cancelling ? 'Cancel selected invoice' : 'Adjust selected invoice'}</button>
+    </div>;
   }
 
   if (link === 'Configure Merchants') {

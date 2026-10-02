@@ -1,0 +1,58 @@
+Student identity and exact bill amounts — backend handoff
+2 October 2026
+
+Published backend verification
+Read https://rcis-backend.onrender.com/api/v1/openapi.json (HTTP 200) on 2 October 2026; API title REMALJ Carewell Inspirational School API, version 2.0.0. The root /openapi.json returns 404. A focused, unmodified contract extract is saved as backend-live-student-billing.openapi.json.
+Existing routes: POST /admissions/applications (multipart metadata), POST /admissions/applications/{id}/enroll, POST /students/onboard, POST /finance/bills/student, GET /finance/fees, GET /finance/students/{studentId}/ledger. All are under /api/v1.
+StudentAcademicBillResponse returns total_billed, not total_payable. The client now validates that field. Enrollment accepts initial_billed_amount; the client explicitly sends zero.
+Only bill posting declares the Idempotency-Key header in the published schema. Admission/enrollment idempotency support is not established by the schema; the backend must verify/implement it.
+No student duplicate-merge endpoint is listed. No authenticated production writes or data cleanup were performed.
+
+Frontend changes implemented
+- Send admission data as JSON in the multipart metadata field, as specified by the deployed schema.
+- Keep the REMALJ student code, name and school email on one roster record.
+- Disable repeated application submission; share the in-flight operation and reuse a confirmed creation response for an identical submission in the same session.
+- Send a stable Idempotency-Key on admission creation. Failed requests keep the same key when retried.
+- For an application, use POST /admissions/applications/{id}/enroll, not a second POST /students/onboard. Repeated enrollment must return the same student.
+- Standalone onboarding submits initialBilledAmount and initial_billed_amount as zero. Updating an existing student does not send billing fields.
+- Post bills for an explicit student UUID, never a display-name match. Validate item totals before posting. Preserve a stable Idempotency-Key on retries of the same bill.
+- Read GET /finance/fees after posting. Both the accounts table and fee account totals derive from these canonical records. No browser-side extra charge or fabricated invoice/ledger row is added.
+- Reject a returned bill total that differs from the requested total and show incomplete/partial outcomes instead of an all-success banner.
+
+Backend requirements (not implemented or verified in this frontend repository)
+1. Enforce one student per application in the database, scoped to the school. Store a unique student code and link one student login account by student UUID. Email is an attribute of the linked account, never a reason to insert a second student row. Do not identify or merge people solely by name or a shared guardian email.
+2. Handle admission/enrollment idempotency transactionally. The same key and body must return the original saved IDs, including when the first response is lost. A changed body using that key must return 409. Enrollment of an already linked application must return its existing student and account.
+3. Return canonical student fields: id (UUID), student_id_code (REMALJ code), full_name, student_email and application_id. Keep existing login credentials unchanged.
+4. Do not create preset fees while onboarding or enrolling. Billing happens only on explicit bill posting. Verify that zero is preserved instead of replaced by a default through truthy fallbacks.
+5. POST /finance/bills/student must commit the bill, fee-account projection and ledger debit atomically. Use decimal currency arithmetic. The posted total equals tuition_fee + stationery_fee + optional_services amounts + arrears_brought_forward - scholarship_discount. Do not substitute hardcoded 1500/300 amounts or add the same bill twice.
+6. Honor Idempotency-Key for bill posting. GET /finance/fees and GET /finance/students/{student UUID}/ledger must expose the same invoice identity and amounts. Preserve receipts and negative credits. Distinguish a single bill amount from the account's cumulative total or remaining balance.
+
+Existing duplicates and incorrect balances
+The screenshots show two Bortey Borketey applications submitted about two seconds apart. They do not provide both database UUIDs or prove which record owns all fees, results, attendance and credentials. The frontend must not delete either record by name.
+Backend owner should identify the duplicate application/student/account UUIDs and the surviving REMALJ code, produce a merge preview of dependent records and invoices, then merge in a transaction with an audit entry and backup. Repoint dependencies, preserve receipts/results/cards and existing credentials, reconcile duplicate ledger debits explicitly, and archive superseded records. Do not sum duplicate charges blindly. Return the surviving canonical record to the portals.
+
+Acceptance checks
+- Concurrent submit, delayed response, retry, refresh and repeat enrollment produce one application/student/account for one enrollment.
+- Two distinct children sharing a name or guardian email remain separate.
+- Onboarding creates no preset 4800/5200/5800 charge.
+- Post 123.45: invoice and ledger debit are 123.45; retry and refresh do not turn it into 246.90.
+- Existing payments and credit balances survive posting and correction.
+- Rejected writes produce no local success or invented balance.
+- Verify in a deployed backend test environment; mocked frontend tests are not a production database audit.
+
+Current limitation
+No backend source or database connection is available in this workspace. Existing production duplicates and historical charges have not been merged or corrected by these frontend changes. Backend deployment, uniqueness/idempotency constraints and a reviewed data reconciliation remain required.
+
+Proposed merge API integration (not deployed)
+Client methods in src/services/api.js:
+  api.previewStudentMerge({ canonicalStudentId, duplicateStudentIds })
+    POST /api/v1/students/merges/preview
+    Body: { canonical_student_id: UUID, duplicate_student_ids: [UUID] }
+    Response: { preview_token, canonical_student, dependencies, conflicts }
+  api.commitStudentMerge({ canonicalStudentId, duplicateStudentIds, previewToken, reason })
+    POST /api/v1/students/merges
+    Body: same identities plus preview_token and reason. Stable Idempotency-Key required.
+    Response: { student: canonical_record, audit_id, archived_student_ids }
+
+The preview must be generated by the backend and bound to school, authenticated administrator, selected UUIDs, dependency versions and expiry. Commit must reject stale previews or unresolved ledger/account conflicts (409), enforce permission checks server-side, and run atomically. Preserve existing credentials of the chosen canonical account. Do not enable merge UI until these routes are deployed and tested. Current client methods propagate 404/403/409 errors; they do not simulate a successful merge or delete records locally.
+The proposed operations are marked x-deployment-status: proposed-not-deployed in backend-api-contract.openapi.json.

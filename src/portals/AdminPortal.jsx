@@ -853,6 +853,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const studentRecordDetails = (student) => {
     const app = matchingApplicationForStudent(student) || {};
     return {
+      guardianName: student?.guardianName || app.guardianName || app.guardian || 'Not provided',
+      guardianContact: student?.guardianPhone || app.guardianPhone || app.phone || 'Not provided',
+      guardianEmail: student?.guardianEmail || app.guardianEmail || app.email || 'Not provided',
       studentName: student?.fullName || '—',
       studentClass: studentDetailedClass(student),
       fatherName: [student?.fatherName, app.fatherName].map((value) => String(value || '').trim()).find((value) => value && !/^(parent\s*\/?\s*guardian|parent|guardian)$/i.test(value)) || '—',
@@ -1858,6 +1861,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                           <div>{guardian.name}</div>
                           <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{guardian.email}</div>
                         </td>
+
                         <td style={{ fontSize: 11, color: ADMIN_ACCENT }}>{s.studentEmail}</td>
                         <td><span className="status-pill status-pill--success">{s.status}</span></td>
                         <td>
@@ -3929,10 +3933,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             const rows = [
               { label: 'Student name', value: rec.studentName },
               { label: 'Student class', value: rec.studentClass },
-              { label: 'Father / guardian name', value: rec.fatherName },
-              { label: 'Father / guardian contact', value: rec.fatherContact },
-              { label: 'Mother / guardian name', value: rec.motherName },
-              { label: 'Mother / guardian contact', value: rec.motherContact },
+              { label: 'Guardian name', value: rec.guardianName },
+              { label: 'Guardian contact', value: rec.guardianContact },
+              { label: 'Guardian email', value: rec.guardianEmail },
+              { label: 'Father name', value: rec.fatherName },
+              { label: 'Father contact', value: rec.fatherContact },
+              { label: 'Mother name', value: rec.motherName },
+              { label: 'Mother contact', value: rec.motherContact },
             ];
             return (
               <div
