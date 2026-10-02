@@ -4,7 +4,7 @@ import { normalizePvItemStatus, payableAmount, pvNosMatch, voucherIdentityKey, r
 
 test('pending, invalid and unapproved statuses never authorize money', () => {
   for (const s of ['Pending approval', 'Invalid', 'Not approved', 'Awaiting approval', 'DRAFT', 'unknown']) assert.equal(normalizePvItemStatus(s), 'Pending approval');
-  for (const s of ['APPROVED', 'Validated', 'PRE_AUDITED']) assert.equal(normalizePvItemStatus(s), 'Validated');
+  for (const s of ['APPROVED', 'Validated']) assert.equal(normalizePvItemStatus(s), 'Validated');
 });
 test('mixed vouchers pay only explicitly approved lines and preserve zero', () => {
   assert.equal(payableAmount({items:[{status:'Validated',totalAmount:100},{status:'Pending approval',totalAmount:900}]}),100);
@@ -42,3 +42,5 @@ test('accountant selectors reconcile student UUIDs and codes without merging nam
   assert.equal(applicationLinksStudent({id:'app-a'},{applicationId:'app-a'}),true);
   assert.equal(applicationLinksStudent({id:'app-b',learner:'Same Name'},{applicationId:'app-a',fullName:'Same Name'}),false);
 });
+
+test('pre-audit alone does not authorize payment', () => { assert.equal(payableAmount({status:'PRE_AUDITED',amount:100}),0); });

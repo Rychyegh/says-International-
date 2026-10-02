@@ -4089,5 +4089,20 @@
     "existingDuplicates": "Require a reviewed, transactional merge preserving financial and academic dependencies; no name-only automatic deletion.",
     "verification": "Frontend synthetic tests only. Backend and production reconciliation pending.",
     "publishedSchema": "https://rcis-backend.onrender.com/api/v1/openapi.json"
+  },
+  "x-pv-provider-remediation": {
+    "handoff": "pv-provider-approval-handoff.txt",
+    "verifiedEndpoints": [
+      "POST /finance/service-providers",
+      "PUT /finance/service-providers/{provider_id}",
+      "DELETE /finance/service-providers/{provider_id}",
+      "POST /finance/vouchers",
+      "GET /finance/vouchers",
+      "POST /finance/vouchers/{pv_id}/pre-audit",
+      "POST /finance/vouchers/{pv_id}/approve"
+    ],
+    "workflow": "Saved provider UUID -> canonical server voucher -> head-admin whole-voucher pre-audit and approval -> sub-admin database refresh.",
+    "backendDependencies": "Verify sub-admin permissions and idempotency enforcement. Separate line-item decisions are not supported by the current published create/read schema.",
+    "validation": "Synthetic UI tests; no live financial writes."
   }
 }

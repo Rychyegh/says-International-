@@ -87,7 +87,7 @@ function collapseVoucherQueue(list = []) {
       accountName: v.accountName || existing.accountName || 'Expenditure Account',
       budget: v.budget || existing.budget || '0.00',
       actuals: v.actuals || existing.actuals || '0.00',
-      batchNo: v.batchNo || existing.batchNo || 'BATCH-2026-01',
+      batchNo: v.batchNo || existing.batchNo || v.pvNo || '',
       tDate: v.tDate || v.datePrepared || existing.tDate || new Date().toISOString().split('T')[0],
       vDate: v.valuedDate || v.vDate || existing.vDate || new Date().toISOString().split('T')[0],
       imputer: v.imputer || v.preparedBy || existing.imputer || 'Sub-Admin',

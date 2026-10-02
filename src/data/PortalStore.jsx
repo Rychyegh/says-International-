@@ -1,3 +1,4 @@
+import { sameStudentIdentity, studentDisplayCode } from '../lib/studentIdentity.js';
 import { validateAcademicSettings } from '../lib/assessmentRules.js';
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { api, extractStudentList, extractExamRegistrations, mapExamRegistration, getUserFullName, hasLiveDatabaseSession, getAuthToken, getAuthUser, mapScoreSheetEntry } from '../services/api';
@@ -883,14 +884,13 @@ export function mapStudentFromApi(s = {}, fallback = {}) {
     || 'Student'
   ).replace(/\s+/g, ' ').trim();
 
-  const rawCode = s.studentId || s.student_id_code || s.student_code || s.admission_no || s.admissionNo
-    || (typeof s.student_id === 'string' && /[A-Za-z]/.test(s.student_id) ? s.student_id : '');
-  const studentId = preferStudentCode(rawCode, fallback.studentId);
+  const studentId = studentDisplayCode(s, fallback.studentId);
   const id = preferCanonicalId(s.id || s.uuid || s.pk, fallback.id);
 
   return {
     id: id || studentId || fallback.id,
     studentId: studentId || (id ? String(id) : fallback.studentId),
+    studentUuid: isBackendUuid(s.student_id) ? s.student_id : (s.studentUuid || s.student_uuid || fallback.studentUuid || id),
     rfidCardCode: s.rfidCardCode || s.rfid_card_code || s.card_id || fallback.rfidCardCode || '',
     parentPickupCardIssued: [true, 1, '1', 'true'].includes(
       s.parentPickupCardIssued ?? s.parent_pickup_card_issued ?? s.parent_card_issued
@@ -937,11 +937,7 @@ export function mapStudentFromApi(s = {}, fallback = {}) {
 }
 
 export function studentsAreSamePerson(a = {}, b = {}) {
-  const same = (x, y) => Boolean(x && y && String(x).trim().toLowerCase() === String(y).trim().toLowerCase());
-  if (same(a.id, b.id)) return true;
-  if (same(a.applicationId || a.application_id, b.applicationId || b.application_id)) return true;
-  if (same(a.studentId || a.student_id_code || a.student_code, b.studentId || b.student_id_code || b.student_code)) return true;
-  return false;
+  return sameStudentIdentity(a, b);
 }
 
 export function findMatchingStudent(list = [], candidate = {}) {
@@ -1445,6 +1441,8 @@ export function PortalDataProvider({ children, enabled = false }) {
           const patch = {};
           if (resource === 'students') patch.onboardedStudents = deduplicateStudents(extractStudentList(value).map(s => mapStudentFromApi(s)).filter(s => isBackendUuid(s.id) && s.is_active !== false && s.status === 'Active'));
           if (resource === 'applications') patch.applications = deduplicateApplications(extractApplicationsList(value).map(mapApiApplication).filter(app => isBackendUuid(app.id)));
+          if (resource === 'payment-vouchers') patch.paymentVouchers = deduplicatePaymentVouchers(api.extractPaymentVoucherList(value).map(mapApiPaymentVoucher));
+          if (resource === 'providers') patch.serviceProviders = (Array.isArray(value) ? value : value.providers || value.data || []).filter(p => p.is_active !== false);
           if (resource === 'fees') {
             patch.studentFees = deduplicateFees(extractApiList(value).map(mapFeeFromApi));
             patch.feeAccounts = buildFeeAccountsFromStudentFees(patch.studentFees);
@@ -1498,11 +1496,11 @@ export function PortalDataProvider({ children, enabled = false }) {
         allowed(role === "admin", () => api.listClassTeacherCredentials()),
         allowed(role === "admin", () => api.getUsers()),
         allowed(privileged, () => api.getDefinedBills()),
-        allowed(privileged, () => api.getPaymentVouchers()),
+        allowed(privileged, () => progressive('payment-vouchers', api.getPaymentVouchers())),
         allowed(staff, () => api.getSemesterRegistrations()),
         allowed(staff, () => api.getExamRegistrations()),
         allowed(staff, () => api.getScoreSheetEntries()),
-        allowed(privileged, () => api.getServiceProviders()),
+        allowed(privileged, () => progressive('providers', api.getServiceProviders())),
         api.getCatalog('classes'),
         api.getCatalog('subclasses'),
         api.getCatalog('subjects'),
@@ -1967,7 +1965,7 @@ export function PortalDataProvider({ children, enabled = false }) {
           const raw = providersRes.value;
           const list = Array.isArray(raw) ? raw : (raw?.data || raw?.providers || raw?.records || []);
           if (Array.isArray(list)) {
-            const mapped = list.map(p => ({
+            const mapped = list.filter(p => p.is_active !== false).map(p => ({
               id: String(p.id || p.provider_id),
               name: p.name || p.provider_name,
               address: p.address || 'Bogoso',
@@ -3819,6 +3817,13 @@ export function PortalDataProvider({ children, enabled = false }) {
         examRegistrations: (current.examRegistrations || []).filter((item) => item.id !== regId && item.indexNumber !== regId)
       }));
     },
+    refreshPaymentVoucherDesk: async () => {
+      const [rawVouchers, rawProviders] = await Promise.all([api.getPaymentVouchers(), api.getServiceProviders()]);
+      const providers = Array.isArray(rawProviders) ? rawProviders : rawProviders.providers || rawProviders.data;
+      if (!Array.isArray(providers)) throw new Error('The database returned an invalid provider list.');
+      mutationEpochRef.current += 1;
+      setData(current => ({ ...current, paymentVouchers: deduplicatePaymentVouchers(api.extractPaymentVoucherList(rawVouchers).map(mapApiPaymentVoucher)), serviceProviders: providers.filter(p => p.is_active !== false) }));
+    },
     // Payment Voucher (PV) Management Methods
     addPaymentVoucher: async (pvData) => {
       requireLiveDatabase('Saving this payment voucher');
@@ -3872,94 +3877,43 @@ export function PortalDataProvider({ children, enabled = false }) {
       void invalidateQueries(['payment-vouchers']);
     },
     createServiceProvider: async (providerData) => {
+      requireLiveDatabase('Saving this service provider');
+      mutationEpochRef.current += 1;
       const raw = await api.createServiceProvider(providerData);
+      mutationEpochRef.current += 1;
       const saved = raw.provider || raw.data || raw;
       if (!saved.id) throw new Error('The server did not return the saved provider.');
       setData(current => ({ ...current, serviceProviders: [saved, ...current.serviceProviders.filter(p => p.id !== saved.id)] }));
       return saved;
     },
     updateServiceProvider: async (id, providerData) => {
+      requireLiveDatabase('Updating this service provider');
+      mutationEpochRef.current += 1;
       const raw = await api.updateServiceProvider(id, providerData);
+      mutationEpochRef.current += 1;
       const saved = raw.provider || raw.data || raw;
       if (String(saved.id) !== String(id)) throw new Error('The server did not confirm the updated provider.');
       setData(current => ({ ...current, serviceProviders: current.serviceProviders.map(p => p.id === id ? saved : p) }));
       return saved;
     },
     deleteServiceProvider: async (id) => {
+      requireLiveDatabase('Deleting this service provider');
+      mutationEpochRef.current += 1;
       await api.deleteServiceProvider(id);
+      mutationEpochRef.current += 1;
       setData(current => ({ ...current, serviceProviders: current.serviceProviders.filter(p => p.id !== id) }));
     },
     // Alias so SubmitPVRequest can call createPaymentVoucher too
     createPaymentVoucher: async (pvData) => {
       requireLiveDatabase('Saving this payment voucher');
-      let apiRecord = null;
-      try {
-        const created = await api.createPaymentVoucher({
-          pv_number: pvData.pvNo,
-          requisitionNo: pvData.requisitionNo,
-          payee_name: pvData.provider || pvData.payee_name || 'General Vendor',
-          payee_id: pvData.providerId || pvData.payee_id || 'VEN-001',
-          department: pvData.department || 'Administration',
-          description: pvData.description || 'Expenditure Voucher',
-          payment_mode: pvData.paymentMode || pvData.payment_mode || 'Cash',
-          quantity: Number(pvData.qty) || 1,
-          unit_cost: Number(pvData.cost || pvData.costPerItem || pvData.unit_cost) || 0,
-          amount: Number(pvData.grandTotal || pvData.total || pvData.cost || pvData.amount) || 0,
-          date_prepared: pvData.datePrepared,
-          valued_date: pvData.valuedDate || pvData.datePrepared,
-          items: pvData.items || [],
-          academic_year: pvData.academicYear,
-          academic_term: pvData.academicTerm,
-          status: 'Pending Audit',
-          submitted_by: pvData.submittedBy || 'Sub-Admin',
-        });
-        apiRecord = unwrapApiPaymentVoucher(created);
-        console.log('[PV] Saved to backend ✅', apiRecord?.pv_number || apiRecord?.pvNo || pvData.pvNo, apiRecord?.id || '');
-      } catch (e) {
-        throw new Error(failedDatabaseAction('Saving this payment voucher', e));
-      }
-      requireBackendUuid(apiRecord?.id, 'Saving this payment voucher');
-
-      setData((current) => {
-        const existing = current.paymentVouchers || [];
-        const existingNotifs = current.pvNotifications || [];
-        const newPV = buildPersistedPaymentVoucher({
-          ...pvData,
-          pvNo: pvData.pvNo || `PV-2026-${String(existing.length + 100).padStart(3, '0')}`,
-        }, apiRecord);
-        const newNotif = {
-          id: `notif-pv-${Date.now()}`,
-          pvNo: newPV.pvNo,
-          provider: newPV.provider,
-          grandTotal: newPV.grandTotal || newPV.total,
-          description: newPV.description,
-          submittedBy: newPV.submittedBy,
-          submittedAt: new Date().toLocaleString(),
-          read: false,
-        };
-        console.log('[PV] Notification queued for Head Admin 🔔', newNotif);
-
-        try {
-          if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-            const ch = new BroadcastChannel('rcis_portal_data_sync');
-            ch.postMessage({ type: 'PV_SUBMITTED', pvNo: newPV.pvNo, notif: newNotif });
-            ch.close();
-          }
-        } catch (_) {}
-
-        try {
-          window.dispatchEvent(new CustomEvent('rcis_pv_submitted', {
-            detail: { pvNo: newPV.pvNo, notif: newNotif }
-          }));
-        } catch (_) {}
-
-        return {
-          ...current,
-          paymentVouchers: upsertPaymentVoucherList(existing, newPV),
-          pvNotifications: [newNotif, ...existingNotifs],
-        };
-      });
-      void invalidateQueries(['payment-vouchers']);
+      mutationEpochRef.current += 1;
+      const raw = await api.createPaymentVoucher(pvData);
+      const saved = unwrapApiPaymentVoucher(raw);
+      requireBackendUuid(saved?.id, 'Saving this payment voucher');
+      mutationEpochRef.current += 1;
+      const canonical = mapApiPaymentVoucher(saved);
+      setData(current => ({ ...current, paymentVouchers: upsertPaymentVoucherList(current.paymentVouchers || [], canonical) }));
+      return canonical;
     },
 
     // Notification management
@@ -4033,11 +3987,19 @@ export function PortalDataProvider({ children, enabled = false }) {
       requireLiveDatabase('Reviewing this voucher');
       const voucher = (dataRef.current.paymentVouchers || []).find(v => String(v.id) === String(reference) || pvNosMatch(v.pvNo, reference));
       requireBackendUuid(voucher?.id, 'Reviewing this voucher');
+      const reviewKey = `review:${voucher.id}`;
+      if (writeLocksRef.current.has(reviewKey)) throw new Error('This voucher is already being reviewed.');
+      writeLocksRef.current.add(reviewKey);
+      try {
+      mutationEpochRef.current += 1;
       const raw = await api.reviewPaymentVoucher(voucher.id, { action, remarks, items: updatedFields?.items || voucher.items, version: voucher.version });
+      mutationEpochRef.current += 1;
       const saved = unwrapApiPaymentVoucher(raw);
       if (String(saved?.id) !== String(voucher.id)) throw new Error('The database did not return the reviewed voucher. Refresh before retrying.');
+      if (!['APPROVED', 'REJECTED'].includes(String(saved.status).toUpperCase())) throw new Error('The database did not confirm approval or rejection. Refresh the voucher before retrying.');
       setData(current => ({ ...current, paymentVouchers: current.paymentVouchers.map(v => String(v.id) === String(saved.id) ? mapApiPaymentVoucher(saved) : v) }));
       return saved;
+      } finally { writeLocksRef.current.delete(reviewKey); }
     },
     disbursePaymentVoucher: async (reference, paymentDetails = {}) => {
       requireLiveDatabase('Disbursing this voucher');

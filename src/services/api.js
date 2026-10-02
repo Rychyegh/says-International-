@@ -81,7 +81,7 @@ export function setAuthUser(user) {
 }
 
 const pendingCreates = new Map();
-async function createOnce(endpoint, payload, { multipart = false } = {}) {
+async function createOnce(endpoint, payload, { multipart = false, cacheSuccess = true } = {}) {
   const body = JSON.stringify(payload);
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body));
   const key = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
@@ -91,7 +91,7 @@ async function createOnce(endpoint, payload, { multipart = false } = {}) {
   if (multipart) requestBody.append('metadata', body);
   const operation = request(endpoint, { method: 'POST', headers: { 'Idempotency-Key': key }, body: requestBody });
   pendingCreates.set(scope, operation);
-  try { return await operation; } catch (error) { pendingCreates.delete(scope); throw error; }
+  try { const saved = await operation; if (!cacheSuccess) pendingCreates.delete(scope); return saved; } catch (error) { pendingCreates.delete(scope); throw error; }
 }
 
 
@@ -1564,29 +1564,8 @@ export const api = {
 
   createPaymentVoucher: async (pvData) => {
     const payload = api.normalizePaymentVoucherPayload(pvData);
-    const postVoucher = (body) => request('/finance/vouchers', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-    try {
-      return await postVoucher(payload);
-    } catch (e) {
-      if (e.message && e.message.includes('422') && payload.items) {
-        const { items, ...withoutItems } = payload;
-        try {
-          return await postVoucher(withoutItems);
-        } catch (retryErr) {
-          if (retryErr.message && retryErr.message.includes('422')) throw retryErr;
-        }
-      }
-      if (e.message && e.message.includes('422')) {
-        throw e;
-      }
-      return await request('/finance/pv', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-    }
+    if (!payload.payee_id || !Number.isFinite(payload.amount) || payload.amount <= 0) throw new Error('Select a saved provider and enter a positive voucher amount.');
+    return createOnce('/finance/vouchers', payload);
   },
   createVoucher: async (pvData) => api.createPaymentVoucher(pvData),
 
@@ -1742,7 +1721,26 @@ export const api = {
     });
   },
 
-  reviewPaymentVoucher: (id, data) => request(`/finance/vouchers/${encodeURIComponent(id)}/review`, { method: 'POST', body: JSON.stringify(data) }),
+  reviewPaymentVoucher: async (id, data) => {
+    const action = String(data.action || '').toLowerCase();
+    const approve = ['validated', 'approved', 'pre-audited & approved', 'pre-audit approve pv'].includes(action);
+    const reject = ['declined', 'rejected'].includes(action);
+    if (!approve && !reject) throw new Error('This backend supports voucher approval or rejection. Other and mixed-line decisions require backend support.');
+    const items = data.items || [];
+    const decisionFor = value => ['validated', 'approved'].includes(String(value).toLowerCase()) ? 'approve' : ['declined', 'rejected'].includes(String(value).toLowerCase()) ? 'reject' : 'pending';
+    if (items.some(item => decisionFor(item.status) !== (approve ? 'approve' : 'reject'))) throw new Error('Mixed line decisions require backend support; review the complete voucher consistently.');
+    const raw = await api.getPaymentVoucherById(id);
+    const voucher = raw.voucher || raw.data || raw;
+    const status = String(voucher.status || '').toUpperCase();
+    if (approve && status === 'APPROVED') return raw;
+    if (reject && status === 'REJECTED') return raw;
+    if (['DISBURSED', 'PAID'].includes(status)) throw new Error('A paid voucher cannot be reviewed again.');
+    if (status !== 'PRE_AUDITED' || reject) {
+      const audited = await api.preAuditPaymentVoucher(id, { decision: approve ? 'approve' : 'reject', audit_notes: data.remarks || '' });
+      if (reject) return audited;
+    }
+    return api.approvePaymentVoucher(id, { approval_notes: data.remarks || '' });
+  },
 
   disbursePaymentVoucher: async (pvId, disburseData = {}) => {
     return await request(`/finance/vouchers/${pvId}/disburse`, {
@@ -1816,10 +1814,9 @@ export const api = {
   },
 
   createServiceProvider: async (providerData) => {
-    return await request('/finance/service-providers', {
-      method: 'POST',
-      body: JSON.stringify(providerData),
-    });
+    const payload = { name: String(providerData.name || '').trim(), phone: String(providerData.phone || providerData.telephone || '').trim() || null, email: String(providerData.email || '').trim() || null, address: String(providerData.address || '').trim() || null };
+    if (!payload.name) throw new Error('Enter the service provider name.');
+    return createOnce('/finance/service-providers', payload, { cacheSuccess: false });
   },
 
   updateServiceProvider: async (id, providerData) => {

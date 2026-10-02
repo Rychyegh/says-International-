@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   FileText, Plus, Search, RotateCcw, Printer, Trash2, Edit, CheckCircle2,
   AlertCircle, ChevronRight, X, Building2, User, Phone, Mail, MapPin, Sparkles, DollarSign,
@@ -39,7 +39,6 @@ export default function SubmitPVRequest({ setM = () => {} }) {
     phone: '',
     email: ''
   });
-  const [isSubmittingQuickProvider, setIsSubmittingQuickProvider] = useState(false);
 
   // Form Fields State with clean placeholders (no hardcoded defaults)
   const [pvNo, setPvNo] = useState('');
@@ -60,6 +59,11 @@ export default function SubmitPVRequest({ setM = () => {} }) {
 
   // UI Modals & Notifications
   const [successNotice, setSuccessNotice] = useState('');
+  const [providerNotice, setProviderNotice] = useState('');
+  const [providerBusy, setProviderBusy] = useState(false);
+  const providerLock = useRef(false);
+  const pvLock = useRef(false);
+  const [postingPV, setPostingPV] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isPrintMemoOpen, setIsPrintMemoOpen] = useState(false);
@@ -100,15 +104,11 @@ export default function SubmitPVRequest({ setM = () => {} }) {
   const handleRefreshStatus = async () => {
     setIsRefreshingStatus(true);
     try {
-      if (typeof portalData.refreshBackendData === 'function') {
-        await portalData.refreshBackendData();
-      } else if (api.getPaymentVouchers) {
-        await api.getPaymentVouchers();
-      }
+      await portalData.refreshPaymentVoucherDesk();
       setSuccessNotice('🔄 Synchronized latest PV approval and disbursement statuses.');
       setTimeout(() => setSuccessNotice(''), 3500);
     } catch (e) {
-      console.warn('Status refresh warning:', e);
+      setSuccessNotice(`Status refresh failed: ${e.message}`);
     } finally {
       setIsRefreshingStatus(false);
     }
@@ -116,7 +116,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
 
   const renderPvStatusBadge = (status, remarks) => {
     const s = (status || '').toLowerCase();
-    if (s.includes('approv') || s.includes('validat')) {
+    if (['approved', 'validated'].includes(s)) {
       return (
         <span style={{
           display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -172,12 +172,12 @@ export default function SubmitPVRequest({ setM = () => {} }) {
   };
 
   // Synchronize Provider ID when Provider dropdown changes
-  const handleProviderSelectChange = (name) => {
-    if (name === '__NEW_PROVIDER__') {
+  const handleProviderSelectChange = (id) => {
+    if (id === '__NEW_PROVIDER__') {
       const nextId = String(931000 + serviceProviders.length + 1);
       setQuickProviderForm({
         name: '',
-        id: `VEN-${nextId}`,
+        id: '',
         address: 'Bogoso',
         phone: '',
         email: ''
@@ -185,8 +185,8 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       setShowAddProviderModal(true);
       return;
     }
-    setSelectedProviderName(name);
-    const match = serviceProviders.find(p => p.name === name);
+    const match = serviceProviders.find(p => String(p.id) === id);
+    setSelectedProviderName(match?.name || '');
     if (match) {
       setProviderId(match.id);
       setSelectedProviderInPanel(match);
@@ -219,28 +219,35 @@ export default function SubmitPVRequest({ setM = () => {} }) {
     setSelectedProviderInPanel(saved); setSelectedProviderName(saved.name); setProviderId(saved.id);
     setProviderForm({ name: saved.name, address: saved.address || '', email: saved.email || '', telephone: saved.phone || '' });
   };
-  const handleSaveQuickProvider = async e => {
-    e?.preventDefault(); setIsSubmittingQuickProvider(true);
+  const saveProvider = async (form, updateId = null) => {
+    if (providerLock.current) return;
+    providerLock.current = true; setProviderBusy(true); setProviderNotice('');
     try {
-      const saved = await storeCreateProvider({ name: quickProviderForm.name.trim(), address: quickProviderForm.address, email: quickProviderForm.email, phone: quickProviderForm.phone });
-      selectSavedProvider(saved); setShowAddProviderModal(false); setSuccessNotice('Provider saved to the database.');
-    } catch (error) { setSuccessNotice(`Provider save failed: ${error.message}`); }
-    finally { setIsSubmittingQuickProvider(false); }
+      if (!form.name.trim()) throw new Error('Enter the provider name.');
+      const payload = { name: form.name.trim(), address: form.address, email: form.email, phone: form.phone || form.telephone };
+      const saved = updateId ? await storeUpdateProvider(updateId, payload) : await storeCreateProvider(payload);
+      selectSavedProvider(saved);
+      setProviderNotice('Provider saved and selected. It is available in Select or Add Provider.');
+      setShowAddProviderModal(false);
+    } catch (error) { setProviderNotice(`Provider save failed: ${error.message}`); }
+    finally { providerLock.current = false; setProviderBusy(false); }
   };
-  const handleAddServiceProvider = async e => {
-    e.preventDefault();
-    try { const saved = await storeCreateProvider({ ...providerForm, phone: providerForm.telephone }); selectSavedProvider(saved); setSuccessNotice('Provider saved to the database.'); }
-    catch (error) { setSuccessNotice(`Provider save failed: ${error.message}`); }
-  };
+  const handleSaveQuickProvider = async e => { e.preventDefault(); await saveProvider(quickProviderForm); };
+  const handleAddServiceProvider = async e => { e.preventDefault(); await saveProvider(providerForm); };
   const handleModifyServiceProvider = async () => {
-    if (!selectedProviderInPanel) return;
-    try { const saved = await storeUpdateProvider(selectedProviderInPanel.id, { ...providerForm, phone: providerForm.telephone }); selectSavedProvider(saved); setSuccessNotice('Provider updated in the database.'); }
-    catch (error) { setSuccessNotice(`Provider update failed: ${error.message}`); }
+    if (!selectedProviderInPanel) { setProviderNotice('Select a saved provider before modifying it.'); return; }
+    await saveProvider(providerForm, selectedProviderInPanel.id);
   };
   const handleDeleteServiceProvider = async id => {
-    if (!window.confirm('Delete this service provider?')) return;
-    try { await storeDeleteProvider(id); setSelectedProviderInPanel(null); setSuccessNotice('Provider deleted from the database.'); }
-    catch (error) { setSuccessNotice(`Provider deletion failed: ${error.message}`); }
+    if (!id || providerLock.current || !window.confirm('Delete this service provider?')) return;
+    providerLock.current = true; setProviderBusy(true);
+    try {
+      await storeDeleteProvider(id);
+      setSelectedProviderInPanel(null); setSelectedProviderName(''); setProviderId('');
+      setProviderForm({ name: '', address: '', email: '', telephone: '' });
+      setProviderNotice('Provider deleted from the database.');
+    } catch (error) { setProviderNotice(`Provider deletion failed: ${error.message}`); }
+    finally { providerLock.current = false; setProviderBusy(false); }
   };
 
   // Reset Form
@@ -264,7 +271,9 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       alert('Please enter a Description / Particulars for the expenditure item.');
       return;
     }
-    const cleanQtyStr = String(qty).replace(/[^0-9]/g, '');
+    if (!providerId || !serviceProviders.some(p => p.id === providerId)) { setSuccessNotice('PV validation failed: select a saved provider first.'); return; }
+    if (!Number.isInteger(Number(qty)) || Number(qty) <= 0 || !Number.isFinite(Number(costPerItem)) || Number(costPerItem) <= 0) { setSuccessNotice('PV validation failed: enter a positive whole quantity and unit cost.'); return; }
+    const cleanQtyStr = String(qty);
     const cleanCostStr = String(costPerItem).replace(/[^0-9.]/g, '');
     const qtyNum = parseInt(cleanQtyStr, 10) || 1;
     const costNum = parseFloat(cleanCostStr) || 0;
@@ -287,12 +296,15 @@ export default function SubmitPVRequest({ setM = () => {} }) {
 
   // Action 2: Post PV for Approval >>
   const handlePostPVForApproval = async () => {
+    if (pvLock.current) return;
     if (pvItems.length === 0 && !description.trim()) {
       alert('Please add at least one line item to the Payment Voucher before posting.');
       return;
     }
 
-    const cleanQtyStr = String(qty).replace(/[^0-9]/g, '');
+    if (!providerId || !serviceProviders.some(p => p.id === providerId)) { setSuccessNotice('PV validation failed: select a saved provider first.'); return; }
+    if (!Number.isInteger(Number(qty)) || Number(qty) <= 0 || !Number.isFinite(Number(costPerItem)) || Number(costPerItem) <= 0) { setSuccessNotice('PV validation failed: enter a positive whole quantity and unit cost.'); return; }
+    const cleanQtyStr = String(qty);
     const cleanCostStr = String(costPerItem).replace(/[^0-9.]/g, '');
     const fallbackQty = parseInt(cleanQtyStr, 10) || 1;
     const fallbackCost = parseFloat(cleanCostStr) || 0;
@@ -309,6 +321,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       totalAmount: fallbackTotal
     }];
 
+    if (itemsToPost.some(item => item.providerId !== providerId)) { setSuccessNotice('PV validation failed: use one provider per voucher.'); return; }
     const totalPVAmount = Number(itemsToPost.reduce((acc, i) => acc + (parseFloat(i.totalAmount) || 0), 0).toFixed(2));
 
     // FastAPI schema rule: if both amount and unit_cost are provided, amount must equal quantity * unit_cost.
@@ -331,7 +344,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       department: department || 'Administration',
       paymentMode: paymentMode || 'Cash',
       payment_mode: paymentMode || 'Cash',
-      description: itemsToPost.map(i => `${i.description} (x${i.qty})`).join(', ') || description.trim() || 'Expenditure Voucher',
+      description: `[${academicYear} · ${academicTerm}] ` + itemsToPost.map(i => `${i.description} (qty ${i.qty} × GHS ${Number(i.costPerItem).toFixed(2)} = GHS ${Number(i.totalAmount).toFixed(2)})`).join('; ') || description.trim() || 'Expenditure Voucher',
       items: itemsToPost,
       qty: finalQuantity,
       quantity: finalQuantity,
@@ -349,9 +362,10 @@ export default function SubmitPVRequest({ setM = () => {} }) {
     };
 
     if (createPaymentVoucher) {
+      pvLock.current = true; setPostingPV(true);
       try {
-        await createPaymentVoucher(newPVRecord);
-        setSuccessNotice(`⚡ ✅ Successfully posted Payment Voucher #${newPVRecord.pvNo} (GHS ${totalPVAmount.toFixed(2)}) to Headmaster for Pre-Audit & Approval!`);
+        const savedPV = await createPaymentVoucher(newPVRecord);
+        setSuccessNotice(`⚡ ✅ Successfully posted Payment Voucher #${savedPV.pvNo} (GHS ${totalPVAmount.toFixed(2)}) to Headmaster for Pre-Audit & Approval!`);
         const currentNum = parseInt(pvNo.replace(/\D/g, ''), 10);
         const nextPV = isNaN(currentNum) ? generateUniquePvNumber() : String(currentNum + 1);
         setPvNo(nextPV);
@@ -359,8 +373,8 @@ export default function SubmitPVRequest({ setM = () => {} }) {
         setPvItems([]);
         setDescription('');
       } catch (err) {
-        setSuccessNotice(err?.message || 'Saving this payment voucher failed.');
-      }
+        setSuccessNotice(`PV submission failed: ${err?.message || 'Database did not confirm the voucher.'}`);
+      } finally { pvLock.current = false; setPostingPV(false); }
     }
 
     setTimeout(() => setSuccessNotice(''), 7000);
@@ -742,7 +756,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                       const nextId = String(931000 + serviceProviders.length + 1);
                       setQuickProviderForm({
                         name: '',
-                        id: `VEN-${nextId}`,
+                        id: '',
                         address: 'Bogoso',
                         phone: '',
                         email: ''
@@ -768,7 +782,8 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   </button>
                 </div>
                 <select
-                  value={selectedProviderName}
+                  aria-label="Select or Add Provider"
+                  value={providerId}
                   onChange={(e) => handleProviderSelectChange(e.target.value)}
                   style={{
                     width: '100%',
@@ -787,7 +802,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   </option>
                   <optgroup label="Registered Vendors & Service Providers">
                     {serviceProviders.map(p => (
-                      <option key={p.id} value={p.name}>{p.name} {p.id ? `(${p.id})` : ''}</option>
+                      <option key={p.id} value={p.id}>{p.name} {p.id ? `(${p.id})` : ''}</option>
                     ))}
                   </optgroup>
                 </select>
@@ -948,6 +963,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
             <button
               type="button"
               onClick={handlePostPVForApproval}
+              disabled={postingPV || providerBusy}
               style={{
                 padding: '9px 12px',
                 background: '#ffffff',
@@ -963,7 +979,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                 gap: 4
               }}
             >
-              Post PV for Approval &gt;&gt;
+              {postingPV ? 'Submitting PV…' : 'Post PV for Approval >>'}
             </button>
 
             <button
@@ -1102,7 +1118,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
             const filteredPVs = storePaymentVouchers.filter(p => {
               const s = (p.status || '').toLowerCase();
               if (statusFilter === 'Pending') return s.includes('pending') || s.includes('draft') || s.includes('postpon') || !s;
-              if (statusFilter === 'Approved') return (s.includes('approv') || s.includes('validat') || s.includes('pre-audit') || s.includes('partial')) && !s.includes('disburs');
+              if (statusFilter === 'Approved') return ['approved', 'validated', 'partially approved'].includes(s);
               if (statusFilter === 'Declined') return s.includes('declin') || s.includes('reject') || s.includes('cancel') || s.includes('non-accrual');
               if (statusFilter === 'Disbursed') return s.includes('disburs') || s === 'paid';
               return true;
@@ -1113,7 +1129,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
             }).length;
             const approvedCount = storePaymentVouchers.filter(p => {
               const s = (p.status || '').toLowerCase();
-              return (s.includes('approv') || s.includes('validat') || s.includes('pre-audit') || s.includes('partial')) && !s.includes('disburs');
+              return ['approved', 'validated', 'partially approved'].includes(s);
             }).length;
             const declinedCount = storePaymentVouchers.filter(p => {
               const s = (p.status || '').toLowerCase();
@@ -1274,7 +1290,9 @@ export default function SubmitPVRequest({ setM = () => {} }) {
 
           <div style={{ padding: 14 }}>
             {/* Service Provider Form */}
-            <form onSubmit={handleAddServiceProvider}>
+            {providerNotice && <p role="status" style={{ color: /failed/i.test(providerNotice) ? '#b91c1c' : '#166534' }}>{providerNotice}</p>}
+            <form onSubmit={handleAddServiceProvider} aria-label="Service provider form">
+              <fieldset disabled={providerBusy} style={{ border: 0, padding: 0, margin: 0 }}>
               <div style={{ marginBottom: 8 }}>
                 <label style={{ display: 'block', fontSize: 10.5, fontWeight: 800, color: '#475569', marginBottom: 2 }}>
                   Name (Service provider/Client)
@@ -1380,6 +1398,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   Delete
                 </button>
               </div>
+              </fieldset>
             </form>
 
             {/* List / Table of Service Providers (Matching Reference Image) */}
@@ -1390,7 +1409,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
               </div>
               <div>
                 {serviceProviders.map((p) => {
-                  const isSelected = selectedProviderName === p.name;
+                  const isSelected = providerId === p.id;
                   return (
                     <div
                       key={p.id}
@@ -1697,7 +1716,8 @@ export default function SubmitPVRequest({ setM = () => {} }) {
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSaveQuickProvider} style={{ padding: 22 }}>
+            <form onSubmit={handleSaveQuickProvider} aria-label="Quick provider form" style={{ padding: 22 }}>
+              {providerNotice && <p role="alert">{providerNotice}</p>}
               <div style={{ marginBottom: 14 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 5 }}>
                   Company / Provider Name <span style={{ color: '#dc2626' }}>*</span>
@@ -1728,9 +1748,8 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   </label>
                   <input
                     type="text"
-                    value={quickProviderForm.id}
-                    onChange={(e) => setQuickProviderForm({ ...quickProviderForm, id: e.target.value })}
-                    placeholder="e.g. VEN-931010"
+                    value="Assigned by the database when saved"
+                    readOnly
                     style={{
                       width: '100%',
                       padding: '9px 12px',
@@ -1813,7 +1832,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                 gap: 8
               }}>
                 <Sparkles size={16} color="#0284c7" />
-                <span>Once saved, this vendor will instantly appear on other phones, laptops, and admin portals connected to the system.</span>
+                <span>Once saved, this provider is selected here and is available to other authorized portals after their database refresh.</span>
               </div>
 
               {/* Actions */}
@@ -1836,23 +1855,23 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmittingQuickProvider || !quickProviderForm.name.trim()}
+                  disabled={providerBusy || !quickProviderForm.name.trim()}
                   style={{
                     padding: '9px 20px',
-                    background: isSubmittingQuickProvider ? '#94a3b8' : '#166534',
+                    background: providerBusy ? '#94a3b8' : '#166534',
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: 6,
                     fontWeight: 800,
                     fontSize: 13,
-                    cursor: isSubmittingQuickProvider ? 'not-allowed' : 'pointer',
+                    cursor: providerBusy ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
                     boxShadow: '0 2px 4px rgba(22, 101, 52, 0.2)'
                   }}
                 >
-                  {isSubmittingQuickProvider ? (
+                  {providerBusy ? (
                     <>
                       <RefreshCw size={14} className="animate-spin" /> Saving & Syncing...
                     </>

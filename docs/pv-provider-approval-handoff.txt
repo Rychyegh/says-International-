@@ -1,0 +1,22 @@
+Sub-admin provider and PV workflow — 2 October 2026
+
+Implemented frontend flow
+1. Add a provider in the Service Providers panel or via Select or Add Provider > Add New Service Provider. POST /api/v1/finance/service-providers sends name, phone, email and address. The saved UUID and record populate the list and selected provider. Failure stays visible beside the form; inputs remain. Modify and Delete call the corresponding PUT/DELETE UUID route.
+2. Provider selection uses UUIDs, not names. Duplicate clicks are blocked while saving. A background read started before the save cannot overwrite the new provider.
+3. Prepare a positive amount for a saved provider; submit via POST /api/v1/finance/vouchers with a stable Idempotency-Key. Do not silently retry on /finance/pv or drop line items on rejection. Only the database response supplies the saved PV number/status.
+4. Head-admin reads GET /api/v1/finance/vouchers. Vouchers and providers load independently of unrelated slow dashboard requests. Head-admin sees the saved UUID, provider, description and amount. Separate devices read the same server records; no local notification is proof of delivery.
+5. Whole-voucher approval reads the current voucher, posts /finance/vouchers/{id}/pre-audit with {decision:"approve",audit_notes}, then posts /finance/vouchers/{id}/approve with {approval_notes}. A retry after failed final approval resumes from PRE_AUDITED. Rejection uses pre-audit decision "reject". Only confirmed APPROVED or REJECTED responses update authoritative state. PRE_AUDITED alone does not authorize payment.
+6. Sub-admin's Refresh Status action reloads vouchers/providers and exposes errors. Regular refresh/focus also reconciles the server state.
+
+Published backend contract checked
+Source: https://rcis-backend.onrender.com/api/v1/openapi.json, API version 2.0.0 (fetched in this session on 2 October 2026).
+Provider CRUD and voucher create/list/read/pre-audit/approve endpoints exist in the published schema. /finance/vouchers/{id}/review is not listed, so the whole-voucher flow no longer depends on it.
+
+Backend developer requirements and remaining limits
+- Grant the intended sub-admin account explicit permission to list/create/update providers and prepare/list its vouchers; head-admin must be allowed to read and approve those school-scoped records. Preserve login/PIN flows. A 403 is shown rather than bypassed.
+- Verify and document accepted pre-audit decision strings "approve" and "reject"; the published schema currently declares a free-form string with no enum/examples.
+- Honor Idempotency-Key on provider and voucher creation. These headers are sent by the frontend but their transactional enforcement is not established by the published schema. Return the original committed record on identical retry and 409 on conflicting reuse.
+- PaymentVoucherCreate and PaymentVoucherOut in the published schema do not declare individual items, academic year or term. The frontend preserves the period, line descriptions, quantities and amounts in the persisted description and submits the aggregate total for one provider. It also sends items for compatibility, but does not pretend the server saved individual lines when the response omits them. Head-admin then reviews one aggregate voucher.
+- Mixed approve/reject decisions within one voucher require a deployed, documented transactional line-item review contract. The frontend reports unsupported mixed decisions rather than approving an entire mixed voucher accidentally. Extend create/read/review schemas and database storage before enabling that behavior.
+- Enforce approval role, tenant boundary, state transition and ledger rules server-side. Provider deletion referenced by vouchers should be rejected or archived without erasing financial history. Store audit actor/time and approval notes.
+- Final verification must use authorized sub-admin and head-admin test accounts against the deployed backend. No live financial requests were submitted during this task; browser tests use intercepted synthetic API responses.

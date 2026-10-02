@@ -135,3 +135,23 @@ test('proposed merge integration requires UUIDs, reviewed preview and visible ba
  await api.commitStudentMerge(merge);await api.commitStudentMerge(merge);assert.equal(calls[1].key,calls[2].key);
  globalThis.fetch=async()=>json({detail:'Not Found'},404);await assert.rejects(api.previewStudentMerge({canonicalStudentId,duplicateStudentIds}),/Not Found/);
 });
+
+test('provider persistence trims fields and keeps server errors visible', async () => {
+ let payload;
+ globalThis.fetch=async(url,opts)=>{payload=JSON.parse(opts.body);return json({id:'provider',...payload});};
+ const saved=await api.createServiceProvider({name:' Supplier ',telephone:' 123 ',email:'',address:''});
+ assert.deepEqual(payload,{name:'Supplier',phone:'123',email:null,address:null});assert.equal(saved.name,'Supplier');
+ globalThis.fetch=async()=>json({detail:'Not permitted'},403);await assert.rejects(api.createServiceProvider({name:'Forbidden supplier'}),/Not permitted/);
+});
+test('PV failure never drops lines or replays through a legacy endpoint', async () => {
+ const calls=[];globalThis.fetch=async(url,opts)=>{calls.push({url,key:opts.headers['Idempotency-Key'],body:JSON.parse(opts.body)});return json({detail:'Database unavailable'},500);};
+ const pv={provider:'Test vendor',providerId:'provider-uuid',description:'Supplies',qty:2,cost:25,amount:50,items:[{description:'Supplies',qty:2,costPerItem:25,totalAmount:50}]};
+ await assert.rejects(api.createPaymentVoucher(pv));await assert.rejects(api.createPaymentVoucher(pv));
+ assert.equal(calls.length,2);assert.ok(calls.every(c=>c.url.endsWith('/finance/vouchers')));assert.equal(calls[0].key,calls[1].key);assert.equal(calls[0].body.items.length,1);
+});
+test('whole voucher approval uses documented pre-audit then approve routes', async () => {
+ const calls=[];globalThis.fetch=async(url,opts)=>{calls.push({url,body:opts.body&&JSON.parse(opts.body)});return json({id:'pv',status:url.endsWith('/approve')?'APPROVED':url.endsWith('/pre-audit')?'PRE_AUDITED':'DRAFT'});};
+ const saved=await api.reviewPaymentVoucher('pv',{action:'Validated',remarks:'Checked',items:[{status:'Validated'}]});assert.equal(saved.status,'APPROVED');
+ assert.ok(calls[1].url.endsWith('/pre-audit'));assert.deepEqual(calls[1].body,{decision:'approve',audit_notes:'Checked'});assert.ok(calls[2].url.endsWith('/approve'));
+ await assert.rejects(api.reviewPaymentVoucher('pv',{action:'Partially Approved',items:[]}),/backend supports/);
+});

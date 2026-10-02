@@ -1,7 +1,7 @@
 // Shared identity and approval rules. Display labels must never confer permission.
 export function normalizePvItemStatus(value) {
   const status = String(value || '').trim().toLowerCase().replace(/_/g, '-');
-  if (['validated', 'approved', 'pre-audited', 'pre-audited & approved', 'pre-audit approve pv'].includes(status)) return 'Validated';
+  if (['validated', 'approved', 'pre-audited & approved', 'pre-audit approve pv'].includes(status)) return 'Validated';
   if (['declined', 'rejected'].includes(status)) return 'Declined';
   if (['cancel pv', 'cancelled', 'canceled'].includes(status)) return 'Cancel PV';
   if (status === 'non-accrual') return 'Non-accrual';
