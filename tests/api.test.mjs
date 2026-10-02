@@ -155,3 +155,53 @@ test('whole voucher approval uses documented pre-audit then approve routes', asy
  assert.ok(calls[1].url.endsWith('/pre-audit'));assert.deepEqual(calls[1].body,{decision:'approve',audit_notes:'Checked'});assert.ok(calls[2].url.endsWith('/approve'));
  await assert.rejects(api.reviewPaymentVoucher('pv',{action:'Partially Approved',items:[]}),/backend supports/);
 });
+
+test('enrollment uses a persisted random key and UUID application route',async()=>{
+ setAuthUser({id:'retry-test-actor'});const keys=[];
+ globalThis.fetch=async(url,opts)=>{assert.ok(url.endsWith('/admissions/applications/app-uuid/enroll'));keys.push(opts.headers['Idempotency-Key']);return json({detail:'Retry later'},503);};
+ await assert.rejects(api.enrollApplication('app-uuid',{level:'Basic 7'}));
+ await assert.rejects(api.enrollApplication('app-uuid',{level:'Basic 7'}));
+ assert.match(keys[0],/^[0-9a-f-]{36}$/);assert.equal(keys[0],keys[1]);
+ await assert.rejects(api.enrollApplication('app-uuid',{level:'Basic 8'}),/unresolved/);assert.equal(keys.length,2);
+});
+test('timetable draft and publication use revisioned endpoints without fallback', async () => {
+  const workspace = { contract_version: 1, id: 'w1', revision: 3, entries: [], catalogs: { classes: [], teachers: [], subjects: [], rooms: [] } };
+  const calls = [];
+  globalThis.fetch = async (url, opts) => { calls.push({ url, opts }); return json({ ...workspace, published_revision: 3 }); };
+  await api.saveTimetableDraft(workspace);
+  await api.publishTimetable(workspace);
+  assert.ok(calls[0].url.endsWith('/timetables/workspace'));
+  assert.equal(calls[0].opts.method, 'PUT');
+  assert.equal(JSON.parse(calls[0].opts.body).revision, 3);
+  assert.equal(calls[1].opts.headers['Idempotency-Key'], 'timetable-w1-3');
+  globalThis.fetch = async () => json({ ...workspace, published_revision: 2 });
+  await assert.rejects(api.publishTimetable(workspace), /did not confirm/);
+  let count = 0;
+  globalThis.fetch = async () => { count++; return json({ detail: 'Revision conflict' }, 409); };
+  await assert.rejects(api.saveTimetableDraft(workspace));
+  assert.equal(count, 1);
+});
+
+test('provider transport retries persist random keys, with new keys only after confirmed completion', async () => {
+ setAuthUser({id:'provider-retry-actor'});
+ const keys=[];
+ globalThis.fetch=async(url,options)=>{keys.push(options.headers['Idempotency-Key']);throw new TypeError('Connection lost');};
+ await assert.rejects(api.createServiceProvider({name:'Provider Retry Test'}));
+ // An independent module instance simulates losing all in-memory request state.
+ const fresh=await import(`../src/services/api.js?retry-test=${Date.now()}`);
+ globalThis.fetch=async(url,options)=>{keys.push(options.headers['Idempotency-Key']);return json({id:'provider-id',name:'Provider Retry Test'});};
+ await fresh.api.createServiceProvider({name:'Provider Retry Test'});
+ await fresh.api.createServiceProvider({name:'Provider Retry Test'});
+ assert.match(keys[0],/^[0-9a-f-]{36}$/);
+ assert.equal(keys[0],keys[1]);
+ assert.notEqual(keys[1],keys[2]);
+});
+
+test('voucher totals reject a one-cent difference and provider aliases must agree', async () => {
+ const base={provider_id:'provider-uuid',quantity:2,unit_cost:10,amount:20};
+ assert.equal(api.normalizePaymentVoucherPayload(base).payee_id,'provider-uuid');
+ for(const amount of [19.99,20.01]) assert.throws(()=>api.normalizePaymentVoucherPayload({...base,amount}),/exactly match/);
+ assert.throws(()=>api.normalizePaymentVoucherPayload({...base,payee_id:'different'}),/same saved provider/);
+ const aggregate=api.normalizePaymentVoucherPayload({provider_id:'provider-uuid',amount:10,quantity:3});
+ assert.equal(aggregate.quantity,1);assert.equal(aggregate.unit_cost,10);assert.equal(aggregate.amount,10);
+});

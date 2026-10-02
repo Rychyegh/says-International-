@@ -600,7 +600,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
       </div>
 
       {/* Right form panel */}
-      <div className="login-right">
+      <div className={`login-right${portal === 'student' ? ' login-right--student' : ''}`}>
         <div className="login-form-wrap">
           {success ? (
             <div className="login-success animate-fade-up">

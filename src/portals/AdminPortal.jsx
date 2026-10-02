@@ -1,3 +1,4 @@
+import { TimetableManager } from '../components/Academic/Timetable';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   LayoutDashboard, Users, UserPlus, FileText, Settings,
@@ -37,6 +38,7 @@ const NAV = [
   { icon: <Radio size={15} />, label: 'Attendance & SMS Control', badge: null },
   { icon: <FileText size={15} />, label: 'Submit PV Request', badge: null },
   { icon: <Settings size={15} />, label: 'Academic Settings', badge: null },
+  { icon: <Settings size={15} />, label: 'Timetable', badge: null },
   { icon: <FileCheck size={15} />, label: 'Register for Exams', badge: null },
   { icon: <FileCheck size={15} />, label: 'Transcripts & Results', badge: null },
   { icon: <CreditCard size={15} />, label: 'Official Fee Schedule', badge: null },
@@ -2980,6 +2982,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           )}
 
           {/* ── ACADEMIC SETTINGS ── */}
+          {activeNav === 'Timetable' && <TimetableManager />}
+
           {activeNav === 'Academic Settings' && (
             <div className="animate-fade-up">
               <div className="page-header">

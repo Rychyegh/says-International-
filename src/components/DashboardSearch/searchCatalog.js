@@ -327,7 +327,7 @@ export const SEARCH_CATALOG = [
     portal: 'teacher',
     portalLabel: 'Staff Portal',
     portalColor: '#1b4d3e',
-    nav: 'Timetable',
+    nav: 'Schedule',
     category: 'Staff',
     icon: 'Calendar',
     description: 'Check class teaching periods, subject periods, allocated room numbers, and weekly lesson schedule.',
@@ -394,18 +394,6 @@ export const SEARCH_CATALOG = [
     icon: 'Navigation',
     description: 'Track school bus arrival status, check route number, and call designated bus driver directly.',
     keywords: ['bus tracking', 'school bus', 'driver contact', 'pickup time', 'dropoff', 'transport tracker']
-  },
-  {
-    id: 'par-messages',
-    title: 'Messages & Teacher Contact',
-    portal: 'parent',
-    portalLabel: 'Parent Portal',
-    portalColor: '#1a3668',
-    nav: 'Messages',
-    category: 'Parent',
-    icon: 'MessageCircle',
-    description: 'Contact class teachers directly, submit inquiry notes, and receive school event broadcasts.',
-    keywords: ['messages', 'contact teacher', 'teacher notes', 'parent inbox', 'school announcements']
   },
   {
     id: 'par-calendar',

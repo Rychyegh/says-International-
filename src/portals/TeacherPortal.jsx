@@ -200,14 +200,14 @@ export default function TeacherPortal() {
   useEffect(() => {
     let cancelled = false;
     Promise.allSettled([
-      api.getTimetables(),
+      api.getPublishedTimetable(),
       api.getAssignments(),
       api.getResults(),
     ]).then(([timetableResult, assignmentResult, resultResult]) => {
       if (cancelled) return;
       const scope = { classLabel, teacherName: teacherLabel };
       const timetables = timetableResult.status === 'fulfilled'
-        ? scopeToTeacher(asList(timetableResult.value, ['timetables', 'schedules', 'items', 'data', 'records']), scope)
+        ? timetableResult.value.entries
         : null;
       const assignments = assignmentResult.status === 'fulfilled'
         ? scopeToTeacher(asList(assignmentResult.value, ['assignments', 'items', 'data', 'records']), scope)

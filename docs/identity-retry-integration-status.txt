@@ -1,0 +1,20 @@
+Frontend alignment with supplied Backend change tracking — 2 October 2026
+
+Implemented locally
+- Admission creation, enrollment by application UUID, and standalone onboarding send random UUID Idempotency-Key values.
+- Browser storage retains the key by operation, actor and canonical payload fingerprint across refresh. Stored retry metadata contains hashes and keys, not student details, tokens, credentials or response bodies.
+- Concurrent identical requests share one operation. Retrying 409, 503 or transport failures retains the key. Changed input while an outcome is unresolved is blocked rather than silently rotating keys. Restore the original inputs to retry, or resolve the stored record with the backend first. A confirmed 422 validation rejection allows correcting the submission.
+- Completed requests retain their key for server replay; roster refresh remains responsible for subsequent student changes. The user may need to re-enter original unsaved inputs after refresh; this change persists retry metadata, not entire form drafts.
+- Onboarding no longer fabricates a default password when the keyed backend response omits credentials. Existing credentials are not changed.
+- Login screens, PIN checks and authentication API logic remain unchanged.
+
+Backend status reported by the supplied document (not independently verified)
+- Identity migration ef42ab719c03 and durable replay are locally committed, not pushed or deployed, and not applied to production.
+- Backend result: 175 passed, 6 failed, 2 warnings. PostgreSQL staging concurrency/full migration checks remain pending.
+- Existing duplicates were not inspected, merged or deleted. Migration preflight stops on ambiguous legacy links; it does not select a survivor by name.
+- Billing defaults and duplicate-merge tooling remain separate unfinished work.
+
+Release gates
+- Deploy only after the backend test failures, staging checks and frontend compatibility are resolved; record the actual deployed commit and Alembic revision.
+- This branch also contains new session/PIN requirements. Deploying it unchanged alongside the deliberately preserved old frontend login is an integration risk. Coordinate a compatible release; this task does not authorize replacing the user's login/PIN flow.
+- Existing duplicate records still need a backend-reviewed transactional merge with fee/payment/result/account links preserved. New uniqueness and retry protection prevent recurrence but do not clean up old records.

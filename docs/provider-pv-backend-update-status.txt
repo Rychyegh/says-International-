@@ -1,0 +1,23 @@
+PROVIDER/PV BACKEND REPORT — FRONTEND FOLLOW-UP
+Date: 2026-10-02
+Source: user-supplied Backend change tracking report (attachment 97028683-f6cf-4508-a023-9a0d649f2109).
+
+Reported backend status (not independently verified in this turn)
+Commit 9dc4f28 pushed to origin/codex/backend-hardening-session-verification; main unchanged. Render reportedly runs main at 0d23012. Deployment and production migration have not occurred. Migration head f03b9c1a72de follows ef42ab719c03. Backend suite: 184 passed, 6 failed, 1 warning; all nine new provider/PV tests passed. Backup/PITR confirmation, PostgreSQL staging concurrency/full-chain migration and release-test resolution remain gates.
+
+Frontend changes made against the reported contract
+- Provider and voucher POST operations now persist random UUID retry keys and payload fingerprints in browser storage. Transport failure/409/503 keeps the original key across reload; changed unresolved payload is blocked, never silently retried with a new key. Storage failure prevents submission. Actor and endpoint scopes are separate.
+- After a confirmed successful finance create, another explicit form submission may start a new operation with a new key, even with identical inputs. Student/admission retry behavior still replays completed operations as before. In-flight submissions share a request. Only keys/hashes/state are stored; no supplier details, voucher contents or credentials are stored by this helper.
+- Draft form contents are not persisted by this change. After refresh the user must restore the same inputs to retry an unresolved operation. An unresolved operation with lost inputs requires database reconciliation, not clearing browser storage and resubmitting. This is a remaining UX limitation.
+- payee_id, provider_id and providerId are accepted as provider aliases; conflicting IDs are rejected. Provider UUID is sent as payee_id.
+- Quantity must be a positive whole number. Finite, non-negative amounts are required. A one-cent mismatch between quantity × unit cost and amount is rejected, not silently rewritten. Amount-only aggregate payloads use quantity1 and unit_cost=amount to preserve the total.
+- Existing multi-item form explicitly uses aggregate quantity1 and total as unit cost. Academic period and line details stay in description; structured items are not claimed persisted by this backend set.
+- Existing pre-audit then approve sequence remains; PRE_AUDITED is not payment authorization. Provider delete409 remains a visible error and keeps the record. No legacy /review or mixed-item approval API was introduced.
+
+Release boundaries
+This report does not implement timetable workspace/publish endpoints. See docs/timetable-backend-handoff.txt for that separate contract. Existing duplicate records have not been merged, and exact billing remains a separate backend set.
+Login/PIN/frontend authentication behavior was not changed here. The cumulative backend branch includes provisional-session and per-user PIN changes; compatibility with the unchanged frontend must be resolved and verified before deploying that branch. Do not treat the provider/PV changes alone as evidence the full branch is safe to deploy.
+No production financial request, migration, role change, duplicate merge or deployment was performed in this frontend follow-up.
+
+Verification
+Unit/API tests include refresh-like module reload retry, new finance operations after confirmed completion, cent mismatch and provider alias conflicts. Existing synthetic provider/PV browser workflow checks use intercepted API responses, not production database writes. Backend database integrity and production availability remain unverified by frontend tests.

@@ -1,0 +1,85 @@
+TIMETABLE DATABASE AND PUBLISHING HANDOFF
+Date: 2026-10-02
+
+Release status
+Frontend implementation is ready for the contract below. Backend implementation and migration are REQUIRED before this feature works live. No production schedule was created or published during development. The public OpenAPI schema was fetched on 2026-10-02 from https://rcis-backend.onrender.com/api/v1/openapi.json.
+It currently exposes GET/POST /timetables and PUT/PATCH/DELETE /timetables/{slot_id}, with aliases under /academic/timetables. Slot creation accepts class_level, day, start_time, end_time, subject, room and lecturer_name. It does not expose stable resource IDs, term/versioned drafts, role-scoped publishing or the endpoints below. Do not silently forward new calls to those legacy writes. Define static routes before /{slot_id} to avoid UUID route capture.
+
+Frontend locations
+src/components/Academic/Timetable.jsx: admin planning workspace and shared published reader.
+src/lib/timetableRules.js: client conflict validation and contract checks.
+src/services/api.js: authenticated API integration.
+Admin portal: Timetable navigation. Backend can_manage controls editing; only the head of academics or explicitly authorised delegates receive it. This does not grant every admin/sub-admin edit permission. Existing login, PIN and session behavior is unchanged.
+Student portal: Timetable; teacher/class-teacher portal: Schedule; parent portal: Timetable for selected linked child's database UUID.
+Removed hardcoded student lessons and disabled the obsolete store save path that claimed success after an API failure. New timetable reads do not consume cached legacy slot records. Readers reload on mount, manual refresh, window focus and every 60 seconds. Failed reads are shown as errors, not as an empty successful schedule. No client-only database-write fallback exists.
+
+Required API (all paths relative to /api/v1)
+1. GET /timetables/workspace
+Return the current school's active academic year/term workspace, scoped by authenticated school and timetable.manage permission. Read-only administrators may receive can_manage:false; others 403. Backend selects the active term from academic settings; frontend does not select historical terms.
+Response example:
+{
+  "contract_version": 1,
+  "id": "<workspace UUID>",
+  "revision": 4,
+  "published_revision": 3,
+  "academic_year": "2026/2027",
+  "term": "Term 1",
+  "timezone": "Africa/Accra",
+  "can_manage": true,
+  "catalogs": {
+    "classes": [{"id":"<class/section UUID>","name":"Basic 7A"}],
+    "teachers": [{"id":"<staff UUID>","name":"Teacher One"}],
+    "subjects": [{"id":"<subject UUID>","name":"Mathematics"}],
+    "rooms": [{"id":"<room UUID>","name":"Room One"}]
+  },
+  "entries": [{
+    "id": "<lesson UUID>", "class_id":"<class/section UUID>",
+    "teacher_id":"<staff UUID>","subject_id":"<subject UUID>",
+    "room_id":"<room UUID>","day":"Monday",
+    "start_time":"08:00","end_time":"09:00"
+  }]
+}
+Revision is an integer. Catalog names are display labels; identity and clashes use IDs. Class IDs represent actual sections (Basic 7A vs Basic 7B), not ambiguous display names. Catalogs must include all resources referenced in the draft. New lessons omit id until persisted. Empty entries is a valid empty draft. Create the initial empty workspace server-side for the active term.
+
+2. PUT /timetables/workspace
+Body: {"id":"<workspace UUID>","revision":4,"entries":[<complete draft lesson list>]}
+Atomically replace the draft after validation, assign lesson UUIDs, increment revision and return the complete workspace shape above. Removed rows are removed from draft only. Keep the previously published immutable snapshot until explicit publication.
+Require timetable.manage; derive school from token. Reject stale revision with 409, never last-write-wins. IDs must belong to this school/workspace and be active. Validate each teacher is assigned/qualified for the class and subject using teaching-assignment records. Validate class-subject relationships, room identity, valid school day, HH:mm time format and start < end. Reject overnight slots.
+Frontend retains edited rows on failed saves. After a network-ambiguous save, user reloads canonical workspace; do not silently replay against legacy routes. Backend must atomically consume expected revision so identical stale retries cannot create duplicates.
+
+3. POST /timetables/workspace/publish
+Body: {"id":"<workspace UUID>","revision":5}
+Header Idempotency-Key: timetable-<workspace UUID>-<revision>
+Require timetable.publish (head of academics or explicitly authorised delegate) and timetable.manage. Frontend currently uses can_manage for both actions, so can_manage must imply both grants until separate capabilities are implemented.
+In one transaction: check exact saved revision; revalidate resource assignments, conflicts and scope; atomically replace the published snapshot for this school/term; write actor/time/revision audit trail. Readers must never observe a partial new schedule. Return full workspace with published_revision exactly equal to requested revision. Store idempotency response scoped to school, actor and request fingerprint; repeat identical publication returns original result; mismatched reuse409. Empty draft publication intentionally clears that term's published schedule.
+
+4. GET /timetables/published[?student_id=<database student UUID>]
+Response: {"contract_version":1,"academic_year":"2026/2027","term":"Term 1","timezone":"Africa/Accra","published_revision":5,"entries":[{"id":"<lesson UUID>","status":"PUBLISHED","class_id":"...","teacher_id":"...","subject_id":"...","room_id":"...","day":"Monday","start_time":"08:00","end_time":"09:00","class_name":"Basic 7A","subject_name":"Mathematics","teacher_name":"Teacher One","room_name":"Room One"}]}
+No publication returns entries:[] with this same envelope. Never return draft entries. Sort optional; client sorts days/time.
+Scope enforced on server before serialization:
+- Student: authenticated student's current class/section only. Ignore/reject another student's ID.
+- Subject teacher: lessons assigned to authenticated teacher UUID only.
+- Class teacher: union of their own teaching lessons and lessons in explicitly assigned homeroom classes; deduplicate by lesson UUID.
+- Parent: require student_id, verify current parent-child link, return child's current class/section. Return403 for unlinked IDs, not all-school fallback.
+- Head of academics: may access all classes only with explicit permission.
+Unresolved identity/class assignment returns an empty scoped schedule or clear403; never fall back to names/email or all-school results. Never trust role/class/school query parameters. Every response must restrict data by tenant and role. Use private/no-store HTTP caching or identity-and-revision-scoped caching.
+
+Conflict rules and database integrity
+A weekly lesson occupies [start,end), allowing adjacent lessons such as 08:00–09:00 and09:00–10:00. Within the same school, active academic term and weekday, overlapping intervals may not share class/section, teacher OR room. Subject can repeat across independent teachers/classes/rooms. Check partial and fully contained intervals. Use school-local timezone Africa/Accra unless configured otherwise.
+Draft list is the entire active-term schedule; frontend validates pairwise conflicts. Server must validate the entire authoritative dataset and atomically serialize writes/publications with workspace row locking or equivalent. Also use database constraints/exclusion constraints where available. Client checks alone cannot prevent concurrent-save races.
+Persist workspace, draft lessons, immutable published revisions and audit metadata with foreign keys. Never merge by teacher/student names. Migrate legacy free-text slots only when teacher, class, subject and room IDs can be resolved unambiguously; unresolved records require manual review. Do not publish migrated records automatically.
+Return401 expired session,403 permission/scope,409 stale revision/clash/idempotency conflict,422 invalid input,503 transient failure. Include human-readable detail and optional conflicts array with lesson IDs/resources/day/times. Frontend displays detail. Do not return200 if persistence failed.
+
+Backend acceptance / release gates
+- Apply migration, grant designated head-of-academics permission; no login/PIN change is required.
+- Create lessons across classes/teachers/subjects; verify GET after browser refresh returns committed draft.
+- Reject overlapping teacher, class and room independently, including contained ranges; allow touching boundaries/different weekdays.
+- Concurrent updates from two administrators: exactly one expected revision succeeds; loser gets409. Concurrent publish cannot bypass conflicts.
+- Draft changes remain invisible to students/teachers/parents until publish. Publish updates all relevant role views atomically; old published schedule remains until then.
+- Separate real accounts: student sees own section only; subject teacher own lessons; class teacher own lessons plus homeroom; parent linked selected child only. Reject forged/unlinked IDs and cross-school access. These security properties require backend tests; frontend mocks do not prove them.
+- Failed saves/publications never report success; retry idempotency and stale-revision recovery verified.
+- Restart backend / reload browser: database schedule survives.
+- Deploy backend and frontend together. Confirm public schema includes these routes and run authenticated staging end-to-end tests before production publishing.
+
+Frontend validation
+Tests: tests/timetableRules.test.mjs, timetable API tests in tests/api.test.mjs, and tests/timetable-integration.mjs (synthetic intercepted API, no production writes). UI integration covers save rejection with draft retained, database save, explicit publish, separate viewer, and refresh persistence. Backend security, real DB transactions and live publishing remain backend release gates.

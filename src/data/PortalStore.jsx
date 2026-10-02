@@ -2254,17 +2254,14 @@ export function PortalDataProvider({ children, enabled = false }) {
         id: backendId,
         studentId: mappedApi?.studentId || fallbackCode,
         studentEmail: mappedApi?.studentEmail || existing?.studentEmail || '',
-        defaultPassword: mappedApi?.defaultPassword || existing?.defaultPassword || draft.defaultPassword
-          || `StuPass#${String(mappedApi?.studentId || fallbackCode).replace(/REMALJ-/i, '')}`,
+        // Keyed identity responses intentionally omit generated credentials.
+        defaultPassword: mappedApi?.defaultPassword || existing?.defaultPassword || '',
         rfidCardCode: preferIssuedRfid(mappedApi?.rfidCardCode, draft.rfidCardCode, existing?.rfidCardCode),
       });
 
       canonical.id = backendId;
       recentRosterIdsRef.current.add(String(backendId));
       if (!canonical.studentId) canonical.studentId = fallbackCode;
-      if (!canonical.defaultPassword) {
-        canonical.defaultPassword = `StuPass#${String(canonical.studentId).replace(/REMALJ-/i, '')}`;
-      }
       const nowIso = new Date().toISOString();
       if (!existing) {
         canonical.onboardedAt = nowIso;
@@ -2394,18 +2391,8 @@ export function PortalDataProvider({ children, enabled = false }) {
     invalidateQueries,
     syncApplicationsToStudentDatabase,
     lastAutoRefreshedAt: lastAutoRefreshedAtRef.current,
-    saveTimetableEntry: async (entry) => {
-      try {
-        await api.createTimetableEntry(entry);
-      } catch (e) {
-        console.warn('Backend timetable create fallback:', e);
-      }
-      setData((current) => ({
-        ...current,
-        timetable: current.timetable.some((item) => item.id === entry.id)
-          ? current.timetable.map((item) => item.id === entry.id ? entry : item)
-          : [...current.timetable, { ...entry, id: entry.id || crypto.randomUUID?.() || String(Date.now()) }],
-      }));
+    saveTimetableEntry: async () => {
+      throw new Error('Use the head of academics timetable workspace to save and publish lessons.');
     },
     // Exam submissions go to Head Admin; class-only scores do not
     publishResult: (result) => {

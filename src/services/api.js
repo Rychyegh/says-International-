@@ -1,3 +1,5 @@
+import { identityRetry } from '../lib/identityRetry.js';
+import { validateTimetableWorkspace, validatePublishedTimetable } from '../lib/timetableRules.js';
 import { rawAssessment, normalizeAssessment } from '../lib/assessmentRules.js';
 import { stripCredentials } from '../lib/recordRules.js';
 /**
@@ -81,17 +83,18 @@ export function setAuthUser(user) {
 }
 
 const pendingCreates = new Map();
-async function createOnce(endpoint, payload, { multipart = false, cacheSuccess = true } = {}) {
+async function createOnce(endpoint, payload, { multipart = false, cacheSuccess = true, durableIdentity = false, replayCompleted = true } = {}) {
   const body = JSON.stringify(payload);
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body));
-  const key = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+  const retry = durableIdentity ? await identityRetry(endpoint, getAuthUser()?.id || getAuthToken() || 'public', payload, localStorage, { replayCompleted }) : null;
+  const key = retry?.key || Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
   const scope = `${getAuthToken()}:${endpoint}:${key}`;
   if (pendingCreates.has(scope)) return pendingCreates.get(scope);
   const requestBody = multipart ? new FormData() : body;
   if (multipart) requestBody.append('metadata', body);
   const operation = request(endpoint, { method: 'POST', headers: { 'Idempotency-Key': key }, body: requestBody });
   pendingCreates.set(scope, operation);
-  try { const saved = await operation; if (!cacheSuccess) pendingCreates.delete(scope); return saved; } catch (error) { pendingCreates.delete(scope); throw error; }
+  try { const saved = await operation; retry?.complete(); if (!cacheSuccess) pendingCreates.delete(scope); return saved; } catch (error) { pendingCreates.delete(scope); try { retry?.rejected(error); } catch {} throw error; }
 }
 
 
@@ -1099,7 +1102,7 @@ export const api = {
 
   onboardStudent: async (studentData) => {
     // studentData: { fullName, dob, gender, level, classSection, guardianName, guardianEmail, guardianPhone, homeAddress, initialBilledAmount, term }
-    return await createOnce('/students/onboard', studentData);
+    return await createOnce('/students/onboard', studentData, { durableIdentity: true });
   },
 
   updateStudent: async (studentId, studentData) => {
@@ -1228,7 +1231,7 @@ export const api = {
   // --- Admissions & Applications ---
   submitApplication: async (appData) => {
     // appData: { learner_name, guardian_name, contact_email, contact_phone, applying_level, form_data }
-    return await createOnce('/admissions/applications', appData, { multipart: true });
+    return await createOnce('/admissions/applications', appData, { multipart: true, durableIdentity: true });
   },
 
   getApplications: async (params = {}) => {
@@ -1245,11 +1248,7 @@ export const api = {
   },
 
   enrollApplication: async (applicationId, payload = {}) => {
-    return await request(`/admissions/applications/${applicationId}/enroll`, {
-      method: 'POST',
-      headers: { 'Idempotency-Key': `enroll:${applicationId}` },
-      body: JSON.stringify(payload),
-    });
+    return createOnce(`/admissions/applications/${encodeURIComponent(applicationId)}/enroll`, payload, { durableIdentity: true });
   },
 
   updateApplication: async (applicationId, applicationData) => {
@@ -1324,6 +1323,21 @@ export const api = {
   },
 
   // --- Timetables ---
+  getTimetableWorkspace: async () => validateTimetableWorkspace(await request('/timetables/workspace')),
+  saveTimetableDraft: async (workspace) => validateTimetableWorkspace(await request('/timetables/workspace', {
+    method: 'PUT',
+    body: JSON.stringify({ id: workspace.id, revision: workspace.revision, entries: workspace.entries }),
+  })),
+  publishTimetable: async (workspace) => {
+    const saved = validateTimetableWorkspace(await request('/timetables/workspace/publish', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': `timetable-${workspace.id}-${workspace.revision}` },
+      body: JSON.stringify({ id: workspace.id, revision: workspace.revision }),
+    }));
+    if (saved.published_revision !== workspace.revision) throw new Error('The backend did not confirm publication of this revision. Refresh before retrying.');
+    return saved;
+  },
+  getPublishedTimetable: async (studentId) => validatePublishedTimetable(await request(`/timetables/published${studentId ? `?student_id=${encodeURIComponent(studentId)}` : ''}`)),
   getTimetables: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return await request(`/timetables${query ? `?${query}` : ''}`);
@@ -1509,30 +1523,25 @@ export const api = {
     let rawUnitCost = parseNum(pvData.unit_cost ?? pvData.costPerItem ?? pvData.cost);
     let rawAmount = parseNum(pvData.amount ?? pvData.total_amount ?? pvData.total ?? pvData.grandTotal);
 
-    let quantity = rawQty && rawQty > 0 ? Math.round(rawQty) : 1;
-    let unitCost = rawUnitCost !== null && rawUnitCost >= 0 ? Number(rawUnitCost.toFixed(2)) : null;
-    let amount = rawAmount !== null && rawAmount >= 0 ? Number(rawAmount.toFixed(2)) : null;
-
-    // Schema rule: either amount or unit_cost must be provided;
-    // If both provided: amount strictly equals quantity * unit_cost!
+    if (rawQty !== null && (!Number.isInteger(rawQty) || rawQty <= 0)) throw new Error('Voucher quantity must be a positive whole number.');
+    if ([rawUnitCost, rawAmount].some(value => value !== null && (!Number.isFinite(value) || value < 0))) throw new Error('Voucher amounts must be finite, non-negative numbers.');
+    let quantity = rawQty ?? 1;
+    let unitCost = rawUnitCost !== null ? Number(rawUnitCost.toFixed(2)) : null;
+    let amount = rawAmount !== null ? Number(rawAmount.toFixed(2)) : null;
     if (amount !== null && unitCost !== null) {
-      const expected = Number((quantity * unitCost).toFixed(2));
-      if (Math.abs(expected - amount) > 0.01) {
-        // If totals do not match (e.g. multi-line voucher summarized into total),
-        // collapse to quantity 1, unit_cost = amount so (1 * amount === amount) strictly holds!
-        quantity = 1;
-        unitCost = amount;
-      } else {
-        amount = expected;
+      if (Math.round(quantity * unitCost * 100) !== Math.round(amount * 100)) {
+        throw new Error('Voucher amount must exactly match quantity × unit cost. For an aggregate voucher use quantity 1 and unit cost equal to the total.');
       }
-    } else if (amount !== null && unitCost === null) {
-      unitCost = Number((amount / quantity).toFixed(2));
-    } else if (unitCost !== null && amount === null) {
+    } else if (amount !== null) {
+      quantity = 1;
+      unitCost = amount;
+    } else if (unitCost !== null) {
       amount = Number((quantity * unitCost).toFixed(2));
     } else {
-      amount = 0.0;
-      unitCost = 0.0;
+      throw new Error('Enter a voucher amount or unit cost.');
     }
+    const providerIds = [pvData.payee_id, pvData.provider_id, pvData.providerId].filter(Boolean);
+    if (new Set(providerIds).size > 1) throw new Error('Provider identifiers must refer to the same saved provider.');
 
     return {
       payee_name: payeeName,
@@ -1544,7 +1553,7 @@ export const api = {
       amount,
       pv_number: pvData.pv_number || pvData.pvNo || undefined,
       requisitionNo: pvData.requisitionNo || pvData.requisition_no || null,
-      payee_id: pvData.payee_id || pvData.providerId || null,
+      payee_id: providerIds[0] || null,
       date_prepared: pvData.date_prepared || pvData.datePrepared || new Date().toISOString().split('T')[0],
       valued_date: pvData.valued_date || pvData.valuedDate || pvData.date_prepared || pvData.datePrepared || new Date().toISOString().split('T')[0],
       expense_account_code: pvData.expense_account_code || '5000-EXPENSE',
@@ -1565,7 +1574,7 @@ export const api = {
   createPaymentVoucher: async (pvData) => {
     const payload = api.normalizePaymentVoucherPayload(pvData);
     if (!payload.payee_id || !Number.isFinite(payload.amount) || payload.amount <= 0) throw new Error('Select a saved provider and enter a positive voucher amount.');
-    return createOnce('/finance/vouchers', payload);
+    return createOnce('/finance/vouchers', payload, { durableIdentity: true, cacheSuccess: false, replayCompleted: false });
   },
   createVoucher: async (pvData) => api.createPaymentVoucher(pvData),
 
@@ -1816,7 +1825,7 @@ export const api = {
   createServiceProvider: async (providerData) => {
     const payload = { name: String(providerData.name || '').trim(), phone: String(providerData.phone || providerData.telephone || '').trim() || null, email: String(providerData.email || '').trim() || null, address: String(providerData.address || '').trim() || null };
     if (!payload.name) throw new Error('Enter the service provider name.');
-    return createOnce('/finance/service-providers', payload, { cacheSuccess: false });
+    return createOnce('/finance/service-providers', payload, { durableIdentity: true, cacheSuccess: false, replayCompleted: false });
   },
 
   updateServiceProvider: async (id, providerData) => {

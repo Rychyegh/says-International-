@@ -1,12 +1,12 @@
+import { PublishedTimetable } from '../components/Academic/Timetable';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   LayoutDashboard, User, Calendar, CreditCard,
-  MessageSquare, FileText, TrendingUp, Bus, Bell
+  FileText, TrendingUp, Bus, Bell
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import '../components/BusTracker/BusTracker.css';
 import BusTracker from '../components/BusTracker/BusTracker';
-import ParentCommunication from '../components/ParentCommunication/ParentCommunication';
 import ContactDirectory from '../components/ContactDirectory/ContactDirectory';
 import { ParentReports } from '../components/ReportWorkflow/ReportWorkflow';
 import { ParentFees, ParentProgress } from '../components/SchoolWorkflows/SchoolWorkflows';
@@ -24,10 +24,9 @@ const NAV = [
   { icon: <Calendar size={15}/>,        label: 'Calendar',    badge: null },
   { icon: <CreditCard size={15}/>,      label: 'Fees',        badge: null },
   { icon: <Bus size={15}/>,             label: 'Transport',   badge: null },
-  { icon: <User size={15}/>,            label: 'Teachers',    badge: null },
-  { icon: <MessageSquare size={15}/>,   label: 'Messages',    badge: '4'  },
   { icon: <User size={15}/>,            label: 'Contacts',    badge: null },
   { icon: <FileText size={15}/>,        label: 'Reports',     badge: null },
+  { icon: <Calendar size={15}/>, label: 'Timetable', badge: null },
 ];
 
 const STATS = [
@@ -76,7 +75,7 @@ export default function ParentPortal() {
 
   useEffect(() => {
     const handleNavEvent = (e) => {
-      if (e.detail?.portal === 'parent' && e.detail?.nav) {
+      if (e.detail?.portal === 'parent' && NAV.some(item => item.label === e.detail?.nav)) {
         setActiveNav(e.detail.nav);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -97,6 +96,7 @@ export default function ParentPortal() {
     return mine.map((s, idx) => ({
       name: s.fullName || s.name || `Student ${idx + 1}`,
       studentId: s.studentId || s.id,
+      databaseStudentId: s.studentUuid || s.id,
       grade: `${s.classSection || s.subClass || s.level || 'Basic 1'}`,
       gpa: '3.8',
       attendance: 96,
@@ -179,7 +179,7 @@ export default function ParentPortal() {
             Track Bus
           </button>
           <span className="sidebar-section-label">Communication</span>
-          {NAV.slice(6, 10).map((item) => (
+          {NAV.slice(6).map((item) => (
             <button key={item.label}
               className={`sidebar-item${activeNav === item.label ? ' active' : ''}`}
               style={activeNav === item.label ? { background: PARENT_BG } : {}}
@@ -465,7 +465,6 @@ export default function ParentPortal() {
                           </div>
                         </div>
                       ))}
-                      <button onClick={() => setActiveNav('Messages')} style={{ width: '100%', padding: '9px', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 700, color: PARENT_ACCENT, background: 'none', cursor: 'pointer' }}>VIEW ALL MESSAGES</button>
                     </div>
                   </div>
 
@@ -534,8 +533,8 @@ export default function ParentPortal() {
             </div>
           )}
 
-          {(activeNav === 'Teachers' || activeNav === 'Messages') && <ParentCommunication child={child} />}
           {activeNav === 'Progress' && <ParentProgress childName={child.name} studentId={child.studentId} />}
+          {activeNav === 'Timetable' && <PublishedTimetable key={child.databaseStudentId || 'none'} studentId={child.databaseStudentId} parent />}
           {activeNav === 'Calendar' && <ParentProgress childName={child.name} studentId={child.studentId} />}
           {activeNav === 'Fees' && (
             <ParentFees
@@ -549,7 +548,7 @@ export default function ParentPortal() {
           {activeNav === 'Reports' && <ParentReports child={child} />}
 
           {/* Other nav placeholders */}
-          {!['Dashboard', 'Transport', 'My Children', 'Teachers', 'Messages', 'Progress', 'Calendar', 'Fees', 'Contacts', 'Reports'].includes(activeNav) && (
+          {!['Dashboard', 'Transport', 'My Children', 'Progress', 'Calendar', 'Fees', 'Contacts', 'Reports', 'Timetable'].includes(activeNav) && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 12 }}>
               <div style={{ fontSize: 48 }}>🚧</div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--gray-700)' }}>{activeNav} — Coming Soon</h2>
