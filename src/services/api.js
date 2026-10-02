@@ -187,6 +187,41 @@ function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || '').trim());
 }
 
+export function mapExamRegistration(raw, fallback = {}) {
+  const source = raw?.registration || raw?.data || raw || {};
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return null;
+  const id = source.id || source.registration_id || source._id || '';
+  const studentId = source.student_id || source.studentId || fallback.studentUuid || fallback.studentId || '';
+  if (!id && !studentId) return null;
+  const subjects = source.subjects || fallback.subjects || [];
+  return {
+    id: id || studentId,
+    studentId,
+    studentName: source.student_name || source.studentName || fallback.studentName || '',
+    classLevel: source.class_level || source.classLevel || fallback.classLevel || '',
+    academicYear: source.academic_year || source.academicYear || fallback.academicYear || '',
+    term: source.term || fallback.term || '',
+    examType: source.exam_type || source.examType || fallback.examType || '',
+    examCenter: source.exam_center || source.examCenter || fallback.examCenter || '',
+    subjects: Array.isArray(subjects) ? subjects : [],
+    indexNumber: source.index_number || source.indexNumber || fallback.indexNumber || '',
+    notes: source.notes || fallback.notes || '',
+    status: source.status || 'Registered - Hall Pass Valid',
+    registeredAt: String(source.created_at || source.registered_at || source.registeredAt || new Date().toISOString()).slice(0, 10),
+    registeredBy: source.registered_by || source.registeredBy || 'Academic Head / Admin',
+  };
+}
+
+export function extractExamRegistrations(raw) {
+  const list = Array.isArray(raw) ? raw
+    : Array.isArray(raw?.registrations) ? raw.registrations
+    : Array.isArray(raw?.items) ? raw.items
+    : Array.isArray(raw?.data) ? raw.data
+    : Array.isArray(raw?.results) ? raw.results
+    : [];
+  return list.map((item) => mapExamRegistration(item)).filter(Boolean);
+}
+
 function resolveBillStudentId(student = {}) {
   const code = String(student.studentId || student.student_id || student.student_code || '').trim();
   if (isOfficialStudentCode(code)) return code;
@@ -2422,44 +2457,84 @@ export const api = {
     return await request('/exams/registrations');
   },
 
-  createExamRegistration: async (examData) => {
-    // Map camelCase fields to snake_case for the backend
-    const payload = {
-      // Primary identifiers
-      student_id:    examData.studentId    || examData.student_id,
-      student_name:  examData.studentName  || examData.student_name  || examData.fullName,
-      // Academic context
-      class_level:   examData.classLevel   || examData.class_level   || examData.level,
-      academic_year: examData.academicYear || examData.academic_year,
-      term:          examData.term,
-      exam_type:     examData.examType     || examData.exam_type,
-      // Exam details
-      index_number:  examData.indexNumber  || examData.index_number,
-      exam_center:   examData.examCenter   || examData.exam_center,
-      subjects:      examData.subjects     || [],
-      notes:         examData.notes        || undefined,
-      registered_by: examData.registeredBy || examData.registered_by || 'Academic Head / Admin',
-      status:        examData.status       || 'Registered - Hall Pass Valid',
-      // Also send camelCase in case the backend accepts either
-      studentId:     examData.studentId    || examData.student_id,
-      studentName:   examData.studentName  || examData.student_name,
-      classLevel:    examData.classLevel   || examData.class_level,
-      academicYear:  examData.academicYear || examData.academic_year,
-      examType:      examData.examType     || examData.exam_type,
-      indexNumber:   examData.indexNumber  || examData.index_number,
-      examCenter:    examData.examCenter   || examData.exam_center,
-    };
-    // Remove undefined fields
-    Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
+  createExamRegistration: async (examData = {}) => {
+    const studentId = [examData.studentUuid, examData.id, examData.studentId, examData.student_id]
+      .map((value) => String(value || '').trim())
+      .find((value) => isUuid(value));
+    if (!studentId) {
+      throw new Error('This student has no database id, so the exam registration cannot be saved.');
+    }
+    const subjects = (Array.isArray(examData.subjects) ? examData.subjects : [])
+      .map((subject) => String(subject || '').trim())
+      .filter(Boolean)
+      .slice(0, 30);
+    if (!subjects.length) {
+      throw new Error('Select at least one subject before registering this candidate.');
+    }
+    const classLevel = String(examData.classLevel || examData.class_level || examData.level || '').trim();
+    const examType = String(examData.examType || examData.exam_type || '').trim();
+    const examCenter = String(examData.examCenter || examData.exam_center || '').trim();
+    if (!classLevel || !examType || !examCenter) {
+      throw new Error('Class, exam type, and exam hall are required.');
+    }
     return await request('/exams/register', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        student_id: studentId,
+        class_level: classLevel.slice(0, 50),
+        academic_year: examData.academicYear || examData.academic_year || null,
+        term: examData.term || null,
+        exam_type: examType.slice(0, 100),
+        exam_center: examCenter.slice(0, 150),
+        subjects,
+      }),
     });
   },
 
-  deleteExamRegistration: async (id) => {
+  createBulkExamRegistration: async (examData = {}) => {
+    const studentIds = (examData.studentIds || examData.student_ids || examData.students || [])
+      .map((student) => {
+        if (student && typeof student === 'object') {
+          return [student.studentUuid, student.id, student.studentId, student.student_id]
+            .map((value) => String(value || '').trim())
+            .find((value) => isUuid(value)) || '';
+        }
+        return isUuid(student) ? String(student).trim() : '';
+      })
+      .filter(Boolean)
+      .slice(0, 1000);
+    const subjects = (Array.isArray(examData.subjects) ? examData.subjects : [])
+      .map((subject) => String(subject || '').trim())
+      .filter(Boolean)
+      .slice(0, 30);
+    const classLevel = String(examData.classLevel || examData.class_level || '').trim();
+    const examType = String(examData.examType || examData.exam_type || '').trim();
+    const examCenter = String(examData.examCenter || examData.exam_center || '').trim();
+    if (!studentIds.length) {
+      throw new Error('None of the selected students have a database id, so the class cannot be registered.');
+    }
+    if (!subjects.length || !classLevel || !examType || !examCenter) {
+      throw new Error('Class, exam type, exam hall, and at least one subject are required.');
+    }
+    return await request('/exams/register/bulk', {
+      method: 'POST',
+      body: JSON.stringify({
+        class_level: classLevel.slice(0, 50),
+        academic_year: examData.academicYear || examData.academic_year || null,
+        term: examData.term || null,
+        exam_type: examType.slice(0, 100),
+        exam_center: examCenter.slice(0, 150),
+        subjects,
+        student_ids: studentIds,
+      }),
+    });
+  },
+
+  deleteExamRegistration: async (id, reason = 'Cancelled by Academic Head') => {
+    const text = String(reason || 'Cancelled by Academic Head').trim();
     return await request(`/exams/registrations/${id}`, {
       method: 'DELETE',
+      body: JSON.stringify({ reason: text.length >= 3 ? text.slice(0, 2000) : 'Cancelled by Academic Head' }),
     });
   },
 };

@@ -249,7 +249,7 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
   };
 
   // Submit Individual Registration
-  const handleIndividualSubmit = (e) => {
+  const handleIndividualSubmit = async (e) => {
     if (e) e.preventDefault();
     if (!selectedStudentId) {
       alert('Please select a student to register.');
@@ -266,6 +266,7 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
     }
 
     const regData = {
+      studentUuid: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stu.id) ? stu.id : (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stu.studentId) ? stu.studentId : ''),
       studentId: stu.studentId || stu.id,
       studentName: stu.fullName,
       classLevel: stu.level || 'General',
@@ -278,11 +279,14 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
       notes: indivNotes
     };
 
-    if (registerIndividualExam) {
-      registerIndividualExam(regData);
+    try {
+      if (registerIndividualExam) await registerIndividualExam(regData);
+    } catch (err) {
+      setNotice(err?.message || 'The database did not save this exam registration.');
+      return;
     }
 
-    setNotice(`✅ Candidate ${stu.fullName} (${regData.indexNumber}) successfully registered for ${indivExamType}!`);
+    setNotice(`Candidate ${stu.fullName} (${regData.indexNumber}) was registered in the database for ${indivExamType}.`);
     setTimeout(() => setNotice(''), 6000);
     setSelectedStudentId('');
     setIndivNotes('');
@@ -292,7 +296,7 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
   const classStudents = allStudents.filter(s => (s.level || '').toLowerCase().trim() === bulkClass.toLowerCase().trim());
 
   // Submit Bulk Class Registration
-  const handleBulkSubmit = (e) => {
+  const handleBulkSubmit = async (e) => {
     if (e) e.preventDefault();
     if (classStudents.length === 0) {
       alert(`No enrolled students found in class ${bulkClass}.`);
@@ -306,26 +310,36 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
     const studentsToRegister = classStudents.map((stu, idx) => {
       const cleanLevel = (bulkClass || 'CLASS').replace(/\s+/g, '').toUpperCase();
       const numStr = String(idx + 1).padStart(3, '0');
+      const studentUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stu.id)
+        ? stu.id
+        : (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stu.studentId) ? stu.studentId : '');
       return {
+        id: studentUuid,
+        studentUuid,
         studentId: stu.studentId || stu.id,
         studentName: stu.fullName,
         indexNumber: `${bulkPrefix}${cleanLevel}-${numStr}`
       };
     });
 
-    if (registerClassExams) {
-      registerClassExams({
-        classLevel: bulkClass,
-        academicYear: bulkYear,
-        term: bulkTerm,
-        examType: bulkExamType,
-        examCenter: bulkCenter,
-        subjects: bulkSubjects,
-        students: studentsToRegister
-      });
+    try {
+      if (registerClassExams) {
+        await registerClassExams({
+          classLevel: bulkClass,
+          academicYear: bulkYear,
+          term: bulkTerm,
+          examType: bulkExamType,
+          examCenter: bulkCenter,
+          subjects: bulkSubjects,
+          students: studentsToRegister
+        });
+      }
+    } catch (err) {
+      setNotice(err?.message || 'The database did not save this class exam registration.');
+      return;
     }
 
-    setNotice(`🚀 Bulk Exam Registration completed for ${studentsToRegister.length} candidates in ${bulkClass}! Index Numbers issued.`);
+    setNotice(`Registered ${studentsToRegister.length} candidates in ${bulkClass} in the database.`);
     setTimeout(() => setNotice(''), 6000);
     setActiveTab('roster');
   };
@@ -969,9 +983,13 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
                   onClick={() => {
                     const targetName = rosterClassFilter === 'All' ? 'ALL classes' : `class ${rosterClassFilter}`;
                     if (window.confirm(`⚠️ Are you sure you want to DELETE ALL ${filteredRoster.length} exam candidate registrations for ${targetName}?`)) {
-                      filteredRoster.forEach(r => cancelExamRegistration(r.id || r.indexNumber || r.studentId));
-                      setNotice(`🗑️ Deleted ${filteredRoster.length} candidate examination registrations for ${targetName}.`);
-                      setTimeout(() => setNotice(''), 5000);
+                      Promise.all(filteredRoster.map((item) => cancelExamRegistration(item.id || item.indexNumber || item.studentId)))
+                        .then(() => {
+                          setNotice(`Deleted ${filteredRoster.length} candidate examination registrations for ${targetName}.`);
+                          setTimeout(() => setNotice(''), 5000);
+                        })
+                        .catch((err) => setNotice(err?.message || 'The database did not delete these exam registrations.'));
+                    }
                     }
                   }}
                   style={{
@@ -1050,9 +1068,12 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
                             type="button"
                             onClick={() => {
                               if (window.confirm(`⚠️ Are you sure you want to DELETE candidate registration for ${r.studentName} (${r.indexNumber}) from examinations?\nThis will remove their candidate index number, subjects, and admit pass.`)) {
-                                cancelExamRegistration(r.id || r.indexNumber || r.studentId);
-                                setNotice(`🗑️ Candidate ${r.studentName} (${r.indexNumber}) deleted from examination registration.`);
-                                setTimeout(() => setNotice(''), 5000);
+                                Promise.resolve(cancelExamRegistration(r.id || r.indexNumber || r.studentId))
+                                  .then(() => {
+                                    setNotice(`Deleted ${r.studentName} (${r.indexNumber}) from examination registration.`);
+                                    setTimeout(() => setNotice(''), 5000);
+                                  })
+                                  .catch((err) => setNotice(err?.message || 'The database did not delete this exam registration.'));
                               }
                             }}
                             style={{

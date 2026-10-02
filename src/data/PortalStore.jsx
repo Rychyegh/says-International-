@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { api, extractStudentList, getUserFullName, hasLiveDatabaseSession } from '../services/api';
+import { api, extractStudentList, extractExamRegistrations, mapExamRegistration, getUserFullName, hasLiveDatabaseSession } from '../services/api';
 import { cloudSync } from '../services/cloudSync';
 
 const STORAGE_KEY = 'remalj-portal-live-data-v3';
@@ -1581,8 +1581,9 @@ function readData() {
         ...(parsed.academicSettings || {})
       },
       // Always ensure these arrays exist even in old localStorage snapshots
-      pvNotifications: [],
       paymentVouchers: [],
+      pvNotifications: [],
+      examRegistrations: [],
       serviceProviders: (() => {
         try {
           const list = Array.isArray(parsed.serviceProviders) && parsed.serviceProviders.length > 0
@@ -2191,9 +2192,10 @@ export function PortalDataProvider({ children }) {
             hasChanges = true;
           }
         }
-        if (examRegsRes.status === 'fulfilled' && Array.isArray(examRegsRes.value)) {
-          if (!isDeepEqual(current.examRegistrations, examRegsRes.value)) {
-            updates.examRegistrations = examRegsRes.value;
+        if (examRegsRes.status === 'fulfilled') {
+          const mapped = extractExamRegistrations(examRegsRes.value);
+          if (!isDeepEqual(current.examRegistrations, mapped)) {
+            updates.examRegistrations = mapped;
             hasChanges = true;
           }
         }
@@ -4398,90 +4400,50 @@ export function PortalDataProvider({ children }) {
     },
     // Examination Candidate Registration Methods
     registerIndividualExam: async (regData) => {
-      let backendId = null;
-      try {
-        const res = await api.createExamRegistration(regData);
-        backendId = res?.id || res?._id || res?.data?.id || null;
-      } catch (e) {
-        console.warn('[ExamReg] Backend registration failed, saving locally:', e?.message || e);
-      }
+      const saved = await api.createExamRegistration(regData);
+      const mapped = mapExamRegistration(saved, regData);
+      if (!mapped) throw new Error('The database did not save this exam registration.');
       setData((current) => {
-        const existing = current.examRegistrations || [];
-        const newReg = {
-          id: backendId || `exam-reg-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          registeredAt: new Date().toISOString().split('T')[0],
-          registeredBy: 'Academic Head / Admin',
-          status: 'Registered - Hall Pass Valid',
-          ...regData,
-          // Ensure both naming conventions present for the roster UI
-          studentId:    regData.studentId   || regData.student_id,
-          studentName:  regData.studentName || regData.student_name,
-          classLevel:   regData.classLevel  || regData.class_level,
-          academicYear: regData.academicYear|| regData.academic_year,
-          examType:     regData.examType    || regData.exam_type,
-          indexNumber:  regData.indexNumber || regData.index_number,
-          examCenter:   regData.examCenter  || regData.exam_center,
-        };
-        return {
-          ...current,
-          examRegistrations: [newReg, ...existing]
-        };
+        const existing = (current.examRegistrations || []).filter((item) => item.id !== mapped.id && item.studentId !== mapped.studentId);
+        return { ...current, examRegistrations: [mapped, ...existing] };
       });
+      return mapped;
     },
 
     registerClassExams: async (classRegData) => {
-      try {
-        if (Array.isArray(classRegData.students)) {
-          for (const stu of classRegData.students) {
-            await api.createExamRegistration({
-              studentId: stu.studentId,
-              studentName: stu.studentName,
-              classLevel: classRegData.classLevel,
-              academicYear: classRegData.academicYear,
-              term: classRegData.term,
-              examType: classRegData.examType,
-              indexNumber: stu.indexNumber,
-              examCenter: classRegData.examCenter,
-              subjects: classRegData.subjects,
-              registeredBy: 'Academic Head / Admin'
-            }).catch(() => {});
-          }
-        }
-      } catch (e) {
-        console.warn('Backend class exams reg fallback:', e);
-      }
+      const saved = await api.createBulkExamRegistration(classRegData);
+      const fromApi = extractExamRegistrations(saved);
+      const students = classRegData.students || [];
+      const mapped = fromApi.length ? fromApi : students.map((student) => mapExamRegistration({
+        student_id: student.studentUuid || student.id || student.studentId,
+        student_name: student.studentName,
+        class_level: classRegData.classLevel,
+        academic_year: classRegData.academicYear,
+        term: classRegData.term,
+        exam_type: classRegData.examType,
+        exam_center: classRegData.examCenter,
+        subjects: classRegData.subjects,
+        index_number: student.indexNumber,
+      }, student)).filter(Boolean);
+      if (!mapped.length) throw new Error('The database did not save this class exam registration.');
       setData((current) => {
         const existing = current.examRegistrations || [];
-        const newRegs = (classRegData.students || []).map((stu, idx) => ({
-          id: `exam-reg-${Date.now()}-${idx}`,
-          studentId: stu.studentId,
-          studentName: stu.studentName,
-          classLevel: classRegData.classLevel,
-          academicYear: classRegData.academicYear,
-          term: classRegData.term,
-          examType: classRegData.examType,
-          indexNumber: stu.indexNumber || `EXAM-${classRegData.academicYear.substring(0, 4)}-${classRegData.classLevel.replace(/\s+/g, '').toUpperCase()}-${String(idx + 1).padStart(3, '0')}`,
-          examCenter: classRegData.examCenter || 'Main Examination Hall A',
-          subjects: classRegData.subjects || [],
-          registeredAt: new Date().toISOString().split('T')[0],
-          registeredBy: 'Academic Head / Admin',
-          status: 'Registered - Hall Pass Valid'
-        }));
+        const keys = new Set(mapped.map((item) => item.studentId || item.id));
         return {
           ...current,
-          examRegistrations: [...newRegs, ...existing]
+          examRegistrations: [...mapped, ...existing.filter((item) => !keys.has(item.studentId || item.id))],
         };
       });
+      return mapped;
     },
     cancelExamRegistration: async (regId) => {
-      try {
-        await api.deleteExamRegistration(regId);
-      } catch (e) {
-        console.warn('Backend exam reg cancel fallback:', e);
+      const id = String(regId || '').trim();
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+        await api.deleteExamRegistration(id);
       }
       setData((current) => ({
         ...current,
-        examRegistrations: (current.examRegistrations || []).filter(r => r.id !== regId && r.indexNumber !== regId)
+        examRegistrations: (current.examRegistrations || []).filter((item) => item.id !== regId && item.indexNumber !== regId)
       }));
     },
     // Payment Voucher (PV) Management Methods
