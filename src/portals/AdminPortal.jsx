@@ -783,6 +783,32 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     }) || null;
   };
 
+  const rosterGuardian = (student) => {
+    const clean = (value) => {
+      const text = String(value || '').trim();
+      if (!text || /^(parent\s*\/?\s*guardian|parent|guardian|n\/a|na|—|-)$/i.test(text)) return '';
+      return text;
+    };
+    const names = [];
+    [student?.fatherName, student?.motherName, student?.guardianName].forEach((value) => {
+      const text = clean(value);
+      if (text && !names.some((item) => item.toLowerCase() === text.toLowerCase())) names.push(text);
+    });
+    const email = String(student?.guardianEmail || '').trim();
+    const emailKey = email.toLowerCase();
+    const nameBits = [student?.fullName, student?.surname, student?.firstName]
+      .map((part) => String(part || '').toLowerCase().replace(/[^a-z0-9]/g, ''))
+      .filter(Boolean);
+    const invented = !email || emailKey === 'parent@example.com'
+      || emailKey === 'parent@remaljcarewell.edu.gh'
+      || /^parent\.[a-z0-9.]+@remaljcarewell\.edu\.gh$/.test(emailKey)
+      || nameBits.some((bit) => emailKey === `${bit}@remaljcarewell.edu.gh`);
+    return {
+      name: names.join(' / ') || '—',
+      email: (!email || (names.length === 0 && invented)) ? '—' : email,
+    };
+  };
+
   const studentRecordDetails = (student) => {
     const app = matchingApplicationForStudent(student) || {};
     return {
@@ -1775,14 +1801,23 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredStudents.map((s) => (
+                    {isLoadingBackend && filteredStudents.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ padding: 24, textAlign: 'center', color: '#64748b', fontWeight: 700 }}>
+                          Loading students from the database…
+                        </td>
+                      </tr>
+                    ) : null}
+                    {filteredStudents.map((s) => {
+                      const guardian = rosterGuardian(s);
+                      return (
                       <tr key={s.id}>
                         <td><code>{s.studentId}</code></td>
                         <td><strong>{s.fullName}</strong></td>
                         <td>{studentDetailedClass(s)}</td>
                         <td>
-                          <div>{s.guardianName}</div>
-                          <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{s.guardianEmail}</div>
+                          <div>{guardian.name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{guardian.email}</div>
                         </td>
                         <td style={{ fontSize: 11, color: ADMIN_ACCENT }}>{s.studentEmail}</td>
                         <td><span className="status-pill status-pill--success">{s.status}</span></td>
@@ -1835,7 +1870,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

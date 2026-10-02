@@ -346,7 +346,12 @@ function studentDraftFromApplication(app = {}) {
     level: formatClassToBasic(app.level || app.applyingClass || 'Basic 1'),
     classSection: app.classSection || app.subClass || app.officeFormAssigned || 'A',
     guardianName: blankGuardianText(app.fatherName) || blankGuardianText(app.motherName) || blankGuardianText(app.guardian) || blankGuardianText(app.guardianName),
-    guardianEmail: app.email || app.fatherEmail || app.guardianEmail || '',
+    guardianEmail: (() => {
+      const named = blankGuardianText(app.fatherName) || blankGuardianText(app.motherName) || blankGuardianText(app.guardian) || blankGuardianText(app.guardianName);
+      const raw = app.fatherEmail || app.motherEmail || app.guardianEmail || '';
+      if (!named && isGeneratedGuardianEmail(raw, app)) return '';
+      return raw;
+    })(),
     guardianPhone: resolveGuardianPhone(app),
     fatherName: app.fatherName || '',
     fatherPhone: app.fatherPhone || '',
@@ -938,8 +943,18 @@ export function mapStudentFromApi(s = {}, fallback = {}) {
     gender: s.gender || fallback.gender || 'Not Specified',
     level: formatClassToBasic(s.level || s.class_level || fallback.level || 'Basic 1'),
     classSection: s.classSection || s.class_section || fallback.classSection || 'A',
-    guardianName: s.guardianName || s.guardian_name || fallback.guardianName || 'Parent/Guardian',
-    guardianEmail: s.guardianEmail || s.guardian_email || fallback.guardianEmail || '',
+    guardianName: blankGuardianText(s.guardianName || s.guardian_name || fallback.guardianName)
+      || blankGuardianText(s.fatherName || s.father_name || fallback.fatherName)
+      || blankGuardianText(s.motherName || s.mother_name || fallback.motherName)
+      || '',
+    guardianEmail: (() => {
+      const raw = s.guardianEmail || s.guardian_email || fallback.guardianEmail || '';
+      const named = blankGuardianText(s.guardianName || s.guardian_name || fallback.guardianName)
+        || blankGuardianText(s.fatherName || s.father_name || fallback.fatherName)
+        || blankGuardianText(s.motherName || s.mother_name || fallback.motherName);
+      if (!named && isGeneratedGuardianEmail(raw, { ...s, ...fallback, fullName: fullComputed, learner: fullComputed })) return '';
+      return raw;
+    })(),
     guardianPhone: resolveGuardianPhone(s, fallback) || '',
     homeAddress: s.homeAddress || s.home_address || fallback.homeAddress || 'Bogoso',
     enrollmentDate: s.enrollmentDate || s.enrollment_date || fallback.enrollmentDate || new Date().toISOString().split('T')[0],
@@ -1061,9 +1076,7 @@ export function mergeStudentRecords(prev, incoming) {
     gender: incoming.gender || prev.gender,
     level: formatClassToBasic(incoming.level || prev.level),
     classSection: incoming.classSection || prev.classSection || 'A',
-    guardianName: (incoming.guardianName && incoming.guardianName !== 'Parent/Guardian')
-      ? incoming.guardianName
-      : (prev.guardianName || incoming.guardianName || 'Parent/Guardian'),
+    guardianName: blankGuardianText(incoming.guardianName) || blankGuardianText(prev.guardianName) || '',
     guardianEmail: incoming.guardianEmail || prev.guardianEmail,
     guardianPhone: resolveGuardianPhone(incoming, prev),
     homeAddress: incoming.homeAddress || prev.homeAddress,
@@ -2390,7 +2403,7 @@ export function PortalDataProvider({ children }) {
       fullName: fullComputed,
       level: formattedLevel,
       classSection: student.classSection || student.officeFormAssigned || student.subClass || 'A',
-      guardianName: student.guardianName || student.guardian || student.fatherName || 'Parent/Guardian',
+      guardianName: blankGuardianText(student.guardianName) || blankGuardianText(student.guardian) || blankGuardianText(student.fatherName) || blankGuardianText(student.motherName) || '',
       guardianEmail: student.guardianEmail || student.email || student.fatherEmail || '',
       guardianPhone: student.guardianPhone || student.phone || student.fatherPhone || '',
       fatherName: student.fatherName || '',
