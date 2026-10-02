@@ -131,6 +131,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     markAllPVNotificationsRead,
     clearPVNotifications,
     markPVNotificationRead,
+    isLoadingBackend,
   } = usePortalData();
 
   const [activeNav, setActiveNavState] = useState(() => {
@@ -745,6 +746,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const totalStudents = (onboardedStudents || []).length;
   const activeStudents = (onboardedStudents || []).filter((s) => s.status === 'Active').length;
   const totalApplications = (applications || []).length;
+  const loadingCount = isLoadingBackend ? '…' : null;
 
   const recentOnboardedStudents = useMemo(() => {
     const recency = (student) => {
@@ -758,9 +760,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   }, [onboardedStudents]);
 
   const STATS = [
-    { label: 'Total Enrolled Students', value: String(totalStudents), trend: `${activeStudents} Active`, icon: '👥', bg: '#f3e8ff', ic: ADMIN_BG, nav: 'Student Roster' },
-    { label: 'Admissions Applications', value: String(totalApplications), trend: 'Official forms active', icon: '📋', bg: '#fef9c3', ic: '#78350f', nav: 'Applications & Forms' },
-    { label: 'Teaching Staff', value: String(staffDirectory.filter(t => t.status !== 'Offboarded' && isTeachingStaffMember(t)).length), trend: 'All departments', icon: '👨‍🏫', bg: '#e0f2fe', ic: '#0369a1', nav: 'Classes & Staff' },
+    { label: 'Total Enrolled Students', value: loadingCount || String(totalStudents), trend: isLoadingBackend ? 'Loading from the database' : `${activeStudents} Active`, icon: '👥', bg: '#f3e8ff', ic: ADMIN_BG, nav: 'Student Roster' },
+    { label: 'Admissions Applications', value: loadingCount || String(totalApplications), trend: isLoadingBackend ? 'Loading from the database' : 'Official forms active', icon: '📋', bg: '#fef9c3', ic: '#78350f', nav: 'Applications & Forms' },
+    { label: 'Teaching Staff', value: loadingCount || String(staffDirectory.filter(t => t.status !== 'Offboarded' && isTeachingStaffMember(t)).length), trend: isLoadingBackend ? 'Loading from the database' : 'All departments', icon: '👨‍🏫', bg: '#e0f2fe', ic: '#0369a1', nav: 'Classes & Staff' },
   ];
 
   const studentDetailedClass = (student) => {
@@ -1982,6 +1984,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                           </tr>
                         </thead>
                         <tbody>
+                          {isLoadingBackend && filteredApplications.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} style={{ padding: 24, textAlign: 'center', color: '#64748b', fontWeight: 700 }}>
+                                Loading applications from the database…
+                              </td>
+                            </tr>
+                          ) : null}
                           {filteredApplications.map((app) => {
                             const learnerName = (app.firstName || app.surname || app.otherNames)
                               ? `${app.firstName || ''} ${app.otherNames ? app.otherNames + ' ' : ''}${app.surname || ''}`.replace(/\s+/g, ' ').trim()

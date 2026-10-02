@@ -1635,6 +1635,7 @@ function readData() {
       },
       onboardedStudents: [],
       applications: [],
+      isLoadingBackend: true,
       studentFees: deduplicateFees(parsed.studentFees || []),
       academicSettings: {
         ...INITIAL_DATA.academicSettings,
