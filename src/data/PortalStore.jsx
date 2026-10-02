@@ -1216,6 +1216,8 @@ function applyCanonicalStudentToState(current, canonical) {
     studentId: canonical.studentId,
     studentName: canonical.fullName,
     otherNames: canonical.otherNames || '',
+    classLevel: canonical.level || '',
+    classSection: canonical.classSection || '',
     guardianName: canonical.guardianName,
     guardianEmail: canonical.guardianEmail,
     term: existingFee?.term || 'Term 1 · 2026',
@@ -1699,6 +1701,7 @@ export function PortalDataProvider({ children }) {
   const dataRef = useRef(data);
   dataRef.current = data;
   const onboardLocksRef = useRef(new Map());
+  const recentRosterIdsRef = useRef(new Set());
 
   useEffect(() => {
     try {
@@ -2138,11 +2141,26 @@ export function PortalDataProvider({ children }) {
         if (studentsRes.status === 'fulfilled') {
           const students = extractStudentList(studentsRes.value);
           if (Array.isArray(students)) {
-            const mapped = deduplicateStudents(
+            const mappedFromApi = deduplicateStudents(
               students
                 .map((s) => mapStudentFromApi(s))
                 .filter((s) => isBackendUuid(s?.id) && s?.is_active !== false && s?.status === 'Active')
             );
+            const apiIds = new Set(mappedFromApi.map((s) => String(s.id)));
+            const enrolledApps = (updates.applications || current.applications || [])
+              .filter((app) => String(app.status || '') === 'Enrolled');
+            const retainedEnrolled = (current.onboardedStudents || []).filter((student) => (
+              isBackendUuid(student?.id)
+              && student?.is_active !== false
+              && student?.status === 'Active'
+              && !apiIds.has(String(student.id))
+              && (
+                recentRosterIdsRef.current.has(String(student.id))
+                || enrolledApps.some((app) => applicationMatchesStudent(app, student))
+              )
+            ));
+            mappedFromApi.forEach((student) => recentRosterIdsRef.current.delete(String(student.id)));
+            const mapped = deduplicateStudents([...mappedFromApi, ...retainedEnrolled]);
             if (!isDeepEqual(current.onboardedStudents, mapped)) {
               updates.onboardedStudents = mapped;
               hasChanges = true;
@@ -2559,6 +2577,7 @@ export function PortalDataProvider({ children }) {
       });
 
       canonical.id = backendId;
+      recentRosterIdsRef.current.add(String(backendId));
       if (!canonical.studentId) canonical.studentId = fallbackCode;
       if (!canonical.studentEmail) canonical.studentEmail = schoolEmailFromName(canonical.fullName);
       if (!canonical.defaultPassword) {
@@ -3031,6 +3050,12 @@ export function PortalDataProvider({ children }) {
           if (/already|409/i.test(message)) enrolledOnServer = true;
           else throw new Error(failedDatabaseAction('Enrolling this applicant', e));
         }
+        const draft = studentDraftFromApplication({ ...app, id: persistId, status: 'Enrolled' });
+        await performOnboardStudent({
+          ...draft,
+          applicationId: persistId,
+          status: 'Active',
+        });
       }
       try {
         await api.updateApplicationStatus(persistId, { status });

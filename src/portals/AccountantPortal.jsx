@@ -20,7 +20,7 @@ const ACCOUNT_LIGHT = '#e0f2fe';
 const ACCOUNT_ACCENT = '#0284c7';
 
 const NAV = [
-  { icon: <Lock size={15} />, label: 'SIMS Auth & Login Terminal', badge: 'Login' },
+  { icon: <Layers size={15} />, label: 'SIMS Financial Hub & Tools', badge: 'Hub' },
   { icon: <LayoutDashboard size={15} />, label: 'Financial Overview', badge: null },
   { icon: <CreditCard size={15} />, label: 'Fee Ledgers & Payments', badge: null },
   { icon: <Send size={15} />, label: 'Send Owing Reminders', badge: null },
@@ -28,59 +28,6 @@ const NAV = [
   { icon: <MessageSquare size={15} />, label: 'Sent Messages Log', badge: null },
 ];
 
-const SIMS_DATA = {
-  'Student Services Centre': [
-    {
-      category: 'Billings & Accounts',
-      links: [
-        'Print Student\'s Academic Bill',
-        'Print student ledger'
-      ]
-    }
-  ],
-  'Finance & Administration': [
-    {
-      category: 'Student\'s Billings & Accounts',
-      links: [
-        'Issue Other receipts',
-        'Batch Processing',
-        'Re-print Commercial Receipt',
-        'Print & Post Student\'s Academic Bill',
-        'Print student ledger'
-      ]
-    },
-    {
-      category: 'HR & Payroll',
-      links: [
-        'Employee Details',
-        'List of Staff',
-        'Prepare Payroll',
-        'Delete Payroll'
-      ]
-    },
-    {
-      category: 'Accounts & Financial Reports',
-      links: [
-        'Accounts',
-        'Financial statements',
-        'HR Payroll Reports',
-        'List of Staff'
-      ]
-    }
-  ],
-  'System Administrator': [
-    {
-      category: 'HR Payroll settings',
-      links: [
-        'Income Tax rate',
-        'SSNIT Settings',
-        'Organisation\'s header',
-        'Close Month',
-        'Close Year'
-      ]
-    }
-  ]
-};
 
 export default function AccountantPortal({ onSignOut }) {
   const [activeNav, setActiveNavState] = useState(() => {
@@ -1003,8 +950,9 @@ export default function AccountantPortal({ onSignOut }) {
             </div>
           )}
 
-          {/* ── SIMS AUTH & LOGIN TERMINAL VIEW ── */}
-          {(activeNav === 'SIMS Auth & Login Terminal' ||
+          {/* ── SIMS FINANCIAL HUB & TOOLS VIEW ── */}
+          {(activeNav === 'SIMS Financial Hub & Tools' ||
+            activeNav === 'SIMS Auth & Login Terminal' ||
             activeNav === 'Post Academic Bill Header' ||
             activeNav === 'Print Individual Student Bill' ||
             activeNav === 'Receive Payments' ||
@@ -1017,7 +965,7 @@ export default function AccountantPortal({ onSignOut }) {
               onOpenSimsModal={setActiveSimsModal}
               students={onboardedStudents || []}
               recordFeePayment={recordFeePayment}
-              initialActionTab={activeNav === 'SIMS Auth & Login Terminal' ? 'Post Academic Bill Header' : activeNav}
+              initialActionTab={(activeNav === 'SIMS Financial Hub & Tools' || activeNav === 'SIMS Auth & Login Terminal') ? 'Post Academic Bill Header' : activeNav}
             />
           )}
 
@@ -10659,11 +10607,17 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
 
   const classStudents = useMemo(() => {
     const roster = (portalData.onboardedStudents || []).filter((student) => {
-      const level = String(student.level || '').toLowerCase();
-      const cls = String(postClass || '').toLowerCase();
-      const matchClass = level.includes(cls) || cls.includes(level.replace(/\s+[a-d]$/i, ''));
-      const section = String(student.classSection || student.subClass || '').toUpperCase();
-      const matchSection = postSubClass === 'All' || section.includes(String(postSubClass).toUpperCase());
+      const level = String(student.level || student.classLevel || '').toLowerCase();
+      const section = String(student.classSection || student.subClass || student.section || '').toLowerCase();
+      const cls = String(postClass || '').toLowerCase().trim();
+      const base = cls.replace(/\s*[a-d]$/i, '');
+      const matchClass = !cls || level === cls || level.includes(base) || base.includes(level.replace(/\s+[a-d]$/i, ''));
+      const wanted = String(postSubClass || 'All').toLowerCase().trim();
+      const matchSection = wanted === 'all' || !wanted
+        || section === wanted
+        || section.includes(wanted)
+        || wanted.includes(section)
+        || `${level} ${section}`.includes(wanted);
       return matchClass && matchSection;
     });
     return roster.map((student) => {
@@ -14668,53 +14622,484 @@ function ConsolidatedSubjectBasedAssessmentForm({ setM, students }) {
   );
 }
 
-// ── REDESIGNED SIMS AUTH & ENTERPRISE COMMAND TERMINAL ──
+// ── HR & PAYROLL SETTINGS MANAGER ──
+function HrPayrollSettingsManager({ initialTab = 'Income Tax rate', onSave }) {
+  const [activeTab, setActiveTab] = useState(initialTab || 'Income Tax rate');
+  const [bannerNotice, setBannerNotice] = useState('');
+
+  // Income Tax Rate State
+  const [taxBand, setTaxBand] = useState('GRA PAYE Tier 1 (First GHS 490 @ 0%)');
+  const [taxRate, setTaxRate] = useState('17.5%');
+  const [taxYear, setTaxYear] = useState('2026 Fiscal Year');
+  const [taxNotes, setTaxNotes] = useState('GRA-PAYE-2026-GAZETTE');
+
+  // SSNIT Settings State
+  const [ssnitEmployer, setSsnitEmployer] = useState('13.0%');
+  const [ssnitEmployee, setSsnitEmployee] = useState('5.5%');
+  const [ssnitRegNo, setSsnitRegNo] = useState('SSNIT-EMP-991827');
+  const [tier2Scheme, setTier2Scheme] = useState('Enterprise Tier 2 Master Trust Scheme');
+
+  // Organisation's Header State
+  const [orgName, setOrgName] = useState('REMALJ CAREWELL INSPIRATIONAL SCHOOL');
+  const [orgTagline, setOrgTagline] = useState('Carewell Inspirational School · Bogoso');
+  const [orgAddress, setOrgAddress] = useState('P.O. Box 142, Bogoso, Western Region · Tel: +233 24 123 4567');
+
+  // Close Month State
+  const [closeMonthVal, setCloseMonthVal] = useState('September 2026');
+  const [authKeyMonth, setAuthKeyMonth] = useState('AUTH-CLOSE-MONTH-2026');
+
+  // Close Year State
+  const [closeYearVal, setCloseYearVal] = useState('2025/2026 Academic Year');
+  const [carryForward, setCarryForward] = useState('Transfer Student Arrears to New Year');
+  const [authKeyYear, setAuthKeyYear] = useState('CFO-SEAL-YEAR-2026');
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  const handleSave = (tabName) => {
+    setBannerNotice(`✅ ${tabName} updated and saved successfully!`);
+    setTimeout(() => setBannerNotice(''), 4000);
+    if (onSave) onSave(tabName);
+  };
+
+  const SETTING_TABS = [
+    { id: 'Income Tax rate', label: 'Income Tax rate', icon: '🏷️' },
+    { id: 'SSNIT Settings', label: 'SSNIT Settings', icon: '🛡️' },
+    { id: "Organisation's header", label: "Organisation's header", icon: '🏛️' },
+    { id: 'Close Month', label: 'Close Month', icon: '📅' },
+    { id: 'Close Year', label: 'Close Year', icon: '🔒' },
+  ];
+
+  return (
+    <div style={{ color: '#0f172a' }}>
+      {/* Tab Navigation */}
+      <div style={{ display: 'flex', gap: 8, borderBottom: '2px solid #e2e8f0', paddingBottom: 12, marginBottom: 20, overflowX: 'auto' }}>
+        {SETTING_TABS.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 16px',
+                borderRadius: 8,
+                border: `1.5px solid ${isActive ? '#0284c7' : '#cbd5e1'}`,
+                background: isActive ? '#e0f2fe' : '#ffffff',
+                color: isActive ? '#0369a1' : '#475569',
+                fontSize: 12,
+                fontWeight: isActive ? 800 : 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <span>{tab.icon}</span>
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {bannerNotice && (
+        <div style={{ padding: '10px 16px', background: '#ecfdf5', border: '1px solid #10b981', color: '#065f46', borderRadius: 8, fontSize: 13, fontWeight: 700, marginBottom: 18 }}>
+          {bannerNotice}
+        </div>
+      )}
+
+      {/* ── 1. Income Tax Rate ── */}
+      {activeTab === 'Income Tax rate' && (
+        <form onSubmit={(e) => { e.preventDefault(); handleSave('Income Tax Rate'); }}>
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ margin: '0 0 4px 0', fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+              GRA Income Tax (PAYE) Band Settings
+            </h3>
+            <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+              Configure Ghana Revenue Authority PAYE tax brackets and statutory deduction rates for staff payroll.
+            </p>
+          </div>
+
+          <div className="sims-form-group" style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+              GRA Income Tax (PAYE) Band Title
+            </label>
+            <input
+              type="text"
+              value={taxBand}
+              onChange={(e) => setTaxBand(e.target.value)}
+              required
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+            <div className="sims-form-group">
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                Applicable Tax Rate (%)
+              </label>
+              <input
+                type="text"
+                value={taxRate}
+                onChange={(e) => setTaxRate(e.target.value)}
+                required
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+              />
+            </div>
+            <div className="sims-form-group">
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                Effective Tax Year
+              </label>
+              <input
+                type="text"
+                value={taxYear}
+                onChange={(e) => setTaxYear(e.target.value)}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+              />
+            </div>
+          </div>
+
+          <div className="sims-form-group" style={{ marginBottom: 18 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+              Statutory Gazette Reference & Notes
+            </label>
+            <textarea
+              rows="3"
+              value={taxNotes}
+              onChange={(e) => setTaxNotes(e.target.value)}
+              placeholder="e.g. GRA-PAYE-2026-GAZETTE"
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <button
+              type="submit"
+              style={{ padding: '9px 20px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(2,132,199,0.3)' }}
+            >
+              Save Income Tax Setting
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* ── 2. SSNIT Settings ── */}
+      {activeTab === 'SSNIT Settings' && (
+        <form onSubmit={(e) => { e.preventDefault(); handleSave('SSNIT Configuration'); }}>
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ margin: '0 0 4px 0', fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+              SSNIT & Pension Scheme Configurations
+            </h3>
+            <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+              Manage Employer 13% and Employee 5.5% Tier 1 SSNIT and Tier 2 Private Pension scheme parameters.
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+            <div className="sims-form-group">
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                Employer SSNIT Contribution (%)
+              </label>
+              <input
+                type="text"
+                value={ssnitEmployer}
+                onChange={(e) => setSsnitEmployer(e.target.value)}
+                required
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+              />
+            </div>
+            <div className="sims-form-group">
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                Employee SSNIT Contribution (%)
+              </label>
+              <input
+                type="text"
+                value={ssnitEmployee}
+                onChange={(e) => setSsnitEmployee(e.target.value)}
+                required
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+              />
+            </div>
+          </div>
+
+          <div className="sims-form-group" style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+              SSNIT Employer Registration Number
+            </label>
+            <input
+              type="text"
+              value={ssnitRegNo}
+              onChange={(e) => setSsnitRegNo(e.target.value)}
+              required
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+            />
+          </div>
+
+          <div className="sims-form-group" style={{ marginBottom: 18 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+              Tier-2 Pension Fund Trustee
+            </label>
+            <input
+              type="text"
+              value={tier2Scheme}
+              onChange={(e) => setTier2Scheme(e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <button
+              type="submit"
+              style={{ padding: '9px 20px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(2,132,199,0.3)' }}
+            >
+              Save SSNIT Configuration
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* ── 3. Organisation's Header ── */}
+      {activeTab === "Organisation's header" && (
+        <form onSubmit={(e) => { e.preventDefault(); handleSave("Organisation's Header"); }}>
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ margin: '0 0 4px 0', fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+              Institution & Letterhead Configuration
+            </h3>
+            <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+              Define the master branding, school name, and address details printed on official payroll summaries and payslips.
+            </p>
+          </div>
+
+          <div className="sims-form-group" style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+              Official Institution Name
+            </label>
+            <input
+              type="text"
+              value={orgName}
+              onChange={(e) => setOrgName(e.target.value)}
+              required
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+            />
+          </div>
+
+          <div className="sims-form-group" style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+              School Tagline / Sub-Header
+            </label>
+            <input
+              type="text"
+              value={orgTagline}
+              onChange={(e) => setOrgTagline(e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+            />
+          </div>
+
+          <div className="sims-form-group" style={{ marginBottom: 18 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+              Official Address & Contact Information
+            </label>
+            <textarea
+              rows="3"
+              value={orgAddress}
+              onChange={(e) => setOrgAddress(e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <button
+              type="submit"
+              style={{ padding: '9px 20px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(2,132,199,0.3)' }}
+            >
+              Update Letterhead Header
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* ── 4. Close Month ── */}
+      {activeTab === 'Close Month' && (
+        <form onSubmit={(e) => { e.preventDefault(); handleSave('Close Financial Month'); }}>
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ margin: '0 0 4px 0', fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+              Close Financial & Payroll Month
+            </h3>
+            <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+              Finalize all ledger entries, salary slips, and disbursements for the selected month to prevent post-period alterations.
+            </p>
+          </div>
+
+          <div className="sims-form-group" style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+              Select Financial & Payroll Month to Close
+            </label>
+            <select
+              value={closeMonthVal}
+              onChange={(e) => setCloseMonthVal(e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, background: '#fff' }}
+            >
+              <option>September 2026</option>
+              <option>August 2026</option>
+              <option>July 2026</option>
+              <option>June 2026</option>
+            </select>
+          </div>
+
+          <div className="sims-form-group" style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+              Audit & Ledger Verification Status
+            </label>
+            <div style={{ padding: 12, background: '#e0f2fe', borderRadius: 6, border: '1px solid #bae6fd', color: '#0369a1', fontSize: 12, fontWeight: 700 }}>
+              ℹ All bank deposits, fee postings, and payroll disbursements reconciled.
+            </div>
+          </div>
+
+          <div className="sims-form-group" style={{ marginBottom: 18 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+              Authorized Security Signature Key
+            </label>
+            <input
+              type="text"
+              value={authKeyMonth}
+              onChange={(e) => setAuthKeyMonth(e.target.value)}
+              placeholder="AUTH-CLOSE-MONTH-2026"
+              required
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <button
+              type="submit"
+              style={{ padding: '9px 20px', background: '#d97706', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(217,119,6,0.3)' }}
+            >
+              🔒 Close Financial Month
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* ── 5. Close Year ── */}
+      {activeTab === 'Close Year' && (
+        <form onSubmit={(e) => { e.preventDefault(); handleSave('Close Academic Year'); }}>
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ margin: '0 0 4px 0', fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+              Close Academic & Fiscal Year
+            </h3>
+            <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+              Finalize the entire academic year's payroll ledger, lock historical records, and carry forward outstanding balances.
+            </p>
+          </div>
+
+          <div className="sims-form-group" style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+              Select Academic & Fiscal Year to Finalize
+            </label>
+            <select
+              value={closeYearVal}
+              onChange={(e) => setCloseYearVal(e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, background: '#fff' }}
+            >
+              <option>2023/2024 Academic Year</option>
+              <option>2024/2025 Academic Year</option>
+              <option>2025/2026 Academic Year</option>
+              <option>2026/2027 Academic Year</option>
+              <option>2027/2028 Academic Year</option>
+            </select>
+          </div>
+
+          <div className="sims-form-group" style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+              Carry-Forward Arrears & Balances
+            </label>
+            <select
+              value={carryForward}
+              onChange={(e) => setCarryForward(e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, background: '#fff' }}
+            >
+              <option>Transfer Student Arrears to New Year</option>
+              <option>Freeze Past Year Ledgers</option>
+            </select>
+          </div>
+
+          <div className="sims-form-group" style={{ marginBottom: 18 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+              CFO Executive Security Authorization Seal
+            </label>
+            <input
+              type="text"
+              value={authKeyYear}
+              onChange={(e) => setAuthKeyYear(e.target.value)}
+              placeholder="CFO-SEAL-YEAR-2026"
+              required
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <button
+              type="submit"
+              style={{ padding: '9px 20px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(220,38,38,0.3)' }}
+            >
+              🔒 Close Academic Year
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
 // ── REDESIGNED SIMS AUTH & ENTERPRISE COMMAND TERMINAL ──
 function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment, initialActionTab = 'Post Academic Bill Header' }) {
-  const [simsRole, setSimsRole] = useState('Accountant / Finance Officer');
-  const [simsUser, setSimsUser] = useState('ACCOUNTANT');
-  const [simsPass, setSimsPass] = useState('••••••••');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeSessionUser, setActiveSessionUser] = useState('Mrs. Grace Accountant');
-  const [notice, setNotice] = useState('');
-  const [selectedHub, setSelectedHub] = useState('Finance & Administration');
+  const [activeCategory, setActiveCategory] = useState('ALL');
   const [activeActionTab, setActiveActionTab] = useState(initialActionTab || 'Post Academic Bill Header');
 
   useEffect(() => {
-    if (initialActionTab && initialActionTab !== 'SIMS Auth & Login Terminal') {
+    if (initialActionTab && initialActionTab !== 'SIMS Auth & Login Terminal' && initialActionTab !== 'SIMS Financial Hub & Tools') {
       setActiveActionTab(initialActionTab);
     }
   }, [initialActionTab]);
 
-  const handleLogin = (e) => {
-    if (e) e.preventDefault();
-    if (!simsUser.trim()) {
-      alert('Please enter SIMS username');
-      return;
-    }
-    setIsAuthenticated(true);
-    const userDisplay = simsUser.toUpperCase() === 'ACCOUNTANT' ? 'Mrs. Grace Accountant' : simsUser;
-    setActiveSessionUser(userDisplay);
-    setNotice(`✅ SIMS Session Authenticated! Full command access granted for ${userDisplay} (${simsRole}).`);
-    setTimeout(() => setNotice(''), 4000);
-  };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setNotice('🔒 SIMS Terminal Locked. Please re-authenticate to access enterprise features.');
-    setTimeout(() => setNotice(''), 4000);
-  };
-
   const ACTION_TABS = [
-    { id: 'Post Academic Bill Header', label: 'Post Academic Bill Header', badge: 'New', icon: '📄' },
-    { id: 'Print Individual Student Bill', label: 'Print Individual Student Bill', badge: 'Print', icon: '🖨️' },
-    { id: 'Receive Payments', label: 'Receive Payments', badge: 'Pay', icon: '💳' },
-    { id: 'Receive Other Payments', label: 'Receive Other Payments', badge: 'Misc', icon: '🧾' },
-    { id: 'Batch Processing', label: 'Batch Processing', badge: 'Batch', icon: '🥞' },
-    { id: 'Reprint Commercial Receipt', label: 'Reprint Commercial Receipt', badge: 'Reprint', icon: '🖨️' },
-    { id: 'Other Accounts Receivables', label: 'Other Accounts Receivables', badge: 'Recv', icon: '💲' },
-    { id: 'Authorise Bills/Accounts Receivables', label: 'Authorise Bills/Accounts Receivables', badge: 'Auth', icon: '☑️' },
+    // ── Student's Billings & Accounts ──
+    { id: 'Post Academic Bill Header', label: 'Post Academic Bill Header', badge: 'New', icon: '📄', category: 'BILLING' },
+    { id: 'Print Individual Student Bill', label: 'Print Individual Student Bill', badge: 'Print', icon: '🖨️', category: 'BILLING' },
+    { id: 'Print All Post Class Bills', label: "Print & Post Student's Academic Bill", badge: 'Bulk', icon: '📑', category: 'BILLING' },
+    { id: 'Receive Payments', label: 'Receive Payments', badge: 'Pay', icon: '💳', category: 'BILLING' },
+    { id: 'Receive Other Payments', label: 'Issue Other Receipts', badge: 'Misc', icon: '🧾', category: 'BILLING' },
+    { id: 'Batch Processing', label: 'Batch Processing', badge: 'Batch', icon: '🥞', category: 'BILLING' },
+    { id: 'Reprint Commercial Receipt', label: 'Re-print Commercial Receipt', badge: 'Receipt', icon: '🖨️', category: 'BILLING' },
+    { id: 'Print Student Ledger', label: 'Print Student Ledger', badge: 'Ledger', icon: '📊', category: 'BILLING' },
+    { id: 'Other Accounts Receivables', label: 'Other Accounts Receivables', badge: 'Recv', icon: '💲', category: 'BILLING' },
+    { id: 'Authorise Bills/Accounts Receivables', label: 'Authorise Bills/Receivables', badge: 'Auth', icon: '☑️', category: 'BILLING' },
+
+    // ── HR & Payroll ──
+    { id: 'Employee Details', label: 'Employee Details', badge: 'HR', icon: '👤', category: 'HR' },
+    { id: 'List of Staff', label: 'List of Staff', badge: 'Staff', icon: '👥', category: 'HR' },
+    { id: 'Prepare & Delete Payroll', label: 'Prepare / Delete Payroll', badge: 'Payroll', icon: '💼', category: 'HR' },
+    { id: 'HR Payroll Reports', label: 'HR Payroll Reports', badge: 'Reports', icon: '📑', category: 'HR' },
+    { id: 'Income Tax rate', label: 'Income Tax rate', badge: 'Tax', icon: '🏷️', category: 'HR' },
+    { id: 'SSNIT Settings', label: 'SSNIT Settings', badge: 'SSNIT', icon: '🛡️', category: 'HR' },
+    { id: "Organisation's header", label: "Organisation's header", badge: 'Header', icon: '🏛️', category: 'HR' },
+    { id: 'Close Month', label: 'Close Month', badge: 'Month', icon: '📅', category: 'HR' },
+    { id: 'Close Year', label: 'Close Year', badge: 'Year', icon: '🔒', category: 'HR' },
+    { id: 'HR Payroll Settings', label: 'HR Payroll Settings (All)', badge: 'Config', icon: '⚙️', category: 'HR' },
+
+    // ── Accounts & Financial Reports ──
+    { id: 'Accounts & Financial Reports', label: 'Accounts Explorer & Trees', badge: 'Accounts', icon: '📁', category: 'REPORTS' },
+    { id: 'Financial Statements', label: 'Financial Statements (Balance Sheet)', badge: 'Audit', icon: '📈', category: 'REPORTS' },
+    { id: 'Trial Balance - Accounts', label: 'Trial Balance - Accounts', badge: 'Ledger', icon: '⚖️', category: 'REPORTS' },
   ];
+
+  const filteredTabs = activeCategory === 'ALL'
+    ? ACTION_TABS
+    : ACTION_TABS.filter((t) => t.category === activeCategory);
 
   return (
     <div style={{ background: '#0f172a', borderRadius: 16, padding: 24, color: '#f8fafc', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', border: '1px solid #1e293b' }}>
@@ -14724,13 +15109,13 @@ function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment
           <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 64, width: 'auto', borderRadius: 8, border: '2px solid #38bdf8', boxShadow: '0 0 15px rgba(56,189,248,0.3)' }} />
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-              SIMS ENTERPRISE AUTHENTICATION TERMINAL
+              SIMS ENTERPRISE COMMAND HUB
             </div>
             <h2 style={{ fontSize: 20, fontWeight: 900, color: '#ffffff', margin: '2px 0 0 0', letterSpacing: '0.02em' }}>
               REMALJ CAREWELL INSPIRATIONAL SCHOOL
             </h2>
             <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
-              Secure Multi-Factor Authorization & Command Hub · Build v2025.4
+              Enterprise Financial Action Tools & Billing Hub · Build v2025.4
             </div>
           </div>
         </div>
@@ -14738,35 +15123,15 @@ function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
-              background: isAuthenticated ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-              border: `1px solid ${isAuthenticated ? '#22c55e' : '#ef4444'}`,
-              color: isAuthenticated ? '#4ade80' : '#f87171',
+              background: 'rgba(34,197,94,0.15)',
+              border: '1px solid #22c55e',
+              color: '#4ade80',
               padding: '6px 16px', borderRadius: 20, fontSize: 12, fontWeight: 800,
               display: 'inline-flex', alignItems: 'center', gap: 8
             }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: isAuthenticated ? '#22c55e' : '#ef4444', boxShadow: `0 0 10px ${isAuthenticated ? '#22c55e' : '#ef4444'}` }} />
-              {isAuthenticated ? `🟢 Authenticated: ${activeSessionUser}` : '🔴 SIMS Session Locked'}
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 10px #22c55e' }} />
+              🟢 Active Session: Mrs. Grace Accountant (Finance Officer)
             </div>
-
-            {isAuthenticated && (
-              <button
-                type="button"
-                onClick={handleLogout}
-                style={{
-                  padding: '6px 14px',
-                  background: 'rgba(239,68,68,0.2)',
-                  border: '1px solid #ef4444',
-                  color: '#f87171',
-                  borderRadius: 20,
-                  fontSize: 11.5,
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(239,68,68,0.2)'
-                }}
-              >
-                🔒 Lock Session
-              </button>
-            )}
           </div>
 
           <div style={{ fontSize: 10.5, color: '#64748b', fontFamily: 'monospace' }}>
@@ -14775,69 +15140,53 @@ function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment
         </div>
       </div>
 
-      {notice && (
-        <div style={{ padding: '12px 18px', background: isAuthenticated ? '#064e3b' : '#7f1d1d', border: `1px solid ${isAuthenticated ? '#059669' : '#dc2626'}`, color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 700, marginBottom: 20 }}>
-          {notice}
-        </div>
-      )}
-
-      {/* Credentials Authentication Form (Only shown when session is locked) */}
-      {!isAuthenticated && (
-        <form onSubmit={handleLogin} style={{ background: '#1e293b', padding: 20, borderRadius: 12, border: '1px solid #334155', marginBottom: 24 }}>
-          <div style={{ fontWeight: 800, fontSize: 13, color: '#38bdf8', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>🔐</span> SIMS Credentials & Security Authorization
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 160px', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 4 }}>Role Designation</label>
-              <select value={simsRole} onChange={(e) => setSimsRole(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #475569', background: '#0f172a', color: '#fff', fontSize: 12, fontWeight: 700 }}>
-                <option>Accountant / Finance Officer</option>
-                <option>Headmaster / Pre-Auditor</option>
-                <option>SIMS Administrator</option>
-                <option>Teacher / Class Master</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 4 }}>Username / SID</label>
-              <input type="text" value={simsUser} onChange={(e) => setSimsUser(e.target.value)} placeholder="Username..." style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #475569', background: '#0f172a', color: '#fff', fontSize: 12, fontWeight: 700 }} />
-            </div>
-
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: 4 }}>Security Password / PIN</label>
-              <input type="password" value={simsPass} onChange={(e) => setSimsPass(e.target.value)} placeholder="Password..." style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #475569', background: '#0f172a', color: '#fff', fontSize: 12 }} />
-            </div>
-
-            <div>
-              <button type="submit" style={{ width: '100%', padding: '9px 14px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer', boxShadow: '0 4px 12px rgba(2,132,199,0.3)' }}>
-                🔓 Authenticate
-              </button>
-            </div>
-          </div>
-        </form>
-      )}
-
-      {/* Authenticated Command Center Section */}
-      {isAuthenticated ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* ── 8 QUICK ACTION TABS BAR (TOP ACTION HUB) ── */}
+      {/* Main Hub & Active Workspace (Permanently Unlocked & Active) */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* ── SIMS FINANCIAL ACTION TOOLS & BILLING HUB ── */}
           <div style={{ background: '#1e293b', borderRadius: 14, border: '1px solid #334155', padding: 18 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 900, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span>⚡</span> SIMS Financial Action Tools & Billing Hub
-              </span>
-              <span style={{ fontSize: 10.5, background: 'rgba(56,189,248,0.15)', color: '#38bdf8', padding: '3px 10px', borderRadius: 12, border: '1px solid rgba(56,189,248,0.3)' }}>
-                {ACTION_TABS.length} Active Modules
-              </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                {[
+                  { id: 'ALL', label: `All Tools (${ACTION_TABS.length})` },
+                  { id: 'BILLING', label: `Student's Billings (${ACTION_TABS.filter(t => t.category === 'BILLING').length})` },
+                  { id: 'HR', label: `HR & Payroll (${ACTION_TABS.filter(t => t.category === 'HR').length})` },
+                  { id: 'REPORTS', label: `Accounts & Reports (${ACTION_TABS.filter(t => t.category === 'REPORTS').length})` },
+                ].map((cat) => {
+                  const isCatActive = activeCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setActiveCategory(cat.id)}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: 20,
+                        border: `1.5px solid ${isCatActive ? '#38bdf8' : '#334155'}`,
+                        background: isCatActive ? 'rgba(56, 189, 248, 0.15)' : '#0f172a',
+                        color: isCatActive ? '#38bdf8' : '#94a3b8',
+                        fontSize: 11.5,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {cat.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
-              {ACTION_TABS.map((tab) => {
+              {filteredTabs.map((tab) => {
                 const isActive = activeActionTab === tab.id;
                 return (
                   <button
                     key={tab.id}
+                    type="button"
                     onClick={() => setActiveActionTab(tab.id)}
                     style={{
                       display: 'flex',
@@ -14855,7 +15204,7 @@ function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
-                      <span style={{ fontSize: 15, flexShrink: 0 }}>{tab.icon}</span>
+                      <span style={{ fontSize: 16, flexShrink: 0 }}>{tab.icon}</span>
                       <span style={{ fontSize: 12, fontWeight: isActive ? 800 : 600, color: isActive ? '#ffffff' : '#cbd5e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {tab.label}
                       </span>
@@ -14884,8 +15233,8 @@ function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment
           <div style={{ background: '#ffffff', borderRadius: 14, padding: 22, color: '#0f172a', border: '1px solid #cbd5e1', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #e2e8f0', paddingBottom: 12, marginBottom: 18 }}>
               <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 20 }}>{ACTION_TABS.find(t => t.id === activeActionTab)?.icon}</span>
-                <span>{activeActionTab}</span>
+                <span style={{ fontSize: 20 }}>{ACTION_TABS.find(t => t.id === activeActionTab)?.icon || '⚡'}</span>
+                <span>{ACTION_TABS.find(t => t.id === activeActionTab)?.label || activeActionTab}</span>
               </div>
               <span style={{ background: '#0284c7', color: '#ffffff', fontSize: 11, fontWeight: 800, padding: '4px 14px', borderRadius: 12 }}>
                 AUTHENTICATED WORKSPACE
@@ -14898,17 +15247,23 @@ function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment
             {activeActionTab === 'Print Individual Student Bill' && (
               <PrintIndividualStudentBillForm setM={() => {}} students={students} />
             )}
+            {(activeActionTab === 'Print All Post Class Bills' || activeActionTab === "Print & Post Student's Academic Bill" || activeActionTab === 'Print all post class students bills') && (
+              <PrintAllPostClassStudentsBillsForm setM={() => {}} />
+            )}
             {activeActionTab === 'Receive Payments' && (
               <ReceivePaymentsForm setM={() => {}} students={students} recordFeePayment={recordFeePayment} />
             )}
-            {activeActionTab === 'Receive Other Payments' && (
+            {(activeActionTab === 'Receive Other Payments' || activeActionTab === 'Issue Other receipts') && (
               <ReceiveOtherPaymentsForm setM={() => {}} />
             )}
             {activeActionTab === 'Batch Processing' && (
               <BatchProcessingForm setM={() => {}} students={students} recordFeePayment={recordFeePayment} />
             )}
-            {activeActionTab === 'Reprint Commercial Receipt' && (
+            {(activeActionTab === 'Reprint Commercial Receipt' || activeActionTab === 'Re-print Commercial Receipt') && (
               <ReprintCommercialReceiptForm setM={() => {}} />
+            )}
+            {(activeActionTab === 'Print Student Ledger' || activeActionTab === 'Print student ledger') && (
+              <StudentLedgerPrintForm setM={() => {}} />
             )}
             {activeActionTab === 'Other Accounts Receivables' && (
               <OtherAccountsReceivablesForm setM={() => {}} students={students} />
@@ -14916,87 +15271,43 @@ function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment
             {activeActionTab === 'Authorise Bills/Accounts Receivables' && (
               <AuthoriseBillsReceivablesForm setM={() => {}} students={students} />
             )}
+            {(activeActionTab === 'Employee Details' || activeActionTab === "Employee's Profile" || activeActionTab === 'Employee Profile') && (
+              <EmployeeProfileForm setM={() => {}} />
+            )}
+            {(activeActionTab === 'List of Staff' || activeActionTab === 'Staff List') && (
+              <ListOfStaffReportForm setM={() => {}} />
+            )}
+            {(activeActionTab === 'Prepare & Delete Payroll' || activeActionTab === 'Monthly Payroll Service' || activeActionTab === 'Prepare Payroll' || activeActionTab === 'Delete Payroll') && (
+              <MonthlyPayrollServiceForm setM={() => {}} />
+            )}
+            {(activeActionTab === 'HR Payroll Reports' || activeActionTab === 'Print monthly payroll report') && (
+              <MonthlyPayrollReportForm setM={() => {}} />
+            )}
+            {(activeActionTab === 'Accounts & Financial Reports' || activeActionTab === 'Accounts') && (
+              <AccountsAndFinancialReportsTree onSelectReport={(r) => setActiveActionTab(r)} />
+            )}
+            {(activeActionTab === 'Financial Statements' || activeActionTab === 'Financial statements' || activeActionTab === 'Balance Sheet' || activeActionTab === 'Print statement of financial position [Balance sheet]') && (
+              <BalanceSheetForm setM={() => {}} />
+            )}
+            {(activeActionTab === 'Trial Balance - Accounts' || activeActionTab === 'Trial Balance' || activeActionTab === 'Print PL/Accounts Balances' || activeActionTab === "Print Student's Trial Balances") && (
+              <TrialBalanceAccountsForm setM={() => {}} />
+            )}
+            {(activeActionTab === 'Print out student ledger or account statement' || activeActionTab === 'Account Statement' || activeActionTab === 'Print Account Statement') && (
+              <PrintAccountStatementForm setM={() => {}} initialMode="general" />
+            )}
+            {(activeActionTab === 'HR Payroll Settings' ||
+              activeActionTab === 'HR Payroll Settings (All)' ||
+              activeActionTab === 'Income Tax rate' ||
+              activeActionTab === 'SSNIT Settings' ||
+              activeActionTab === "Organisation's header" ||
+              activeActionTab === 'Close Month' ||
+              activeActionTab === 'Close Year') && (
+              <HrPayrollSettingsManager
+                initialTab={activeActionTab === 'HR Payroll Settings' || activeActionTab === 'HR Payroll Settings (All)' ? 'Income Tax rate' : activeActionTab}
+              />
+            )}
           </div>
-
-          {/* ── EXPANDABLE SECONDARY DIRECTORY & EXPLORER ── */}
-          <details style={{ background: '#1e293b', borderRadius: 12, border: '1px solid #334155', padding: '14px 18px' }}>
-            <summary style={{ fontSize: 12.5, fontWeight: 900, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', outline: 'none' }}>
-              📁 Explore Additional SIMS Command Launchers & Registers
-            </summary>
-            
-            <div style={{ marginTop: 16 }}>
-              {/* Quick Launch Cards Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginBottom: 20 }}>
-                {[
-                  { label: 'List of Staff', category: 'HR & Payroll', badge: 'Staff', color: '#8b5cf6', desc: 'Generate and print complete staff roster report.' },
-                  { label: 'Print student ledger', category: 'Student\'s Billings & Accounts', badge: 'Ledger', color: '#06b6d4', desc: 'Generate and review student financial ledger accounts.' },
-                  { label: 'Batch Processing', category: 'Student\'s Billings & Accounts', badge: 'Billing', color: '#f97316', desc: 'Execute batch billing and financial fee processing.' }
-                ].map((card) => (
-                  <div key={card.label} onClick={() => onOpenSimsModal({ category: card.category, link: card.label })} style={{
-                    background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: 12,
-                    cursor: 'pointer', transition: 'all 0.2s ease', position: 'relative', overflow: 'hidden'
-                  }} onMouseEnter={(e) => e.currentTarget.style.borderColor = card.color} onMouseLeave={(e) => e.currentTarget.style.borderColor = '#334155'}>
-                    <div style={{ position: 'absolute', top: 0, left: 0, width: 4, height: '100%', background: card.color }} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <span style={{ fontSize: 9.5, fontWeight: 800, background: 'rgba(255,255,255,0.1)', color: card.color, padding: '2px 6px', borderRadius: 8 }}>{card.badge}</span>
-                      <span style={{ fontSize: 11, color: '#94a3b8' }}>→</span>
-                    </div>
-                    <div style={{ fontWeight: 800, fontSize: 12, color: '#fff', marginBottom: 2 }}>{card.label}</div>
-                    <div style={{ fontSize: 10.5, color: '#94a3b8', lineHeight: 1.3 }}>{card.desc}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* SIMS Category Explorer Tabs */}
-              <div style={{ background: '#0f172a', borderRadius: 10, border: '1px solid #334155', padding: 14 }}>
-                <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid #334155', paddingBottom: 10, marginBottom: 14, overflowX: 'auto' }}>
-                  {['Finance & Administration', 'Student Services Centre', 'System Administrator'].map((hub) => (
-                    <button key={hub} onClick={() => setSelectedHub(hub)} style={{
-                      padding: '6px 14px', borderRadius: 6, border: 'none',
-                      background: selectedHub === hub ? '#0284c7' : 'rgba(255,255,255,0.05)',
-                      color: selectedHub === hub ? '#fff' : '#cbd5e1', fontWeight: 800, fontSize: 11.5, cursor: 'pointer'
-                    }}>
-                      {hub}
-                    </button>
-                  ))}
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14 }}>
-                  {(SIMS_DATA[selectedHub] || []).map((section) => (
-                    <div key={section.category} style={{ background: '#1e293b', padding: 12, borderRadius: 6, border: '1px solid #334155' }}>
-                      <div style={{ fontSize: 11.5, fontWeight: 900, color: '#38bdf8', marginBottom: 6, borderBottom: '1px solid #0f172a', paddingBottom: 4 }}>
-                        {section.category}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {(section.links || []).map((lnk) => (
-                          <button key={lnk} onClick={() => onOpenSimsModal({ category: section.category, link: lnk })} style={{
-                            textAlign: 'left', background: 'none', border: 'none', color: '#e2e8f0',
-                            fontSize: 11, padding: '3px 5px', borderRadius: 4, cursor: 'pointer',
-                            transition: 'background 0.15s ease'
-                          }} onMouseEnter={(e) => e.target.style.background = 'rgba(56,189,248,0.15)'} onMouseLeave={(e) => e.target.style.background = 'none'}>
-                            ▸ {lnk}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </details>
         </div>
-      ) : (
-        <div style={{ background: '#1e293b', padding: 36, borderRadius: 12, textAlign: 'center', border: '1px dashed #475569' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
-          <h3 style={{ fontSize: 17, fontWeight: 900, color: '#fff', margin: 0 }}>SIMS Enterprise Features & Action Tools Locked</h3>
-          <p style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 6, maxWidth: 520, margin: '8px auto 18px auto', lineHeight: 1.5 }}>
-            Please authenticate using your SIMS username and password above to unlock Post Academic Bill Header, Print Student Bills, Receive Payments, Batch Processing, and Accounts Receivables.
-          </p>
-          <button type="button" onClick={() => handleLogin()} style={{ padding: '10px 24px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 12px rgba(2,132,199,0.3)' }}>
-            🔓 Authenticate SIMS Access Now
-          </button>
-        </div>
-      )}
     </div>
   );
 }

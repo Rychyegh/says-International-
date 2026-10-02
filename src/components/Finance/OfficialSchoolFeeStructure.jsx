@@ -1252,8 +1252,8 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     } else if (postTargetScope === 'class_level') {
       const catObj = GRADE_LEVEL_CATEGORIES.find(c => c.id === selectedPostingCategory) || activeCategoryObj;
       scopeLabel = `All Students in ${catObj.name}`;
-      targetStudentsList = (onboardedStudents || []).filter(s => {
-        const sLvl = (s.level || '').toLowerCase().trim();
+      targetStudentsList = (liveClassStudents || []).filter(s => {
+        const sLvl = `${s.level || ''} ${s.classLevel || ''}`.toLowerCase().trim();
         const cId = catObj.id;
         if (cId === 'nursery_creche') return sLvl.includes('creche') || sLvl.includes('nursery');
         if (cId === 'kindergarten') return sLvl.includes('kg') || sLvl.includes('kindergarten');
@@ -1262,19 +1262,17 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       });
     } else if (postTargetScope === 'class') {
       scopeLabel = `All Students in Class ${selectedPostingClass}`;
-      targetStudentsList = (onboardedStudents || []).filter(s =>
-        (s.level || '').toLowerCase().trim() === selectedPostingClass.toLowerCase().trim()
+      targetStudentsList = (liveClassStudents || []).filter(s =>
+        studentMatchesSelectedClass(s, selectedPostingClass, { ignoreStream: true })
       );
     } else if (postTargetScope === 'subclass') {
       scopeLabel = `All Students in Sub-Class / Section ${selectedPostingSubClass}`;
-      const subQ = selectedPostingSubClass.toLowerCase().trim();
-      targetStudentsList = (onboardedStudents || []).filter(s => {
-        const sec = (s.classSection || s.section || s.subClass || s.sub_class || s.stream || '').toLowerCase().trim();
-        return sec === subQ || sec.includes(subQ) || subQ.includes(sec);
-      });
+      targetStudentsList = (liveClassStudents || []).filter(s =>
+        studentMatchesSelectedClass(s, selectedPostingSubClass, { ignoreStream: false })
+      );
     } else if (postTargetScope === 'all') {
       scopeLabel = 'All Active Students (School-wide)';
-      targetStudentsList = onboardedStudents || [];
+      targetStudentsList = liveClassStudents || [];
     }
 
     // Compute active items
@@ -3250,19 +3248,21 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                       maxHeight: 180, overflowY: 'auto', background: '#fff', border: '1px solid #cbd5e1',
                       borderRadius: 8, marginTop: 6, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 10
                     }}>
-                      {onboardedStudents.filter(s =>
-                        (s.fullName || '').toLowerCase().includes(postingStudentSearch.toLowerCase()) ||
+                      {liveClassStudents.filter(s =>
+                        getStudentFullName(s).toLowerCase().includes(postingStudentSearch.toLowerCase()) ||
                         (s.studentId || '').toLowerCase().includes(postingStudentSearch.toLowerCase()) ||
-                        (s.level || '').toLowerCase().includes(postingStudentSearch.toLowerCase())
+                        (s.level || '').toLowerCase().includes(postingStudentSearch.toLowerCase()) ||
+                        (s.classSection || '').toLowerCase().includes(postingStudentSearch.toLowerCase())
                       ).length === 0 ? (
                         <div style={{ padding: '10px 12px', fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>
                           No matching students found for "{postingStudentSearch}".
                         </div>
                       ) : (
-                        onboardedStudents.filter(s =>
-                          (s.fullName || '').toLowerCase().includes(postingStudentSearch.toLowerCase()) ||
+                        liveClassStudents.filter(s =>
+                          getStudentFullName(s).toLowerCase().includes(postingStudentSearch.toLowerCase()) ||
                           (s.studentId || '').toLowerCase().includes(postingStudentSearch.toLowerCase()) ||
-                          (s.level || '').toLowerCase().includes(postingStudentSearch.toLowerCase())
+                          (s.level || '').toLowerCase().includes(postingStudentSearch.toLowerCase()) ||
+                          (s.classSection || '').toLowerCase().includes(postingStudentSearch.toLowerCase())
                         ).map((stu) => (
                           <div
                             key={stu.id || stu.studentId}
