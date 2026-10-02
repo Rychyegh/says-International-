@@ -705,3 +705,12 @@
   .sidebar-item__badge { margin-left: 2px; }
   .portal__content { padding: 20px 16px; }
 }
+
+/* Frozen Accountant hub: visible as a blurred, non-interactive entry. */
+.sidebar-item.accountant-hub-disabled {
+  filter: blur(1.5px);
+  opacity: .45;
+  cursor: not-allowed;
+  user-select: none;
+}
+.sidebar-item.accountant-hub-disabled:hover { background: transparent; }

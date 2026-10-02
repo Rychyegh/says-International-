@@ -23,7 +23,7 @@ const ACCOUNT_LIGHT = '#e0f2fe';
 const ACCOUNT_ACCENT = '#0284c7';
 
 const NAV = [
-  { icon: <Layers size={15} />, label: 'SIMS Financial Hub & Tools', badge: 'Hub' },
+  { icon: <Layers size={15} />, label: 'SIMS Financial Hub & Tools', badge: 'Unavailable', disabled: true },
   { icon: <LayoutDashboard size={15} />, label: 'Financial Overview', badge: null },
   { icon: <CreditCard size={15} />, label: 'Fee Ledgers & Payments', badge: null },
   { icon: <Send size={15} />, label: 'Send Owing Reminders', badge: null },
@@ -32,17 +32,25 @@ const NAV = [
 ];
 
 
+const accessibleAccountantPage = nav => NAV.some(item => item.label === nav && !item.disabled);
+
 export default function AccountantPortal({ onSignOut }) {
   const [activeNav, setActiveNavState] = useState(() => {
-    return localStorage.getItem('says_accountant_active_nav') || 'Financial Overview';
+    const saved = localStorage.getItem('says_accountant_active_nav');
+    return accessibleAccountantPage(saved) ? saved : 'Financial Overview';
   });
 
   const setActiveNav = (nav) => {
+    if (!accessibleAccountantPage(nav)) return;
     setActiveNavState(nav);
     try {
       localStorage.setItem('says_accountant_active_nav', nav);
     } catch (e) {}
   };
+
+  useEffect(() => {
+    try { localStorage.setItem('says_accountant_active_nav', activeNav); } catch {}
+  }, [activeNav]);
 
   const [simsTab, setSimsTabState] = useState(() => {
     return localStorage.getItem('says_accountant_sims_tab') || 'Student Services Centre';
@@ -361,7 +369,10 @@ export default function AccountantPortal({ onSignOut }) {
           {NAV.map((item) => (
             <button
               key={item.label}
-              className={`sidebar-item${activeNav === item.label ? ' active' : ''}`}
+              className={`sidebar-item${activeNav === item.label ? ' active' : ''}${item.disabled ? ' accountant-hub-disabled' : ''}`}
+              disabled={item.disabled}
+              aria-disabled={item.disabled || undefined}
+              title={item.disabled ? 'Financial Hub & Tools is temporarily unavailable' : undefined}
               style={activeNav === item.label ? { background: ACCOUNT_BG } : {}}
               onClick={() => setActiveNav(item.label)}
             >
