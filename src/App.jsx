@@ -3,7 +3,7 @@ import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-d
 import Topbar from './components/Topbar/Topbar';
 import LoginPage from './components/Login/LoginPage';
 import { PortalDataProvider, usePortalData } from './data/PortalStore';
-import { api, getAuthToken, setAuthUser, clearAuthSession, clearLegacySchoolCache } from './services/api';
+import { api, getAuthToken, setAuthUser, getAuthUser, clearAuthSession, clearLegacySchoolCache } from './services/api';
 import { portalForRole } from './lib/recordRules.js';
 import './App.css';
 
@@ -35,10 +35,10 @@ function PortalRoutes({ session, verifySession }) {
     events.forEach(event => window.addEventListener(event, reset)); reset();
     return () => { clearTimeout(warningTimer); clearTimeout(logoutTimer); events.forEach(event => window.removeEventListener(event, reset)); };
   }, [session]);
-  const onLoginSuccess = async () => {
+  const onLoginSuccess = async (adminRole) => {
     try {
       setAuthError('');
-      await verifySession();
+      await verifySession(adminRole);
       localStorage.setItem(`says_${activePortal}_active_nav`, activePortal === 'accountant' ? 'Financial Overview' : activePortal === 'student' ? 'My Dashboard' : 'Dashboard');
     } catch (error) { setAuthError(error.message); }
   };
@@ -67,7 +67,7 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [checking, setChecking] = useState(true);
   const generation = useRef(0);
-  const verifySession = useCallback(async () => {
+  const verifySession = useCallback(async (selectedAdminRole) => {
     const attempt = ++generation.current;
     const token = getAuthToken();
     if (!token) throw new Error('A database login is required.');
@@ -76,7 +76,13 @@ export default function App() {
       const user = raw.user || raw.data?.user || raw.data || raw;
       if (!user.id || !portalForRole(user.role) || user.requiresSecondFactor === true || user.requires_second_factor === true) throw new Error('The server has not confirmed a complete authorized session.');
       if (attempt !== generation.current || token !== getAuthToken()) return;
-      setAuthUser(user); setSession(user);
+      // Restore the original PIN-selected admin view while retaining server authentication.
+      const previousUser = getAuthUser();
+      const adminRole = selectedAdminRole || (String(previousUser?.id) === String(user.id) ? previousUser?.adminRole : null);
+      const restoredUser = portalForRole(user.role) === 'admin' && ['head_admin', 'sub_admin'].includes(adminRole)
+        ? { ...user, role: adminRole, adminRole }
+        : user;
+      setAuthUser(restoredUser); setSession(restoredUser);
     } catch (error) {
       if (attempt === generation.current) clearAuthSession();
       throw error;

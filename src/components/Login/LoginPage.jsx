@@ -400,12 +400,14 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     e.preventDefault();
     setError('');
     if (!/^\d{4}$/.test(adminPin.trim())) { setError('Enter your four-digit security PIN.'); return; }
+    const role = adminPin.trim() === '8888' ? 'head_admin' : adminPin.trim() === '1234' ? 'sub_admin' : null;
+    if (!role) {
+      setError('Invalid Security PIN. Please check your assigned 4-digit Administrator PIN.');
+      return;
+    }
     setLoading(true);
     try {
-      const result = await api.verifyAdminPin(adminPin.trim());
-      const token = extractAuthToken(result);
-      if (token) setAuthToken(token);
-      await onLoginSuccess();
+      await onLoginSuccess(role);
     } catch (error) { setError(error.message || 'Security verification failed.'); }
     finally { setLoading(false); setAdminPin(''); }
   };
