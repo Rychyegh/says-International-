@@ -42,8 +42,6 @@ const SIMS_DATA = {
     {
       category: 'Student\'s Billings & Accounts',
       links: [
-        'Prepare Student academic Bill',
-        'Receive Payments from Students',
         'Issue Other receipts',
         'Batch Processing',
         'Re-print Commercial Receipt',

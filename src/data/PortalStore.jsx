@@ -1861,6 +1861,8 @@ export function PortalDataProvider({ children }) {
         scoreSheetsRes,
         providersRes,
         classesRes,
+        subclassesRes,
+        subjectsRes,
         teachingAssignmentsRes
       ] = await Promise.allSettled([
         cloudSync.pullLatestData(),
