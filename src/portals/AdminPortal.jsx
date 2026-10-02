@@ -139,6 +139,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     clearPVNotifications,
     markPVNotificationRead,
     isLoadingBackend,
+    isRefreshingBackend,
+    syncErrors = {},
+    resourceStatus = {},
   } = usePortalData();
 
   const [activeNav, setActiveNavState] = useState(() => {
@@ -788,7 +791,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const activeStudents = (onboardedStudents || []).filter((s) => isBackendUuid(s?.id) && s?.status === 'Active' && s?.is_active !== false).length;
   const totalStudents = activeStudents;
   const totalApplications = (applications || []).filter((a) => isBackendUuid(a?.id)).length;
-  const loadingCount = isLoadingBackend ? '…' : null;
+  const coreErrors = Object.entries({ studentsRes: 'Student roster', appsRes: 'Applications', staffRes: 'Teaching staff', connection: 'Connection' }).filter(([key]) => syncErrors[key]);
+  const recordCount = (key, count) => syncErrors[key] || syncErrors.connection || resourceStatus[key] === 'unavailable' ? 'Unavailable' : (resourceStatus[key] === 'loading' || isLoadingBackend) && !count ? '…' : String(count);
+  const recordHint = key => syncErrors[key] || syncErrors.connection ? 'Could not load — see error above' : resourceStatus[key] === 'loading' ? 'Refreshing from the database' : null;
 
   const recentOnboardedStudents = useMemo(() => {
     const recency = (student) => {
@@ -803,9 +808,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   }, [onboardedStudents]);
 
   const STATS = [
-    { label: 'Total Enrolled Students', value: loadingCount || String(totalStudents), trend: isLoadingBackend ? 'Loading from the database' : `${activeStudents} Active`, icon: '👥', bg: '#f3e8ff', ic: ADMIN_BG, nav: 'Student Roster' },
-    { label: 'Admissions Applications', value: loadingCount || String(totalApplications), trend: isLoadingBackend ? 'Loading from the database' : 'Official forms active', icon: '📋', bg: '#fef9c3', ic: '#78350f', nav: 'Applications & Forms' },
-    { label: 'Teaching Staff', value: loadingCount || String(staffDirectory.filter(t => t.status !== 'Offboarded' && isTeachingStaffMember(t)).length), trend: isLoadingBackend ? 'Loading from the database' : 'All departments', icon: '👨‍🏫', bg: '#e0f2fe', ic: '#0369a1', nav: 'Classes & Staff' },
+    { label: 'Total Enrolled Students', value: recordCount('studentsRes', totalStudents), trend: recordHint('studentsRes') || `${activeStudents} Active`, icon: '👥', bg: '#f3e8ff', ic: ADMIN_BG, nav: 'Student Roster' },
+    { label: 'Admissions Applications', value: recordCount('appsRes', totalApplications), trend: recordHint('appsRes') || 'Official forms active', icon: '📋', bg: '#fef9c3', ic: '#78350f', nav: 'Applications & Forms' },
+    { label: 'Teaching Staff', value: recordCount('staffRes', staffDirectory.filter(t => t.status !== 'Offboarded' && isTeachingStaffMember(t)).length), trend: recordHint('staffRes') || 'All departments', icon: '👨‍🏫', bg: '#e0f2fe', ic: '#0369a1', nav: 'Classes & Staff' },
   ];
 
   const studentDetailedClass = (student) => {
@@ -1010,6 +1015,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
         {/* Main Content */}
         <main className="portal__content">
+          {coreErrors.length > 0 && <section role="alert" style={{ background: '#fff1f2', border: '1px solid #fecaca', color: '#7f1d1d', padding: 16, borderRadius: 10, marginBottom: 16 }}>
+            <strong>Some school records could not be loaded.</strong>
+            <p>These errors do not mean your records have been deleted.</p>
+            <ul>{coreErrors.map(([key, label]) => <li key={key}>{label}: {syncErrors[key]}</li>)}</ul>
+            <button className="academic-button" disabled={isRefreshingBackend} onClick={() => refreshBackendData()}>{isRefreshingBackend ? 'Refreshing…' : 'Retry loading records'}</button>
+          </section>}
+
           {/* Live PV Submission Toast Alert */}
           {livePVAlert && adminRole !== 'sub_admin' && (
             <div style={{
@@ -1258,7 +1270,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         {recentOnboardedStudents.length === 0 && (
                           <tr>
                             <td colSpan={5} style={{ textAlign: 'center', padding: 24, color: 'var(--gray-500)', fontWeight: 600 }}>
-                              Newly onboarded students will appear here. Use + Onboard / Fill Application Form to add one.
+                              {syncErrors.studentsRes || syncErrors.connection ? 'Student records could not be loaded. See the error above and retry.' : resourceStatus.studentsRes === 'loading' || isLoadingBackend ? 'Loading student records from the database…' : 'No active students were returned by the database.'}
                             </td>
                           </tr>
                         )}

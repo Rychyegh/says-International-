@@ -1379,6 +1379,7 @@ const INITIAL_DATA = {
   },
   theme: 'light',
   backendConnected: false,
+  resourceStatus: { studentsRes: 'loading', appsRes: 'loading', staffRes: 'loading' },
   isLoadingBackend: true,
 };
 
@@ -1425,7 +1426,11 @@ export function PortalDataProvider({ children, enabled = false }) {
   // Sync strictly with live backend API endpoints  on mount & intervals
   // Uses concurrent Promise.allSettled and atomic deep equality diffing to eliminate UI glitching/flicker
   const refreshBackendData = useCallback(async () => {
-    if (!enabled || !hasLiveDatabaseSession() || isRefreshingRef.current) return;
+    if (!enabled || isRefreshingRef.current) return;
+    if (!hasLiveDatabaseSession()) {
+      setData(current => ({ ...current, isLoadingBackend: false, isRefreshingBackend: false, syncErrors: { ...current.syncErrors, connection: 'No usable database session. Sign in again to load school records.' } }));
+      return;
+    }
     const sessionToken = getAuthToken();
     const refreshEpoch = mutationEpochRef.current;
     isRefreshingRef.current = true;
@@ -1435,6 +1440,7 @@ export function PortalDataProvider({ children, enabled = false }) {
       const privileged = ['admin', 'accountant'].includes(role);
       const staff = privileged || role === 'teacher';
       const allowed = (condition, fetcher) => condition ? fetcher() : Promise.resolve(null);
+      const coreKeys = { students: 'studentsRes', applications: 'appsRes' };
       const progressive = (resource, promise) => promise.then(value => {
         if (!mountedRef.current || sessionToken !== getAuthToken() || refreshEpoch !== mutationEpochRef.current) return value;
         setData(current => {
@@ -1447,11 +1453,18 @@ export function PortalDataProvider({ children, enabled = false }) {
             patch.studentFees = deduplicateFees(extractApiList(value).map(mapFeeFromApi));
             patch.feeAccounts = buildFeeAccountsFromStudentFees(patch.studentFees);
           }
-          return { ...current, ...patch, backendConnected: true, isLoadingBackend: false };
+          const key = coreKeys[resource];
+          const syncErrors = { ...current.syncErrors };
+          if (key) delete syncErrors[key];
+          return { ...current, ...patch, syncErrors, resourceStatus: key ? { ...current.resourceStatus, [key]: 'ready' } : current.resourceStatus, backendConnected: true, isLoadingBackend: false };
         });
         return value;
+      }).catch(error => {
+        const key = coreKeys[resource];
+        if (key && mountedRef.current && sessionToken === getAuthToken()) setData(current => ({ ...current, resourceStatus: { ...current.resourceStatus, [key]: 'error' }, syncErrors: { ...current.syncErrors, [key]: `${error.status ? `HTTP ${error.status}: ` : ''}${error.message}` } }));
+        throw error;
       });
-      setData(current => ({ ...current, isRefreshingBackend: true }));
+      setData(current => ({ ...current, isRefreshingBackend: true, resourceStatus: { studentsRes: 'loading', appsRes: 'loading', staffRes: 'loading' } }));
       // 1. Fetch all backend endpoints in a single concurrent burst
       const [
         settingsRes,
@@ -1511,7 +1524,7 @@ export function PortalDataProvider({ children, enabled = false }) {
       const responses = { settingsRes, routesRes, timetablesRes, resultsRes, reportsRes, incidentsRes, assetTasksRes, messagesRes, assignmentsRes, appsRes, studentsRes, feesRes, staffRes, classTeachersRes, usersRes, billsRes, pvsRes, semRegsRes, examRegsRes, scoreSheetsRes, providersRes, classesRes, subclassesRes, subjectsRes, teachingAssignmentsRes };
       const syncErrors = Object.fromEntries(Object.entries(responses)
         .filter(([, result]) => result.status === 'rejected')
-        .map(([resource, result]) => [resource, result.reason?.message || 'Request failed']));
+        .map(([resource, result]) => [resource, `${result.reason?.status ? `HTTP ${result.reason.status}: ` : ''}${result.reason?.message || 'Request failed'}`]));
       const successful = Object.values(responses).filter(result => result.status === 'fulfilled' && result.value !== null).length;
 
       // 2. Perform a single atomic state commit only if data actually changed
@@ -2005,6 +2018,7 @@ export function PortalDataProvider({ children, enabled = false }) {
           ...updates,
           backendConnected: successful > 0,
           syncErrors,
+          resourceStatus: Object.fromEntries(['studentsRes', 'appsRes', 'staffRes'].map(key => [key, responses[key].status === 'rejected' ? 'error' : responses[key].value === null ? 'unavailable' : 'ready'])),
           lastSyncedAt: successful ? new Date().toISOString() : current.lastSyncedAt,
           isLoadingBackend: false, isRefreshingBackend: false, showingCachedData: false
         };
