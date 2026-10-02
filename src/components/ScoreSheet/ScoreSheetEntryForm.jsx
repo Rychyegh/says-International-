@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { usePortalData, scoreSheetEntryKey } from '../../data/PortalStore';
 import { getUserFullName } from '../../services/api';
 import { getMappedSubClasses, isLegacySectionLabel, normalizeSubClass } from '../../data/classStructure';
@@ -89,6 +89,8 @@ function persistStudentScores(saveScoreSheetEntry, payload) {
 export default function ScoreSheetEntryForm({ setM, students: propStudents, onViewTestRoll, initialTarget }) {
   const { academicSettings, onboardedStudents, saveScoreSheetEntry, results } = usePortalData();
   const [saving, setSaving] = useState(false);
+  const dirty = useRef(false);
+  const hydratedKey = useRef('');
   const [saveNotice, setSaveNotice] = useState('');
   const [saveError, setSaveError] = useState('');
   const students = Array.isArray(propStudents) ? propStudents : (onboardedStudents || []);
@@ -203,62 +205,48 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
     if (currentKey) setSelectedStudent({ fullName: '', name: '', studentId: '' });
   }, [filteredStudents, selectedStudent]);
 
-  const studentKey = selectedStudent.studentId || selectedStudent.id;
+  const studentKey = selectedStudent.id || selectedStudent.studentId;
 
   // Reopen a previously saved sheet for this student / subject / term / year so it can be edited
   const savedEntry = useMemo(() => {
     const key = scoreSheetEntryKey({ studentId: studentKey, studentName: selectedStudent.fullName, subject, term, year });
-    return (results || []).find((r) => scoreSheetEntryKey(r) === key) || null;
+    return (results || []).find(r => scoreSheetEntryKey({ ...r, studentId: [selectedStudent.id, selectedStudent.studentId].includes(r.studentId) ? studentKey : r.studentId }) === key) || null;
   }, [results, studentKey, selectedStudent.fullName, subject, term, year]);
 
   useEffect(() => {
+    const key = [studentKey, subject, term, year].join(':');
+    if (dirty.current && hydratedKey.current === key) return;
+    hydratedKey.current = key;
+    dirty.current = false;
     setArrivalTest(savedEntry?.arrivalTest ?? 0);
     setTest1(savedEntry?.test1 ?? 0);
     setTest2(savedEntry?.test2 ?? 0);
     setTest3(savedEntry?.test3 ?? 0);
-    setExamsScore(savedEntry?.hasExamScore || savedEntry?.examSubmitted ? (savedEntry?.examScore ?? 0) : 0);
+    setExamsScore(savedEntry?.hasExamScore || savedEntry?.examSubmitted ? (savedEntry?.rawExamScore ?? savedEntry?.examScore ?? 0) : 0);
     setTeacherNote(savedEntry?.teacherNote ?? '');
     setSavedAt(savedEntry?.updatedAt || '');
     setSaveNotice('');
     setSaveError('');
-  }, [savedEntry]);
+  }, [savedEntry, studentKey, subject, term, year]);
 
-  const clampTest = (value) => {
-    const n = Number(value);
-    if (Number.isNaN(n)) return 0;
-    return Math.min(CLASS_TEST_MAX, Math.max(0, n));
-  };
-
-  const totalTest = clampTest(arrivalTest) + clampTest(test1) + clampTest(test2) + clampTest(test3);
-  const test50 = Math.min(50, Math.round((totalTest / CLASS_TEST_TOTAL_MAX) * 50));
-  const exams50 = Math.min(50, Math.round((Number(examsScore) / 100) * 50));
+  const clampTest = value => value === '' ? '' : Number(value);
+  const totalTest = [arrivalTest, test1, test2, test3].reduce((sum, value) => sum + (Number(value) || 0), 0);
+  const classWeight = Number(academicSettings?.classTestWeight ?? 50);
+  const examWeight = Number(academicSettings?.examWeight ?? 50);
+  const test50 = Number((totalTest / CLASS_TEST_TOTAL_MAX * classWeight).toFixed(2));
+  const exams50 = Number((Number(examsScore || 0) / 100 * examWeight).toFixed(2));
   const totalScore = test50 + exams50;
-
-  const getGrade = (score) => {
-    if (score >= 80) return { grade: '1', remarks: 'Highly Proficient' };
-    if (score >= 75) return { grade: '2', remarks: 'Proficient' };
-    if (score >= 65) return { grade: '3', remarks: 'Approaching Proficiency' };
-    if (score >= 60) return { grade: '4', remarks: 'Developing' };
-    if (score >= 55) return { grade: '5', remarks: 'Emerging' };
-    if (score >= 50) return { grade: '6', remarks: 'Average' };
-    if (score >= 40) return { grade: '7', remarks: 'Pass' };
-    if (score >= 36) return { grade: '8', remarks: 'Weak' };
-    return { grade: '9', remarks: 'Fail' };
-  };
-  const { grade, remarks } = getGrade(totalScore);
+  const grade = savedEntry?.hasExamScore && !dirty.current ? savedEntry.grade || '' : '';
+  const remarks = savedEntry?.hasExamScore && !dirty.current ? savedEntry.remarks || '' : 'Grade is available after a complete score is saved.';
 
   const buildEntry = (submitKind) => {
     const submittingExam = submitKind === 'exam';
     const keepExam = Boolean(savedEntry?.hasExamScore || savedEntry?.examSubmitted);
-    const examRaw = submittingExam ? (Number(examsScore) || 0) : (keepExam ? savedEntry.examScore : null);
+    const examRaw = submittingExam ? (Number(examsScore) || 0) : (keepExam ? (savedEntry.rawExamScore ?? savedEntry.examScore) : null);
     const examConverted = submittingExam ? exams50 : (keepExam ? savedEntry.examScoreConverted : null);
-    const completeTotal = submittingExam || keepExam
-      ? (test50 + Number(examConverted || 0))
-      : null;
-    const completeGrade = completeTotal == null ? null : getGrade(completeTotal);
     return {
       submitKind,
-      studentId: selectedStudent.studentId || selectedStudent.id,
+      studentId: selectedStudent.id || selectedStudent.studentId,
       studentName: selectedStudent.fullName || selectedStudent.name,
       classLevel: cls,
       subClass,
@@ -274,13 +262,11 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
       classTestMax: CLASS_TEST_MAX,
       classTestTotalMax: CLASS_TEST_TOTAL_MAX,
       classTestTotal: totalTest,
-      classScore: test50,
+      classScore: totalTest / CLASS_TEST_TOTAL_MAX * 100,
       examScore: examRaw,
       examScoreMax: 100,
       examScoreConverted: examConverted,
-      score: completeTotal,
-      grade: completeGrade?.grade || null,
-      remarks: completeGrade?.remarks || (submittingExam ? remarks : 'Class score recorded'),
+
       teacherNote,
       term,
       year,
@@ -296,6 +282,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
     setSaving(true); setSaveError(''); setSaveNotice('');
     try {
       await persistStudentScores(saveScoreSheetEntry, buildEntry(kind));
+      dirty.current = false;
       setSavedAt(new Date().toLocaleString());
       setSaveNotice(kind === 'exam' ? 'Exam score saved to the database for approval.' : 'Class scores saved to the database.');
     } catch (error) { setSaveError(error.message || 'Scores could not be saved. Your inputs remain available to retry.'); }
@@ -305,7 +292,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
   const submitExamForApproval = () => saveScores('exam');
 
   return (
-    <div style={{ background: '#f0f4f8', padding: 16, borderRadius: 6, fontSize: 12, boxSizing: 'border-box', overflowX: 'hidden', width: '100%' }}>
+    <div onChange={() => { dirty.current = true; setSaveNotice(''); setSavedAt(''); }} style={{ background: '#f0f4f8', padding: 16, borderRadius: 6, fontSize: 12, boxSizing: 'border-box', overflowX: 'hidden', width: '100%' }}>
       <div style={{ background: '#38bdf8', color: '#0f172a', padding: '8px 14px', borderRadius: '4px 4px 0 0', fontWeight: 900, fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Score Sheet [Entry] 📝 <span style={{ fontSize: 11.5, opacity: 0.9, fontWeight: 700, marginLeft: 8 }}>({cls} · {subClass})</span></span>
         <span>REMALJ Carewell Inspirational School</span>
@@ -477,8 +464,8 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
                 <span>{totalTest} / {CLASS_TEST_TOTAL_MAX}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 800, background: '#fed7aa', padding: '4px 6px', borderRadius: 4 }}>
-                <span style={{ fontSize: 11 }}>Class test converted to 50%:</span>
-                <span>{test50} / 50</span>
+                <span style={{ fontSize: 11 }}>Class contribution preview ({classWeight}%):</span>
+                <span>{test50} / {classWeight}</span>
               </div>
             </div>
 
@@ -486,21 +473,22 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
               <div style={{ fontWeight: 800, fontSize: 11, color: '#0f3a4b', marginBottom: 8, borderBottom: '1px solid #cbd5e1', paddingBottom: 4 }}>Exams score</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <span style={{ fontSize: 11 }}>Exams score (100):</span>
-                <input type="number" min={0} max={100} value={examsScore} onChange={(e) => setExamsScore(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} style={{ width: 80, padding: 4, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right', fontWeight: 700 }} />
+                <input type="number" min={0} max={100} value={examsScore} onChange={(e) => setExamsScore(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: 80, padding: 4, border: '1px solid #cbd5e1', borderRadius: 4, textAlign: 'right', fontWeight: 700 }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 800, background: '#fed7aa', padding: '6px 8px', borderRadius: 4, marginBottom: 12 }}>
-                <span style={{ fontSize: 11 }}>Exams score converted to 50%:</span>
-                <span>{exams50} / 50</span>
+                <span style={{ fontSize: 11 }}>Exam contribution preview ({examWeight}%):</span>
+                <span>{exams50} / {examWeight}</span>
               </div>
 
               <div style={{ fontWeight: 800, fontSize: 11, color: '#0f3a4b', marginBottom: 4 }}>Scores summary</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 900, background: '#fed7aa', padding: '8px 10px', borderRadius: 4, fontSize: 13, color: '#9a3412' }}>
-                <span>Total score (100%):</span>
+                <span>Unsaved total preview:</span>
                 <span>{totalScore} / 100</span>
               </div>
             </div>
           </div>
 
+          {savedEntry && <p role="status">Last database result: {savedEntry.hasExamScore ? `${savedEntry.score ?? 'Not available'} / 100 · Grade ${savedEntry.grade || 'Not available'}` : 'Class score recorded · Exam not submitted'} ({savedEntry.status})</p>}
           <div style={{ marginTop: 14, background: '#f8fafc', border: '1px solid #e2e8f0', padding: 12, borderRadius: 6 }}>
             <div style={{ fontWeight: 800, fontSize: 11, color: '#0f3a4b', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>Grading</span>

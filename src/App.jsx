@@ -1,115 +1,252 @@
-import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Topbar from './components/Topbar/Topbar';
 import LoginPage from './components/Login/LoginPage';
-import { PortalDataProvider, usePortalData } from './data/PortalStore';
-import { api, getAuthToken, setAuthUser, getAuthUser, clearAuthSession, clearLegacySchoolCache, consumeFreshAdminLogin, normalizeSessionUser } from './services/api';
-import { portalForRole } from './lib/recordRules.js';
+import TeacherPortal from './portals/TeacherPortal';
+import ParentPortal from './portals/ParentPortal';
+import StudentPortal from './portals/StudentPortal';
+import AdminPortal from './portals/AdminPortal';
+import AccountantPortal from './portals/AccountantPortal';
+import { PortalDataProvider } from './data/PortalStore';
+import { setAuthToken, setAuthUser } from './services/api';
 import './App.css';
-import { loadAdminPortal } from './lib/adminPortalLoader.js';
 
-const portals = {
-  admin: lazy(loadAdminPortal),
-  accountant: lazy(() => import('./portals/AccountantPortal')),
-  teacher: lazy(() => import('./portals/TeacherPortal')),
-  parent: lazy(() => import('./portals/ParentPortal')),
-  student: lazy(() => import('./portals/StudentPortal')),
+const REQUIRES_AUTH = ['admin', 'accountant', 'parent', 'teacher', 'student'];
+
+const PORTAL_DEFAULT_NAV = {
+  admin: 'Dashboard',
+  teacher: 'Dashboard',
+  parent: 'Dashboard',
+  student: 'My Dashboard',
+  accountant: 'Financial Overview',
 };
 
-function PortalRoutes({ session, verifySession }) {
-  const location = useLocation();
-  const activePortal = location.pathname.split('/')[1] || 'admin';
-  const authorizedPortal = portalForRole(session?.role);
-  const isAuthed = Boolean(session && authorizedPortal === activePortal);
-  const { backendConnected, isRefreshingBackend, showingCachedData, syncErrors = {} } = usePortalData();
-  const [warning, setWarning] = useState(false);
-  const [authError, setAuthError] = useState('');
-  useEffect(() => {
-    if (!session) return;
-    let warningTimer, logoutTimer;
-    const reset = () => {
-      clearTimeout(warningTimer); clearTimeout(logoutTimer); setWarning(false);
-      warningTimer = setTimeout(() => setWarning(true), 270000);
-      logoutTimer = setTimeout(clearAuthSession, 300000);
-    };
-    const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
-    events.forEach(event => window.addEventListener(event, reset)); reset();
-    return () => { clearTimeout(warningTimer); clearTimeout(logoutTimer); events.forEach(event => window.removeEventListener(event, reset)); };
-  }, [session]);
-  const onLoginSuccess = async (adminRole) => {
-    try {
-      setAuthError('');
-      await verifySession(adminRole, true);
-      localStorage.setItem(`says_${activePortal}_active_nav`, activePortal === 'accountant' ? 'Financial Overview' : activePortal === 'student' ? 'My Dashboard' : 'Dashboard');
-    } catch (error) { setAuthError(error.message); throw error; }
-  };
-  return <div className="app" id="app-root">
-    <Topbar activePortal={activePortal} isAuthed={isAuthed} onSignOut={clearAuthSession} adminRole={session?.role} />
-    {session && isRefreshingBackend && <p role="status" style={{ padding: 8 }}>{showingCachedData ? "Showing saved records while checking the database…" : "Refreshing database records…"}</p>}
-    {authError && <p role="alert" style={{ padding: 16, color: '#b91c1c' }}>{authError} Please sign in again.</p>}
-    {session && Object.keys(syncErrors).length > 0 && <p role="status" style={{ padding: 16, background: '#fff7ed' }}>{backendConnected ? 'Some database records could not be refreshed.' : 'Database connection unavailable.'} Displayed records may be out of date. Failed saves will be reported.</p>}
-    {warning && <p role="alert" style={{ padding: 16, background: '#fff7ed' }}>Your session will close in 30 seconds due to inactivity. <button onClick={() => setWarning(false)}>Stay logged in</button></p>}
-    <main className="portal-wrapper" key={`${session?.id || 'login'}-${activePortal}`}>
-      <Suspense fallback={<p role="status">Loading portal…</p>}>
-        <Routes>
-          <Route path="/" element={<Navigate to={`/${authorizedPortal || 'admin'}`} replace />} />
-          {Object.entries(portals).map(([key, Component]) => <Route key={key} path={`/${key}`} element={
-            !session ? <LoginPage portal={key} onLoginSuccess={onLoginSuccess} /> :
-            authorizedPortal !== key ? <Navigate to={`/${authorizedPortal}`} replace /> :
-            <Component onSignOut={clearAuthSession} initialAdminRole={session.role} />
-          } />)}
-          <Route path="*" element={<Navigate to={`/${authorizedPortal || 'admin'}`} replace />} />
-        </Routes>
-      </Suspense>
-    </main>
-  </div>;
+function openPortalOnDashboard(portalKey) {
+  const nav = PORTAL_DEFAULT_NAV[portalKey] || 'Dashboard';
+  try {
+    localStorage.setItem(`says_${portalKey}_active_nav`, nav);
+  } catch (e) {}
 }
-export default function App() {
-  const [session, setSession] = useState(null);
-  const [checking, setChecking] = useState(true);
-  const generation = useRef(0);
-  const verifySession = useCallback(async (selectedAdminRole, allowFreshLogin = false) => {
-    const attempt = ++generation.current;
-    const token = getAuthToken();
-    if (!token) throw new Error('A database login is required.');
+
+function DirectAccessNotice() {
+  return (
+    <div style={{
+      maxWidth: 600, margin: '60px auto', padding: 32, background: '#fff',
+      borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', textAlign: 'center'
+    }}>
+      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, color: 'var(--gray-900)', marginBottom: 12 }}>
+        REMALJ Carewell Portals
+      </h2>
+      <p style={{ color: 'var(--gray-600)', fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>
+        To access your designated school portal, please enter the direct forward slash URL in your browser address bar:
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
+        <div style={{ padding: 12, background: 'var(--gray-50)', borderRadius: 8, border: '1px solid var(--gray-200)' }}>
+          <code>/admin</code> — Administrator Portal (Student Onboarding & Roster)
+        </div>
+        <div style={{ padding: 12, background: 'var(--gray-50)', borderRadius: 8, border: '1px solid var(--gray-200)' }}>
+          <code>/accountant</code> — Accountant Portal (Payments & Fee Notices)
+        </div>
+        <div style={{ padding: 12, background: 'var(--gray-50)', borderRadius: 8, border: '1px solid var(--gray-200)' }}>
+          <code>/parent</code> — Parent Portal (Child Progress & Fees)
+        </div>
+        <div style={{ padding: 12, background: 'var(--gray-50)', borderRadius: 8, border: '1px solid var(--gray-200)' }}>
+          <code>/teacher</code> — Staff / Teacher Portal (Grading & Attendance)
+        </div>
+        <div style={{ padding: 12, background: 'var(--gray-50)', borderRadius: 8, border: '1px solid var(--gray-200)' }}>
+          <code>/student</code> — Student Portal (Grades & Timetable)
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AppRoutes() {
+  const location = useLocation();
+
+  // Portals require authentication sign-in (persisted across page refresh)
+  const [authed, setAuthed] = useState(() => {
     try {
-      const freshUser = allowFreshLogin ? consumeFreshAdminLogin() : null;
-      let raw;
-      if (freshUser) raw = { user: freshUser };
-      else {
-        try { raw = await api.getCurrentSession(); }
-        catch (error) {
-          // Older deployed backends have no /auth/me. Keep their authenticated
-          // login session; protected API requests still enforce the token.
-          if (error.status !== 404 && error.status !== 405) throw error;
-          raw = { user: getAuthUser() };
-        }
-      }
-      const user = normalizeSessionUser(raw.user || raw.data?.user || raw.data || raw);
-      if (!user?.id || !portalForRole(user.role) || user.requiresSecondFactor === true || user.requires_second_factor === true) throw new Error('The server has not confirmed a complete authorized session.');
-      if (attempt !== generation.current || token !== getAuthToken()) return;
-      // Restore the original PIN-selected admin view while retaining server authentication.
-      const previousUser = getAuthUser();
-      const adminRole = selectedAdminRole || (String(previousUser?.id) === String(user.id) ? previousUser?.adminRole : null);
-      const restoredUser = portalForRole(user.role) === 'admin' && ['head_admin', 'sub_admin'].includes(adminRole)
-        ? { ...user, role: adminRole, adminRole }
-        : user;
-      setAuthUser(restoredUser); setSession(restoredUser);
-    } catch (error) {
-      if (attempt === generation.current && [401, 403].includes(error.status)) clearAuthSession();
-      throw error;
-    }
-  }, []);
+      const stored = localStorage.getItem('says_authed_portals');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {}
+    return {
+      admin: false,
+      accountant: false,
+      parent: false,
+      teacher: false,
+      student: false,
+    };
+  });
+
+  const [adminRole, setAdminRole] = useState(() => {
+    return localStorage.getItem('says_admin_role') || 'head_admin';
+  });
+
   useEffect(() => {
-    clearLegacySchoolCache();
-    const clear = () => { generation.current += 1; setSession(null); setChecking(false); };
-    window.addEventListener('says_session_cleared', clear);
-    if (getAuthToken()) verifySession().catch(() => {}).finally(() => setChecking(false));
-    else setChecking(false);
-    return () => { generation.current += 1; window.removeEventListener('says_session_cleared', clear); };
-  }, [verifySession]);
-  if (checking) return <p role="status">Verifying database session…</p>;
-  return <HashRouter><PortalDataProvider key={session ? `${session.id}:${session.role}` : 'signed-out'} enabled={Boolean(session)}>
-    <PortalRoutes session={session} verifySession={verifySession} />
-  </PortalDataProvider></HashRouter>;
+    try {
+      localStorage.setItem('says_authed_portals', JSON.stringify(authed));
+    } catch (e) {}
+  }, [authed]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('says_admin_role', adminRole);
+    } catch (e) {}
+  }, [adminRole]);
+
+  const getPortalFromPath = (pathname) => {
+    if (pathname.includes('/admin')) return 'admin';
+    if (pathname.includes('/accountant')) return 'accountant';
+    if (pathname.includes('/parent')) return 'parent';
+    if (pathname.includes('/student')) return 'student';
+    if (pathname.includes('/teacher')) return 'teacher';
+    return 'admin';
+  };
+
+  const activePortal = getPortalFromPath(location.pathname);
+  const isAuthed = authed[activePortal];
+
+  const handleSignOut = () => {
+    setAuthToken(null);
+    setAuthUser(null);
+    setAuthed((prev) => {
+      const next = { ...prev, [activePortal]: false };
+      try {
+        localStorage.setItem('says_authed_portals', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  };
+
+  // Automatic Inactivity Logout (5 minutes timeout)
+  const [inactivityWarning, setInactivityWarning] = useState(false);
+  const [logoutNotice, setLogoutNotice] = useState('');
+
+  useEffect(() => {
+    if (!isAuthed) return;
+
+    let warningTimer = null;
+    let logoutTimer = null;
+
+    const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+    const WARNING_TIMEOUT = 4.5 * 60 * 1000; // 4 minutes 30 seconds
+
+    const resetInactivityTimer = () => {
+      if (warningTimer) clearTimeout(warningTimer);
+      if (logoutTimer) clearTimeout(logoutTimer);
+      setInactivityWarning(false);
+
+      warningTimer = setTimeout(() => {
+        setInactivityWarning(true);
+      }, WARNING_TIMEOUT);
+
+      logoutTimer = setTimeout(() => {
+        handleSignOut();
+        setInactivityWarning(false);
+        setLogoutNotice(`⏱️ Automatic Security Logout: You were automatically signed out from the ${activePortal.toUpperCase()} portal after 5 minutes of inactivity for institutional data security.`);
+        setTimeout(() => setLogoutNotice(''), 10000);
+      }, INACTIVITY_TIMEOUT);
+    };
+
+    const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+    events.forEach(evt => window.addEventListener(evt, resetInactivityTimer));
+
+    resetInactivityTimer();
+
+    return () => {
+      if (warningTimer) clearTimeout(warningTimer);
+      if (logoutTimer) clearTimeout(logoutTimer);
+      events.forEach(evt => window.removeEventListener(evt, resetInactivityTimer));
+    };
+  }, [isAuthed, activePortal]);
+
+  const renderPortalView = (portalKey, Component) => {
+    if (!authed[portalKey]) {
+      return (
+        <LoginPage
+          portal={portalKey}
+          onLoginSuccess={(role) => {
+            openPortalOnDashboard(portalKey);
+            if (role) {
+              setAdminRole(role);
+              localStorage.setItem('says_admin_role', role);
+              window.dispatchEvent(new Event('says_admin_role_changed'));
+            }
+            setAuthed((prev) => {
+              const next = { ...prev, [portalKey]: true };
+              localStorage.setItem('says_authed_portals', JSON.stringify(next));
+              return next;
+            });
+          }}
+        />
+      );
+    }
+    return <Component onSignOut={handleSignOut} initialAdminRole={adminRole} />;
+  };
+
+  return (
+    <PortalDataProvider key={`${activePortal}-${Boolean(isAuthed)}`} enabled={Boolean(isAuthed)}>
+    <div className="app" id="app-root">
+      <Topbar
+        activePortal={activePortal}
+        isAuthed={isAuthed}
+        onSignOut={handleSignOut}
+        adminRole={adminRole}
+      />
+
+      {logoutNotice && (
+        <div style={{
+          background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b',
+          padding: '12px 20px', borderRadius: 8, margin: '16px 24px 0',
+          fontWeight: 800, fontSize: 13, textAlign: 'center', boxShadow: '0 4px 12px rgba(153,27,27,0.15)'
+        }}>
+          {logoutNotice}
+        </div>
+      )}
+
+      {inactivityWarning && (
+        <div style={{
+          position: 'fixed', top: 76, right: 24, zIndex: 999999,
+          background: '#991b1b', color: '#fff', padding: '12px 20px',
+          borderRadius: 10, boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+          fontWeight: 800, fontSize: 13, display: 'flex', alignItems: 'center', gap: 12
+        }}>
+          <span>⏱️ <strong>Inactivity Notice:</strong> Automatic logout in 30 seconds due to 5 minutes of idle time.</span>
+          <button
+            onClick={() => setInactivityWarning(false)}
+            style={{ padding: '5px 12px', background: '#fff', color: '#991b1b', border: 'none', borderRadius: 6, fontWeight: 900, cursor: 'pointer' }}
+          >
+            Stay Logged In
+          </button>
+        </div>
+      )}
+
+      <div
+        key={`${activePortal}-${isAuthed}-${location.pathname}`}
+        className="portal-wrapper animate-portal"
+        role="tabpanel"
+        aria-labelledby={`tab-${activePortal}`}
+      >
+        <Routes>
+          <Route path="/" element={<Navigate to="/admin" replace />} />
+          <Route path="/admin" element={renderPortalView('admin', AdminPortal)} />
+          <Route path="/accountant" element={renderPortalView('accountant', AccountantPortal)} />
+          <Route path="/parent" element={renderPortalView('parent', ParentPortal)} />
+          <Route path="/teacher" element={renderPortalView('teacher', TeacherPortal)} />
+          <Route path="/student" element={renderPortalView('student', StudentPortal)} />
+          <Route path="*" element={<Navigate to="/admin" replace />} />
+        </Routes>
+      </div>
+    </div>
+    </PortalDataProvider>
+  );
+}
+
+export default function App() {
+  return (
+      <HashRouter>
+        <AppRoutes />
+      </HashRouter>
+  );
 }

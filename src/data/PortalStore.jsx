@@ -1,3 +1,4 @@
+import { validateAcademicSettings } from '../lib/assessmentRules.js';
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { api, extractStudentList, extractExamRegistrations, mapExamRegistration, getUserFullName, hasLiveDatabaseSession, getAuthToken, getAuthUser, mapScoreSheetEntry } from '../services/api';
 import { registerCustomSubClass, getCustomSubClassMap } from './classStructure';
@@ -1098,7 +1099,7 @@ export function mapFeeFromApi(f = {}) {
   ) || 0;
   const balanceRaw = f.balance ?? f.current_balance ?? f.amount_due ?? f.outstanding;
   const balance = balanceRaw === undefined || balanceRaw === null
-    ? Math.max(0, billedAmount - paidAmount)
+    ? billedAmount - paidAmount
     : Number(balanceRaw) || 0;
   const status = f.status
     || (balance <= 0 && billedAmount > 0 ? 'Paid' : paidAmount > 0 ? 'Balance Due' : 'Not Paid');
@@ -2396,6 +2397,7 @@ export function PortalDataProvider({ children, enabled = false }) {
     ...data,
     academicSettings: data.academicSettings || INITIAL_DATA.academicSettings,
     updateAcademicSettings: async (newSettings) => {
+      validateAcademicSettings(newSettings);
       const raw = await api.updateAcademicSettings(newSettings);
       const saved = raw.settings || raw.data || raw;
       if (!saved.academicYear || !saved.academicTerm) throw new Error('The server did not return the saved academic settings.');
@@ -2449,7 +2451,11 @@ export function PortalDataProvider({ children, enabled = false }) {
       api.recordResult(result).catch((e) => console.warn('Backend result record fallback:', e));
     },
     approveResult: async (id, note) => {
-      await api.updateResultStatus(id, { status: 'Approved', decline_note: 'Approved' === 'Declined' ? note : undefined });
+      const record = dataRef.current.results.find(r => r.id === id || r.backendId === id);
+      if (record?.backendId) {
+        if (!hasRecordedExamScore(record)) throw new Error('Class-only drafts cannot be published.');
+        await api.publishScoreSheet(record.backendId);
+      } else await api.updateResultStatus(id, { status: 'Approved' });
       setData(current => ({ ...current, results: current.results.map(r => r.id === id ? { ...r, status: 'Approved', declineNote: 'Approved' === 'Declined' ? note : null } : r) }));
     },
     declineResult: async (id, note) => {
@@ -3354,22 +3360,29 @@ export function PortalDataProvider({ children, enabled = false }) {
     saveScoreSheetEntry: async (entry) => {
       requireLiveDatabase('Saving this score sheet');
       if (!entry.studentId) throw new Error('Select a student before saving scores.');
+      const rosterStudent = (dataRef.current.onboardedStudents || []).find(student => [student.id, student.studentId].some(id => id && String(id) === String(entry.studentId)));
+      entry = { ...entry, studentId: rosterStudent?.id || entry.studentId };
       const entryKey = scoreSheetEntryKey(entry);
       if (writeLocksRef.current.has(entryKey)) throw new Error('This score sheet is already being saved.');
       writeLocksRef.current.add(entryKey);
       mutationEpochRef.current += 1;
       try {
-        const existing = (dataRef.current.results || []).find(r => scoreSheetEntryKey(r) === entryKey);
-        const payload = { ...existing, ...entry, entryKey, status: entry.hasExamScore ? 'Pending Approval' : 'Class Score Recorded' };
+        const existing = (dataRef.current.results || []).find(r => scoreSheetEntryKey({ ...r, studentId: rosterStudent && [rosterStudent.id, rosterStudent.studentId].includes(r.studentId) ? rosterStudent.id : r.studentId }) === entryKey);
+        if (/published|approved/i.test(existing?.status || '')) throw new Error('Published scores require an approved correction workflow.');
+        if (entry.submitKind === 'class' && existing?.hasExamScore) {
+          if (existing.rawExamScore == null) throw new Error('Reopen the saved sheet to load its raw exam score before editing class marks.');
+          entry = { ...entry, examScore: existing.rawExamScore, rawExamScore: existing.rawExamScore, hasExamScore: true };
+        }
+        const payload = { ...existing, ...entry, rawExamScore: entry.examScore, entryKey, status: entry.hasExamScore ? 'Pending Approval' : 'Class Score Recorded' };
         const raw = existing?.backendId
           ? await api.updateScoreSheet(existing.backendId, payload)
           : await api.saveScoreSheet(payload);
         const record = raw.entry || raw.data || raw;
         const saved = mapScoreSheetEntry(record);
         if (!saved.id || !saved.studentId) throw new Error('The server did not return the saved score sheet. Refresh before retrying.');
-        if (String(saved.studentId) !== String(entry.studentId)) throw new Error('The server returned a different student record. Refresh before retrying.');
-        const persisted = { ...saved, backendId: saved.id, entryKey: scoreSheetEntryKey(saved) };
-        setData(current => ({ ...current, results: [persisted, ...(current.results || []).filter(r => scoreSheetEntryKey(r) !== entryKey)] }));
+        if (![entry.studentId, rosterStudent?.studentId].filter(Boolean).some(id => String(saved.studentId) === String(id))) throw new Error('The server returned a different student record. Refresh before retrying.');
+        const persisted = { ...saved, studentId: entry.studentId, backendId: saved.id, entryKey };
+        setData(current => ({ ...current, results: [persisted, ...(current.results || []).filter(r => r.id !== existing?.id && scoreSheetEntryKey(r) !== entryKey)] }));
         return persisted;
       } finally {
         mutationEpochRef.current += 1;

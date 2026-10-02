@@ -10,7 +10,7 @@ function Probe() {
 let mountVersion = 0;
 const root = createRoot(document.getElementById('root'));
 window.mountStore = (role = 'accountant', enabled = true, userId = 'test-user') => {
-  setAuthToken('test-token');setAuthUser({id:userId,role});
+  setAuthToken('eyJ-test-token');setAuthUser({id:userId,role});
   root.render(<PortalDataProvider key={`${role}-${enabled}-${++mountVersion}`} enabled={enabled}><Probe /></PortalDataProvider>);
 };
 window.mountStore('accountant', new URLSearchParams(location.search).has('enabled'));

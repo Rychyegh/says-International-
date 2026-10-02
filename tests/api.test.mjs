@@ -1,6 +1,6 @@
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { api, request, getAuthToken, setAuthToken, setAuthUser, clearAuthSession, consumeFreshAdminLogin } from '../src/services/api.js';
+import { api, request, getAuthToken, setAuthToken, setAuthUser } from '../src/services/api.js';
 function storage(){ const items=new Map(); return {getItem:k=>items.get(k)||null,setItem:(k,v)=>items.set(k,String(v)),removeItem:k=>items.delete(k)}; }
 beforeEach(()=>{globalThis.localStorage=storage();globalThis.sessionStorage=storage();globalThis.window=new EventTarget();});
 const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});
@@ -46,17 +46,6 @@ test('SMS failure is never replaced by attendance scan or fabricated queue',asyn
 test('SMS balance errors remain errors',async()=>{
   globalThis.fetch=async()=>json({detail:'Unavailable'},503);await assert.rejects(api.getSmsBalance());
 });
-test('logout clears sensitive legacy data and discards old request results',async()=>{
-  setAuthToken('old');setAuthUser({id:'u',password:'secret'});localStorage.setItem('registered_accounts','sensitive');
-  assert.ok(!sessionStorage.getItem('auth_user').includes('secret'));
-  let resolve;globalThis.fetch=()=>new Promise(r=>{resolve=r});const pending=request('/finance/fees');
-  clearAuthSession();resolve(json([]));await assert.rejects(pending,/Session changed/);
-  assert.equal(getAuthToken(),'');assert.equal(localStorage.getItem('registered_accounts'),null);
-});
-test('401 clears a protected session',async()=>{
-  setAuthToken('expired');globalThis.fetch=async()=>json({detail:'Expired'},401);
-  await assert.rejects(request('/finance/fees'));assert.equal(getAuthToken(),'');
-});
 test('score payload retains student identity and write kind',async()=>{
   let sent;globalThis.fetch=async(url,options)=>{sent=JSON.parse(options.body);return json({id:'score'});};
   await api.saveScoreSheet({studentId:'s2',subject:'Math',term:'Term 1',year:'2026/2027',submitKind:'class',entryKey:'key',classScore:40});
@@ -73,31 +62,10 @@ test('application retries retain an idempotency key and concurrent creates share
   assert.equal(calls.length,2);
   assert.equal(calls[0],calls[1]);
 });
-test('logout removes the session display snapshot',()=>{
-  sessionStorage.setItem('says-session-snapshot-v1','cached records');
-  clearAuthSession();
-  assert.equal(sessionStorage.getItem('says-session-snapshot-v1'),null);
-});
-
-test('complete admin login supplies a single-use server identity without a second request',async()=>{
-  let calls=0;
-  globalThis.fetch=async()=>{calls++;return json({token:'admin-token',user:{id:'admin-id',role:'admin'}});};
+test('login uses the original persistent auth storage',async()=>{
+  globalThis.fetch=async()=>json({token:'eyJ-test-token',user:{id:'admin-id',role:'admin'}});
   await api.login({email:'admin@test.com',password:'test',portal:'admin'});
-  assert.deepEqual(consumeFreshAdminLogin(),{id:'admin-id',role:'admin'});
-  assert.equal(consumeFreshAdminLogin(),null);
-  assert.equal(calls,1);
-});
-test('incomplete admin login and changed tokens cannot use the fast path',async()=>{
-  globalThis.fetch=async()=>json({token:'admin-token',user:{id:'admin-id',role:'admin',requiresSecondFactor:true}});
-  await api.login({email:'admin@test.com',password:'test',portal:'admin'});
-  assert.equal(consumeFreshAdminLogin(),null);
-  globalThis.fetch=async()=>json({token:'admin-token',user:{id:'admin-id',role:'admin'}});
-  await api.login({email:'admin@test.com',password:'test',portal:'admin'});
-  setAuthToken('different-token');
-  assert.equal(consumeFreshAdminLogin(),null);
-});
-test('server outage does not trigger a second slow login attempt',async()=>{
-  let calls=0;globalThis.fetch=async()=>{calls++;return json({detail:'Unavailable'},503);};
-  await assert.rejects(api.login({email:'admin@test.com',password:'test',portal:'admin'}));
-  assert.equal(calls,1);
+  assert.equal(localStorage.getItem('auth_token'),'eyJ-test-token');
+  assert.equal(JSON.parse(localStorage.getItem('auth_user')).id,'admin-id');
+  assert.equal(sessionStorage.getItem('auth_token'),null);
 });

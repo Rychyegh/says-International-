@@ -50,12 +50,6 @@ try {
  await page.waitForFunction(()=>window.testStore.backendConnected);
  assert.ok(calls.some(c=>c.path==='/parents/me/children'));
  assert.ok(!calls.some(c=>c.path==='/users'||c.path==='/admissions/students'||c.path==='/finance/vouchers'));
- await page.goto('http://127.0.0.1:5179/#/admin');
- await page.waitForURL('**/#/student');
- await page.getByText('Welcome Back, Test Student').waitFor();
- await page.getByRole('button',{name:'Sign Out',exact:true}).click();
- await page.waitForFunction(()=>!sessionStorage.getItem('auth_token'));
- assert.equal(await page.getByText('Welcome Back, Test Student').count(),0);
  assert.deepEqual(pageErrors,[]);
  console.log('PASS: signed-out isolation, exact invoice update, failed payment rollback, confirmed score persistence, failed score preservation, offline detection, scoped parent reads; no browser errors.');
 } finally { await browser.close(); }

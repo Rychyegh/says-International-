@@ -1,3 +1,4 @@
+import { rawAssessment, normalizeAssessment } from '../lib/assessmentRules.js';
 import { stripCredentials } from '../lib/recordRules.js';
 /**
  * REMALJ Carewell Inspirational School - Backend & SMS Gateway API Service Client
@@ -5,6 +6,7 @@ import { stripCredentials } from '../lib/recordRules.js';
  * SMS Gateway: SMSOnlineGH (v4 API)
  */
 
+const LIVE_API_ORIGIN = 'https://rcis-backend.onrender.com/api/v1';
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || 'https://rcis-backend.onrender.com/api/v1';
 
 
@@ -22,62 +24,33 @@ export function extractAuthToken(res) {
   ).trim();
 }
 
-export function normalizeSessionUser(user) {
-  if (!user || typeof user !== 'object') return null;
-  const role = String(user.role || user.adminRole || user.user_role || '').trim().toLowerCase().replace(/[ -]/g, '_');
-  const roles = { administrator: 'admin', superadmin: 'super_admin', headadmin: 'head_admin', subadmin: 'sub_admin' };
-  return { ...user, id: user.id || user.user_id || user.uuid || user.sub || user.email,
-    role: roles[role] || role };
-}
-
-let freshAdminLogin = null;
-function rememberAdminLogin(res, portal) {
-  const user = normalizeSessionUser(res?.user || res?.data?.user);
-  const token = extractAuthToken(res);
-  if (portal === 'admin' && token && user?.id && ['admin', 'head_admin', 'sub_admin', 'super_admin'].includes(user.role)
-      && res.requiresSecondFactor !== true && res.requires_second_factor !== true
-      && user.requiresSecondFactor !== true && user.requires_second_factor !== true) {
-    freshAdminLogin = { token, user: { ...user }, expiresAt: Date.now() + 120000 };
-  }
-}
-export function consumeFreshAdminLogin() {
-  const fresh = freshAdminLogin;
-  freshAdminLogin = null;
-  return fresh && fresh.token === getAuthToken() && Date.now() < fresh.expiresAt ? fresh.user : null;
-}
-
 function applyAuthSession(res) {
   const token = extractAuthToken(res);
   if (token) setAuthToken(token);
-  const user = normalizeSessionUser(res?.user || res?.data?.user);
+  const user = res?.user || res?.data?.user;
   if (user) setAuthUser(user);
   return token;
 }
 
-export function hasLiveDatabaseSession() { return Boolean(getAuthToken()); }
-export function getAuthToken() { return sessionStorage.getItem('auth_token') || ''; }
+export function hasLiveDatabaseSession() {
+  return String(getAuthToken() || '').startsWith('eyJ');
+}
+
+export function getAuthToken() {
+  return localStorage.getItem('auth_token') || '';
+}
+
 export function setAuthToken(token) {
-  localStorage.removeItem('auth_token');
-  if (token) sessionStorage.setItem('auth_token', token);
-  else sessionStorage.removeItem('auth_token');
-}
-export function clearLegacySchoolCache() {
-  ['auth_token', 'auth_user', 'says_authed_portals', 'says_admin_role',
-    'registered_accounts', 'remalj-portal-live-data-v3', 'says_service_providers',
-    'official_pv_queue', 'says_read_pv_notifs', 'says_cleared_pv_notifs'].forEach(key => localStorage.removeItem(key));
-}
-export function clearAuthSession() {
-  freshAdminLogin = null;
-  setAuthToken(null);
-  setAuthUser(null);
-  clearLegacySchoolCache();
-  sessionStorage.removeItem('says-session-snapshot-v1');
-  window.dispatchEvent(new Event('says_session_cleared'));
+  if (token) {
+    localStorage.setItem('auth_token', token);
+  } else {
+    localStorage.removeItem('auth_token');
+  }
 }
 
 export function getAuthUser() {
   try {
-    const saved = sessionStorage.getItem('auth_user');
+    const saved = localStorage.getItem('auth_user');
     return saved ? JSON.parse(saved) : null;
   } catch {
     return null;
@@ -101,9 +74,9 @@ export function getUserFullName(user = getAuthUser()) {
 
 export function setAuthUser(user) {
   if (user) {
-    sessionStorage.setItem('auth_user', JSON.stringify(stripCredentials(user)));
+    localStorage.setItem('auth_user', JSON.stringify(user));
   } else {
-    sessionStorage.removeItem('auth_user');
+    localStorage.removeItem('auth_user');
   }
 }
 
@@ -119,7 +92,85 @@ async function createOnce(endpoint, payload) {
   try { return await operation; } finally { pendingCreates.delete(scope); }
 }
 
+async function originalAuthRequest(endpoint, options = {}) {
+  const urls = [`${API_BASE_URL}${endpoint}`];
+  if (import.meta.env?.DEV && API_BASE_URL.startsWith('/') && LIVE_API_ORIGIN) {
+    urls.push(`${LIVE_API_ORIGIN}${endpoint}`);
+  }
+  const token = getAuthToken();
+
+  const headers = {
+    ...options.headers,
+  };
+
+  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  if (token && String(token).startsWith('eyJ')) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const config = {
+    ...options,
+    headers,
+  };
+
+  let lastError = null;
+  for (const url of urls) {
+  try {
+    const response = await fetch(url, config);
+      const text = await response.text();
+      let data = null;
+      if (text && text.trim()) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = null;
+        }
+      }
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status} ${response.statusText}`;
+        if (data && data.detail) {
+          if (Array.isArray(data.detail)) {
+            console.error(`[FastAPI 422 Validation Error on ${endpoint}]:`, data.detail);
+            const formatted = data.detail
+              .map(d => {
+                const loc = Array.isArray(d.loc) ? d.loc.filter(x => x !== 'body').join('.') : d.loc;
+                return `[${loc}]: ${d.msg}`;
+              })
+              .join('; ');
+            errorMessage = `FastAPI Validation Error (HTTP 422): ${formatted}`;
+          } else {
+            errorMessage = typeof data.detail === 'string'
+              ? data.detail
+              : JSON.stringify(data.detail);
+          }
+        } else if (data && data.message) {
+          errorMessage = data.message;
+        } else if (text && text.trim()) {
+          errorMessage = text.trim().slice(0, 300);
+        }
+        lastError = new Error(errorMessage);
+        lastError.status = response.status;
+        lastError.payload = data;
+        if (response.status >= 400 && response.status < 500) throw lastError;
+        continue;
+      }
+      if (data !== null && data !== undefined) return data;
+      return { success: true, status: response.status };
+  } catch (err) {
+      lastError = err;
+      if (err?.status >= 400 && err?.status < 500) throw err;
+      if (err && /FastAPI|HTTP 4/.test(String(err.message || ''))) throw err;
+    }
+  }
+  console.warn(`[API Client Warning] Request to ${endpoint} failed:`, lastError?.message);
+  throw lastError || new Error(`Request to ${endpoint} failed`);
+}
+
 export async function request(endpoint, options = {}) {
+  if (endpoint.startsWith('/auth/') || endpoint.startsWith('/sims-auth/')) return originalAuthRequest(endpoint, options);
   const token = getAuthToken();
   const headers = { ...options.headers };
   if (!(options.body instanceof FormData)) headers['Content-Type'] ||= 'application/json';
@@ -138,7 +189,6 @@ export async function request(endpoint, options = {}) {
       const error = new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
       error.status = response.status;
       error.payload = data;
-      if (response.status === 401 && token && !endpoint.startsWith('/auth/') && !endpoint.startsWith('/sims-auth/')) clearAuthSession();
       throw error;
     }
     if (response.status === 204) return { success: true, status: 204 };
@@ -399,6 +449,7 @@ async function runInChunks(items, worker, size = 5) {
 
 // Score sheet entries carry the full class-test breakdown so a saved sheet can be reopened and edited
 function scoreSheetPayload(entry) {
+  const raw = rawAssessment(entry);
   const subCls = entry.subClass || entry.sub_class || entry.subClassLevel || entry.classSection;
   return {
     entry_key: entry.entryKey || entry.entry_key,
@@ -411,7 +462,8 @@ function scoreSheetPayload(entry) {
     category: entry.category,
     instructor: entry.instructor,
     exam_date: entry.examDate || entry.exam_date,
-    class_test_max: entry.classTestMax,
+    score_format: 'raw',
+    class_test_max: raw.max,
     class_test_total_max: entry.classTestTotalMax,
     exam_score_max: entry.examScoreMax,
     scores: [
@@ -420,17 +472,13 @@ function scoreSheetPayload(entry) {
         student_code: entry.studentId || entry.student_id,
         student_name: entry.studentName || entry.student_name,
         sub_class: subCls,
-        arrival_test: Number(entry.arrivalTest ?? 0),
-        class_test_1: Number(entry.test1 ?? 0),
-        class_test_2: Number(entry.test2 ?? 0),
-        class_test_3: Number(entry.test3 ?? 0),
+        arrival_test: raw.marks[0],
+        class_test_1: raw.marks[1],
+        class_test_2: raw.marks[2],
+        class_test_3: raw.marks[3],
         class_test_total: entry.classTestTotal == null ? null : Number(entry.classTestTotal),
-        class_score: entry.classScore == null ? null : Number(entry.classScore),
-        exam_score: entry.examScore == null ? null : Number(entry.examScore),
-        exam_score_converted: entry.examScoreConverted == null ? null : Number(entry.examScoreConverted),
-        total_score: entry.score == null ? null : Number(entry.score),
-        grade: entry.grade || null,
-        remarks: entry.remarks || null,
+        class_score: raw.classScore,
+        exam_score: raw.examScore,
         teacher_note: entry.teacherNote ?? entry.teacher_note ?? '',
         has_class_score: entry.hasClassScore === true,
         has_exam_score: entry.hasExamScore === true,
@@ -444,40 +492,7 @@ function scoreSheetPayload(entry) {
   };
 }
 
-export function mapScoreSheetEntry(raw = {}) {
-  const score = Array.isArray(raw.scores) ? (raw.scores[0] || {}) : raw;
-  const subCls = raw.sub_class || raw.subClass || raw.sub_class_level || raw.subClassLevel || score.sub_class || score.subClass || '';
-  return {
-    id: raw.id || raw._id || score.id,
-    entryKey: raw.entry_key || raw.entryKey,
-    studentId: score.student_id || score.student_code || score.studentId,
-    studentName: score.student_name || score.studentName,
-    classLevel: raw.class_level || raw.classLevel,
-    subClass: subCls,
-    subClassLevel: subCls,
-    subject: raw.subject,
-    category: raw.category,
-    instructor: raw.instructor,
-    term: raw.term,
-    year: raw.academic_year || raw.academicYear || raw.year,
-    examDate: raw.exam_date || raw.examDate,
-    arrivalTest: score.arrival_test ?? score.arrivalTest ?? null,
-    test1: score.class_test_1 ?? score.test1 ?? null,
-    test2: score.class_test_2 ?? score.test2 ?? null,
-    test3: score.class_test_3 ?? score.test3 ?? null,
-    classTestTotal: score.class_test_total ?? score.classTestTotal ?? null,
-    classScore: score.class_score ?? score.classScore ?? null,
-    examScore: score.exam_score ?? score.examScore ?? null,
-    examScoreConverted: score.exam_score_converted ?? score.examScoreConverted ?? null,
-    score: score.total_score ?? score.score ?? null,
-    grade: score.grade || null,
-    remarks: score.remarks || null,
-    teacherNote: score.teacher_note ?? score.teacherNote ?? '',
-    hasClassScore: raw.has_class_score ?? score.has_class_score ?? raw.hasClassScore ?? score.hasClassScore,
-    hasExamScore: raw.has_exam_score ?? score.has_exam_score ?? raw.hasExamScore ?? score.hasExamScore,
-    status: raw.status || score.status || 'Class Score Recorded',
-  };
-}
+export const mapScoreSheetEntry = normalizeAssessment;
 
 function mapClassTeacherDashboard(res) {
   if (!res || typeof res !== 'object') return null;
@@ -590,7 +605,7 @@ function saveRegisteredAccount(acc) {
     const raw = localStorage.getItem('registered_accounts');
     const list = raw ? JSON.parse(raw) : {};
     list[acc.email.toLowerCase()] = acc;
-    localStorage.setItem('registered_accounts', JSON.stringify(stripCredentials(list)));
+    localStorage.setItem('registered_accounts', JSON.stringify(list));
   } catch (e) {}
 }
 
@@ -736,7 +751,7 @@ export function ensureDemoClassTeacherAccounts() {
         changed = true;
       }
     });
-    if (changed) localStorage.setItem('registered_accounts', JSON.stringify(stripCredentials(list)));
+    if (changed) localStorage.setItem('registered_accounts', JSON.stringify(list));
   } catch (e) {}
 }
 
@@ -749,13 +764,10 @@ export const api = {
   createFeePaymentBatch: (data, key) => request('/finance/payment-batches', { method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify(data) }),
   getReceipts: () => request('/finance/receipts'),
   createReceipt: (data, key) => request('/finance/receipts', { method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify(data) }),
-  getCurrentSession: () => request('/auth/me'),
-  verifyAdminPin: (pin) => request('/auth/verify-admin-pin', { method: 'POST', body: JSON.stringify({ pin }) }),
   getMyChildren: () => request('/parents/me/children'),
   getStudentDashboard: () => request('/students/me/dashboard'),
   // --- Auth & User Access ---
   login: async (credentials) => {
-    freshAdminLogin = null;
     // credentials: { email, password, portal }
     const payload = {
       email: credentials.email,
@@ -770,7 +782,6 @@ export const api = {
         body: JSON.stringify(payload),
       });
       applyAuthSession(res);
-      rememberAdminLogin(res, credentials.portal);
       if (!extractAuthToken(res) && credentials.portal && ['admin', 'accountant'].includes(String(credentials.portal).toLowerCase())) {
         try {
           const sims = await request('/sims-auth/login', {
@@ -781,7 +792,6 @@ export const api = {
             }),
           });
           applyAuthSession(sims);
-          rememberAdminLogin(sims, credentials.portal);
           return { ...res, ...sims };
         } catch {
     return res;
@@ -790,7 +800,7 @@ export const api = {
       return res;
     } catch (err) {
       const portal = String(credentials.portal || '').toLowerCase();
-      if ([401, 404, 405].includes(err.status) && ['admin', 'accountant', 'head_admin', 'sub_admin'].includes(portal)) {
+      if (['admin', 'accountant', 'head_admin', 'sub_admin'].includes(portal)) {
         try {
           const sims = await request('/sims-auth/login', {
             method: 'POST',
@@ -800,7 +810,6 @@ export const api = {
             }),
           });
           applyAuthSession(sims);
-          rememberAdminLogin(sims, credentials.portal);
           return sims;
         } catch {
           // keep original login error
@@ -890,7 +899,7 @@ export const api = {
         const key = (identifier || '').toLowerCase();
         if (list[key]) {
           list[key].password = newPassword;
-          localStorage.setItem('registered_accounts', JSON.stringify(stripCredentials(list)));
+          localStorage.setItem('registered_accounts', JSON.stringify(list));
         }
       }
     } catch (e) {}
@@ -961,7 +970,7 @@ export const api = {
         };
       }
 
-      localStorage.setItem('registered_accounts', JSON.stringify(stripCredentials(list)));
+      localStorage.setItem('registered_accounts', JSON.stringify(list));
     } catch (err) {}
 
     return res || { success: true, message: `System Administrator successfully updated password for user account [${cleanId}].` };
@@ -2051,10 +2060,10 @@ export const api = {
 
   getScoreSheetEntries: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
-    const res = await request(`/sims/score-sheets/entries${query ? `?${query}` : ''}`);
-    const rows = Array.isArray(res) ? res : (res.entries || res.data);
+    const res = await request(`/sims/score-sheets${query ? `?${query}` : ''}`);
+    const rows = Array.isArray(res) ? res : (res.scores || res.sheets || res.entries || res.items || res.data);
     if (!Array.isArray(rows)) throw new Error("Invalid score sheet list response.");
-    return rows.map(mapScoreSheetEntry);
+    return rows.flatMap(row => Array.isArray(row.scores) ? row.scores.map(score => mapScoreSheetEntry({ ...row, scores: [score] })) : [mapScoreSheetEntry(row)]);
   },
 
   saveScoreSheet: async (entry) => {
@@ -2064,12 +2073,15 @@ export const api = {
     });
   },
 
+  getScoreSheet: (id) => request(`/sims/score-sheets/${encodeURIComponent(id)}`),
   updateScoreSheet: async (entryId, entry) => {
-    return await request(`/sims/score-sheets/entry/${entryId}`, {
-      method: 'PUT',
-      body: JSON.stringify(scoreSheetPayload(entry)),
+    const raw = rawAssessment(entry);
+    if (raw.hasBreakdown) return api.saveScoreSheet(entry);
+    return request(`/sims/score-sheets/${encodeURIComponent(entryId)}`, {
+      method: 'PATCH', body: JSON.stringify({ class_score: raw.classScore, exam_score: raw.examScore, score_format: 'raw' }),
     });
   },
+  publishScoreSheet: (id) => request(`/sims/test-results/${encodeURIComponent(id)}/publish`, { method: 'POST' }),
 
   createSecurityAlert: async (alert) => {
     return await request('/auth/security-alerts', {

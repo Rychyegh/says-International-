@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { validateAcademicSettings } from '../../lib/assessmentRules.js';
 import { usePortalData } from '../../data/PortalStore';
 import { Settings, Calendar, Save, CheckCircle2, RefreshCw, ShieldCheck, Award, BookOpen, Building } from 'lucide-react';
 
@@ -7,22 +8,26 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
 
   const [year, setYear] = useState(academicSettings?.academicYear || '2025/2026');
   const [term, setTerm] = useState(academicSettings?.academicTerm || 'Term 3');
-  const [classWeight, setClassWeight] = useState(academicSettings?.classTestWeight || 50);
-  const [examWeight, setExamWeight] = useState(academicSettings?.examWeight || 50);
+  const [classWeight, setClassWeight] = useState(academicSettings?.classTestWeight ?? 50);
+  const [examWeight, setExamWeight] = useState(academicSettings?.examWeight ?? 50);
   const [schoolName, setSchoolName] = useState(academicSettings?.schoolName || 'REMALJ Carewell Inspirational School');
   const [schoolBranch, setSchoolBranch] = useState(academicSettings?.schoolBranch || 'Bogoso Main Campus');
   const [gradingSystem, setGradingSystem] = useState(academicSettings?.gradingSystem || 'BECE 9-Point Scale (GES Standard)');
-  const [resumptionDate, setResumptionDate] = useState(academicSettings?.resumptionDate || '2026-09-08');
-  const [vacationDate, setVacationDate] = useState(academicSettings?.vacationDate || '2026-12-18');
+  const [resumptionDate, setResumptionDate] = useState(academicSettings?.resumptionDate || '');
+  const [vacationDate, setVacationDate] = useState(academicSettings?.vacationDate || '');
 
   const [savedNotice, setSavedNotice] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const dirty = useRef(false);
 
   useEffect(() => {
-    if (academicSettings) {
+    if (academicSettings && !dirty.current) {
       if (academicSettings.academicYear) setYear(academicSettings.academicYear);
       if (academicSettings.academicTerm) setTerm(academicSettings.academicTerm);
-      if (academicSettings.classTestWeight) setClassWeight(academicSettings.classTestWeight);
-      if (academicSettings.examWeight) setExamWeight(academicSettings.examWeight);
+      if (academicSettings.classTestWeight != null) setClassWeight(academicSettings.classTestWeight);
+      if (academicSettings.examWeight != null) setExamWeight(academicSettings.examWeight);
       if (academicSettings.schoolName) setSchoolName(academicSettings.schoolName);
       if (academicSettings.schoolBranch) setSchoolBranch(academicSettings.schoolBranch);
       if (academicSettings.gradingSystem) setGradingSystem(academicSettings.gradingSystem);
@@ -34,21 +39,27 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
   const handleSave = async (e) => {
     if (e) e.preventDefault();
 
+    if (savingRef.current) return;
+    setSaveError(''); setSavedNotice('');
     const newSettings = {
       academicYear: year,
       academicTerm: term,
       classTestWeight: Number(classWeight),
       examWeight: Number(examWeight),
-      schoolName,
-      schoolBranch,
+      gradingBands: academicSettings?.gradingBands,
       gradingSystem,
       resumptionDate,
       vacationDate,
       updatedAt: new Date().toISOString()
     };
 
-    try { await updateAcademicSettings(newSettings); }
-    catch (error) { setSavedNotice(`Settings not saved: ${error.message}`); return; }
+    try {
+      validateAcademicSettings(newSettings);
+      savingRef.current = true; setSaving(true);
+      await updateAcademicSettings(newSettings);
+      dirty.current = false;
+    } catch (error) { setSaveError(`Settings not saved: ${error.message}`); return; }
+    finally { savingRef.current = false; setSaving(false); }
 
     setSavedNotice(`✅ Academic Settings Synchronized! Global Session set to ${year} (${term}).`);
     setTimeout(() => setSavedNotice(''), 4500);
@@ -70,7 +81,8 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
         )}
       </div>
 
-      <form onSubmit={handleSave} style={{ border: '1px solid #cbd5e1', borderTop: 'none', padding: 20, borderRadius: '0 0 10px 10px', background: '#f8fafc' }}>
+      <form onChange={() => { dirty.current = true; setSavedNotice(''); }} onSubmit={handleSave} style={{ border: '1px solid #cbd5e1', borderTop: 'none', padding: 20, borderRadius: '0 0 10px 10px', background: '#f8fafc' }}>
+        {saveError && <p role="alert" style={{ color: '#b91c1c' }}>{saveError}</p>}
         {savedNotice && (
           <div style={{ background: '#dcfce7', border: '1px solid #166534', color: '#166534', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontWeight: 800, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
             <CheckCircle2 size={18} />
@@ -156,15 +168,18 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
           </label>
           <select
             value={gradingSystem}
+            disabled
             onChange={(e) => setGradingSystem(e.target.value)}
             style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 700, fontSize: 12.5 }}
           >
             <option value="BECE 9-Point Scale (GES Standard)">BECE 9-Point Scale (1=Highest Proficiency, 9=Fail)</option>
             <option value="Standard Letter Grade (A-F)">Standard Letter Grade (A+, A, B, C, D, F)</option>
-            <option value="Custom Percentage Bands">Custom Percentage Scale (80%+ Grade 1, 75%+ Grade 2)</option>
+            <option value="Custom Percentage Bands">School-approved custom percentage scale</option>
           </select>
         </div>
 
+        <p>{academicSettings?.gradingBands?.length ? `${academicSettings.gradingBands.length} approved grading bands loaded. These will be preserved when saving.` : 'School-approved grading bands are not available. An administrator must configure them before these settings can be saved.'}</p>
+        <p>Institution and campus names are shown for reference. They are not saved by academic settings.</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
@@ -172,6 +187,7 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
             </label>
             <input
               type="text"
+              readOnly
               value={schoolName}
               onChange={(e) => setSchoolName(e.target.value)}
               style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 700, fontSize: 12 }}
@@ -183,6 +199,7 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
             </label>
             <input
               type="text"
+              readOnly
               value={schoolBranch}
               onChange={(e) => setSchoolBranch(e.target.value)}
               style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 700, fontSize: 12 }}
@@ -227,6 +244,7 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
           )}
           <button
             type="submit"
+            disabled={saving}
             style={{ padding: '10px 24px', borderRadius: 6, border: 'none', background: '#0284c7', color: '#fff', fontWeight: 900, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <Save size={16} /> Save & Synchronize Academic Settings
