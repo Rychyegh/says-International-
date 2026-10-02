@@ -83,19 +83,20 @@ function studentMatchesSelectedClass(student, classLevel, subClassLevel) {
 
 function persistStudentScores(saveScoreSheetEntry, payload) {
   if (typeof saveScoreSheetEntry !== 'function') return;
-  saveScoreSheetEntry(payload);
+  return saveScoreSheetEntry(payload);
 }
 
 export default function ScoreSheetEntryForm({ setM, students: propStudents, onViewTestRoll, initialTarget }) {
   const { academicSettings, onboardedStudents, saveScoreSheetEntry, results } = usePortalData();
+  const [saving, setSaving] = useState(false);
   const [saveNotice, setSaveNotice] = useState('');
   const [saveError, setSaveError] = useState('');
-  const students = (propStudents && propStudents.length > 0) ? propStudents : (onboardedStudents || []);
+  const students = Array.isArray(propStudents) ? propStudents : (onboardedStudents || []);
 
   const [studentSearch, setStudentSearch] = useState('');
   const [studentSort, setStudentSort] = useState('AZ'); // 'AZ' | 'ZA' | 'Class'
 
-  const initialStudent = students[0] || { fullName: 'NANA ADJOA ASARI SEREBOUR', studentId: '421270' };
+  const initialStudent = students[0] || { fullName: '', studentId: '' };
   const initialDetected = detectStudentClassAndSub(initialStudent);
 
   const [selectedStudent, setSelectedStudent] = useState(initialStudent);
@@ -110,11 +111,10 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
     if (initialTarget.subClass) setSubClass(initialTarget.subClass);
     if (initialTarget.subject) setSubject(initialTarget.subject);
     if (initialTarget.studentId || initialTarget.studentName) {
-      const match = students.find(s =>
-        (initialTarget.studentId && (s.studentId === initialTarget.studentId || s.id === initialTarget.studentId)) ||
-        (initialTarget.studentName && (s.fullName === initialTarget.studentName || s.name === initialTarget.studentName))
-      );
-      if (match) setSelectedStudent(match);
+      const matches = students.filter(s => initialTarget.studentId
+        ? [s.studentId, s.id].filter(Boolean).some(id => String(id) === String(initialTarget.studentId))
+        : initialTarget.studentName && (s.fullName === initialTarget.studentName || s.name === initialTarget.studentName));
+      setSelectedStudent(matches.length === 1 ? matches[0] : { fullName: '', studentId: '' });
     }
   }, [initialTarget, students]);
 
@@ -123,7 +123,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
   const [subject, setSubject] = useState('Mathematics');
   const [category, setCategory] = useState('Core');
   const [instructor, setInstructor] = useState(getUserFullName() || '');
-  const [examDate, setExamDate] = useState('2025-07-16');
+  const [examDate, setExamDate] = useState(new Date().toISOString().slice(0, 10));
 
   const [arrivalTest, setArrivalTest] = useState(0);
   const [test1, setTest1] = useState(0);
@@ -290,21 +290,19 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
     };
   };
 
-  const saveClassScores = () => {
-    persistStudentScores(saveScoreSheetEntry, buildEntry('class'));
-    const when = new Date().toLocaleString();
-    setSavedAt(when);
-    setSaveError('');
-    setSaveNotice(`Class scores saved for ${selectedStudent.fullName || selectedStudent.name}. No Head Admin approval is required.`);
+  const saveScores = async (kind) => {
+    if (saving) return;
+    if (!studentKey) { setSaveError('Select a student before saving.'); return; }
+    setSaving(true); setSaveError(''); setSaveNotice('');
+    try {
+      await persistStudentScores(saveScoreSheetEntry, buildEntry(kind));
+      setSavedAt(new Date().toLocaleString());
+      setSaveNotice(kind === 'exam' ? 'Exam score saved to the database for approval.' : 'Class scores saved to the database.');
+    } catch (error) { setSaveError(error.message || 'Scores could not be saved. Your inputs remain available to retry.'); }
+    finally { setSaving(false); }
   };
-
-  const submitExamForApproval = () => {
-    persistStudentScores(saveScoreSheetEntry, buildEntry('exam'));
-    const when = new Date().toLocaleString();
-    setSavedAt(when);
-    setSaveError('');
-    setSaveNotice(`Exam score for ${selectedStudent.fullName || selectedStudent.name} sent to Head Admin for approval. Only this student's ${subject} result was updated.`);
-  };
+  const saveClassScores = () => saveScores('class');
+  const submitExamForApproval = () => saveScores('exam');
 
   return (
     <div style={{ background: '#f0f4f8', padding: 16, borderRadius: 6, fontSize: 12, boxSizing: 'border-box', overflowX: 'hidden', width: '100%' }}>
@@ -423,9 +421,9 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
                 style={{ width: '100%', padding: '3px 6px', border: '1px solid #0f3a4b', borderRadius: 4, fontSize: 11, marginBottom: 4, background: '#f8fafc' }}
               />
               <select
-                value={filteredStudents.some((student) => (student.fullName || student.name) === (selectedStudent.fullName || selectedStudent.name)) ? (selectedStudent.fullName || selectedStudent.name) : ''}
+                value={filteredStudents.some(student => String(student.studentId || student.id) === String(studentKey)) ? studentKey : ''}
                 onChange={(e) => {
-                  const s = filteredStudents.find(x => (x.fullName || x.name) === e.target.value);
+                  const s = filteredStudents.find(x => String(x.studentId || x.id) === e.target.value);
                   if (s) setSelectedStudent(s);
                 }}
                 style={{ width: '100%', minWidth: 220, padding: '5px 8px', border: '1px solid #0f3a4b', borderRadius: 4, fontWeight: 800, fontSize: 12, background: '#ffffff', color: '#0f3a4b' }}
@@ -434,7 +432,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
                 {filteredStudents.map(s => {
                   const subTag = s.classSection || s.subClass ? ` · ${s.classSection || s.subClass}` : (s.level ? ` · ${s.level}` : '');
                   return (
-                    <option key={s.id || s.studentId} value={s.fullName || s.name}>
+                    <option key={s.id || s.studentId} value={s.studentId || s.id}>
                       {s.fullName || s.name} ({s.studentId || s.id}){subTag}
                     </option>
                   );
@@ -522,6 +520,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <button
                   type="button"
+                  disabled={saving || !studentKey}
                   onClick={(e) => {
                     e.preventDefault();
                     saveClassScores();
@@ -533,6 +532,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
                 {/* Class scores skip Head Admin approval */}
                 <button
                   type="button"
+                  disabled={saving || !studentKey}
                   onClick={(e) => {
                     e.preventDefault();
                     submitExamForApproval();
@@ -596,7 +596,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
             <button
               type="button"
               onClick={() => {
-                const idx = filteredStudents.findIndex(s => (s.fullName || s.name) === (selectedStudent.fullName || selectedStudent.name));
+                const idx = filteredStudents.findIndex(s => String(s.studentId || s.id) === String(studentKey));
                 if (idx >= 0 && idx < filteredStudents.length - 1) {
                   setSelectedStudent(filteredStudents[idx + 1]);
                 }

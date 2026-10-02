@@ -1,3 +1,4 @@
+import { payableAmount, voucherIdentityKey as disbursementIdentityKey } from '../../lib/recordRules.js';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   CreditCard, CheckCircle2, DollarSign, Search, FileText, Printer, Clock,
@@ -16,29 +17,10 @@ function isPvDisbursed(v) {
   return false;
 }
 
-function disbursementIdentityKey(v) {
-  const rawNo = String(v?.pvNo || v?.pv_number || '');
-  const tailMatch = rawNo.match(/(\d+)(?!.*\d)/);
-  const tail = tailMatch ? String(tailMatch[1]).replace(/^0+/, '') : '';
-  if (tail.length >= 4) return `no-${tail}`;
-  const id = String(v?.id || '').trim();
-  if (id && !/^pv-\d+$/i.test(id)) return `id-${id.toLowerCase()}`;
-  return `raw-${(rawNo || id).toLowerCase()}`;
-}
-
 export default function PayPVForm() {
-  const { paymentVouchers = [], disbursePaymentVoucher, refreshBackendData } = usePortalData();
+  const { paymentVouchers = [], disbursePaymentVoucher } = usePortalData();
 
-  const voucherPayableAmount = (v) => {
-    const items = Array.isArray(v?.items) ? v.items : [];
-    if (items.length > 0) {
-      const approved = items.filter((i) => /valid|approv|pre-audit/i.test(String(i.status || '')));
-      if (approved.length) {
-        return approved.reduce((acc, i) => acc + (Number(i.totalAmount || i.total || 0) || 0), 0);
-      }
-    }
-    return Number(v?.payableTotal || v?.total || v?.cost || v?.amount || 0) || 0;
-  };
+  const voucherPayableAmount = payableAmount;
 
   // Search & Filter State
   const [activeTab, setActiveTab] = useState('ready'); // 'ready' | 'history'
@@ -73,15 +55,12 @@ export default function PayPVForm() {
       const mapped = (Array.isArray(raw) ? raw : []).map(mapApiPaymentVoucher).filter((v) => v && (v.id || v.pvNo));
       setDbDisbursed(mapped);
       setHistorySourceCount(mapped.length);
-      if (refreshBackendData) {
-        try { await refreshBackendData(); } catch (_) {}
-      }
     } catch (err) {
       setHistoryError(err.message || 'Could not load disbursement history from the database.');
     } finally {
       setHistoryLoading(false);
     }
-  }, [refreshBackendData]);
+  }, []);
 
   useEffect(() => {
     loadDisbursementHistory();
@@ -185,10 +164,6 @@ export default function PayPVForm() {
         : null;
 
     if (candidateItems && candidateItems.length > 0) {
-      const desc = String(v.description || storeMatch?.description || '').trim();
-      if (candidateItems.length === 1 && desc.includes(',')) {
-        // Fall through to parse comma separated items
-      } else {
         return candidateItems.map((it, idx) => {
           const qty = Number(it.qty !== undefined ? it.qty : (it.quantity !== undefined ? it.quantity : 1)) || 1;
           const lineTotal = Number(it.totalAmount !== undefined ? it.totalAmount : (it.total !== undefined ? it.total : (it.amount || 0))) || 0;
@@ -206,36 +181,9 @@ export default function PayPVForm() {
             remarks: it.auditRemarks || it.remarks || ''
           };
         });
-      }
     }
 
     const desc = String(v.description || storeMatch?.description || '').trim();
-    const rawParts = desc.includes(',') ? desc.split(',').map((s) => s.trim()).filter(Boolean) : (desc ? [desc] : []);
-
-    if (rawParts.length > 1) {
-      const totalAmount = Number(v.total || v.cost || v.amount || storeMatch?.total || 0);
-      const splitAmount = totalAmount / rawParts.length;
-
-      return rawParts.map((part, idx) => {
-        const qtyMatch = part.match(/\((?:x|X)?\s*(\d+)\)/);
-        const parsedQty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
-        const itemTotal = Number(splitAmount.toFixed(2));
-        const itemCost = parsedQty > 0 ? Number((itemTotal / parsedQty).toFixed(2)) : itemTotal;
-
-        return {
-          itemNo: idx + 1,
-          description: part,
-          category: v.plAccountName || 'Operational Expense',
-          provider: v.provider || v.payee_name || 'Vendor',
-          qty: parsedQty,
-          costPerItem: itemCost,
-          totalAmount: itemTotal,
-          status: v.status || 'Disbursed',
-          remarks: ''
-        };
-      });
-    }
-
     const totalAmount = Number(v.total || v.cost || v.amount || 0);
     const qty = Number(v.qty || v.quantity || 1) || 1;
     const unitRate = Number(v.costPerItem || v.cost || (qty > 0 ? totalAmount / qty : totalAmount)) || totalAmount;
@@ -271,8 +219,9 @@ export default function PayPVForm() {
     const targetPvNo = payingVoucher.pvNo || payingVoucher.id;
 
     try {
+      let confirmedVoucher;
       if (disbursePaymentVoucher) {
-        await disbursePaymentVoucher(targetPvNo, {
+        confirmedVoucher = await disbursePaymentVoucher(targetPvNo, {
           paymentMethod,
           sourceAccount,
           plAccountName,
@@ -283,22 +232,11 @@ export default function PayPVForm() {
         }, 'Head Admin / Headmaster');
       }
 
-      await loadDisbursementHistory();
+      void loadDisbursementHistory();
 
       setPaymentNotice(`💸 ✅ Successfully disbursed GHS ${voucherPayableAmount(payingVoucher).toLocaleString(undefined, { minimumFractionDigits: 2 })} for PV #${targetPvNo}. Payment reference: ${referenceNumber}`);
       
-      const paidSnapshot = {
-        ...payingVoucher,
-        status: 'DISBURSED',
-        disbursedAt: new Date().toLocaleString(),
-        paymentMethod,
-        paymentSourceAccount: sourceAccount,
-        plAccountName,
-        plAccountCode: getPlAccountCode(plAccountName),
-        disbursementReference: referenceNumber,
-        disbursementNotes
-      };
-      
+      const paidSnapshot = mapApiPaymentVoucher(confirmedVoucher);
       setPayingVoucher(null);
       setReceiptVoucher(paidSnapshot);
     } catch (err) {

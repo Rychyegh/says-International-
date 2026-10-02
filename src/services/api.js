@@ -1,11 +1,12 @@
+import { stripCredentials } from '../lib/recordRules.js';
 /**
  * REMALJ Carewell Inspirational School - Backend & SMS Gateway API Service Client
  * Backend Base URL: https://rcis-backend.onrender.com/api/v1
  * SMS Gateway: SMSOnlineGH (v4 API)
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://rcis-backend.onrender.com/api/v1';
-const LIVE_API_ORIGIN = 'https://rcis-backend.onrender.com/api/v1';
+const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || 'https://rcis-backend.onrender.com/api/v1';
+
 
 export function extractAuthToken(res) {
   if (!res || typeof res !== 'object') return '';
@@ -29,27 +30,29 @@ function applyAuthSession(res) {
   return token;
 }
 
-export function hasLiveDatabaseSession() {
-  return String(getAuthToken() || '').startsWith('eyJ');
-}
-const SMS_API_KEY = import.meta.env.VITE_SMS_API_KEY || '67648ed5720ca875d42dc20f5726d94c9c1ea2b149a541784b5ba2194241b022';
-const SMS_SENDER_ID = import.meta.env.VITE_SMS_SENDER_ID || 'RCIS';
-
-export function getAuthToken() {
-  return localStorage.getItem('auth_token') || '';
-}
-
+export function hasLiveDatabaseSession() { return Boolean(getAuthToken()); }
+export function getAuthToken() { return sessionStorage.getItem('auth_token') || ''; }
 export function setAuthToken(token) {
-  if (token) {
-    localStorage.setItem('auth_token', token);
-  } else {
-    localStorage.removeItem('auth_token');
-  }
+  localStorage.removeItem('auth_token');
+  if (token) sessionStorage.setItem('auth_token', token);
+  else sessionStorage.removeItem('auth_token');
+}
+export function clearLegacySchoolCache() {
+  ['auth_token', 'auth_user', 'says_authed_portals', 'says_admin_role',
+    'registered_accounts', 'remalj-portal-live-data-v3', 'says_service_providers',
+    'official_pv_queue', 'says_read_pv_notifs', 'says_cleared_pv_notifs'].forEach(key => localStorage.removeItem(key));
+}
+export function clearAuthSession() {
+  setAuthToken(null);
+  setAuthUser(null);
+  clearLegacySchoolCache();
+  sessionStorage.removeItem('says-session-snapshot-v1');
+  window.dispatchEvent(new Event('says_session_cleared'));
 }
 
 export function getAuthUser() {
   try {
-    const saved = localStorage.getItem('auth_user');
+    const saved = sessionStorage.getItem('auth_user');
     return saved ? JSON.parse(saved) : null;
   } catch {
     return null;
@@ -73,87 +76,53 @@ export function getUserFullName(user = getAuthUser()) {
 
 export function setAuthUser(user) {
   if (user) {
-    localStorage.setItem('auth_user', JSON.stringify(user));
+    sessionStorage.setItem('auth_user', JSON.stringify(stripCredentials(user)));
   } else {
-    localStorage.removeItem('auth_user');
+    sessionStorage.removeItem('auth_user');
   }
 }
 
-async function request(endpoint, options = {}) {
-  const urls = [`${API_BASE_URL}${endpoint}`];
-  if (import.meta.env.DEV && API_BASE_URL.startsWith('/') && LIVE_API_ORIGIN) {
-    urls.push(`${LIVE_API_ORIGIN}${endpoint}`);
-  }
+const pendingCreates = new Map();
+async function createOnce(endpoint, payload) {
+  const body = JSON.stringify(payload);
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body));
+  const key = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+  const scope = `${getAuthToken()}:${endpoint}:${key}`;
+  if (pendingCreates.has(scope)) return pendingCreates.get(scope);
+  const operation = request(endpoint, { method: 'POST', headers: { 'Idempotency-Key': key }, body });
+  pendingCreates.set(scope, operation);
+  try { return await operation; } finally { pendingCreates.delete(scope); }
+}
+
+export async function request(endpoint, options = {}) {
   const token = getAuthToken();
-
-  const headers = {
-    ...options.headers,
-  };
-
-  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
-    headers['Content-Type'] = 'application/json';
-  }
-
-  if (token && String(token).startsWith('eyJ')) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const config = {
-    ...options,
-    headers,
-  };
-
-  let lastError = null;
-  for (const url of urls) {
+  const headers = { ...options.headers };
+  if (!(options.body instanceof FormData)) headers['Content-Type'] ||= 'application/json';
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
   try {
-    const response = await fetch(url, config);
-      const text = await response.text();
-      let data = null;
-      if (text && text.trim()) {
-        try {
-          data = JSON.parse(text);
-        } catch {
-          data = null;
-        }
-      }
-    if (!response.ok) {
-      let errorMessage = `HTTP ${response.status} ${response.statusText}`;
-        if (data && data.detail) {
-          if (Array.isArray(data.detail)) {
-            console.error(`[FastAPI 422 Validation Error on ${endpoint}]:`, data.detail);
-            const formatted = data.detail
-              .map(d => {
-                const loc = Array.isArray(d.loc) ? d.loc.filter(x => x !== 'body').join('.') : d.loc;
-                return `[${loc}]: ${d.msg}`;
-              })
-              .join('; ');
-            errorMessage = `FastAPI Validation Error (HTTP 422): ${formatted}`;
-          } else {
-            errorMessage = typeof data.detail === 'string'
-              ? data.detail
-              : JSON.stringify(data.detail);
-          }
-        } else if (data && data.message) {
-          errorMessage = data.message;
-        } else if (text && text.trim()) {
-          errorMessage = text.trim().slice(0, 300);
-        }
-        lastError = new Error(errorMessage);
-        lastError.status = response.status;
-        lastError.payload = data;
-        if (response.status >= 400 && response.status < 500) throw lastError;
-        continue;
-      }
-      if (data !== null && data !== undefined) return data;
-      return { success: true, status: response.status };
-  } catch (err) {
-      lastError = err;
-      if (err?.status >= 400 && err?.status < 500) throw err;
-      if (err && /FastAPI|HTTP 4/.test(String(err.message || ''))) throw err;
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers, signal: controller.signal });
+    const text = await response.text();
+    if (token !== getAuthToken()) throw new Error('Session changed. Please retry from the current account.');
+    let data;
+    try { data = text ? JSON.parse(text) : null; }
+    catch { throw new Error('The server returned an invalid JSON response. The operation was not confirmed.'); }
+    if (!response.ok || data?.success === false) {
+      const detail = data?.detail || data?.message || `HTTP ${response.status}`;
+      const error = new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+      error.status = response.status;
+      error.payload = data;
+      if (response.status === 401 && token && !endpoint.startsWith('/auth/') && !endpoint.startsWith('/sims-auth/')) clearAuthSession();
+      throw error;
     }
-  }
-  console.warn(`[API Client Warning] Request to ${endpoint} failed:`, lastError?.message);
-  throw lastError || new Error(`Request to ${endpoint} failed`);
+    if (response.status === 204) return { success: true, status: 204 };
+    if (!data || typeof data !== 'object') throw new Error('The server did not confirm this operation.');
+    return data;
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('The server timed out. Check the record before retrying.');
+    throw error;
+  } finally { clearTimeout(timer); }
 }
 
 export function sanitizePostedBillItems(items = []) {
@@ -443,13 +412,14 @@ function scoreSheetPayload(entry) {
         status: entry.status || null,
       },
     ],
+    submit_kind: entry.submitKind,
     status: entry.status || undefined,
     has_class_score: entry.hasClassScore === true,
     has_exam_score: entry.hasExamScore === true,
   };
 }
 
-function mapScoreSheetEntry(raw = {}) {
+export function mapScoreSheetEntry(raw = {}) {
   const score = Array.isArray(raw.scores) ? (raw.scores[0] || {}) : raw;
   const subCls = raw.sub_class || raw.subClass || raw.sub_class_level || raw.subClassLevel || score.sub_class || score.subClass || '';
   return {
@@ -464,7 +434,7 @@ function mapScoreSheetEntry(raw = {}) {
     category: raw.category,
     instructor: raw.instructor,
     term: raw.term,
-    year: raw.academic_year || raw.academicYear,
+    year: raw.academic_year || raw.academicYear || raw.year,
     examDate: raw.exam_date || raw.examDate,
     arrivalTest: score.arrival_test ?? score.arrivalTest ?? null,
     test1: score.class_test_1 ?? score.test1 ?? null,
@@ -595,7 +565,7 @@ function saveRegisteredAccount(acc) {
     const raw = localStorage.getItem('registered_accounts');
     const list = raw ? JSON.parse(raw) : {};
     list[acc.email.toLowerCase()] = acc;
-    localStorage.setItem('registered_accounts', JSON.stringify(list));
+    localStorage.setItem('registered_accounts', JSON.stringify(stripCredentials(list)));
   } catch (e) {}
 }
 
@@ -741,7 +711,7 @@ export function ensureDemoClassTeacherAccounts() {
         changed = true;
       }
     });
-    if (changed) localStorage.setItem('registered_accounts', JSON.stringify(list));
+    if (changed) localStorage.setItem('registered_accounts', JSON.stringify(stripCredentials(list)));
   } catch (e) {}
 }
 
@@ -750,6 +720,14 @@ function loginFromDemoTeacher() {
 }
 
 export const api = {
+  getFeePaymentBatches: () => request('/finance/payment-batches'),
+  createFeePaymentBatch: (data, key) => request('/finance/payment-batches', { method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify(data) }),
+  getReceipts: () => request('/finance/receipts'),
+  createReceipt: (data, key) => request('/finance/receipts', { method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify(data) }),
+  getCurrentSession: () => request('/auth/me'),
+  verifyAdminPin: (pin) => request('/auth/verify-admin-pin', { method: 'POST', body: JSON.stringify({ pin }) }),
+  getMyChildren: () => request('/parents/me/children'),
+  getStudentDashboard: () => request('/students/me/dashboard'),
   // --- Auth & User Access ---
   login: async (credentials) => {
     // credentials: { email, password, portal }
@@ -883,7 +861,7 @@ export const api = {
         const key = (identifier || '').toLowerCase();
         if (list[key]) {
           list[key].password = newPassword;
-          localStorage.setItem('registered_accounts', JSON.stringify(list));
+          localStorage.setItem('registered_accounts', JSON.stringify(stripCredentials(list)));
         }
       }
     } catch (e) {}
@@ -954,7 +932,7 @@ export const api = {
         };
       }
 
-      localStorage.setItem('registered_accounts', JSON.stringify(list));
+      localStorage.setItem('registered_accounts', JSON.stringify(stripCredentials(list)));
     } catch (err) {}
 
     return res || { success: true, message: `System Administrator successfully updated password for user account [${cleanId}].` };
@@ -1067,10 +1045,7 @@ export const api = {
 
   onboardStudent: async (studentData) => {
     // studentData: { fullName, dob, gender, level, classSection, guardianName, guardianEmail, guardianPhone, homeAddress, initialBilledAmount, term }
-    return await request('/students/onboard', {
-      method: 'POST',
-      body: JSON.stringify(studentData),
-    });
+    return await createOnce('/students/onboard', studentData);
   },
 
   updateStudent: async (studentId, studentData) => {
@@ -1122,116 +1097,22 @@ export const api = {
     });
   },
 
-  sendDirectSms: async (data) => {
-    try {
-      return await request('/attendance/send-sms', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-    } catch {
-      return await api.sendSms(data);
-    }
-  },
-
+  sendDirectSms: (data) => api.sendSms(data),
   getSmsBalance: async () => {
-    try {
-      const res = await request('/attendance/sms-balance');
-      if (res && res.amount !== undefined) return res;
-    } catch {
-      // Fallback to SMSOnlineGH API directly
-    }
-
-    try {
-      const response = await fetch('https://api.smsonlinegh.com/v5/account/balance', {
-        headers: {
-          'Authorization': `key ${SMS_API_KEY}`,
-          'Accept': 'application/json'
-        }
-      });
-      if (!response.ok) throw new Error(`SMS Gateway HTTP ${response.status}`);
-      const resData = await response.json();
-      if (resData?.data?.balance !== undefined) {
-        return {
-          amount: resData.data.balance,
-          currencyName: 'Ghana Cedi',
-          currencyCode: 'GHS'
-        };
-      }
-      return resData;
-    } catch (e) {
-      console.warn('SMS Balance check failed:', e);
-      return { amount: 304, currencyName: 'Ghana Cedi', currencyCode: 'GHS' };
-    }
+    const raw = await request('/attendance/sms-balance');
+    const balance = raw.data || raw;
+    if (balance.amount == null || !Number.isFinite(Number(balance.amount))) throw new Error('SMS balance is unavailable.');
+    return balance;
   },
-
   sendSms: async ({ recipientPhone, messageText, senderId }) => {
-    const sender = senderId || SMS_SENDER_ID || 'RCIS';
-    
-    // Format recipient phone number (e.g., 0241112222 -> 233241112222)
-    let cleanPhone = (recipientPhone || '').replace(/\s+/g, '').replace(/^\+/, '');
-    if (cleanPhone.startsWith('0')) {
-      cleanPhone = '233' + cleanPhone.substring(1);
-    }
-
-    const payload = {
-      text: messageText,
-      type: 0,
-      sender: sender,
-      destinations: [cleanPhone]
-    };
-
-    const headers = {
-      'Authorization': `key ${SMS_API_KEY}`,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    };
-
-    // 1. Try Vite proxy first to bypass browser CORS completely
-    try {
-      const response = await fetch('/sms-gateway/sms/send', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload)
-      });
-      if (response.ok) {
-        const result = await response.json();
-        const statusObj = result?.data?.destinations?.[0]?.status;
-        if (statusObj?.label === 'DS_REJECTED_SENDER_UNREGISTERED') {
-          console.warn(`[SMSOnlineGH Warning] Sender ID '${sender}' is not registered on your SMSOnlineGH account dashboard.`);
-        }
-        return result;
-      }
-    } catch (e) {
-      console.warn('Vite proxy SMS send attempt failed, trying direct endpoint:', e);
-    }
-
-    // 2. Direct gateway fallback
-    try {
-      const response = await fetch('https://api.smsonlinegh.com/v5/sms/send', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload)
-      });
-      if (response.ok) {
-        const result = await response.json();
-        return result;
-      }
-    } catch (e) {
-      console.warn('Direct SMSOnlineGH fetch failed:', e);
-    }
-
-    // 3. Fallback to backend service
-    return await request('/attendance/scan', {
-      method: 'POST',
-      body: JSON.stringify({
-        identifier: cleanPhone,
-        scanType: 'Check-in',
-        sendSms: true
-      })
-    }).catch(err => {
-      console.warn('Backend SMS scan dispatch fallback exception:', err);
-      return { success: true, message: 'SMS request queued locally' };
+    const phone = String(recipientPhone || '').replace(/[\s()-]/g, '').replace(/^\+/, '').replace(/^0/, '233');
+    if (!/^\d{10,15}$/.test(phone) || !String(messageText || '').trim()) throw new Error('A valid phone number and message are required.');
+    const result = await request('/attendance/send-sms', {
+      method: 'POST', body: JSON.stringify({ recipientPhone: phone, messageText, senderId }),
     });
+    const message = result.data || result;
+    if (!message.id || !['queued', 'sent', 'delivered'].includes(message.status)) throw new Error('The server did not return a trackable SMS request.');
+    return message;
   },
 
   // --- Finance & Fees ---
@@ -1241,9 +1122,10 @@ export const api = {
   },
 
   recordFeePayment: async (feeId, paymentData) => {
-    // paymentData: { paidAmount, paymentMethod, paymentDate, notes, transactionRef }
-    return await request(`/finance/fees/${feeId}/pay`, {
+    // A stable idempotency key prevents duplicate ledger entries on retry.
+    return await request(`/finance/fees/${encodeURIComponent(feeId)}/pay`, {
       method: 'POST',
+      headers: { 'Idempotency-Key': paymentData.idempotencyKey },
       body: JSON.stringify(paymentData),
     });
   },
@@ -1279,10 +1161,7 @@ export const api = {
   // --- Admissions & Applications ---
   submitApplication: async (appData) => {
     // appData: { learner_name, guardian_name, contact_email, contact_phone, applying_level, form_data }
-    return await request('/admissions/applications', {
-      method: 'POST',
-      body: JSON.stringify(appData),
-    });
+    return await createOnce('/admissions/applications', appData);
   },
 
   getApplications: async (params = {}) => {
@@ -1301,6 +1180,7 @@ export const api = {
   enrollApplication: async (applicationId, payload = {}) => {
     return await request(`/admissions/applications/${applicationId}/enroll`, {
       method: 'POST',
+      headers: { 'Idempotency-Key': `enroll:${applicationId}` },
       body: JSON.stringify(payload),
     });
   },
@@ -1667,10 +1547,11 @@ export const api = {
     try {
       list = await fetchList('/finance/vouchers');
     } catch (e) {
+      if (![404, 405].includes(e.status)) throw e;
       try {
         list = await fetchList('/finance/pv');
       } catch (e2) {
-        list = [];
+        throw e2;
       }
     }
 
@@ -1733,6 +1614,7 @@ export const api = {
     try {
       return await request(`/finance/vouchers/${pvId}`);
     } catch (e) {
+      if (![404, 405].includes(e.status)) throw e;
       return await request(`/finance/pv/${pvId}`);
     }
   },
@@ -1745,6 +1627,7 @@ export const api = {
         body: JSON.stringify(auditData),
       });
     } catch (e) {
+      if (![404, 405].includes(e.status)) throw e;
       return await request(`/finance/pv/${pvId}/pre-audit`, {
         method: 'POST',
         body: JSON.stringify(auditData),
@@ -1760,6 +1643,7 @@ export const api = {
         body: JSON.stringify(approvalData),
       });
     } catch (e) {
+      if (![404, 405].includes(e.status)) throw e;
       return await request(`/finance/pv/${pvId}/approve`, {
         method: 'POST',
         body: JSON.stringify(approvalData),
@@ -1775,13 +1659,14 @@ export const api = {
         body: JSON.stringify(statusData),
       });
     } catch (e) {
+      if (![404, 405].includes(e.status)) throw e;
       return await request(`/finance/pv/${pvId}/status`, {
         method: 'PATCH',
         body: JSON.stringify(statusData),
       });
     }
   },
-  updatePaymentVoucherStatus: async (pvId, statusData) => api.updatePaymentVoucherStatus(pvId, statusData),
+
 
   updatePaymentVoucherItem: async (pvId, itemId, itemData = {}) => {
     return await request(`/finance/vouchers/${pvId}/items/${itemId}`, {
@@ -1790,8 +1675,11 @@ export const api = {
     });
   },
 
+  reviewPaymentVoucher: (id, data) => request(`/finance/vouchers/${encodeURIComponent(id)}/review`, { method: 'POST', body: JSON.stringify(data) }),
+
   disbursePaymentVoucher: async (pvId, disburseData = {}) => {
     return await request(`/finance/vouchers/${pvId}/disburse`, {
+      headers: { 'Idempotency-Key': disburseData.idempotencyKey },
       method: 'POST',
       body: JSON.stringify(disburseData),
     });
@@ -2030,6 +1918,7 @@ export const api = {
     });
   },
 
+  getAcademicSettings: () => request('/academic/settings'),
   updateAcademicSettings: async (settings) => {
     return await request('/academic/settings', {
       method: 'PUT',
@@ -2134,7 +2023,9 @@ export const api = {
   getScoreSheetEntries: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     const res = await request(`/sims/score-sheets/entries${query ? `?${query}` : ''}`);
-    return Array.isArray(res) ? res.map(mapScoreSheetEntry) : [];
+    const rows = Array.isArray(res) ? res : (res.entries || res.data);
+    if (!Array.isArray(rows)) throw new Error("Invalid score sheet list response.");
+    return rows.map(mapScoreSheetEntry);
   },
 
   saveScoreSheet: async (entry) => {

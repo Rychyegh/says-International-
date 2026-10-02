@@ -11,6 +11,7 @@ import AcademicSettingsManager from '../components/Academic/AcademicSettingsMana
 import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
 import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
 import OfficialPayPVForm from '../components/Finance/PayPVForm';
+import { buildStudentOptions, applicationLinksStudent } from '../lib/recordRules.js';
 import { getAuthUser, api } from '../services/api';
 import { ALL_SUB_CLASSES, getMappedSubClasses } from '../data/classStructure';
 import { SCHOOL_PL_ACCOUNTS, BANK_RECEIVING_ACCOUNTS, PHOTO_RECEIVING_ACCOUNTS, ALL_RECEIVING_ACCOUNTS, getPlAccountCode, printPvPage } from '../data/chartOfAccounts';
@@ -135,21 +136,17 @@ export default function AccountantPortal({ onSignOut }) {
     setPaymentReceivingAccount(fee.lastReceivingAccount || 'GCB Bank Main Operating Account (55919200085584)');
   };
 
-  const handleProcessPayment = (e) => {
+  const paymentBusy = useRef(false);
+  const handleProcessPayment = async (e) => {
     e.preventDefault();
-    if (!selectedFeeForPayment || !paymentAmount) return;
-
-    recordFeePayment({
-      id: selectedFeeForPayment.id,
-      paidAmount: Number(paymentAmount),
-      paymentMethod,
-      receivingAccount: paymentReceivingAccount,
-      notes: paymentNotes,
-    });
-
-    setSuccessNotice(`Payment of GHS ${Number(paymentAmount).toLocaleString()} recorded into ${paymentReceivingAccount} for ${selectedFeeForPayment.studentName}!`);
-    setSelectedFeeForPayment(null);
-    setTimeout(() => setSuccessNotice(''), 4000);
+    if (!selectedFeeForPayment || paymentBusy.current) return;
+    paymentBusy.current = true;
+    try {
+      await recordFeePayment({ id: selectedFeeForPayment.id, paidAmount: Number(paymentAmount), paymentMethod, receivingAccount: paymentReceivingAccount, notes: paymentNotes });
+      setSuccessNotice(`Payment recorded in the database for ${selectedFeeForPayment.studentName}.`);
+      setSelectedFeeForPayment(null);
+    } catch (error) { setSuccessNotice(`Payment not confirmed: ${error.message}`); }
+    finally { paymentBusy.current = false; }
   };
 
   const handleOpenReminder = (fee) => {
@@ -198,7 +195,7 @@ export default function AccountantPortal({ onSignOut }) {
       setSuccessNotice(`✅ Instant SMS payment reminder dispatched for ${fee.studentName} (Balance: GHS ${fee.balance.toLocaleString()})!`);
       setTimeout(() => setSuccessNotice(''), 5000);
     } catch (e) {
-      setSuccessNotice(`✅ Instant SMS payment reminder dispatched for ${fee.studentName}.`);
+      setSuccessNotice(`SMS failed: ${e.message}`);
       setTimeout(() => setSuccessNotice(''), 4000);
     }
   };
@@ -214,7 +211,7 @@ export default function AccountantPortal({ onSignOut }) {
       setSuccessNotice(`✅ Broadcast owing SMS reminders successfully dispatched (${res?.notifiedCount || 'all'} guardians notified)!`);
       setTimeout(() => setSuccessNotice(''), 6000);
     } catch (e) {
-      setSuccessNotice('✅ Broadcast owing SMS reminders queued and sent to all owing guardians!');
+      setSuccessNotice(`SMS broadcast failed: ${e.message}`);
       setTimeout(() => setSuccessNotice(''), 5000);
     }
   };
@@ -250,12 +247,13 @@ export default function AccountantPortal({ onSignOut }) {
     });
   };
 
-  const handleSimsModalSubmit = (e) => {
+  const handleSimsModalSubmit = async (e) => {
     e.preventDefault();
     if (!activeSimsModal) return;
 
-    const { link, studentName, targetYearGroup, adjType, amount, notes, invoiceNo, cancelReason, cardId } = activeSimsModal;
+    const { link, studentId, studentName, targetYearGroup, adjType, amount, notes, invoiceNo, cancelReason, cardId } = activeSimsModal;
 
+    try {
     if (link === 'Adjust Bills on Year Group Accounts') {
       if (adjustStudentBill) {
         adjustStudentBill({
@@ -292,11 +290,13 @@ export default function AccountantPortal({ onSignOut }) {
       }
       setSuccessNotice(`[System Security Authorization] Successfully set new password "${targetPass}" for user account [${targetUser}]!`);
     } else if (link.includes('Payment') || link.includes('Pay') || link.includes('Receive')) {
-      const fee = (studentFees || []).find((f) => studentName && f.studentName?.toLowerCase() === studentName.toLowerCase()) || studentFees[0];
+      const matches = (studentFees || []).filter(f => String(f.studentId) === String(studentId));
+      if (matches.length !== 1) throw new Error('Choose one fee invoice in Fee Ledgers & Payments.');
+      const fee = matches[0];
       if (fee) {
-        recordFeePayment({
+        await recordFeePayment({
           id: fee.id,
-          paidAmount: Number(amount) || 500,
+          paidAmount: Number(amount),
           paymentMethod: 'Cash / Bank',
           notes: `${link} processed in SIMS module`,
         });
@@ -328,6 +328,7 @@ export default function AccountantPortal({ onSignOut }) {
 
     setActiveSimsModal(null);
     setTimeout(() => setSuccessNotice(''), 5000);
+    } catch (error) { setSuccessNotice(`Action failed: ${error.message}`); }
   };
 
   return (
@@ -4342,15 +4343,10 @@ function ReceiveOtherPaymentsForm({ setM }) {
   const [description, setDescription] = useState('Daily Canteen & Feeding Supplies Receipt');
 
   // Draft Receipt Items List
-  const [receiptItems, setReceiptItems] = useState([
-    { id: '1', txnNo: 'TXN-2026-9041', clientProvider: 'DAILY FEEDING', providerId: '931043', glAccount: 'Canteen / Feeding Account', merchant: 'MTN Mobile Money', refNo: 'REF-884920', amount: 750.00, date: '2026-09-05', description: 'Daily Canteen & Feeding Supplies Receipt' }
-  ]);
+  const [receiptItems, setReceiptItems] = useState([]);
 
   // Historical Issued Commercial Receipts List
-  const [issuedReceipts, setIssuedReceipts] = useState([
-    { receiptNo: '121289', date: '2026-09-05', clientProvider: 'DAILY FEEDING', providerId: '931043', merchant: 'MTN Mobile Money', refNo: 'REF-884920', amount: 750.00, cashier: 'Mrs. Grace Accountant', status: 'Checked Out' },
-    { receiptNo: '121275', date: '2026-08-28', clientProvider: 'UNIFORM SUPPLIER', providerId: '882041', merchant: 'Bank Deposit', refNo: 'GCB-994812', amount: 3200.00, cashier: 'Mrs. Grace Accountant', status: 'Checked Out' }
-  ]);
+  const [issuedReceipts, setIssuedReceipts] = useState([]);
 
   const [bannerNotice, setBannerNotice] = useState('');
 
@@ -4389,30 +4385,23 @@ function ReceiveOtherPaymentsForm({ setM }) {
   };
 
   // Check Out Receipt (Finalize)
-  const handleCheckOutReceipt = () => {
-    if (receiptItems.length === 0) {
-      alert('No receipt items in voucher to check out.');
-      return;
-    }
-    const totalAmt = receiptItems.reduce((s, i) => s + Number(i.amount), 0);
-    const newRcptNo = String(Math.floor(120000 + Math.random() * 90000));
-    setReceiptNo(newRcptNo);
-
-    const newIssued = {
-      receiptNo: newRcptNo,
-      date: valueDate || new Date().toISOString().split('T')[0],
-      clientProvider,
-      providerId,
-      merchant: merchantType,
-      refNo: referenceNo,
-      amount: totalAmt,
-      cashier: 'Mrs. Grace Accountant',
-      status: 'Checked Out'
-    };
-
-    setIssuedReceipts(prev => [newIssued, ...prev]);
-    setBannerNotice(`✅ Checked out Receipt #${newRcptNo} for ${clientProvider} (Total GHS ${totalAmt.toLocaleString(undefined, { minimumFractionDigits: 2 })}).`);
-    setActiveTab('Reprint receipt');
+  const receiptRequest = useRef({ key: crypto.randomUUID(), busy: false });
+  useEffect(() => { api.getReceipts().then(raw => setIssuedReceipts(raw.receipts || raw.data || raw)).catch(error => setBannerNotice(`Receipt history unavailable: ${error.message}`)); }, []);
+  const handleCheckOutReceipt = async () => {
+    if (!receiptItems.length || receiptRequest.current.busy) return;
+    receiptRequest.current.busy = true;
+    try {
+      const raw = await api.createReceipt({ items: receiptItems, date: valueDate, providerId, merchant: merchantType, reference: referenceNo }, receiptRequest.current.key);
+      const saved = raw.receipt || raw.data || raw;
+      if (!saved.id || !saved.receiptNo) throw new Error('No database receipt was returned. Refresh before retrying.');
+      setReceiptNo(saved.receiptNo);
+      setIssuedReceipts(prev => [saved, ...prev.filter(r => r.id !== saved.id)]);
+      setReceiptItems([]);
+      receiptRequest.current.key = crypto.randomUUID();
+      setBannerNotice(`Receipt ${saved.receiptNo} saved to the database.`);
+      setActiveTab('Reprint receipt');
+    } catch (error) { setBannerNotice(`Receipt not confirmed: ${error.message}`); }
+    finally { receiptRequest.current.busy = false; }
   };
 
   // Print Out Receipt
@@ -4894,15 +4883,10 @@ function BatchProcessingForm({ setM, students = [], recordFeePayment }) {
   const [description, setDescription] = useState('Batch Academic Fee Receipt Entry');
 
   // Draft Batch Receipt Items List
-  const [batchItems, setBatchItems] = useState([
-    { id: '1', txnNo: 'BATCH-TXN-2026-8801', studentId: defaultStudent.studentId || 'REMALJ-2026-001', studentName: defaultStudent.fullName || defaultStudent.name || 'Benjamin Edwards', studentClass: `${defaultStudent.level || 'Grade 4'} (${defaultStudent.classSection || 'A'})`, glAccount: 'Tuition & Academic Fees', refBy: 'Student SID', reference: 'BATCH-REF-9941', amount: 1200.00, date: '2025-08-17', description: 'Batch Academic Fee Receipt Entry' }
-  ]);
+  const [batchItems, setBatchItems] = useState([]);
 
   // Historical Issued Batch Receipts
-  const [issuedBatches, setIssuedBatches] = useState([
-    { batchNo: '121289', date: '2025-08-17', studentId: defaultStudent.studentId || 'REMALJ-2026-001', studentName: defaultStudent.fullName || defaultStudent.name || 'Benjamin Edwards', glAccount: 'Tuition & Academic Fees', reference: 'BATCH-REF-9941', amount: 1200.00, cashier: 'Mrs. Grace Accountant', status: 'Batch Processed' },
-    { batchNo: '121250', date: '2025-05-10', studentId: '421200', studentName: 'Benjamin Edwards', glAccount: 'Facility & ICT Account', reference: 'BATCH-REF-8802', amount: 3500.00, cashier: 'Mrs. Grace Accountant', status: 'Batch Processed' }
-  ]);
+  const [issuedBatches, setIssuedBatches] = useState([]);
 
   const [bannerNotice, setBannerNotice] = useState('');
 
@@ -4973,41 +4957,21 @@ function BatchProcessingForm({ setM, students = [], recordFeePayment }) {
   };
 
   // Check Out Receipt (Finalize Batch)
-  const handleCheckOutReceipt = () => {
-    if (batchItems.length === 0) {
-      alert('No receipt items in batch to check out.');
-      return;
-    }
-    const totalAmt = batchItems.reduce((s, i) => s + Number(i.amount), 0);
-    const newBatchNo = String(Math.floor(120000 + Math.random() * 90000));
-    setBatchNo(newBatchNo);
-
-    if (typeof recordFeePayment === 'function') {
-      batchItems.forEach(item => {
-        recordFeePayment({
-          id: item.studentId,
-          paidAmount: item.amount,
-          paymentMethod: 'Batch Processing',
-          notes: `Batch #${newBatchNo} - ${item.description}`,
-        });
-      });
-    }
-
-    const newIssued = {
-      batchNo: newBatchNo,
-      date: valueDate || new Date().toISOString().split('T')[0],
-      studentId,
-      studentName,
-      glAccount: glAccountType,
-      reference,
-      amount: totalAmt,
-      cashier: 'Mrs. Grace Accountant',
-      status: 'Batch Processed'
-    };
-
-    setIssuedBatches(prev => [newIssued, ...prev]);
-    setBannerNotice(`✅ Checked out Batch #${newBatchNo} (Total GHS ${totalAmt.toLocaleString(undefined, { minimumFractionDigits: 2 })} for ${batchItems.length} records).`);
-    setActiveTab('Reprint receipt');
+  const batchRequest = useRef({ key: crypto.randomUUID(), busy: false });
+  useEffect(() => { api.getFeePaymentBatches().then(raw => setIssuedBatches(raw.batches || raw.data || raw)).catch(error => setBannerNotice(`Receipt history unavailable: ${error.message}`)); }, []);
+  const handleCheckOutReceipt = async () => {
+    if (!batchItems.length || batchRequest.current.busy) return;
+    batchRequest.current.busy = true;
+    try {
+      const saved = await portalData.recordFeePaymentBatch(batchItems, batchRequest.current.key);
+      setBatchNo(saved.batchNo);
+      setIssuedBatches(prev => [saved, ...prev.filter(b => b.id !== saved.id)]);
+      setBatchItems([]);
+      batchRequest.current.key = crypto.randomUUID();
+      setBannerNotice(`Batch ${saved.batchNo} committed to the database.`);
+      setActiveTab('Reprint receipt');
+    } catch (error) { setBannerNotice(`Batch not confirmed: ${error.message}`); }
+    finally { batchRequest.current.busy = false; }
   };
 
   // Print Out Receipt
@@ -5956,27 +5920,7 @@ function formatLedgerDate(value) {
 function StudentLedgerPrintForm({ setM, initialStudentId = '', initialStudentName = '' }) {
   const { onboardedStudents = [], studentFees = [] } = usePortalData() || {};
   const roster = useMemo(() => {
-    const byId = new Map();
-    (onboardedStudents || []).forEach((student) => {
-      const id = String(student.studentId || student.id || '').trim();
-      if (!id) return;
-      byId.set(id, {
-        id,
-        uuid: student.id,
-        name: student.fullName || student.name,
-        classLevel: student.level || '',
-      });
-    });
-    (studentFees || []).forEach((fee) => {
-      const id = String(fee.studentId || fee.id || '').trim();
-      if (!id || byId.has(id)) return;
-      byId.set(id, {
-        id,
-        name: fee.studentName,
-        classLevel: fee.classLevel || '',
-      });
-    });
-    return Array.from(byId.values()).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    return buildStudentOptions(onboardedStudents, studentFees);
   }, [onboardedStudents, studentFees]);
 
   const [studentId, setStudentId] = useState(initialStudentId || roster[0]?.id || '');
@@ -12572,6 +12516,7 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
   }
 
   if (link === 'Edit Existing Admissions') {
+    const standaloneStudents = onboardedStudents.filter(student => !applications.some(app => applicationLinksStudent(app, student)));
     const activeAppId = m.appId || (applications && applications[0]?.id) || (onboardedStudents && onboardedStudents[0]?.id) || 'app-001';
     const currentApp = (applications || []).find(a => a.id === activeAppId) || (onboardedStudents || []).find(s => s.id === activeAppId || s.studentId === activeAppId) || {};
     const learnerName = m.learnerName !== undefined ? m.learnerName : (currentApp.learner || currentApp.fullName || 'Akosua Agyeman');
@@ -12581,10 +12526,11 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
     const contactPhone = m.contactPhone !== undefined ? m.contactPhone : (resolveGuardianPhone(currentApp) || '');
     const status = m.status !== undefined ? m.status : (currentApp.status || 'Documents review');
 
-    const handleSaveAdmissionEdit = (e) => {
+    const handleSaveAdmissionEdit = async (e) => {
       e?.preventDefault();
+      try {
       if (typeof updateStudentAdmission === 'function') {
-        updateStudentAdmission(activeAppId, {
+        await updateStudentAdmission(activeAppId, {
           learner: learnerName,
           fullName: learnerName,
           level: applyingLevel,
@@ -12601,6 +12547,7 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
       }
       alert(`✅ Admission record for "${learnerName}" (${applyingLevel}) updated successfully!`);
       setM(null);
+      } catch (error) { alert(`Admission could not be saved: ${error.message}`); }
     };
 
     return (
@@ -12628,7 +12575,7 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
                 {a.learner || `${a.firstName || ''} ${a.surname || ''}`.trim() || 'Applicant'} - ({a.level || 'JHS 1'}) [App ID: {a.id}]
               </option>
             ))}
-            {(onboardedStudents || []).map(s => (
+            {standaloneStudents.map(s => (
               <option key={s.id} value={s.id}>
                 {s.fullName} - ({s.level || 'Grade 4'}) [{s.studentId}]
               </option>

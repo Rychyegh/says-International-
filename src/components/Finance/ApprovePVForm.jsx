@@ -1,18 +1,8 @@
+import { normalizePvItemStatus, voucherIdentityKey } from '../../lib/recordRules.js';
 import React, { useState, useEffect, useMemo } from 'react';
 import { CheckCircle2, Edit3, Save, Search, AlertCircle, FileCheck, RefreshCw, Filter, ArrowRight, ShieldCheck, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { usePortalData, pvNosMatch } from '../../data/PortalStore';
 import { api } from '../../services/api';
-
-function normalizePvItemStatus(status) {
-  const s = String(status || '').toLowerCase().trim();
-  if (s.includes('valid') || s.includes('approv') || s.includes('pre-audit')) return 'Validated';
-  if (s.includes('declin') || s.includes('reject')) return 'Declined';
-  if (s.includes('cancel')) return 'Cancel PV';
-  if (s.includes('non-accrual')) return 'Non-accrual';
-  if (s.includes('postpon')) return 'Postponed';
-  if (s.includes('pending') || !s) return 'Pending approval';
-  return status || 'Pending approval';
-}
 
 function summarizePvStatusFromItems(items, fallback = 'Pending approval') {
   if (!Array.isArray(items) || items.length === 0) return fallback;
@@ -33,16 +23,6 @@ function payableTotalFromItems(items, fallbackTotal = 0) {
     .reduce((acc, i) => acc + (Number(i.totalAmount || i.total || 0) || 0), 0);
 }
 
-function voucherIdentityKey(v) {
-  const rawNo = String(v?.pvNo || v?.pv_number || '');
-  const tailMatch = rawNo.match(/(\d+)(?!.*\d)/);
-  const tail = tailMatch ? String(tailMatch[1]).replace(/^0+/, '') : '';
-  if (tail.length >= 4) return `no-${tail}`;
-  const id = String(v?.id || '').trim();
-  if (id && !/^pv-\d+$/i.test(id)) return `id-${id.toLowerCase()}`;
-  return `raw-${(rawNo || id).toLowerCase()}`;
-}
-
 export function parsePvItems(v) {
   if (!v) return [];
   const withMeta = (item) => ({
@@ -51,11 +31,6 @@ export function parsePvItems(v) {
   });
 
   let sourceItems = Array.isArray(v.items) && v.items.length > 0 ? v.items : null;
-  if (sourceItems && sourceItems.length === 1) {
-    const desc = String(sourceItems[0].description || v.description || '').trim();
-    if (desc.includes(',')) sourceItems = null;
-  }
-
   if (sourceItems) {
     return sourceItems.map((it, idx) => withMeta({
       id: it.id || `it-${v.id || v.pvNo || 'pv'}-${idx + 1}`,
@@ -70,34 +45,7 @@ export function parsePvItems(v) {
     }));
   }
 
-  // Parse comma-separated or composite items from description e.g. "BUS TYRE (x11), BUS TYRE (x11)"
   const desc = String(v.description || '').trim();
-  const rawParts = desc.includes(',') ? desc.split(',').map(s => s.trim()).filter(Boolean) : (desc ? [desc] : []);
-
-  if (rawParts.length > 1) {
-    const totalAmount = Number(v.total || v.amount || v.cost || 0);
-    const equalSplit = rawParts.length > 0 ? totalAmount / rawParts.length : totalAmount;
-
-    return rawParts.map((part, idx) => {
-      const qtyMatch = part.match(/\((?:x|X)?\s*(\d+)\)/);
-      const parsedQty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
-      const itemTotal = Number(equalSplit.toFixed(2));
-      const itemCost = parsedQty > 0 ? Number((itemTotal / parsedQty).toFixed(2)) : itemTotal;
-
-      return withMeta({
-        id: `it-${v.id || v.pvNo || 'pv'}-${idx + 1}`,
-        description: part,
-        provider: v.provider || v.clientProvider || 'Vendor',
-        providerId: v.providerId || '',
-        qty: parsedQty,
-        costPerItem: itemCost,
-        totalAmount: itemTotal,
-        status: v.status || 'Pending approval',
-        auditRemarks: v.auditRemarks || ''
-      });
-    });
-  }
-
   const qtyFromDesc = desc.match(/\((?:x|X)?\s*(\d+)\)/);
   const parsedQty = qtyFromDesc ? parseInt(qtyFromDesc[1], 10) : 0;
   const headerQty = Number(v.qty || v.quantity || 0);
@@ -501,6 +449,8 @@ export default function ApprovePVForm({ setM = () => {} }) {
     setIsActioning(true);
     const normalizedDecision = actionChoice === 'Pre-audit Approve PV' || actionChoice === 'Validated' ? 'Validated' : actionChoice;
     setBannerNotice(`⏳ Submitting executive action "${actionChoice}" for PV #${pvNo}...`);
+    const previousItems = currentItems;
+    const previousQueue = pvQueue;
 
     let updatedItems = [...currentItems];
     let overallStatus = normalizedDecision;
@@ -540,17 +490,19 @@ export default function ApprovePVForm({ setM = () => {} }) {
       editedByHeadmaster: true
     };
 
+    const updatedQueue = pvQueue.map(p =>
+      (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
+    );
+    setCurrentItems(updatedItems);
+    setPvQueue(updatedQueue);
     try {
       if (approvePaymentVoucher) {
         await approvePaymentVoucher(pvNo, overallStatus, auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
       }
-      const updatedQueue = pvQueue.map(p =>
-        (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
-      );
-      setPvQueue(updatedQueue);
       setBannerNotice(`✅ Applied executive decision "${actionChoice}" for PV #${pvNo} (Item: ${updatedItems[activeItemIndex]?.description || 'Single Item'}).`);
     } catch (err) {
-      setCurrentItems(currentItems);
+      setCurrentItems(previousItems);
+      setPvQueue(previousQueue);
       setBannerNotice(err?.message || 'Pre-auditing this payment voucher failed.');
     } finally {
       setIsActioning(false);
@@ -568,10 +520,6 @@ export default function ApprovePVForm({ setM = () => {} }) {
       item.id === itemId ? { ...item, status: decision, auditRemarks } : item
     ));
 
-    if (v.pvNo === pvNo || v.id === selectedPvId) {
-      setCurrentItems(updatedItems);
-    }
-
     const overallStatus = summarizePvStatusFromItems(updatedItems, decision);
     const newCalculatedTotal = payableTotalFromItems(updatedItems, v.total || calculatedTotalAmount);
     const updatedFields = {
@@ -583,18 +531,23 @@ export default function ApprovePVForm({ setM = () => {} }) {
       editedByHeadmaster: true
     };
 
+    const previousQueue = pvQueue;
+    const updatedQueue = pvQueue.map(p =>
+      (pvNosMatch(p.pvNo, v.pvNo) || p.id === v.id) ? { ...p, ...updatedFields } : p
+    );
+    if (v.pvNo === pvNo || v.id === selectedPvId) {
+      setCurrentItems(updatedItems);
+    }
+    setPvQueue(updatedQueue);
     try {
       if (approvePaymentVoucher) {
         await approvePaymentVoucher(v.pvNo, overallStatus, auditRemarks || v.auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
       }
-      const updatedQueue = pvQueue.map(p =>
-        (pvNosMatch(p.pvNo, v.pvNo) || p.id === v.id) ? { ...p, ...updatedFields } : p
-      );
-      setPvQueue(updatedQueue);
       const acted = updatedItems.find((i) => i.id === itemId);
       setBannerNotice(`✅ ${decision === 'Validated' ? 'Approved' : (decision === 'Declined' ? 'Rejected' : decision)} "${acted?.description || 'item'}" in PV #${v.pvNo}. Other lines in this voucher remain unchanged.`);
     } catch (err) {
       if (v.pvNo === pvNo || v.id === selectedPvId) setCurrentItems(baseItems);
+      setPvQueue(previousQueue);
       setBannerNotice(err?.message || 'Pre-auditing this payment voucher failed.');
     } finally {
       setIsActioning(false);
@@ -645,17 +598,21 @@ export default function ApprovePVForm({ setM = () => {} }) {
       editedByHeadmaster: true
     };
 
+    const previousQueue = pvQueue;
+    const previousItems = currentItems;
+    const updatedQueue = pvQueue.map(p =>
+      (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
+    );
+    setCurrentItems(updatedItems);
+    setPvQueue(updatedQueue);
     try {
       if (approvePaymentVoucher) {
         await approvePaymentVoucher(pvNo, overallStatus, auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
       }
-      setCurrentItems(updatedItems);
-      const updatedQueue = pvQueue.map(p =>
-        (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
-      );
-      setPvQueue(updatedQueue);
       setBannerNotice(`✅ Applied bulk action "${actionChoice}" to ${selectedItemIds.length} item(s) in PV #${pvNo}.`);
     } catch (err) {
+      setCurrentItems(previousItems);
+      setPvQueue(previousQueue);
       setBannerNotice(err?.message || 'Pre-auditing this payment voucher failed.');
     } finally {
       setIsActioning(false);

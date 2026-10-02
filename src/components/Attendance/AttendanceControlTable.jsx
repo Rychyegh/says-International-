@@ -72,7 +72,7 @@ export default function AttendanceControlTable() {
   const [notification, setNotification] = useState('');
 
   // SMS Integration & Gateway state
-  const [smsBalance, setSmsBalance] = useState({ amount: 304.5, currencyName: 'Ghana Cedi', currencyCode: 'GHS' });
+  const [smsBalance, setSmsBalance] = useState(null);
   const [isBalanceLoading, setIsBalanceLoading] = useState(false);
   const [gateSmsEnabled, setGateSmsEnabled] = useState(true);
   const [rollCallSmsEnabled, setRollCallSmsEnabled] = useState(true);
@@ -106,7 +106,8 @@ export default function AttendanceControlTable() {
         setSmsBalance(res);
       }
     } catch (e) {
-      console.warn('Balance refresh warning:', e);
+      setSmsBalance(null);
+      setNotification(`SMS balance unavailable: ${e.message}`);
     } finally {
       setIsBalanceLoading(false);
     }
@@ -163,8 +164,8 @@ export default function AttendanceControlTable() {
         backendPromise = api.recordAttendanceScan({
           identifier: sId,
           scanType: statusToApply === 'Present' ? 'Check-in' : 'Absence',
-          sendSms: true
-        }).catch(() => {});
+          sendSms: false
+        });
 
         setAttendanceState(prev => ({
           ...prev,
@@ -186,7 +187,7 @@ export default function AttendanceControlTable() {
       } else if (statusToApply) {
         setNotification(`⚡ Marked ${statusToApply} & SMS dispatched to ${guardianName} (${phone}) for ${directSmsModalStudent.fullName}! Time: ${timeStr}`);
       } else {
-        setNotification(`⚡ Custom SMS sent to ${guardianName} (${phone})!`);
+        setNotification(`⚡ Custom SMS accepted for ${guardianName} (${phone})!`);
       }
 
       setDirectSmsModalStudent(null);
@@ -194,25 +195,8 @@ export default function AttendanceControlTable() {
       setDirectSmsText('');
       setTimeout(() => setNotification(''), 7000);
     } catch (err) {
-      if (statusToApply) {
-        setAttendanceState(prev => ({
-          ...prev,
-          [sId]: {
-            status: statusToApply,
-            cardScanned: false,
-            smsSent: true,
-            lastSentAt: timeStr,
-            sending: false
-          }
-        }));
-        setNotification(`⚡ Marked ${statusToApply} for ${directSmsModalStudent.fullName}. SMS alert logged for ${phone}.`);
-      } else {
-        setNotification(`⚡ Custom SMS queued for ${phone}.`);
-      }
-      setDirectSmsModalStudent(null);
-      setDirectSmsAttendanceStatus(null);
-      setDirectSmsText('');
-      setTimeout(() => setNotification(''), 6000);
+      setAttendanceState(prev => ({ ...prev, [sId]: { ...prev[sId], smsSent: false, sending: false } }));
+      setNotification(`SMS or attendance save failed: ${err.message}. Check the record before retrying.`);
     } finally {
       setIsSendingDirectSms(false);
     }
@@ -337,14 +321,15 @@ export default function AttendanceControlTable() {
       const backendPromise = api.recordAttendanceScan({
         identifier: sId,
         scanType: scanLabel === 'Check Out' ? 'Check-out' : 'Check-in',
-        sendSms: true
-      }).catch(() => {});
+        sendSms: false
+      });
 
       await Promise.all([smsPromise, backendPromise]);
 
       setNotification(`💳 PHYSICAL CARD READ SUCCESS (${scanLabel.toUpperCase()})! Verified Card #${scannedCardCode} -> ${matchedStudent.fullName} (${sId}). Instant SMS dispatched to ${guardianName} (${phone})!`);
     } catch (err) {
-      setNotification(`💳 PHYSICAL CARD VERIFIED (${scanLabel.toUpperCase()})! ${matchedStudent.fullName} (${sId}) marked ${scanLabel} via Card Reader.`);
+      setAttendanceState(prev => ({ ...prev, [sId]: { ...prev[sId], smsSent: false, sending: false } }));
+      setNotification(`Attendance or SMS not confirmed: ${err.message}`);
     }
   };
 
@@ -443,8 +428,8 @@ export default function AttendanceControlTable() {
       const backendPromise = api.recordAttendanceScan({
         identifier: student.studentId || student.id,
         scanType: newStatus === 'Present' ? 'Check-in' : 'Absence',
-        sendSms: true
-      }).catch(() => {});
+        sendSms: false
+      });
 
       const [smsRes] = await Promise.all([smsPromise, backendPromise]);
       const deliveryStatus = smsRes?.data?.destinations?.[0]?.status?.label;
@@ -452,7 +437,7 @@ export default function AttendanceControlTable() {
       if (deliveryStatus === 'DS_REJECTED_SENDER_UNREGISTERED') {
         setNotification(`⚠ SMS Gateway Alert: Delivery to ${phone} rejected by telco. Sender ID 'RCIS' is not registered on your SMSOnlineGH dashboard.`);
       } else {
-        setNotification(`⚡ Instant SMS alert dispatched to ${guardianName} (${phone}) for ${student.fullName} (${newStatus})!`);
+        setNotification(`⚡ SMS request accepted for ${guardianName} (${phone}) for ${student.fullName} (${newStatus})!`);
       }
 
       setAttendanceState(prev => ({
@@ -468,19 +453,8 @@ export default function AttendanceControlTable() {
 
       setTimeout(() => setNotification(''), 9000);
     } catch (err) {
-      console.warn('SMS send warning:', err);
-      setAttendanceState(prev => ({
-        ...prev,
-        [sId]: {
-          status: newStatus,
-          cardScanned: false,
-          smsSent: true,
-          lastSentAt: timeStr,
-          sending: false
-        }
-      }));
-      setNotification(`Marked ${newStatus} for ${student.fullName}. SMS alert logged.`);
-      setTimeout(() => setNotification(''), 6000);
+      setAttendanceState(prev => ({ ...prev, [sId]: { ...prev[sId], smsSent: false, sending: false } }));
+      setNotification(`SMS or attendance not confirmed: ${err.message}`);
     }
   };
 
@@ -614,7 +588,7 @@ export default function AttendanceControlTable() {
             padding: '6px 12px', borderRadius: 20, border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 700, color: '#334155'
           }}>
             <Sparkles size={14} color="#d97706" />
-            <span>SMS Credits: <strong style={{ color: '#0f766e' }}>{smsBalance?.amount ?? 304.50} units</strong></span>
+            <span>SMS Credits: <strong style={{ color: '#0f766e' }}>{smsBalance?.amount ?? 'Unavailable'} units</strong></span>
             <button
               type="button"
               onClick={fetchSmsBalance}

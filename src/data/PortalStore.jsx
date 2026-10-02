@@ -1,9 +1,22 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { api, extractStudentList, extractExamRegistrations, mapExamRegistration, getUserFullName, hasLiveDatabaseSession } from '../services/api';
+import { api, extractStudentList, extractExamRegistrations, mapExamRegistration, getUserFullName, hasLiveDatabaseSession, getAuthToken, getAuthUser, mapScoreSheetEntry } from '../services/api';
 import { registerCustomSubClass, getCustomSubClassMap } from './classStructure';
-import { cloudSync } from '../services/cloudSync';
+import { pvNosMatch, isApprovedItem, normalizePvItemStatus, payableAmount, resolveFee, stripCredentials, portalForRole } from '../lib/recordRules.js';
+export { pvNosMatch } from '../lib/recordRules.js';
 
-const STORAGE_KEY = 'remalj-portal-live-data-v3';
+const SNAPSHOT_KEY = 'says-session-snapshot-v1';
+const SNAPSHOT_FIELDS = ['applications', 'onboardedStudents', 'studentFees', 'feeAccounts', 'paymentVouchers', 'serviceProviders', 'academicSettings', 'timetable', 'results', 'reportRequests', 'incidents', 'assetTasks', 'messages', 'assignments', 'teacherDirectory', 'teachingAssignments', 'classLevels', 'subjects', 'busRoutes', 'definedBills', 'semesterRegistrations', 'examRegistrations'];
+function snapshotScope() {
+  const user = getAuthUser();
+  return user?.id ? JSON.stringify([user.id, user.role, user.schoolId || user.school_id || user.tenantId || '']) : '';
+}
+function persistSnapshot(data) {
+  try {
+    if (!getAuthToken() || !snapshotScope()) return;
+    const records = Object.fromEntries(SNAPSHOT_FIELDS.map(key => [key, data[key]]));
+    sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ scope: snapshotScope(), savedAt: data.lastSyncedAt ? new Date(data.lastSyncedAt).getTime() : Date.now(), records: stripCredentials(records) }));
+  } catch { /* Storage may be disabled or full; API reads still work. */ }
+}
 
 export function classLabelsMatch(assigned, target) {
   const left = String(assigned || '').trim().toLowerCase();
@@ -330,9 +343,7 @@ function applicationMatchesStudent(app, student) {
   if (!app || !student) return false;
   if (student.applicationId && String(app.id) === String(student.applicationId)) return true;
   if (app.officeStudentID && student.studentId && String(app.officeStudentID).toLowerCase() === String(student.studentId).toLowerCase()) return true;
-  const appName = normalizePersonName(applicationLearnerName(app));
-  const stuName = normalizePersonName(student.fullName || student.name);
-  return Boolean(appName && stuName && appName === stuName);
+  return false;
 }
 
 function studentDraftFromApplication(app = {}) {
@@ -389,20 +400,8 @@ function mergeRosterWithApplications(students = [], applications = []) {
 
 function applicationsAreSame(a = {}, b = {}) {
   if (!a || !b) return false;
-  if (a.id && b.id && String(a.id) === String(b.id)) return true;
-  const aOffice = String(a.officeStudentID || a.studentId || '').toLowerCase().trim();
-  const bOffice = String(b.officeStudentID || b.studentId || '').toLowerCase().trim();
-  if (aOffice && bOffice && aOffice === bOffice) return true;
-  const aName = normalizePersonName(applicationLearnerName(a) || a.learner || a.fullName);
-  const bName = normalizePersonName(applicationLearnerName(b) || b.learner || b.fullName);
-  if (!aName || aName !== bName) return false;
-  const aDob = String(a.dob || a.dateOfBirth || '').slice(0, 10);
-  const bDob = String(b.dob || b.dateOfBirth || '').slice(0, 10);
-  if (aDob && bDob && aDob !== bDob) return false;
-  const aYear = String(a.academicYear || '').trim().toLowerCase();
-  const bYear = String(b.academicYear || '').trim().toLowerCase();
-  if (aYear && bYear && aYear !== bYear) return false;
-  return true;
+  if (a.id && b.id) return String(a.id) === String(b.id);
+  return false;
 }
 
 function findMatchingApplication(list = [], candidate = {}) {
@@ -532,29 +531,15 @@ async function findRemoteApplicationId(candidate) {
     const raw = await api.getApplications();
     const list = extractApplicationsList(raw).map(mapApiApplication);
     return findMatchingApplication(list, candidate)?.id || null;
-  } catch {
-    return null;
+  } catch (error) {
+    throw new Error(failedDatabaseAction('Checking existing applications', error));
   }
 }
 
 async function removeDuplicateRemoteApplications(keepId, candidate, previous = null) {
-  if (!keepId || !candidate) return;
-  try {
-    const raw = await api.getApplications();
-    const list = extractApplicationsList(raw).map(mapApiApplication);
-    const extras = list.filter((app) =>
-      app.id
-      && String(app.id) !== String(keepId)
-      && (
-        applicationsAreSame(app, { ...candidate, id: keepId })
-        || (previous && applicationsAreSame(app, previous))
-        || String(app.formData?.id || '') === String(keepId)
-      )
-    );
-    await Promise.all(extras.map((app) => api.deleteApplication(app.id).catch(() => null)));
-  } catch {
-    /* keep local collapse even if remote cleanup fails */
-  }
+  // Existing database duplicates require a reviewed, transactional migration.
+  // The browser must never delete applications based on matching names.
+  return;
 }
 
 function deduplicateApplications(list = []) {
@@ -592,29 +577,6 @@ function extractApplicationsList(raw) {
   return [];
 }
 
-function normalizePvNo(value) {
-  return String(value || '').toUpperCase().replace(/\s+/g, '').replace(/^PV-/, '');
-}
-
-function pvTrailingNumber(value) {
-  const match = String(value || '').match(/(\d+)(?!.*\d)/);
-  if (!match) return '';
-  return String(match[1]).replace(/^0+/, '') || String(match[1]);
-}
-
-export function pvNosMatch(a, b) {
-  const left = normalizePvNo(a);
-  const right = normalizePvNo(b);
-  if (!left || !right) return false;
-  if (left === right) return true;
-  const shorter = left.length <= right.length ? left : right;
-  const longer = left.length <= right.length ? right : left;
-  if (shorter.length >= 4 && (longer.endsWith(`-${shorter}`) || longer.endsWith(shorter))) return true;
-  const leftTail = pvTrailingNumber(left);
-  const rightTail = pvTrailingNumber(right);
-  return Boolean(leftTail && rightTail && leftTail === rightTail && leftTail.length >= 4);
-}
-
 function pvMatchesRef(voucher, ref) {
   if (!voucher || ref == null || ref === '') return false;
   const key = String(ref);
@@ -624,23 +586,18 @@ function pvMatchesRef(voucher, ref) {
 }
 
 function mapApiPvStatus(status) {
-  const s = String(status || '').trim();
-  const upper = s.toUpperCase();
-  if (upper === 'DISBURSED' || upper === 'PAID' || /disburs|paid/i.test(s)) return 'DISBURSED';
-  if (upper === 'APPROVED' || upper === 'PRE_AUDITED' || /validat|approv|pre-audit/i.test(s)) return 'Validated';
-  if (upper === 'REJECTED' || /declin|reject/i.test(s)) return 'Declined';
-  if (/cancel/i.test(s)) return 'Cancel PV';
-  if (/non-accrual/i.test(s)) return 'Non-accrual';
-  if (/postpon/i.test(s)) return 'Postponed';
-  if (upper === 'DRAFT' || upper === 'PENDING' || /pending|draft/i.test(s)) return 'Pending Audit';
-  return s || 'Pending Audit';
+  const value = String(status || '').trim().toUpperCase();
+  if (['DISBURSED', 'PAID', 'SETTLED'].includes(value)) return 'DISBURSED';
+  if (value === 'PARTIALLY APPROVED' || value === 'PARTIALLY_APPROVED') return 'Partially Approved';
+  const normalized = normalizePvItemStatus(status);
+  return normalized === 'Pending approval' ? 'Pending Audit' : normalized;
 }
 
 function pvStatusRank(status) {
   const s = String(status || '').toLowerCase();
   if (s.includes('disburs') || s === 'paid') return 50;
   if (s.includes('declin') || s.includes('reject') || s.includes('cancel') || s.includes('non-accrual')) return 40;
-  if (s.includes('valid') || s.includes('approv') || s.includes('pre-audit')) return 40;
+  if (isApprovedItem(s)) return 40;
   if (s.includes('partial')) return 30;
   if (s.includes('postpon')) return 20;
   if (s.includes('pending') || s.includes('draft') || !s) return 10;
@@ -680,6 +637,8 @@ export function mapApiPaymentVoucher(p = {}) {
     }];
   }
   return {
+    version: p.version,
+    payableTotal: p.payable_total ?? p.payableTotal,
     id: p.id,
     pvNo: p.pv_number || p.pvNo || (p.id ? `PV-${p.id}` : ''),
     requisitionNo: p.requisition_no || p.requisitionNo,
@@ -963,7 +922,7 @@ export function mapStudentFromApi(s = {}, fallback = {}) {
     createdAt: s.created_at || s.createdAt || fallback.createdAt || null,
     status: (/inactive|withdrawn|declin|cancel|suspend|deleted|archived/i.test(String(s.status || '')) || s.is_active === false || s.isActive === false)
       ? 'Inactive'
-      : (s.status || fallback.status || 'Active'),
+      : (/^(active|enrolled|approved)$/i.test(String(s.status || fallback.status || 'Active')) ? 'Active' : (s.status || fallback.status)),
     is_active: s.is_active !== false && s.isActive !== false && !/inactive|withdrawn|declin|cancel|suspend|deleted|archived/i.test(String(s.status || '')),
     studentEmail: s.studentEmail || s.student_email || s.school_email || fallback.studentEmail || '',
     defaultPassword: s.defaultPassword || s.default_password || fallback.defaultPassword || '',
@@ -976,31 +935,10 @@ export function mapStudentFromApi(s = {}, fallback = {}) {
 }
 
 export function studentsAreSamePerson(a = {}, b = {}) {
-  const aName = normalizePersonName(a.fullName || a.name || a.full_name);
-  const bName = normalizePersonName(b.fullName || b.name || b.full_name);
-  const aSid = String(a.studentId || a.student_id_code || a.student_code || '').toLowerCase().trim();
-  const bSid = String(b.studentId || b.student_id_code || b.student_code || '').toLowerCase().trim();
-  const aId = String(a.id || '').toLowerCase().trim();
-  const bId = String(b.id || '').toLowerCase().trim();
-  const aEmail = String(a.studentEmail || a.student_email || a.email || '').toLowerCase().trim();
-  const bEmail = String(b.studentEmail || b.student_email || b.email || '').toLowerCase().trim();
-  const aRfid = String(a.rfidCardCode || a.rfid_card_code || '').toLowerCase().trim();
-  const bRfid = String(b.rfidCardCode || b.rfid_card_code || '').toLowerCase().trim();
-
-  if (aSid && bSid && aSid === bSid) return true;
-  if (aId && bId && aId === bId) return true;
-  const aAppId = String(a.applicationId || a.application_id || '').trim();
-  const bAppId = String(b.applicationId || b.application_id || '').trim();
-  if (aAppId && bAppId && aAppId === bAppId) return true;
-  if (aEmail && bEmail && aEmail === bEmail && aEmail.includes('@')) return true;
-  if (aRfid && bRfid && aRfid === bRfid) return true;
-  if (aName && bName && aName === bName) {
-    if (isOfficialStudentCode(aSid) && isOfficialStudentCode(bSid) && aSid !== bSid) {
-      if (aEmail && bEmail && aEmail !== bEmail) return false;
-      if (a.dob && b.dob && String(a.dob) !== String(b.dob)) return false;
-    }
-    return true;
-  }
+  const same = (x, y) => Boolean(x && y && String(x).trim().toLowerCase() === String(y).trim().toLowerCase());
+  if (same(a.id, b.id)) return true;
+  if (same(a.applicationId || a.application_id, b.applicationId || b.application_id)) return true;
+  if (same(a.studentId || a.student_id_code || a.student_code, b.studentId || b.student_id_code || b.student_code)) return true;
   return false;
 }
 
@@ -1127,148 +1065,17 @@ function studentIdentityKey(student = {}) {
   const appId = String(student.applicationId || '').toLowerCase().trim();
   if (appId) return `app:${appId}`;
   const sid = String(student.studentId || '').toLowerCase().trim();
-  const email = String(student.studentEmail || student.guardianEmail || '').toLowerCase().trim();
-  const name = normalizePersonName(student.fullName || student.name);
-  return sid || email || name;
+  return sid || JSON.stringify([normalizePersonName(student.fullName || student.name), student.dob || '', student.guardianEmail || '', student.level || '']);
 }
 
-function upsertCanonicalLoginAccount({
-  studentId,
-  studentEmail,
-  password,
-  fullName,
-  guardianEmail,
-  guardianName,
-  guardianPhone,
-  parentPassword,
-}) {
-  if (!studentEmail && !studentId) return;
-  try {
-    const raw = localStorage.getItem('registered_accounts');
-    const list = raw ? JSON.parse(raw) : {};
-    const emailKey = (studentEmail || '').toLowerCase().trim();
-    const sidKey = String(studentId || '').toLowerCase().trim();
-    const personName = normalizePersonName(fullName);
-
-    let keptPassword = password;
-    let keptId = `usr_${studentId || emailKey}`;
-    Object.keys(list).forEach((key) => {
-      const item = list[key];
-      if (!item || item.role !== 'student') return;
-      const sameId = sidKey && item.studentId && String(item.studentId).toLowerCase() === sidKey;
-      const sameEmail = emailKey && item.email && item.email.toLowerCase() === emailKey;
-      const sameName = personName && normalizePersonName(item.fullName) === personName;
-      if (sameId || sameEmail || sameName) {
-        if (!keptPassword) keptPassword = item.password;
-        if (item.id) keptId = item.id;
-        delete list[key];
-      }
-    });
-
-    const account = {
-      id: keptId,
-      studentId,
-      email: studentEmail,
-      password: keptPassword,
-      fullName,
-      role: 'student',
-    };
-    if (emailKey) list[emailKey] = account;
-    if (sidKey && sidKey !== emailKey) list[sidKey] = account;
-
-    const parentKey = (guardianEmail || '').toLowerCase().trim();
-    if (parentKey && parentKey !== emailKey) {
-      const existingParent = list[parentKey] && list[parentKey].role === 'parent' ? list[parentKey] : null;
-      const linkedStudentIds = Array.from(new Set([
-        ...(existingParent?.linkedStudentIds || []),
-        studentId,
-      ].filter(Boolean)));
-      list[parentKey] = {
-        ...(existingParent || {}),
-        id: existingParent?.id || `usr_parent_${studentId}`,
-        email: guardianEmail,
-        phone: guardianPhone || existingParent?.phone,
-        password: existingParent?.password || parentPassword || 'ParentPass2026!',
-        fullName: guardianName || existingParent?.fullName || `Parent of ${fullName}`,
-        role: 'parent',
-        linkedStudentIds,
-      };
-    }
-
-    localStorage.setItem('registered_accounts', JSON.stringify(list));
-  } catch (e) { /* local cache only */ }
+function upsertCanonicalLoginAccount() {
+  // Accounts and parent links are managed by the authenticated backend.
 }
 
 function applyCanonicalStudentToState(current, canonical) {
-  const billed = billedAmountForLevel(canonical.level);
-  const existingFee = (current.studentFees || []).find((f) =>
-    (f.studentId && canonical.studentId && String(f.studentId) === String(canonical.studentId))
-    || normalizePersonName(f.studentName) === normalizePersonName(canonical.fullName)
-    || (canonical.previousName && normalizePersonName(f.studentName) === normalizePersonName(canonical.previousName))
-  );
-  const existingFeeAccount = (current.feeAccounts || []).find((a) =>
-    normalizePersonName(a.child) === normalizePersonName(canonical.fullName)
-    || (canonical.previousName && normalizePersonName(a.child) === normalizePersonName(canonical.previousName))
-  );
-
-  const newFee = {
-    id: existingFee?.id || `fee-${canonical.studentId || canonical.id}`,
-    studentId: canonical.studentId,
-    studentName: canonical.fullName,
-    otherNames: canonical.otherNames || '',
-    classLevel: canonical.level || '',
-    classSection: canonical.classSection || '',
-    guardianName: canonical.guardianName,
-    guardianEmail: canonical.guardianEmail,
-    term: existingFee?.term || 'Term 1 · 2026',
-    billedAmount: Number(existingFee?.billedAmount) || billed,
-    paidAmount: Number(existingFee?.paidAmount) || 0,
-    balance: existingFee?.balance !== undefined ? Number(existingFee.balance) : billed,
-    status: existingFee?.status || 'Not Paid',
-    dueDate: existingFee?.dueDate || '2026-09-15',
-    paymentDate: existingFee?.paymentDate || null,
-  };
-  const newFeeAccount = {
-    id: existingFeeAccount?.id || `fee-acc-${canonical.studentId || canonical.id}`,
-    child: canonical.fullName,
-    school: 'REMALJ Carewell Inspirational School',
-    term: existingFeeAccount?.term || 'Term 1 · 2026',
-    billed: existingFeeAccount?.billed || newFee.billedAmount,
-    paid: existingFeeAccount?.paid || newFee.paidAmount,
-    status: existingFeeAccount?.status || newFee.status,
-  };
-
-  const otherStudents = (current.onboardedStudents || []).filter((s) => {
-    if (studentsAreSamePerson(s, canonical)) return false;
-    if (canonical.previousName && normalizePersonName(s.fullName) === normalizePersonName(canonical.previousName)) return false;
-    return true;
-  });
-  const otherFees = (current.studentFees || []).filter((f) => f !== existingFee);
-  const otherFeeAccounts = (current.feeAccounts || []).filter((a) => a !== existingFeeAccount);
-
-  upsertCanonicalLoginAccount({
-    studentId: canonical.studentId,
-    studentEmail: canonical.studentEmail,
-    password: canonical.defaultPassword,
-    fullName: canonical.fullName,
-    guardianEmail: canonical.guardianEmail,
-    guardianName: canonical.guardianName,
-    guardianPhone: canonical.guardianPhone,
-    parentPassword: canonical.parentPassword || 'ParentPass2026!',
-  });
-
   return {
     ...current,
-    onboardedStudents: deduplicateStudents([canonical, ...otherStudents]),
-    studentFees: deduplicateFees([newFee, ...otherFees]),
-    feeAccounts: [newFeeAccount, ...otherFeeAccounts],
-    applications: canonical.rfidCardCode
-      ? (current.applications || []).map((app) => (
-        applicationMatchesStudent(app, canonical)
-          ? { ...app, rfidCardCode: canonical.rfidCardCode, formData: { ...(app.formData || {}), rfidCardCode: canonical.rfidCardCode } }
-          : app
-      ))
-      : current.applications,
+    onboardedStudents: deduplicateStudents([canonical, ...(current.onboardedStudents || []).filter(s => !studentsAreSamePerson(s, canonical))]),
   };
 }
 
@@ -1315,46 +1122,12 @@ export function mapFeeFromApi(f = {}) {
 }
 
 export function deduplicateFees(fees = []) {
-  const map = new Map();
-  (fees || []).forEach(f => {
-    if (!f) return;
-    const nameKey = (f.studentName || '').toLowerCase().trim();
-    const termKey = (f.term || 'Term 1 · 2026').toLowerCase().trim();
-    const key = nameKey ? `${nameKey}::${termKey}` : (f.studentId || f.id || '').toLowerCase().trim();
-    if (!key) return;
-
-    if (!map.has(key)) {
-      map.set(key, f);
-    } else {
-      const prev = map.get(key);
-      const billedAmount = Math.max(Number(prev.billedAmount) || 0, Number(f.billedAmount) || 0);
-      const paidAmount = Math.max(Number(prev.paidAmount) || 0, Number(f.paidAmount) || 0);
-      const balance = Math.max(0, billedAmount - paidAmount);
-      const status = balance <= 0 && billedAmount > 0
-        ? 'Paid'
-        : paidAmount > 0
-          ? 'Balance Due'
-          : (f.status || prev.status || 'Not Paid');
-      map.set(key, {
-        ...prev,
-        ...f,
-        studentId: prev.studentId || f.studentId,
-        studentName: prev.studentName || f.studentName,
-        guardianName: prev.guardianName || f.guardianName,
-        guardianEmail: prev.guardianEmail || f.guardianEmail,
-        billedAmount,
-        paidAmount,
-        balance,
-        status,
-        itemsBreakdown: (Array.isArray(f.itemsBreakdown) && f.itemsBreakdown.length)
-          ? f.itemsBreakdown
-          : (prev.itemsBreakdown || []),
-        lastBillPostedAt: f.lastBillPostedAt || prev.lastBillPostedAt,
-        updatedAt: f.updatedAt || prev.updatedAt,
-      });
-    }
-  });
-  return Array.from(map.values());
+  return [...new Map(fees.filter(f => f?.id).map(f => [String(f.id), f])).values()];
+}
+function buildFeeAccountsFromStudentFees(fees) {
+  return fees.map(f => ({ id: `fee-acc-${f.id}`, child: f.studentName, studentId: f.studentId,
+    guardianEmail: f.guardianEmail, school: 'REMALJ Carewell Inspirational School', term: f.term,
+    billed: f.billedAmount, paid: f.paidAmount, status: f.status }));
 }
 
 // One score sheet per student, subject, term and year — saving the same combination edits that record
@@ -1635,214 +1408,74 @@ const INITIAL_DATA = {
 
 const PortalDataContext = createContext(null);
 
-function readData() {
+function readData(enabled) {
+  const initial = { ...INITIAL_DATA, timetable: [], serviceProviders: [], isLoadingBackend: Boolean(enabled), isRefreshingBackend: Boolean(enabled) };
+  if (!enabled || !getAuthToken()) return initial;
   try {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (!saved) return INITIAL_DATA;
-    const parsed = JSON.parse(saved);
-    return {
-      ...INITIAL_DATA,
-      ...parsed,
-      teacherDirectory: Array.isArray(parsed.teacherDirectory)
-        ? parsed.teacherDirectory.filter((t) => t?.id || t?.staffId)
-        : [],
-      teachingAssignments: Array.isArray(parsed.teachingAssignments)
-        ? parsed.teachingAssignments
-        : [],
-      classLevels: Array.isArray(parsed.classLevels) && parsed.classLevels.length > 0 ? parsed.classLevels : DEFAULT_CLASS_LEVELS,
-      subjects: Array.isArray(parsed.subjects) && parsed.subjects.length > 0 ? parsed.subjects : DEFAULT_SUBJECTS,
-      timetable: Array.isArray(parsed.timetable) && parsed.timetable.length > 0 ? parsed.timetable : DEFAULT_TIMETABLE,
-      profiles: {
-        ...INITIAL_DATA.profiles,
-        ...(parsed.profiles || {})
-      },
-      onboardedStudents: Array.isArray(parsed.onboardedStudents)
-        ? parsed.onboardedStudents.filter((s) => isBackendUuid(s?.id) && s?.is_active !== false && s?.status === 'Active')
-        : [],
-      applications: Array.isArray(parsed.applications)
-        ? parsed.applications.filter((a) => isBackendUuid(a?.id))
-        : [],
-      isLoadingBackend: true,
-      studentFees: deduplicateFees(parsed.studentFees || []),
-      academicSettings: {
-        ...INITIAL_DATA.academicSettings,
-        ...(parsed.academicSettings || {})
-      },
-      // Always ensure these arrays exist even in old localStorage snapshots
-      paymentVouchers: [],
-      pvNotifications: [],
-      examRegistrations: [],
-      serviceProviders: (() => {
-        try {
-          const list = Array.isArray(parsed.serviceProviders) && parsed.serviceProviders.length > 0
-            ? parsed.serviceProviders
-            : (() => {
-                const sp = localStorage.getItem('says_service_providers');
-                return sp ? JSON.parse(sp) : [];
-              })();
-          return mergeByKey(DEFAULT_SERVICE_PROVIDERS, list, p => p.id || p.name);
-        } catch (_) {
-          return DEFAULT_SERVICE_PROVIDERS;
-        }
-      })(),
-    };
-  } catch {
-    return INITIAL_DATA;
-  }
+    const cached = JSON.parse(sessionStorage.getItem(SNAPSHOT_KEY) || 'null');
+    if (cached?.scope === snapshotScope() && Date.now() - cached.savedAt < 30 * 60 * 1000) {
+      const records = Object.fromEntries(SNAPSHOT_FIELDS.filter(key => key in cached.records).map(key => [key, cached.records[key]]));
+      return { ...initial, ...records, lastSyncedAt: new Date(cached.savedAt).toISOString(), isLoadingBackend: false, showingCachedData: true };
+    }
+  } catch { /* Invalid cache is ignored. */ }
+  return initial;
 }
 
-export function PortalDataProvider({ children }) {
-  const [data, setData] = useState(readData);
-
-  // Identifies this tab so its own broadcasts are never applied back to itself
-  const senderIdRef = useRef(`portal-${Math.random().toString(36).slice(2)}`);
-  // Set while applying a snapshot received from another tab, so it is not echoed back
-  const applyingRemoteRef = useRef(false);
+export function PortalDataProvider({ children, enabled = false }) {
+  const [data, rawSetData] = useState(() => readData(enabled));
+  const mountedRef = useRef(true);
+  const mutationEpochRef = useRef(0);
+  const writeLocksRef = useRef(new Set());
+  const paymentKeysRef = useRef(new Map());
   const dataRef = useRef(data);
   dataRef.current = data;
+  const setData = useCallback((update) => {
+    if (!mountedRef.current) return;
+    rawSetData(current => stripCredentials(typeof update === 'function' ? update(current) : update));
+  }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  useEffect(() => { if (enabled) persistSnapshot(data); }, [data, enabled]);
   const onboardLocksRef = useRef(new Map());
   const recentRosterIdsRef = useRef(new Set());
-
-  useEffect(() => {
-    try {
-      localStorage.removeItem('official_pv_queue');
-      localStorage.removeItem('says_read_pv_notifs');
-      localStorage.removeItem('says_cleared_pv_notifs');
-      const { paymentVouchers: _paymentVouchers, pvNotifications: _pvNotifications, ...rest } = data;
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        ...rest,
-        paymentVouchers: [],
-        pvNotifications: [],
-      }));
-
-      (data.onboardedStudents || []).forEach((s) => {
-        if (!s || (!s.studentEmail && !s.studentId)) return;
-        upsertCanonicalLoginAccount({
-          studentId: s.studentId,
-          studentEmail: s.studentEmail || schoolEmailFromName(s.fullName),
-          password: s.defaultPassword,
-          fullName: s.fullName,
-          guardianEmail: s.guardianEmail,
-          guardianName: s.guardianName,
-          guardianPhone: s.guardianPhone,
-        });
-      });
-
-      if (applyingRemoteRef.current) {
-        applyingRemoteRef.current = false;
-        return;
-      }
-
-      // Real-Time Cloud Hub Push for instant cross-user / multi-portal synchronization
-      cloudSync.pushLatestData(data);
-
-      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-        const channel = new BroadcastChannel('rcis_portal_data_sync');
-        channel.postMessage({ type: 'DATA_UPDATE', sender: senderIdRef.current, payload: data });
-        channel.close();
-      }
-    } catch (e) {}
-  }, [data]);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = data.theme || 'light';
-  }, [data.theme]);
-
-  useEffect(() => {
-    const sync = (event) => {
-      if (event.key === STORAGE_KEY && event.newValue) {
-        try {
-          const incoming = JSON.parse(event.newValue);
-          setData((current) => {
-            const next = {
-              ...incoming,
-              paymentVouchers: current.paymentVouchers,
-              pvNotifications: current.pvNotifications,
-            };
-            if (isDeepEqual(current, next)) return current;
-            applyingRemoteRef.current = true;
-            return next;
-          });
-        } catch (e) {}
-      }
-    };
-    window.addEventListener('storage', sync);
-
-    let channel = null;
-    let unsubRealtime = null;
-    try {
-      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-        channel = new BroadcastChannel('rcis_portal_data_sync');
-        channel.onmessage = (event) => {
-          if (event.data && event.data.type === 'DATA_UPDATE' && event.data.payload) {
-            if (event.data.sender === senderIdRef.current) return;
-            setData(current => {
-              const next = { ...current, ...event.data.payload };
-              if (isDeepEqual(current, next)) return current;
-              applyingRemoteRef.current = true;
-              return next;
-            });
-          } else if (event.data && event.data.type === 'PV_SUBMITTED') {
-            const { notif } = event.data;
-            if (notif) {
-              setData(current => {
-                const existing = current.pvNotifications || [];
-                if (existing.some(n => n.id === notif.id || (notif.pvNo && n.pvNo === notif.pvNo))) return current;
-                return {
-                  ...current,
-                  pvNotifications: [notif, ...existing]
-                };
-              });
-            }
-          } else if (event.data && event.data.type === 'NEW_SERVICE_PROVIDER' && event.data.provider) {
-            const newP = event.data.provider;
-            setData(current => {
-              const list = current.serviceProviders || DEFAULT_SERVICE_PROVIDERS;
-              if (list.some(p => p.id === newP.id || p.name?.toLowerCase() === newP.name?.toLowerCase())) return current;
-              const next = [newP, ...list];
-              try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
-              return { ...current, serviceProviders: next };
-            });
-          }
-        };
-      }
-
-      // Live Server-Sent Events subscription for cross-device instant sync
-      if (cloudSync.initRealtimeSubscription) {
-        unsubRealtime = cloudSync.initRealtimeSubscription((liveProvider) => {
-          if (!liveProvider || !liveProvider.name) return;
-          setData(current => {
-            const list = current.serviceProviders || DEFAULT_SERVICE_PROVIDERS;
-            if (list.some(p => p.id === liveProvider.id || p.name?.toLowerCase() === liveProvider.name?.toLowerCase())) {
-              return current;
-            }
-            const next = [liveProvider, ...list];
-            try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
-            return { ...current, serviceProviders: next };
-          });
-        });
-      }
-    } catch (e) {}
-
-    return () => {
-      window.removeEventListener('storage', sync);
-      if (channel) channel.close();
-      if (typeof unsubRealtime === 'function') unsubRealtime();
-    };
-  }, []);
+  const cacheGenerationRef = useRef({ admissions: 0, 'payment-vouchers': 0 });
+  useEffect(() => { document.documentElement.dataset.theme = data.theme || 'light'; }, [data.theme]);
 
   const isRefreshingRef = useRef(false);
 
-  // Sync strictly with live backend API endpoints and Universal Cloud Sync Hub on mount & intervals
+  // Sync strictly with live backend API endpoints  on mount & intervals
   // Uses concurrent Promise.allSettled and atomic deep equality diffing to eliminate UI glitching/flicker
   const refreshBackendData = useCallback(async () => {
-    if (isRefreshingRef.current) return;
+    if (!enabled || !hasLiveDatabaseSession() || isRefreshingRef.current) return;
+    const sessionToken = getAuthToken();
+    const refreshEpoch = mutationEpochRef.current;
     isRefreshingRef.current = true;
 
     try {
-      // 1. Fetch all backend endpoints and cloud hub in a single concurrent burst
+      const role = portalForRole(getAuthUser()?.role);
+      const privileged = ['admin', 'accountant'].includes(role);
+      const staff = privileged || role === 'teacher';
+      const allowed = (condition, fetcher) => condition ? fetcher() : Promise.resolve(null);
+      const progressive = (resource, promise) => promise.then(value => {
+        if (!mountedRef.current || sessionToken !== getAuthToken() || refreshEpoch !== mutationEpochRef.current) return value;
+        setData(current => {
+          const patch = {};
+          if (resource === 'students') patch.onboardedStudents = deduplicateStudents(extractStudentList(value).map(s => mapStudentFromApi(s)).filter(s => isBackendUuid(s.id) && s.is_active !== false && s.status === 'Active'));
+          if (resource === 'applications') patch.applications = deduplicateApplications(extractApplicationsList(value).map(mapApiApplication).filter(app => isBackendUuid(app.id)));
+          if (resource === 'fees') {
+            patch.studentFees = deduplicateFees(extractApiList(value).map(mapFeeFromApi));
+            patch.feeAccounts = buildFeeAccountsFromStudentFees(patch.studentFees);
+          }
+          return { ...current, ...patch, backendConnected: true, isLoadingBackend: false };
+        });
+        return value;
+      });
+      setData(current => ({ ...current, isRefreshingBackend: true }));
+      // 1. Fetch all backend endpoints in a single concurrent burst
       const [
-        cloudRes,
+        settingsRes,
         routesRes,
         timetablesRes,
         resultsRes,
@@ -1868,41 +1501,50 @@ export function PortalDataProvider({ children }) {
         subjectsRes,
         teachingAssignmentsRes
       ] = await Promise.allSettled([
-        cloudSync.pullLatestData(),
+        api.getAcademicSettings(),
         api.getBusRoutes(),
         api.getTimetables(),
         api.getResults(),
         api.getReportRequests(),
-        api.getIncidents(),
-        api.getAssetTasks(),
+        allowed(staff, () => api.getIncidents()),
+        allowed(privileged, () => api.getAssetTasks()),
         api.getMessages(),
         api.getAssignments(),
-        api.getApplications(),
-        api.getStudents(),
-        api.getFees(),
-        api.getStaff(),
-        api.listClassTeacherCredentials(),
-        api.getUsers(),
-        api.getDefinedBills(),
-        api.getPaymentVouchers(),
-        api.getSemesterRegistrations(),
-        api.getExamRegistrations(),
-        api.getScoreSheetEntries(),
-        api.getServiceProviders ? api.getServiceProviders() : Promise.resolve([]),
+        allowed(privileged, () => progressive('applications', api.getApplications())),
+        role === 'parent' ? progressive('students', api.getMyChildren().then(raw => raw.children || raw.data || raw)) : allowed(staff, () => progressive('students', api.getStudents())),
+        allowed(privileged || role === "parent" || role === "student", () => progressive('fees', api.getFees())),
+        allowed(staff, () => api.getStaff()),
+        allowed(role === "admin", () => api.listClassTeacherCredentials()),
+        allowed(role === "admin", () => api.getUsers()),
+        allowed(privileged, () => api.getDefinedBills()),
+        allowed(privileged, () => api.getPaymentVouchers()),
+        allowed(staff, () => api.getSemesterRegistrations()),
+        allowed(staff, () => api.getExamRegistrations()),
+        allowed(staff, () => api.getScoreSheetEntries()),
+        allowed(privileged, () => api.getServiceProviders()),
         api.getCatalog('classes'),
-        api.getCatalog('subclasses').catch(() => null),
-        api.getCatalog('subjects').catch(() => null),
+        api.getCatalog('subclasses'),
+        api.getCatalog('subjects'),
         api.getTeachingAssignments()
       ]);
 
-      const cloudData = (cloudRes.status === 'fulfilled' && cloudRes.value && typeof cloudRes.value === 'object') ? cloudRes.value : null;
+      if (!mountedRef.current || sessionToken !== getAuthToken() || refreshEpoch !== mutationEpochRef.current) return;
+      const responses = { settingsRes, routesRes, timetablesRes, resultsRes, reportsRes, incidentsRes, assetTasksRes, messagesRes, assignmentsRes, appsRes, studentsRes, feesRes, staffRes, classTeachersRes, usersRes, billsRes, pvsRes, semRegsRes, examRegsRes, scoreSheetsRes, providersRes, classesRes, subclassesRes, subjectsRes, teachingAssignmentsRes };
+      const syncErrors = Object.fromEntries(Object.entries(responses)
+        .filter(([, result]) => result.status === 'rejected')
+        .map(([resource, result]) => [resource, result.reason?.message || 'Request failed']));
+      const successful = Object.values(responses).filter(result => result.status === 'fulfilled' && result.value !== null).length;
 
       // 2. Perform a single atomic state commit only if data actually changed
       setData(current => {
         let hasChanges = false;
         const updates = {};
+        if (settingsRes.status === 'fulfilled' && settingsRes.value) {
+          const settings = settingsRes.value.settings || settingsRes.value.data || settingsRes.value;
+          if (!isDeepEqual(current.academicSettings, settings)) { updates.academicSettings = settings; hasChanges = true; }
+        }
 
-        if (classesRes.status === 'fulfilled') {
+        if (classesRes.status === 'fulfilled' && classesRes.value != null) {
           const names = extractCatalogNames(classesRes.value);
           const merged = Array.from(new Set([...DEFAULT_CLASS_LEVELS, ...names]));
           if (!isDeepEqual(current.classLevels, merged)) {
@@ -1911,7 +1553,7 @@ export function PortalDataProvider({ children }) {
           }
         }
 
-        if (subclassesRes && subclassesRes.status === 'fulfilled' && subclassesRes.value) {
+        if (subclassesRes && subclassesRes.status === 'fulfilled' && subclassesRes.value != null && subclassesRes.value) {
           const rawList = Array.isArray(subclassesRes.value) ? subclassesRes.value
             : Array.isArray(subclassesRes.value?.subclasses) ? subclassesRes.value.subclasses
             : Array.isArray(subclassesRes.value?.items) ? subclassesRes.value.items
@@ -1926,7 +1568,7 @@ export function PortalDataProvider({ children }) {
           });
         }
 
-        if (subjectsRes && subjectsRes.status === 'fulfilled' && subjectsRes.value) {
+        if (subjectsRes && subjectsRes.status === 'fulfilled' && subjectsRes.value != null && subjectsRes.value) {
           const names = extractCatalogNames(subjectsRes.value);
           if (names.length > 0) {
             const merged = Array.from(new Set([...DEFAULT_SUBJECTS, ...(current.subjects || []), ...names]));
@@ -1937,7 +1579,7 @@ export function PortalDataProvider({ children }) {
           }
         }
 
-        if (teachingAssignmentsRes.status === 'fulfilled') {
+        if (teachingAssignmentsRes.status === 'fulfilled' && teachingAssignmentsRes.value != null) {
           const mapped = extractTeachingAssignments(teachingAssignmentsRes.value);
           if (mapped.length > 0 && !isDeepEqual(current.teachingAssignments, mapped)) {
             updates.teachingAssignments = mapped;
@@ -1959,7 +1601,7 @@ export function PortalDataProvider({ children }) {
         }
 
         // Bus Routes
-        if (routesRes.status === 'fulfilled' && routesRes.value) {
+        if (routesRes.status === 'fulfilled' && routesRes.value != null && routesRes.value) {
           const raw = routesRes.value;
           const routes = Array.isArray(raw) ? raw : (raw.routes || []);
           if (routes.length > 0 && !isDeepEqual(current.busRoutes, routes)) {
@@ -1969,7 +1611,7 @@ export function PortalDataProvider({ children }) {
         }
 
         // Timetable
-        if (timetablesRes.status === 'fulfilled' && Array.isArray(timetablesRes.value)) {
+        if (timetablesRes.status === 'fulfilled' && timetablesRes.value != null && Array.isArray(timetablesRes.value)) {
           const mapped = timetablesRes.value.map(t => ({
             id: t.id,
             day: t.day,
@@ -1979,7 +1621,7 @@ export function PortalDataProvider({ children }) {
             lecturer: t.lecturer || t.lecturer_name,
             classLevel: formatClassToBasic(t.class_level || t.classLevel)
           }));
-          const merged = mergeByKey(current.timetable || [], mapped, t => t.id || `${t.day}-${t.time}-${t.subject}`);
+          const merged = mapped;
           if (!isDeepEqual(current.timetable, merged)) {
             updates.timetable = merged;
             hasChanges = true;
@@ -1987,7 +1629,7 @@ export function PortalDataProvider({ children }) {
         }
 
         // Results
-        if (resultsRes.status === 'fulfilled' && Array.isArray(resultsRes.value)) {
+        if (resultsRes.status === 'fulfilled' && resultsRes.value != null && Array.isArray(resultsRes.value)) {
           const mapped = resultsRes.value.map(r => ({
             id: r.id,
             backendId: r.id,
@@ -2021,7 +1663,7 @@ export function PortalDataProvider({ children }) {
           }
         }
 
-        if (scoreSheetsRes.status === 'fulfilled' && Array.isArray(scoreSheetsRes.value)) {
+        if (scoreSheetsRes.status === 'fulfilled' && scoreSheetsRes.value != null && Array.isArray(scoreSheetsRes.value)) {
           const mappedSheets = scoreSheetsRes.value.map((r) => ({
             ...r,
             backendId: r.backendId || r.id,
@@ -2037,7 +1679,7 @@ export function PortalDataProvider({ children }) {
         }
 
         // Report Requests
-        if (reportsRes.status === 'fulfilled' && Array.isArray(reportsRes.value)) {
+        if (reportsRes.status === 'fulfilled' && reportsRes.value != null && Array.isArray(reportsRes.value)) {
           const mapped = reportsRes.value.map(r => ({
             id: r.id,
             child: r.child || r.child_name,
@@ -2056,7 +1698,7 @@ export function PortalDataProvider({ children }) {
         }
 
         // Incidents
-        if (incidentsRes.status === 'fulfilled' && Array.isArray(incidentsRes.value)) {
+        if (incidentsRes.status === 'fulfilled' && incidentsRes.value != null && Array.isArray(incidentsRes.value)) {
           const mapped = incidentsRes.value.map(i => ({
             id: i.id,
             category: i.category,
@@ -2072,7 +1714,7 @@ export function PortalDataProvider({ children }) {
         }
 
         // Asset Tasks
-        if (assetTasksRes.status === 'fulfilled' && Array.isArray(assetTasksRes.value)) {
+        if (assetTasksRes.status === 'fulfilled' && assetTasksRes.value != null && Array.isArray(assetTasksRes.value)) {
           const mapped = assetTasksRes.value.map(t => ({
             id: t.id,
             asset: t.asset,
@@ -2088,7 +1730,7 @@ export function PortalDataProvider({ children }) {
         }
 
         // Messages
-        if (messagesRes.status === 'fulfilled' && Array.isArray(messagesRes.value)) {
+        if (messagesRes.status === 'fulfilled' && messagesRes.value != null && Array.isArray(messagesRes.value)) {
           const mapped = messagesRes.value.map(m => ({
             id: m.id,
             from: m.from || m.from_name || m.sender_name,
@@ -2107,7 +1749,7 @@ export function PortalDataProvider({ children }) {
         }
 
         // Assignments
-        if (assignmentsRes.status === 'fulfilled' && Array.isArray(assignmentsRes.value)) {
+        if (assignmentsRes.status === 'fulfilled' && assignmentsRes.value != null && Array.isArray(assignmentsRes.value)) {
           const mapped = assignmentsRes.value.map(a => ({
             id: a.id,
             title: a.title,
@@ -2124,7 +1766,7 @@ export function PortalDataProvider({ children }) {
         }
 
         // Applications come only from the database. An empty response clears the list.
-        if (appsRes.status === 'fulfilled') {
+        if (appsRes.status === 'fulfilled' && appsRes.value != null) {
           const appList = extractApplicationsList(appsRes.value);
           const mapped = deduplicateApplications(
             (Array.isArray(appList) ? appList : [])
@@ -2138,7 +1780,7 @@ export function PortalDataProvider({ children }) {
         }
 
         // Students come only from the database. An empty response clears the roster.
-        if (studentsRes.status === 'fulfilled') {
+        if (studentsRes.status === 'fulfilled' && studentsRes.value != null) {
           const students = extractStudentList(studentsRes.value);
           if (Array.isArray(students)) {
             const mappedFromApi = deduplicateStudents(
@@ -2146,21 +1788,7 @@ export function PortalDataProvider({ children }) {
                 .map((s) => mapStudentFromApi(s))
                 .filter((s) => isBackendUuid(s?.id) && s?.is_active !== false && s?.status === 'Active')
             );
-            const apiIds = new Set(mappedFromApi.map((s) => String(s.id)));
-            const enrolledApps = (updates.applications || current.applications || [])
-              .filter((app) => String(app.status || '') === 'Enrolled');
-            const retainedEnrolled = (current.onboardedStudents || []).filter((student) => (
-              isBackendUuid(student?.id)
-              && student?.is_active !== false
-              && student?.status === 'Active'
-              && !apiIds.has(String(student.id))
-              && (
-                recentRosterIdsRef.current.has(String(student.id))
-                || enrolledApps.some((app) => applicationMatchesStudent(app, student))
-              )
-            ));
-            mappedFromApi.forEach((student) => recentRosterIdsRef.current.delete(String(student.id)));
-            const mapped = deduplicateStudents([...mappedFromApi, ...retainedEnrolled]);
+            const mapped = mappedFromApi;
             if (!isDeepEqual(current.onboardedStudents, mapped)) {
               updates.onboardedStudents = mapped;
               hasChanges = true;
@@ -2181,15 +1809,15 @@ export function PortalDataProvider({ children }) {
         }
 
         // Student Fees & Accounts
-        if (feesRes.status === 'fulfilled') {
+        if (feesRes.status === 'fulfilled' && feesRes.value != null) {
           const fees = extractApiList(feesRes.value);
-          if (Array.isArray(fees) && fees.length > 0) {
+          if (Array.isArray(fees)) {
             const mapped = fees.map((f) => mapFeeFromApi(f));
-            const mergedFees = deduplicateFees([...(current.studentFees || []), ...mapped]);
+            const mergedFees = deduplicateFees(mapped);
             if (!isDeepEqual(current.studentFees, mergedFees)) {
               updates.studentFees = mergedFees;
               updates.feeAccounts = mergedFees.map(f => ({
-                id: `fee-acc-${f.studentId || f.id}`,
+                id: `fee-acc-${f.id}`,
                 child: f.studentName,
                 studentId: f.studentId,
                 guardianEmail: f.guardianEmail,
@@ -2205,7 +1833,7 @@ export function PortalDataProvider({ children }) {
         }
 
         // Staff directory comes only from the database. An empty response clears the list.
-        if (staffRes.status === 'fulfilled') {
+        if (staffRes.status === 'fulfilled' && staffRes.value != null) {
           const sRaw = staffRes.value;
           const staff = Array.isArray(sRaw)
             ? sRaw
@@ -2225,7 +1853,7 @@ export function PortalDataProvider({ children }) {
             photo: s.photo || (s.gender === 'Female' ? '👩‍🏫' : '👨‍🏫'),
             joinedDate: s.joinedDate || s.created_at || s.joined_date || ''
           })).filter((s) => s.id || s.staffId || s.email || s.name);
-          if (classTeachersRes.status === 'fulfilled' && Array.isArray(classTeachersRes.value)) {
+          if (classTeachersRes.status === 'fulfilled' && classTeachersRes.value != null && Array.isArray(classTeachersRes.value)) {
             const seen = new Set(
               mapped.flatMap((person) => [String(person.staffId || '').toLowerCase(), String(person.id || '').toLowerCase()]).filter(Boolean)
             );
@@ -2249,7 +1877,7 @@ export function PortalDataProvider({ children }) {
               });
             });
           }
-          if (usersRes.status === 'fulfilled') {
+          if (usersRes.status === 'fulfilled' && usersRes.value != null) {
             extractAccountList(usersRes.value).forEach((account) => {
               mergeDirectoryAccount(mapped, directoryProfileFromUser(account));
             });
@@ -2286,7 +1914,7 @@ export function PortalDataProvider({ children }) {
               subjects: member.subject || member.department,
             }));
           });
-          if (usersRes.status === 'fulfilled') {
+          if (usersRes.status === 'fulfilled' && usersRes.value != null) {
             extractAccountList(usersRes.value).forEach((account) => {
               const profile = directoryProfileFromUser(account);
               if (!profile) return;
@@ -2315,11 +1943,11 @@ export function PortalDataProvider({ children }) {
         }
 
         // Defined Bills
-        if (billsRes.status === 'fulfilled') {
+        if (billsRes.status === 'fulfilled' && billsRes.value != null) {
           const bRaw = billsRes.value;
           const bills = Array.isArray(bRaw) ? bRaw : (bRaw?.bills || bRaw?.definitions || bRaw?.data || []);
-          if (Array.isArray(bills) && bills.length > 0) {
-            const mergedBills = mergeByKey(current.definedBills || [], bills, b => b.id || b.title || b.name);
+          if (Array.isArray(bills)) {
+            const mergedBills = bills;
             if (!isDeepEqual(current.definedBills, mergedBills)) {
               updates.definedBills = mergedBills;
               hasChanges = true;
@@ -2328,7 +1956,7 @@ export function PortalDataProvider({ children }) {
         }
 
         // Payment vouchers come only from the database. An empty response clears the queue.
-        if (pvsRes.status === 'fulfilled') {
+        if (pvsRes.status === 'fulfilled' && pvsRes.value != null) {
           const pvs = api.extractPaymentVoucherList(pvsRes.value);
           const mapped = Array.isArray(pvs) ? deduplicatePaymentVouchers(pvs.map(mapApiPaymentVoucher)) : [];
           if (!isDeepEqual(current.paymentVouchers, mapped)) {
@@ -2338,13 +1966,13 @@ export function PortalDataProvider({ children }) {
         }
 
         // Semester & Exam Registrations
-        if (semRegsRes.status === 'fulfilled' && Array.isArray(semRegsRes.value)) {
+        if (semRegsRes.status === 'fulfilled' && semRegsRes.value != null && Array.isArray(semRegsRes.value)) {
           if (!isDeepEqual(current.semesterRegistrations, semRegsRes.value)) {
             updates.semesterRegistrations = semRegsRes.value;
             hasChanges = true;
           }
         }
-        if (examRegsRes.status === 'fulfilled') {
+        if (examRegsRes.status === 'fulfilled' && examRegsRes.value != null) {
           const mapped = extractExamRegistrations(examRegsRes.value);
           if (!isDeepEqual(current.examRegistrations, mapped)) {
             updates.examRegistrations = mapped;
@@ -2353,10 +1981,10 @@ export function PortalDataProvider({ children }) {
         }
 
         // Service Providers
-        if (providersRes?.status === 'fulfilled') {
+        if (providersRes?.status === 'fulfilled' && providersRes.value != null) {
           const raw = providersRes.value;
           const list = Array.isArray(raw) ? raw : (raw?.data || raw?.providers || raw?.records || []);
-          if (Array.isArray(list) && list.length > 0) {
+          if (Array.isArray(list)) {
             const mapped = list.map(p => ({
               id: String(p.id || p.provider_id),
               name: p.name || p.provider_name,
@@ -2364,44 +1992,10 @@ export function PortalDataProvider({ children }) {
               email: p.email || '',
               phone: p.phone || p.telephone || ''
             }));
-            const merged = mergeByKey(current.serviceProviders || [], mapped, p => p.id || p.name);
+            const merged = mapped;
             if (!isDeepEqual(current.serviceProviders, merged)) {
               updates.serviceProviders = merged;
               hasChanges = true;
-              try { localStorage.setItem('says_service_providers', JSON.stringify(merged)); } catch (_) {}
-            }
-          }
-        }
-
-        // Fold in Universal Cloud Hub updates if present
-        if (cloudData) {
-          if (Array.isArray(cloudData.classLevels)) {
-            const merged = Array.from(new Set([...(updates.classLevels || current.classLevels || DEFAULT_CLASS_LEVELS), ...cloudData.classLevels]));
-            if (!isDeepEqual(current.classLevels, merged)) {
-              updates.classLevels = merged;
-              hasChanges = true;
-            }
-          }
-          if (Array.isArray(cloudData.subjects)) {
-            const merged = Array.from(new Set([...(updates.subjects || current.subjects || DEFAULT_SUBJECTS), ...cloudData.subjects]));
-            if (!isDeepEqual(current.subjects, merged)) {
-              updates.subjects = merged;
-              hasChanges = true;
-            }
-          }
-          if (Array.isArray(cloudData.studentFees)) {
-            const merged = deduplicateFees([...(updates.studentFees || current.studentFees || []), ...cloudData.studentFees.map((f) => mapFeeFromApi(f))]);
-            if (!isDeepEqual(current.studentFees, merged)) {
-              updates.studentFees = merged;
-              hasChanges = true;
-            }
-          }
-          if (Array.isArray(cloudData.serviceProviders) && cloudData.serviceProviders.length > 0) {
-            const mergedProviders = mergeByKey(updates.serviceProviders || current.serviceProviders || DEFAULT_SERVICE_PROVIDERS, cloudData.serviceProviders, p => p.id || p.name);
-            if (!isDeepEqual(current.serviceProviders, mergedProviders)) {
-              updates.serviceProviders = mergedProviders;
-              hasChanges = true;
-              try { localStorage.setItem('says_service_providers', JSON.stringify(mergedProviders)); } catch (_) {}
             }
           }
         }
@@ -2418,7 +2012,7 @@ export function PortalDataProvider({ children }) {
           hasChanges = true;
         }
 
-        const shouldClearLoading = !current.backendConnected || current.isLoadingBackend;
+        const shouldClearLoading = current.backendConnected !== (successful > 0) || current.isLoadingBackend || current.isRefreshingBackend || current.showingCachedData || !isDeepEqual(current.syncErrors, syncErrors);
 
         // If no changes exist and already connected, return current directly!
         // This causes React to skip re-renders completely, ensuring 0% glitching during auto-refresh
@@ -2429,21 +2023,119 @@ export function PortalDataProvider({ children }) {
         return {
           ...current,
           ...updates,
-          backendConnected: true,
-          isLoadingBackend: false
+          backendConnected: successful > 0,
+          syncErrors,
+          lastSyncedAt: successful ? new Date().toISOString() : current.lastSyncedAt,
+          isLoadingBackend: false, isRefreshingBackend: false, showingCachedData: false
         };
       });
 
     } catch (err) {
       console.warn('Backend sync error:', err);
-      setData(current => current.isLoadingBackend ? { ...current, isLoadingBackend: false } : current);
+      setData(current => ({ ...current, backendConnected: false, isLoadingBackend: false, syncErrors: { connection: err.message } }));
     } finally {
       isRefreshingRef.current = false;
+      setData(current => ({ ...current, isRefreshingBackend: false }));
     }
+  }, [enabled, setData]);
+
+  const invalidateQueries = useCallback(async (keys = []) => {
+    const jobs = [];
+    const epoch = mutationEpochRef.current;
+    const tokenAtStart = getAuthToken();
+
+    if (keys.includes('admissions') || keys.includes('fees')) {
+      const token = getAuthToken();
+      jobs.push(api.getFees().then(raw => {
+        if (token !== getAuthToken() || epoch !== mutationEpochRef.current) return;
+        const fees = deduplicateFees(extractApiList(raw).map(mapFeeFromApi));
+        setData(current => ({ ...current, studentFees: fees, feeAccounts: buildFeeAccountsFromStudentFees(fees) }));
+      }).catch(error => setData(current => ({ ...current, syncErrors: { ...current.syncErrors, feesRes: error.message } }))));
+    }
+    if (keys.includes('admissions')) {
+      const generation = (cacheGenerationRef.current.admissions || 0) + 1;
+      cacheGenerationRef.current.admissions = generation;
+      jobs.push((async () => {
+        const [appsRes, studentsRes] = await Promise.allSettled([
+          api.getApplications(),
+          api.getStudents(),
+        ]);
+        if (cacheGenerationRef.current.admissions !== generation || tokenAtStart !== getAuthToken() || epoch !== mutationEpochRef.current) return;
+        setData((current) => {
+          if (cacheGenerationRef.current.admissions !== generation) return current;
+          let next = current;
+          let changed = false;
+
+          if (appsRes.status === 'fulfilled' && appsRes.value != null) {
+            const appList = extractApplicationsList(appsRes.value);
+            const mapped = deduplicateApplications(
+              (Array.isArray(appList) ? appList : []).map(mapApiApplication).filter(app => isBackendUuid(app.id))
+            );
+            if (!isDeepEqual(next.applications, mapped)) {
+              next = { ...next, applications: mapped };
+              changed = true;
+            }
+          }
+
+          if (studentsRes.status === 'fulfilled' && studentsRes.value != null) {
+            const students = extractStudentList(studentsRes.value);
+            if (Array.isArray(students)) {
+              const mappedFromApi = deduplicateStudents(
+                students
+                  .map((s) => mapStudentFromApi(s))
+                  .filter((s) => isBackendUuid(s?.id) && s?.is_active !== false && s?.status === 'Active')
+              );
+              const mapped = mappedFromApi;
+              if (!isDeepEqual(current.onboardedStudents, mapped)) {
+                mapped.forEach((s) => {
+                  if (!s?.studentEmail && !s?.studentId) return;
+                  upsertCanonicalLoginAccount({
+                    studentId: s.studentId,
+                    studentEmail: s.studentEmail || schoolEmailFromName(s.fullName),
+                    password: s.defaultPassword,
+                    fullName: s.fullName,
+                    guardianEmail: s.guardianEmail,
+                    guardianName: s.guardianName,
+                    guardianPhone: s.guardianPhone,
+                  });
+                });
+                next = { ...next, onboardedStudents: mapped };
+                changed = true;
+              }
+            }
+          }
+
+          return changed ? next : current;
+        });
+      })());
+    }
+
+    if (keys.includes('payment-vouchers')) {
+      const generation = (cacheGenerationRef.current['payment-vouchers'] || 0) + 1;
+      cacheGenerationRef.current['payment-vouchers'] = generation;
+      jobs.push((async () => {
+        try {
+          const raw = await api.getPaymentVouchers();
+          if (cacheGenerationRef.current['payment-vouchers'] !== generation) return;
+          setData((current) => {
+            if (cacheGenerationRef.current['payment-vouchers'] !== generation) return current;
+            const pvs = api.extractPaymentVoucherList(raw);
+            const mapped = Array.isArray(pvs) ? deduplicatePaymentVouchers(pvs.map(mapApiPaymentVoucher)) : [];
+            if (isDeepEqual(current.paymentVouchers, mapped)) return current;
+            return { ...current, paymentVouchers: mapped };
+          });
+        } catch (e) {
+          console.warn('Payment voucher cache refresh failed:', e);
+        }
+      })());
+    }
+
+    await Promise.all(jobs);
   }, []);
 
   useEffect(() => {
-    // Initial silent load on mount
+    if (!enabled) return;
+    // Refresh authenticated database records only.
     refreshBackendData();
 
     // Auto-refresh when tab/window regains focus
@@ -2462,7 +2154,7 @@ export function PortalDataProvider({ children }) {
       window.removeEventListener('focus', handleFocus);
       clearInterval(autoRefreshInterval);
     };
-  }, [refreshBackendData]);
+  }, [refreshBackendData, enabled]);
 
   const performOnboardStudent = useCallback(async (student) => {
     const fName = (student.firstName || '').trim();
@@ -2496,7 +2188,12 @@ export function PortalDataProvider({ children }) {
 
     const run = (async () => {
       requireLiveDatabase('Saving this student');
-      const existing = findStudentForUpsert(dataRef.current.onboardedStudents || [], draft);
+      mutationEpochRef.current += 1;
+      let existing = findStudentForUpsert(dataRef.current.onboardedStudents || [], draft);
+      if (!existing && draft.applicationId) {
+        const remote = extractStudentList(await api.getStudents()).map(s => mapStudentFromApi(s));
+        existing = findStudentForUpsert(remote, draft);
+      }
       const billed = billedAmountForLevel(draft.level);
       const payload = {
         fullName: draft.fullName,
@@ -2593,7 +2290,8 @@ export function PortalDataProvider({ children }) {
       }
 
       setData((current) => applyCanonicalStudentToState(current, canonical));
-      refreshBackendData();
+      mutationEpochRef.current += 1;
+      await invalidateQueries(['admissions']);
       return canonical;
     })();
 
@@ -2603,7 +2301,7 @@ export function PortalDataProvider({ children }) {
     } finally {
       onboardLocksRef.current.delete(lockKey);
     }
-  }, [refreshBackendData]);
+  }, [invalidateQueries]);
 
   const rosterDbSyncRef = useRef(false);
   const syncApplicationsToStudentDatabase = useCallback(async () => {
@@ -2616,7 +2314,7 @@ export function PortalDataProvider({ children }) {
     } finally {
       rosterDbSyncRef.current = false;
     }
-  }, [refreshBackendData]);
+  }, [refreshBackendData, enabled]);
 
   const lastAutoRefreshedAtRef = useRef(new Date().toLocaleTimeString());
 
@@ -2698,19 +2396,16 @@ export function PortalDataProvider({ children }) {
     ...data,
     academicSettings: data.academicSettings || INITIAL_DATA.academicSettings,
     updateAcademicSettings: async (newSettings) => {
-      try {
-        await api.updateAcademicSettings(newSettings);
-      } catch (e) {
-        console.warn('Backend academic settings update fallback:', e);
-      }
-      setData((current) => ({
-        ...current,
-        academicSettings: { ...(current.academicSettings || INITIAL_DATA.academicSettings), ...newSettings }
-      }));
+      const raw = await api.updateAcademicSettings(newSettings);
+      const saved = raw.settings || raw.data || raw;
+      if (!saved.academicYear || !saved.academicTerm) throw new Error('The server did not return the saved academic settings.');
+      setData(current => ({ ...current, academicSettings: saved }));
+      return saved;
     },
     onboardedStudents: sortedOnboardedStudents,
     studentFees: sortedStudentFees,
     refreshBackendData,
+    invalidateQueries,
     syncApplicationsToStudentDatabase,
     lastAutoRefreshedAt: lastAutoRefreshedAtRef.current,
     saveTimetableEntry: async (entry) => {
@@ -2753,21 +2448,13 @@ export function PortalDataProvider({ children }) {
       });
       api.recordResult(result).catch((e) => console.warn('Backend result record fallback:', e));
     },
-    approveResult: (id, approvedBy) => {
-      setData((current) => ({
-        ...current,
-        results: (current.results || []).map((item) => item.id === id ? { ...item, status: 'Approved', declineNote: null, approvedBy: approvedBy || item.approvedBy, approvedAt: new Date().toLocaleString() } : item),
-      }));
-      api.updateResultStatus(id, { status: 'Approved', approved_by: approvedBy })
-        .catch((e) => console.warn('Backend result approve fallback:', e));
+    approveResult: async (id, note) => {
+      await api.updateResultStatus(id, { status: 'Approved', decline_note: 'Approved' === 'Declined' ? note : undefined });
+      setData(current => ({ ...current, results: current.results.map(r => r.id === id ? { ...r, status: 'Approved', declineNote: 'Approved' === 'Declined' ? note : null } : r) }));
     },
-    declineResult: (id, note) => {
-      setData((current) => ({
-        ...current,
-        results: (current.results || []).map((item) => item.id === id ? { ...item, status: 'Declined', declineNote: note || 'Error detected in score breakdown by Academic Head.', declinedAt: new Date().toLocaleString() } : item),
-      }));
-      api.updateResultStatus(id, { status: 'Declined', decline_note: note })
-        .catch((e) => console.warn('Backend result decline fallback:', e));
+    declineResult: async (id, note) => {
+      await api.updateResultStatus(id, { status: 'Declined', decline_note: 'Declined' === 'Declined' ? note : undefined });
+      setData(current => ({ ...current, results: current.results.map(r => r.id === id ? { ...r, status: 'Declined', declineNote: 'Declined' === 'Declined' ? note : null } : r) }));
     },
     registerCourse: (course) => setData((current) => ({
       ...current,
@@ -2967,8 +2654,8 @@ export function PortalDataProvider({ children }) {
       setData((current) => {
         const newApp = {
           ...(existingMatch || {}),
-          id: applicationRecordId(resolvedId, existingMatch?.id, application.id) || resolvedId,
           ...application,
+          id: resolvedId,
           learner: learnerName,
           fullName: learnerName,
           firstName: application.firstName || '',
@@ -3011,7 +2698,7 @@ export function PortalDataProvider({ children }) {
         };
       });
       if (resolvedId) {
-        await removeDuplicateRemoteApplications(resolvedId, candidate);
+        void removeDuplicateRemoteApplications(resolvedId, candidate);
       }
       await performOnboardStudent({
         ...studentDraftFromApplication({
@@ -3029,105 +2716,24 @@ export function PortalDataProvider({ children }) {
         applicationId: resolvedId,
         previousName: existingMatch?.learner || existingMatch?.fullName || learnerName,
       });
+      void invalidateQueries(['admissions']);
     },
     updateApplicationStatus: async (id, status) => {
-      const action = status === 'Enrolled' ? 'Enrolling this applicant' : 'Updating this application';
-      requireLiveDatabase(action);
-      const localApp = (dataRef.current.applications || []).find((item) => String(item.id) === String(id)) || { id };
-      let persistId = applicationRecordId(id, localApp.id, localApp.application_id, localApp.formData?.id);
-      if (!persistId) {
-        persistId = applicationRecordId(await findRemoteApplicationId(localApp));
-      }
-      persistId = requireBackendUuid(persistId, action);
-      let enrolledOnServer = false;
-      if (status === 'Enrolled') {
-        const app = localApp;
-        try {
-          await api.enrollApplication(persistId, buildAdmissionEnrollPayload(app));
-          enrolledOnServer = true;
-        } catch (e) {
-          const message = String(e?.message || e || '');
-          if (/already|409/i.test(message)) enrolledOnServer = true;
-          else throw new Error(failedDatabaseAction('Enrolling this applicant', e));
-        }
-        const draft = studentDraftFromApplication({ ...app, id: persistId, status: 'Enrolled' });
-        await performOnboardStudent({
-          ...draft,
-          applicationId: persistId,
-          status: 'Active',
-        });
-      }
+      requireLiveDatabase('Updating this application');
+      const persistId = requireBackendUuid(id, 'Updating this application');
+      const app = dataRef.current.applications.find(item => String(item.id) === String(id)) || { id };
+      const lock = `enroll:${id}`;
+      if (writeLocksRef.current.has(lock)) throw new Error('This application is already being updated.');
+      writeLocksRef.current.add(lock);
+      mutationEpochRef.current += 1;
       try {
-        await api.updateApplicationStatus(persistId, { status });
-      } catch (e) {
-        if (!enrolledOnServer) {
-          throw new Error(failedDatabaseAction(status === 'Enrolled' ? 'Enrolling this applicant' : 'Updating this application', e));
-        }
-      }
-      setData((current) => {
-        const targetApp = (current.applications || []).find((item) => item.id === id);
-        let updatedMessages = current.messages || [];
-
-        const updatedApplications = (current.applications || []).map((item) => {
-          if (item.id !== id) return item;
-
-          let defaultEmail = item.email || item.fatherEmail || item.motherEmail;
-          if (!defaultEmail) {
-            const cleanSurname = (item.surname || item.learner || 'parent').toLowerCase().replace(/[^a-z0-9]/g, '');
-            defaultEmail = `parent.${cleanSurname}@remaljcarewell.edu.gh`;
-          }
-          const defaultPassword = item.defaultPassword || 'Carewell2026!';
-
-          return {
-            ...item,
-            id: persistId,
-            status,
-            email: defaultEmail,
-            defaultPassword,
-            acceptedAt: (status === 'Accepted' || status === 'Enrolled') ? (item.acceptedAt || new Date().toLocaleString()) : item.acceptedAt,
-          };
-        });
-
-        if ((status === 'Accepted' || status === 'Enrolled') && targetApp) {
-          const learnerName = targetApp.learner || `${targetApp.firstName || ''} ${targetApp.surname || ''}`.trim() || 'Applicant';
-          const guardianName = targetApp.guardian || targetApp.fatherName || targetApp.motherName || 'Parent/Guardian';
-          const parentFirstName = (targetApp.fatherFirstName || targetApp.motherFirstName || targetApp.firstName || guardianName.split(' ')[0] || 'parent').toLowerCase().replace(/[^a-z0-9]/g, '');
-          const parentSurname = (targetApp.surname || targetApp.fatherSurname || targetApp.motherSurname || targetApp.learner || 'carewell').toLowerCase().replace(/[^a-z0-9]/g, '');
-          
-          let contactEmail = targetApp.email || targetApp.fatherEmail || targetApp.motherEmail;
-          if (!contactEmail || contactEmail.includes('@example.com')) {
-            contactEmail = `${parentFirstName}.${parentSurname}@remaljcarewell.edu.gh`;
-          }
-          const defaultPassword = 'Carewell2026!';
-          const parentPhone = resolveGuardianPhone(targetApp) || '';
-
-          const welcomeMsg = {
-            id: `msg-accept-${id}`,
-            from: 'REMALJ Admissions Office',
-            senderRole: 'Admin',
-            to: guardianName,
-            recipient: guardianName,
-            recipientEmail: contactEmail,
-            subject: `📱 SMS & Email Credentials: Child Application Accepted for ${learnerName}`,
-            body: `📱 AUTOMATIC SMS & EMAIL DISPATCHED TO ${guardianName.toUpperCase()} (${parentPhone}):\n\nDear ${parentFirstName.toUpperCase()},\n\nWe are delighted to inform you that the admission application for ${learnerName} has been ACCEPTED by REMALJ Carewell Inspirational School!\n\nYour Default Account Credentials & School Access:\n• Institution: REMALJ Carewell Inspirational School (Bogoso-Anikoko)\n• Default Email: ${contactEmail}\n• Default Password: ${defaultPassword}\n• Portal Access: Direct Instant Access (No sign-in required at http://localhost:5173/#/parent)\n\nYou can access your portal at any time to monitor child progress, fees, and live bus tracking.`,
-            sentAt: new Date().toLocaleString(),
-          };
-
-          if (!updatedMessages.some(m => m.id === `msg-accept-${id}`)) {
-            updatedMessages = [welcomeMsg, ...updatedMessages];
-          }
-        }
-
-        return {
-          ...current,
-          applications: updatedApplications,
-          messages: updatedMessages,
-        };
-      });
-
-      if (status === 'Enrolled') {
-        try { await refreshBackendData(); } catch (e) { console.warn('Roster refresh after enroll failed:', e); }
-      }
+        const saved = status === 'Enrolled'
+          ? await api.enrollApplication(persistId, buildAdmissionEnrollPayload(app))
+          : await api.updateApplicationStatus(persistId, { status });
+        mutationEpochRef.current += 1;
+        await invalidateQueries(['admissions']);
+        return saved;
+      } finally { writeLocksRef.current.delete(lock); }
     },
     updateApplication: async (id, updatedForm) => {
       requireLiveDatabase('Saving this application');
@@ -3302,7 +2908,7 @@ export function PortalDataProvider({ children }) {
         };
       });
       if (persistId) {
-        await removeDuplicateRemoteApplications(
+        void removeDuplicateRemoteApplications(
           persistId,
           {
             id: persistId,
@@ -3327,6 +2933,7 @@ export function PortalDataProvider({ children }) {
         applicationId: persistId || id,
         previousName,
       });
+      void invalidateQueries(['admissions']);
     },
     updateApplicationOfficeUse: async (id, officeData) => {
       requireLiveDatabase('Saving office evaluation');
@@ -3614,7 +3221,7 @@ export function PortalDataProvider({ children }) {
             if (studentId && list[studentId.toLowerCase()]) {
               delete list[studentId.toLowerCase()];
             }
-            localStorage.setItem('registered_accounts', JSON.stringify(list));
+            localStorage.setItem('registered_accounts', JSON.stringify(stripCredentials(list)));
           }
         } catch (e) {}
 
@@ -3631,11 +3238,19 @@ export function PortalDataProvider({ children }) {
       });
     },
     // Admissions Edit & Update
-    updateStudentAdmission: (id, updates) => setData((current) => ({
-      ...current,
-      applications: (current.applications || []).map((app) => app.id === id ? { ...app, ...updates } : app),
-      onboardedStudents: (current.onboardedStudents || []).map((s) => (s.id === id || s.studentId === id) ? { ...s, ...updates } : s),
-    })),
+    updateStudentAdmission: async (id, updates) => {
+      requireLiveDatabase('Updating this admission');
+      const app = dataRef.current.applications.find(item => String(item.id) === String(id));
+      const student = dataRef.current.onboardedStudents.find(item => [item.id, item.studentId].some(key => String(key) === String(id)));
+      if (!app && !student) throw new Error('Select an existing admission or student record.');
+      mutationEpochRef.current += 1;
+      const saved = app
+        ? await api.updateApplication(app.id, { ...app, ...updates, id: app.id })
+        : await api.updateStudent(student.id, updates);
+      mutationEpochRef.current += 1;
+      await invalidateQueries(['admissions']);
+      return saved;
+    },
     // Define Bills Methods
     saveDefinedBill: async (billItem) => {
       try {
@@ -3736,202 +3351,74 @@ export function PortalDataProvider({ children }) {
       }));
     },
     // Score Sheet Entry Persistence — upserts on the entry key so a saved sheet can be edited later
-    saveScoreSheetEntry: (entry) => {
+    saveScoreSheetEntry: async (entry) => {
+      requireLiveDatabase('Saving this score sheet');
+      if (!entry.studentId) throw new Error('Select a student before saving scores.');
       const entryKey = scoreSheetEntryKey(entry);
-      const submitKind = entry.submitKind === 'exam' ? 'exam' : 'class';
-      let persisted = null;
-
-      setData((current) => {
-        const existingResults = current.results || [];
-        const existing = existingResults.find((r) => scoreSheetEntryKey(r) === entryKey);
-        const existingHasExam = hasRecordedExamScore(existing);
-        const merged = { ...(existing || {}), ...entry };
-
-        if (submitKind === 'class' && existingHasExam && entry.hasExamScore !== true) {
-          merged.examScore = existing.examScore;
-          merged.examScoreConverted = existing.examScoreConverted;
-          merged.hasExamScore = existing.hasExamScore;
-          merged.examSubmitted = existing.examSubmitted;
-          merged.score = Number(entry.classScore ?? merged.classScore ?? 0)
-            + Number(existing.examScoreConverted ?? existing.examScore ?? 0);
-          merged.grade = existing.grade;
-          merged.remarks = existing.remarks;
-        } else if (submitKind === 'class' && !existingHasExam) {
-          merged.examScore = null;
-          merged.examScoreConverted = null;
-          merged.score = null;
-          merged.grade = null;
-          merged.remarks = 'Class score recorded';
-          merged.hasExamScore = false;
-          merged.examSubmitted = false;
-        }
-
-        const hasExam = submitKind === 'exam' || hasRecordedExamScore(merged);
-        const keepApproved = existing?.status === 'Approved' && submitKind !== 'exam';
-
-        persisted = {
-          ...merged,
-          id: existing?.id || entry.id || `res-${Date.now()}`,
-          entryKey,
-          backendId: existing?.backendId,
-          subject: merged.subject || 'General Subject',
-          lecturer: merged.instructor || existing?.lecturer || 'Subject Teacher',
-          teacherNote: merged.teacherNote || '',
-          hasClassScore: true,
-          classSubmitted: true,
-          hasExamScore: hasExam,
-          examSubmitted: hasExam,
-          status: hasExam ? (keepApproved ? 'Approved' : 'Pending Approval') : 'Class Score Recorded',
-          declineNote: submitKind === 'exam' ? null : (existing?.declineNote || null),
-          approvedBy: keepApproved ? existing.approvedBy : (submitKind === 'exam' ? null : existing?.approvedBy),
-          submittedAt: existing?.submittedAt || new Date().toLocaleString(),
-          updatedAt: new Date().toLocaleString(),
-        };
-
-        const nextResults = existing
-          ? existingResults.map((r) => (r.id === persisted.id ? { ...r, ...persisted } : r))
-          : [persisted, ...existingResults];
-
-        let nextMessages = current.messages || [];
-        if (submitKind === 'exam') {
-          const noticeKey = terminalReportNoticeKey(persisted);
-          const complete = classHasCompleteExamCoverage(nextResults, current.onboardedStudents || [], persisted);
-          const alreadySent = nextMessages.some((m) => m.noticeKey === noticeKey);
-          if (complete && !alreadySent) {
-            nextMessages = [{
-              id: `msg-terminal-${Date.now()}`,
-              noticeKey,
-              from: persisted.lecturer || persisted.instructor || 'Subject Teacher',
-              senderRole: 'Staff',
-              to: 'All',
-              recipient: 'Head Admin',
-              subject: 'Terminal Report is ready',
-              body: `Terminal Report is ready for ${persisted.subject} · ${persisted.classLevel} ${persisted.subClass || ''} · ${persisted.term} ${persisted.year || ''}. All exam scores have been added to the existing class scores.`,
-              sentAt: new Date().toLocaleString(),
-              type: 'terminal-report',
-            }, ...nextMessages];
-          }
-        }
-
-        return {
-          ...current,
-          results: nextResults,
-          messages: nextMessages,
-        };
-      });
-
-      if (!persisted) return;
-      const remoteId = persisted.backendId;
-      const sync = remoteId
-        ? api.updateScoreSheet(remoteId, persisted)
-        : api.saveScoreSheet(persisted);
-      sync
-        .then((res) => {
-          const newRemoteId = res?.id || res?._id;
-          if (!newRemoteId || newRemoteId === remoteId) return;
-          setData((latest) => ({
-            ...latest,
-            results: (latest.results || []).map((r) => r.id === persisted.id ? { ...r, backendId: newRemoteId } : r),
-          }));
-        })
-        .catch((e) => console.warn('Backend score sheet save fallback:', e));
+      if (writeLocksRef.current.has(entryKey)) throw new Error('This score sheet is already being saved.');
+      writeLocksRef.current.add(entryKey);
+      mutationEpochRef.current += 1;
+      try {
+        const existing = (dataRef.current.results || []).find(r => scoreSheetEntryKey(r) === entryKey);
+        const payload = { ...existing, ...entry, entryKey, status: entry.hasExamScore ? 'Pending Approval' : 'Class Score Recorded' };
+        const raw = existing?.backendId
+          ? await api.updateScoreSheet(existing.backendId, payload)
+          : await api.saveScoreSheet(payload);
+        const record = raw.entry || raw.data || raw;
+        const saved = mapScoreSheetEntry(record);
+        if (!saved.id || !saved.studentId) throw new Error('The server did not return the saved score sheet. Refresh before retrying.');
+        if (String(saved.studentId) !== String(entry.studentId)) throw new Error('The server returned a different student record. Refresh before retrying.');
+        const persisted = { ...saved, backendId: saved.id, entryKey: scoreSheetEntryKey(saved) };
+        setData(current => ({ ...current, results: [persisted, ...(current.results || []).filter(r => scoreSheetEntryKey(r) !== entryKey)] }));
+        return persisted;
+      } finally {
+        mutationEpochRef.current += 1;
+        writeLocksRef.current.delete(entryKey);
+      }
     },
     // Payment Recording with Robust Match Logic
-    recordFeePayment: async ({ id, studentId, studentName, paidAmount, paymentDate, paymentMethod = 'Mobile Money', notes = '', receivingAccount = 'GCB Main Account' }) => {
-      const lookupId = id || studentId || studentName;
-      try {
-        await api.recordFeePayment(lookupId, { paidAmount: Number(paidAmount), paymentMethod, paymentDate, notes });
-      } catch (e) {
-        console.warn('Backend fee payment fallback:', e);
-      }
-
-      setData((current) => {
-        const addAmount = Number(paidAmount) || 0;
-        const targetClean = String(lookupId || '').toLowerCase().trim();
-        const sNameClean = String(studentName || '').toLowerCase().trim();
-        const sIdClean = String(studentId || '').toLowerCase().trim();
-
-        let targetFound = false;
-        const updatedFees = (current.studentFees || []).map((fee) => {
-          const feeName = (fee.studentName || '').toLowerCase().trim();
-          const feeId = (fee.studentId || '').toLowerCase().trim();
-          const recordId = (fee.id || '').toLowerCase().trim();
-
-          const isMatch = (targetClean && (recordId === targetClean || feeId === targetClean || feeName === targetClean || feeName.includes(targetClean))) ||
-            (sNameClean && (feeName === sNameClean || feeName.includes(sNameClean))) ||
-            (sIdClean && feeId === sIdClean) ||
-            (lookupId === 'all');
-
-          if (!isMatch && targetFound) return fee;
-          if (isMatch) targetFound = true;
-
-          const newPaid = (fee.paidAmount || 0) + addAmount;
-          const newBalance = Math.max(0, (fee.billedAmount || 0) - newPaid);
-          const newStatus = newBalance <= 0 ? 'Paid' : newPaid > 0 ? 'Balance Due' : 'Not Paid';
-
-          return {
-            ...fee,
-            paidAmount: newPaid,
-            balance: newBalance,
-            status: newStatus,
-            paymentDate: paymentDate || new Date().toISOString().split('T')[0],
-            lastPaymentMethod: paymentMethod,
-            lastReceivingAccount: receivingAccount,
-            lastNotes: notes,
-          };
-        });
-
-        // If no existing fee entry was matched, create a new one so it's tracked
-        if (!targetFound && (studentName || studentId || id)) {
-          const sName = studentName || (id !== 'all' ? id : 'Student');
-          const sId = studentId || `REMALJ-${Date.now().toString().slice(-3)}`;
-          const defaultBilled = 4800;
-          const newPaid = addAmount;
-          const newBalance = Math.max(0, defaultBilled - newPaid);
-          const newFee = {
-            id: `fee-${Date.now()}`,
-            studentId: sId,
-            studentName: sName,
-            guardianName: 'Parent / Guardian',
-            guardianEmail: 'parent@remaljcarewell.edu.gh',
-            term: 'Term 1 · 2026',
-            billedAmount: defaultBilled,
-            paidAmount: newPaid,
-            balance: newBalance,
-            status: newBalance <= 0 ? 'Paid' : 'Balance Due',
-            dueDate: '2026-09-15',
-            paymentDate: paymentDate || new Date().toISOString().split('T')[0],
-            lastPaymentMethod: paymentMethod,
-            lastReceivingAccount: receivingAccount,
-            lastNotes: notes,
-          };
-          updatedFees.unshift(newFee);
-        }
-
-        // Also update matching fee account for parent/student portal summaries
-        const targetFee = updatedFees.find((f) =>
-          (targetClean && ((f.id || '').toLowerCase() === targetClean || (f.studentId || '').toLowerCase() === targetClean || (f.studentName || '').toLowerCase().includes(targetClean))) ||
-          (sNameClean && (f.studentName || '').toLowerCase().includes(sNameClean))
-        );
-
-        const updatedFeeAccounts = (current.feeAccounts || []).map((acc) => {
-          const isMatch = targetFee ? acc.child === targetFee.studentName : (acc.child && acc.child.toLowerCase().includes(targetClean));
-          if (!isMatch) return acc;
-          const newPaid = (acc.paid || 0) + addAmount;
-          const newBalance = Math.max(0, (acc.billed || 0) - newPaid);
-          return {
-            ...acc,
-            paid: newPaid,
-            status: newBalance <= 0 ? 'Paid' : 'Balance due',
-          };
-        });
-
-        return {
-          ...current,
-          studentFees: updatedFees,
-          feeAccounts: updatedFeeAccounts,
-        };
+    recordFeePaymentBatch: async (items, idempotencyKey) => {
+      requireLiveDatabase('Recording this payment batch');
+      const payments = items.map(item => {
+        const fee = resolveFee(dataRef.current.studentFees, { id: item.feeId, studentId: item.studentId });
+        if (!Number.isFinite(Number(item.amount)) || Number(item.amount) <= 0) throw new Error('Every batch amount must be positive.');
+        return { feeId: fee.id, paidAmount: Number(item.amount), paymentDate: item.date, notes: item.description, transactionRef: item.reference };
       });
+      const raw = await api.createFeePaymentBatch({ payments }, idempotencyKey);
+      const saved = raw.batch || raw.data?.batch;
+      const fees = raw.fees || raw.data?.fees;
+      if (!saved?.id || !saved.batchNo || !Array.isArray(fees)) throw new Error('No committed batch and invoices were returned. Refresh before retrying.');
+      setData(current => {
+        const updated = current.studentFees.map(f => { const match = fees.find(x => String(x.id) === String(f.id)); return match ? mapFeeFromApi(match) : f; });
+        return { ...current, studentFees: updated, feeAccounts: buildFeeAccountsFromStudentFees(updated) };
+      });
+      return saved;
+    },
+    recordFeePayment: async (payment) => {
+      requireLiveDatabase('Recording this payment');
+      const fee = resolveFee(dataRef.current.studentFees || [], payment);
+      const paidAmount = Number(payment.paidAmount);
+      if (!Number.isFinite(paidAmount) || paidAmount <= 0) throw new Error('Enter a positive payment amount.');
+      const lock = `fee:${fee.id}`;
+      if (writeLocksRef.current.has(lock)) throw new Error('A payment for this invoice is already being recorded.');
+      const payload = { paidAmount, paymentDate: payment.paymentDate || new Date().toISOString().slice(0, 10), paymentMethod: payment.paymentMethod || 'Cash', receivingAccount: payment.receivingAccount, notes: payment.notes || '', transactionRef: payment.transactionRef };
+      const fingerprint = JSON.stringify([fee.id, payload]);
+      const idempotencyKey = payment.idempotencyKey || paymentKeysRef.current.get(fingerprint) || crypto.randomUUID();
+      paymentKeysRef.current.set(fingerprint, idempotencyKey);
+      writeLocksRef.current.add(lock);
+      mutationEpochRef.current += 1;
+      try {
+        const raw = await api.recordFeePayment(fee.id, { ...payload, idempotencyKey });
+        const confirmed = raw.fee || raw.data?.fee;
+        if (!confirmed?.id || String(confirmed.id) !== String(fee.id)) throw new Error('Payment was not confirmed with the updated invoice. Refresh before retrying.');
+        const saved = mapFeeFromApi(confirmed);
+        setData(current => ({ ...current, studentFees: current.studentFees.map(f => String(f.id) === String(saved.id) ? saved : f), feeAccounts: buildFeeAccountsFromStudentFees(current.studentFees.map(f => String(f.id) === String(saved.id) ? saved : f)) }));
+        paymentKeysRef.current.delete(fingerprint);
+        return raw;
+      } finally {
+        mutationEpochRef.current += 1;
+        writeLocksRef.current.delete(lock);
+      }
     },
     addStudentFee: (feeRecord) => setData((current) => ({
       ...current,
@@ -4402,6 +3889,7 @@ export function PortalDataProvider({ children }) {
         return await api.sendSingleFeeOwingReminder(feeId, { sendSms: true, ...data });
       } catch (e) {
         console.warn('Send single fee owing reminder API warning:', e);
+        throw e;
       }
     },
     broadcastOwingReminders: async (data = {}) => {
@@ -4409,6 +3897,7 @@ export function PortalDataProvider({ children }) {
         return await api.broadcastOwingReminders({ sendSms: true, ...data });
       } catch (e) {
         console.warn('Broadcast owing reminders API warning:', e);
+        throw e;
       }
     },
     sendDirectSms: async (data) => {
@@ -4416,6 +3905,7 @@ export function PortalDataProvider({ children }) {
         return await api.sendDirectSms(data);
       } catch (e) {
         console.warn('Send direct SMS API warning:', e);
+        throw e;
       }
     },
     getSmsBalance: async () => {
@@ -4423,6 +3913,7 @@ export function PortalDataProvider({ children }) {
         return await api.getSmsBalance();
       } catch (e) {
         console.warn('Get SMS balance API warning:', e);
+        throw e;
       }
     },
     // Staff Onboarding & Management Methods
@@ -4655,90 +4146,25 @@ export function PortalDataProvider({ children }) {
           pvNotifications: [newNotif, ...existingNotifs],
         };
       });
+      void invalidateQueries(['payment-vouchers']);
     },
-    // Service Providers CRUD with DB & Local Storage Persistence
     createServiceProvider: async (providerData) => {
-      let created = null;
-      try {
-        if (api.createServiceProvider) {
-          const res = await api.createServiceProvider(providerData);
-          if (res && typeof res === 'object') {
-            created = {
-              id: String(res.id || res.provider_id || providerData.id),
-              name: res.name || providerData.name,
-              address: res.address || providerData.address,
-              email: res.email || providerData.email,
-              phone: res.phone || providerData.phone || providerData.telephone
-            };
-          }
-        }
-      } catch (e) {
-        console.warn('Backend create service provider fallback:', e);
-      }
-      const itemToSave = created || {
-        ...providerData,
-        id: String(providerData.id || Date.now()),
-        address: providerData.address || 'Bogoso',
-        phone: providerData.phone || providerData.telephone || ''
-      };
-
-      setData((current) => {
-        const list = current.serviceProviders || DEFAULT_SERVICE_PROVIDERS;
-        const next = [itemToSave, ...list.filter(p => p.id !== itemToSave.id && p.name !== itemToSave.name)];
-        try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
-        // Broadcast across tabs
-        if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-          try {
-            const ch = new BroadcastChannel('rcis_portal_data_sync');
-            ch.postMessage({ type: 'NEW_SERVICE_PROVIDER', provider: itemToSave });
-            ch.close();
-          } catch (_) {}
-        }
-        return {
-          ...current,
-          serviceProviders: next
-        };
-      });
-
-      // Real-time Cloud Hub Push for immediate delivery across all devices
-      if (cloudSync.pushServiceProvider) {
-        cloudSync.pushServiceProvider(itemToSave);
-      }
-      return itemToSave;
+      const raw = await api.createServiceProvider(providerData);
+      const saved = raw.provider || raw.data || raw;
+      if (!saved.id) throw new Error('The server did not return the saved provider.');
+      setData(current => ({ ...current, serviceProviders: [saved, ...current.serviceProviders.filter(p => p.id !== saved.id)] }));
+      return saved;
     },
     updateServiceProvider: async (id, providerData) => {
-      try {
-        if (api.updateServiceProvider) {
-          await api.updateServiceProvider(id, providerData);
-        }
-      } catch (e) {
-        console.warn('Backend update service provider fallback:', e);
-      }
-      setData((current) => {
-        const list = current.serviceProviders || DEFAULT_SERVICE_PROVIDERS;
-        const next = list.map(p => p.id === id ? { ...p, ...providerData } : p);
-        try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
-        if (cloudSync.pushServiceProvider) {
-          const updated = next.find(p => p.id === id);
-          if (updated) cloudSync.pushServiceProvider(updated);
-        }
-        return { ...current, serviceProviders: next };
-      });
+      const raw = await api.updateServiceProvider(id, providerData);
+      const saved = raw.provider || raw.data || raw;
+      if (String(saved.id) !== String(id)) throw new Error('The server did not confirm the updated provider.');
+      setData(current => ({ ...current, serviceProviders: current.serviceProviders.map(p => p.id === id ? saved : p) }));
+      return saved;
     },
     deleteServiceProvider: async (id) => {
-      try {
-        if (api.deleteServiceProvider) {
-          await api.deleteServiceProvider(id);
-        }
-      } catch (e) {
-        console.warn('Backend delete service provider fallback:', e);
-      }
-      setData((current) => {
-        const list = current.serviceProviders || DEFAULT_SERVICE_PROVIDERS;
-        const next = list.filter(p => p.id !== id);
-        try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
-        return { ...current, serviceProviders: next };
-      });
+      await api.deleteServiceProvider(id);
+      setData(current => ({ ...current, serviceProviders: current.serviceProviders.filter(p => p.id !== id) }));
     },
     // Alias so SubmitPVRequest can call createPaymentVoucher too
     createPaymentVoucher: async (pvData) => {
@@ -4810,6 +4236,7 @@ export function PortalDataProvider({ children }) {
           pvNotifications: [newNotif, ...existingNotifs],
         };
       });
+      void invalidateQueries(['payment-vouchers']);
     },
 
     // Notification management
@@ -4879,269 +4306,34 @@ export function PortalDataProvider({ children }) {
         };
       });
     },
-    approvePaymentVoucher: async (pvNo, actionChoice, remarks, updatedFields = null, auditorName = 'Headmaster / Pre-Auditor') => {
-      // 1. Resolve UUID id for backend endpoint
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      let targetUuid = null;
-
-      const currentVouchers = data.paymentVouchers || [];
-      const existingVoucher = currentVouchers.find(p =>
-        (p.pvNo && String(p.pvNo).toLowerCase() === String(pvNo).toLowerCase()) ||
-        (p.id && String(p.id).toLowerCase() === String(pvNo).toLowerCase())
-      );
-
-      if (existingVoucher?.id && uuidRegex.test(existingVoucher.id)) {
-        targetUuid = existingVoucher.id;
-      } else if (uuidRegex.test(pvNo)) {
-        targetUuid = pvNo;
-      }
-
-      // If still not a UUID, query backend vouchers to match by pv_number
-      if (!targetUuid) {
-        try {
-          const remoteList = await api.getPaymentVouchers();
-          const rows = Array.isArray(remoteList) ? remoteList : [];
-          const remoteMatch = rows.find(r =>
-            String(r.pv_number || '').toLowerCase() === String(pvNo).toLowerCase() ||
-            String(r.id || '').toLowerCase() === String(pvNo).toLowerCase()
-          );
-          if (remoteMatch?.id && uuidRegex.test(remoteMatch.id)) {
-            targetUuid = remoteMatch.id;
-          }
-        } catch (_) {}
-      }
-
-      requireLiveDatabase('Pre-auditing this payment voucher');
-      if (!targetUuid) {
-        throw new Error(failedDatabaseAction('Pre-auditing this payment voucher', 'no UUID'));
-      }
-
-      // 2. Map frontend action choice to valid backend status enum
-      // Permitted by FastAPI: 'DRAFT', 'PRE_AUDITED', 'APPROVED', 'DISBURSED', 'REJECTED'
-      let backendStatus = 'APPROVED';
-      const lower = String(actionChoice || '').toLowerCase();
-      if (lower.includes('valid') || lower.includes('approv')) {
-        backendStatus = 'APPROVED';
-      } else if (lower.includes('declin') || lower.includes('reject') || lower.includes('cancel') || lower.includes('non-accrual')) {
-        backendStatus = 'REJECTED';
-      } else if (lower.includes('postpon') || lower.includes('draft') || lower.includes('pending')) {
-        backendStatus = 'DRAFT';
-      }
-
-      // 3. Dispatch to backend API — never apply locally unless this succeeds
-      try {
-        if (backendStatus === 'APPROVED') {
-          await api.preAuditPaymentVoucher(targetUuid, {
-            decision: 'APPROVED',
-            audit_notes: remarks || 'Pre-audited & verified by Headmaster.'
-          });
-          await api.approvePaymentVoucher(targetUuid, {
-            approval_notes: remarks || 'Approved for disbursement by Headmaster.'
-          });
-        } else {
-          await api.updatePaymentVoucherStatus(targetUuid, {
-            status: backendStatus,
-            notes: remarks || undefined,
-            comments: remarks || undefined,
-            rejectionReason: backendStatus === 'REJECTED' ? (remarks || 'Declined during pre-audit') : undefined
-          });
-        }
-      } catch (e) {
-        throw new Error(failedDatabaseAction('Pre-auditing this payment voucher', e));
-      }
-      setData((current) => {
-        const existing = current.paymentVouchers || [];
-        const statusText = actionChoice === 'Pre-audit Approve PV' ? 'Pre-Audited & Approved' : actionChoice;
-        const nowIso = new Date().toISOString();
-        let found = false;
-        const updated = existing.map(p => {
-          if (!pvMatchesRef(p, pvNo) && !pvMatchesRef(p, existingVoucher?.id) && !pvMatchesRef(p, existingVoucher?.pvNo)) {
-            return p;
-          }
-          found = true;
-          const mergedItems = Array.isArray(updatedFields?.items) ? updatedFields.items : (p.items || []);
-          const qtyVal = Number(updatedFields?.qty !== undefined ? updatedFields.qty : p.qty) || 1;
-          const costVal = Number(updatedFields?.cost !== undefined ? updatedFields.cost : (updatedFields?.costPerItem !== undefined ? updatedFields.costPerItem : (p.cost || 0))) || 0;
-          const payable = Array.isArray(mergedItems) && mergedItems.length > 0
-            ? mergedItems
-                .filter((i) => /valid|approv|pre-audit/i.test(String(i.status || '')))
-                .reduce((acc, i) => acc + (Number(i.totalAmount || i.total || 0) || 0), 0)
-            : (qtyVal * costVal);
-          const isEdited = !!updatedFields || p.editedByHeadmaster;
-          const mixedStatus = Array.isArray(mergedItems) && mergedItems.length > 1
-            ? (() => {
-                const statuses = mergedItems.map((i) => String(i.status || '').toLowerCase());
-                const allVal = statuses.every((s) => s.includes('valid') || s.includes('approv'));
-                const allDec = statuses.every((s) => s.includes('declin') || s.includes('reject') || s.includes('cancel'));
-                if (allVal) return 'Validated';
-                if (allDec) return 'Declined';
-                if (statuses.some((s) => s.includes('valid') || s.includes('approv'))) return 'Partially Approved';
-                return statusText;
-              })()
-            : statusText;
-          return {
-            ...p,
-            ...(updatedFields || {}),
-            items: mergedItems,
-            qty: qtyVal,
-            cost: costVal,
-            total: payable,
-            payableTotal: payable,
-            status: mixedStatus,
-            auditRemarks: remarks || p.auditRemarks,
-            approvedBy: auditorName,
-            approvedAt: new Date().toLocaleString(),
-            editedByHeadmaster: isEdited,
-            updatedAt: nowIso,
-          };
-        });
-        if (!found) {
-          updated.unshift({
-            ...(existingVoucher || {}),
-            ...(updatedFields || {}),
-            pvNo: (existingVoucher && existingVoucher.pvNo) || pvNo,
-            id: (existingVoucher && existingVoucher.id) || pvNo,
-            status: statusText,
-            auditRemarks: remarks || existingVoucher?.auditRemarks || '',
-            approvedBy: auditorName,
-            approvedAt: new Date().toLocaleString(),
-            updatedAt: nowIso,
-          });
-        }
-        const updatedNotifs = (current.pvNotifications || []).map(n =>
-          (pvMatchesRef(n, pvNo) || (n.pvNo && String(n.pvNo).toLowerCase() === String(pvNo).toLowerCase()))
-            ? { ...n, read: true, status: statusText }
-            : n
-        );
-        try {
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('rcis_pv_status_changed', {
-              detail: { pvNo, status: statusText, remarks }
-            }));
-          }
-        } catch (_) {}
-        return {
-          ...current,
-          paymentVouchers: deduplicatePaymentVouchers(updated),
-          pvNotifications: updatedNotifs
-        };
-      });
+    approvePaymentVoucher: async (reference, action, remarks, updatedFields = null) => {
+      requireLiveDatabase('Reviewing this voucher');
+      const voucher = (dataRef.current.paymentVouchers || []).find(v => String(v.id) === String(reference) || pvNosMatch(v.pvNo, reference));
+      requireBackendUuid(voucher?.id, 'Reviewing this voucher');
+      const raw = await api.reviewPaymentVoucher(voucher.id, { action, remarks, items: updatedFields?.items || voucher.items, version: voucher.version });
+      const saved = unwrapApiPaymentVoucher(raw);
+      if (String(saved?.id) !== String(voucher.id)) throw new Error('The database did not return the reviewed voucher. Refresh before retrying.');
+      setData(current => ({ ...current, paymentVouchers: current.paymentVouchers.map(v => String(v.id) === String(saved.id) ? mapApiPaymentVoucher(saved) : v) }));
+      return saved;
     },
-    disbursePaymentVoucher: async (pvNo, paymentDetails = {}, disburserName = 'Head Admin / Headmaster') => {
-      // 1. Resolve UUID id for backend endpoint
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      let targetUuid = null;
-
-      const currentVouchers = data.paymentVouchers || [];
-      const existingVoucher = currentVouchers.find(p =>
-        (p.pvNo && String(p.pvNo).toLowerCase() === String(pvNo).toLowerCase()) ||
-        (p.id && String(p.id).toLowerCase() === String(pvNo).toLowerCase())
-      );
-
-      if (existingVoucher?.id && uuidRegex.test(existingVoucher.id)) {
-        targetUuid = existingVoucher.id;
-      } else if (uuidRegex.test(pvNo)) {
-        targetUuid = pvNo;
-      }
-
-      if (!targetUuid) {
-        try {
-          const remoteList = await api.getPaymentVouchers();
-          if (Array.isArray(remoteList)) {
-            const remoteMatch = remoteList.find(r =>
-              String(r.pv_number || '').toLowerCase() === String(pvNo).toLowerCase() ||
-              String(r.id || '').toLowerCase() === String(pvNo).toLowerCase()
-            );
-            if (remoteMatch?.id && uuidRegex.test(remoteMatch.id)) {
-              targetUuid = remoteMatch.id;
-            }
-          }
-        } catch (_) {}
-      }
-
-      requireLiveDatabase('Disbursing this payment voucher');
-      if (!targetUuid) {
-        throw new Error(failedDatabaseAction('Disbursing this payment voucher', 'no UUID'));
-      }
-
+    disbursePaymentVoucher: async (reference, paymentDetails = {}) => {
+      requireLiveDatabase('Disbursing this voucher');
+      const voucher = (dataRef.current.paymentVouchers || []).find(v => String(v.id) === String(reference) || pvNosMatch(v.pvNo, reference));
+      requireBackendUuid(voucher?.id, 'Disbursing this voucher');
+      if (payableAmount(voucher) <= 0) throw new Error('This voucher has no approved amount to disburse.');
+      const key = `disburse:${voucher.id}`;
+      if (writeLocksRef.current.has(key)) throw new Error('This voucher is already being paid.');
+      const idempotencyKey = paymentKeysRef.current.get(key) || crypto.randomUUID();
+      paymentKeysRef.current.set(key, idempotencyKey);
+      writeLocksRef.current.add(key);
       try {
-        await api.disbursePaymentVoucher(targetUuid, {
-          payment_method: paymentDetails.paymentMethod || 'Bank Transfer',
-          account_number: paymentDetails.accountNumber || '',
-          reference_number: paymentDetails.referenceNumber || '',
-          disbursement_notes: paymentDetails.notes || 'Disbursed and paid by Head Admin.'
-        });
-      } catch (e) {
-        try {
-          await api.updatePaymentVoucherStatus(targetUuid, {
-            status: 'DISBURSED',
-            notes: paymentDetails.notes || 'Disbursed by Head Admin'
-          });
-        } catch (e2) {
-          throw new Error(failedDatabaseAction('Disbursing this payment voucher', e));
-        }
-      }
-
-      // 3. Update local state and localStorage
-      const paymentDate = paymentDetails.paymentDate || new Date().toISOString().split('T')[0];
-      const settlementRecord = {
-        status: 'DISBURSED',
-        disbursedAt: new Date().toLocaleString(),
-        disbursedBy: disburserName,
-        paymentDate,
-        paymentMethod: paymentDetails.paymentMethod || 'Bank Transfer',
-        paymentSourceAccount: paymentDetails.sourceAccount || 'School Operations Account',
-        plAccountName: paymentDetails.plAccountName || '',
-        plAccountCode: paymentDetails.plAccountCode || '',
-        disbursementReference: paymentDetails.referenceNumber || `TXN-${Date.now().toString().slice(-6)}`,
-        disbursementNotes: paymentDetails.notes || 'Payment processed & disbursed.',
-        updatedAt: new Date().toISOString(),
-      };
-
-      setData((current) => {
-        const existing = current.paymentVouchers || [];
-        let found = false;
-        const updated = existing.map(p => {
-          if (!pvMatchesRef(p, pvNo) && !pvMatchesRef(p, existingVoucher?.id) && !pvMatchesRef(p, existingVoucher?.pvNo)) {
-            return p;
-          }
-          found = true;
-          return {
-            ...p,
-            ...settlementRecord,
-            updatedAt: new Date().toISOString(),
-          };
-        });
-        if (!found) {
-          updated.unshift({
-            ...(existingVoucher || {}),
-            pvNo: existingVoucher?.pvNo || pvNo,
-            id: existingVoucher?.id || pvNo,
-            ...settlementRecord,
-            updatedAt: new Date().toISOString(),
-          });
-        }
-
-        try {
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('rcis_pv_status_changed', {
-              detail: { pvNo, status: 'DISBURSED' }
-            }));
-            if (typeof BroadcastChannel !== 'undefined') {
-              const ch = new BroadcastChannel('rcis_portal_data_sync');
-              ch.postMessage({ type: 'PV_STATUS_CHANGED', pvNo, status: 'DISBURSED' });
-              ch.close();
-            }
-          }
-        } catch (_) {}
-
-        return {
-          ...current,
-          paymentVouchers: deduplicatePaymentVouchers(updated)
-        };
-      });
-
-      return true;
+        const raw = await api.disbursePaymentVoucher(voucher.id, { ...paymentDetails, idempotencyKey, version: voucher.version });
+        const saved = unwrapApiPaymentVoucher(raw);
+        if (String(saved?.id) !== String(voucher.id) || !['DISBURSED', 'PAID'].includes(String(saved.status).toUpperCase())) throw new Error('The database did not confirm disbursement. Refresh before retrying.');
+        setData(current => ({ ...current, paymentVouchers: current.paymentVouchers.map(v => String(v.id) === String(saved.id) ? mapApiPaymentVoucher(saved) : v) }));
+        paymentKeysRef.current.delete(key);
+        return saved;
+      } finally { writeLocksRef.current.delete(key); }
     },
     adminSetUserPassword: async ({ identifier, email, studentId, staffId, newPassword, role = 'student', fullName = '', adminName = 'System Administrator' }) => {
       const targetId = identifier || email || studentId || staffId;
@@ -5193,7 +4385,7 @@ export function PortalDataProvider({ children }) {
 
       return true;
     },
-  }), [data, refreshBackendData, performOnboardStudent, syncApplicationsToStudentDatabase]);
+  }), [data, refreshBackendData, invalidateQueries, performOnboardStudent, syncApplicationsToStudentDatabase]);
 
   return <PortalDataContext.Provider value={value}>{children}</PortalDataContext.Provider>;
 }

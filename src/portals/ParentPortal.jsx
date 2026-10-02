@@ -57,42 +57,9 @@ const TEACHER_UPDATES = [
   { teacher: 'Mr. Kofi Appiah',  time: 'Yesterday', subject: 'Mathematics',   note: 'Math homework on equations was perfect. Great attention to detail shown.'  },
 ];
 
-function readRegisteredAccounts() {
-  try {
-    const raw = localStorage.getItem('registered_accounts');
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
 function resolveParentIdentity() {
   const user = getAuthUser() || {};
-  const email = String(user.email || user.username || '').toLowerCase().trim();
-  const accounts = readRegisteredAccounts();
-  const stored = email && accounts[email] ? accounts[email] : null;
-  const linkedStudentIds = [
-    ...(Array.isArray(user.linkedStudentIds) ? user.linkedStudentIds : []),
-    ...(Array.isArray(stored?.linkedStudentIds) ? stored.linkedStudentIds : []),
-  ].filter(Boolean).map(String);
-  return {
-    email,
-    name: String(user.fullName || user.name || stored?.fullName || '').toLowerCase().trim(),
-    linkedStudentIds,
-  };
-}
-
-function studentBelongsToParent(student, parent) {
-  if (!student || !parent) return false;
-  const sid = String(student.studentId || student.id || '');
-  if (parent.linkedStudentIds.length && parent.linkedStudentIds.includes(sid)) return true;
-  const guardianEmail = String(student.guardianEmail || student.guardian_email || '').toLowerCase().trim();
-  if (parent.email && guardianEmail && parent.email === guardianEmail) return true;
-  const guardianName = String(student.guardianName || student.guardian_name || '').toLowerCase().trim();
-  if (parent.name && guardianName && (guardianName === parent.name || guardianName.includes(parent.name) || parent.name.includes(guardianName))) {
-    return true;
-  }
-  return false;
+  return { linkedStudentIds: user.linkedStudentIds || user.linked_student_ids || [] };
 }
 
 export default function ParentPortal() {
@@ -125,7 +92,8 @@ export default function ParentPortal() {
 
   const childrenList = useMemo(() => {
     const roster = Array.isArray(onboardedStudents) ? onboardedStudents : [];
-    const mine = roster.filter((s) => studentBelongsToParent(s, parentIdentity));
+    // The server has already restricted this roster to verified parent-child links.
+    const mine = roster;
     return mine.map((s, idx) => ({
       name: s.fullName || s.name || `Student ${idx + 1}`,
       studentId: s.studentId || s.id,

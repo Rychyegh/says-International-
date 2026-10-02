@@ -10,12 +10,7 @@ export default defineConfig({
         changeOrigin: true,
         secure: true,
       },
-      '/sms-gateway': {
-        target: 'https://api.smsonlinegh.com/v5',
-        changeOrigin: true,
-        secure: false,
-        rewrite: (path) => path.replace(/^\/sms-gateway/, '')
-      }
+
     }
   }
 })

@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { usePortalData } from '../../data/PortalStore';
 import { api } from '../../services/api';
-import { cloudSync } from '../../services/cloudSync';
 import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
 import { printPvPage } from '../../data/chartOfAccounts';
 
@@ -20,27 +19,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
   const storeDeleteProvider = portalData?.deleteServiceProvider;
 
   // Local fallback cache for service providers
-  const [localProviders, setLocalProviders] = useState(() => {
-    try {
-      const saved = localStorage.getItem('says_service_providers');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (_) {}
-    return [];
-  });
-
-  // Effective service providers combining PortalStore & local cache
-  const serviceProviders = useMemo(() => {
-    const list = [...(storeProviders || [])];
-    (localProviders || []).forEach(lp => {
-      if (!list.some(p => p.id === lp.id || p.name?.toLowerCase() === lp.name?.toLowerCase())) {
-        list.push(lp);
-      }
-    });
-    return list;
-  }, [storeProviders, localProviders]);
+  const serviceProviders = storeProviders || [];
 
   // Selected Service Provider in Manager Panel
   const [selectedProviderInPanel, setSelectedProviderInPanel] = useState(null);
@@ -236,151 +215,32 @@ export default function SubmitPVRequest({ setM = () => {} }) {
   };
 
   // Quick Add Service Provider from Modal (Persisted in DB, Cloud Sync Hub & Local Storage)
-  const handleSaveQuickProvider = async (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    if (!quickProviderForm.name.trim()) return;
-
-    setIsSubmittingQuickProvider(true);
-    const generatedId = `VEN-${String(931000 + serviceProviders.length + 1)}`;
-    const newId = quickProviderForm.id.trim() || generatedId;
-    const newP = {
-      id: newId,
-      name: quickProviderForm.name.trim(),
-      address: quickProviderForm.address.trim() || 'Bogoso',
-      email: quickProviderForm.email.trim() || '',
-      phone: quickProviderForm.phone.trim() || ''
-    };
-
+  const selectSavedProvider = saved => {
+    setSelectedProviderInPanel(saved); setSelectedProviderName(saved.name); setProviderId(saved.id);
+    setProviderForm({ name: saved.name, address: saved.address || '', email: saved.email || '', telephone: saved.phone || '' });
+  };
+  const handleSaveQuickProvider = async e => {
+    e?.preventDefault(); setIsSubmittingQuickProvider(true);
     try {
-      if (storeCreateProvider) {
-        await storeCreateProvider(newP);
-      } else {
-        try {
-          if (api.createServiceProvider) await api.createServiceProvider(newP);
-        } catch (_) {}
-        setLocalProviders(prev => {
-          const next = [newP, ...prev.filter(p => p.id !== newP.id && p.name !== newP.name)];
-          try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
-          return next;
-        });
-      }
-
-      if (cloudSync?.pushServiceProvider) {
-        await cloudSync.pushServiceProvider(newP);
-      }
-
-      setSelectedProviderInPanel(newP);
-      setSelectedProviderName(newP.name);
-      setProviderId(newP.id);
-      setProviderForm({
-        name: newP.name,
-        address: newP.address,
-        email: newP.email,
-        telephone: newP.phone
-      });
-      setShowAddProviderModal(false);
-      setSuccessNotice(`✅ Service Provider "${newP.name}" (ID: ${newP.id}) saved to database and synced across all devices.`);
-      setTimeout(() => setSuccessNotice(''), 5000);
-    } catch (err) {
-      console.warn('Quick provider creation error:', err);
-    } finally {
-      setIsSubmittingQuickProvider(false);
-    }
+      const saved = await storeCreateProvider({ name: quickProviderForm.name.trim(), address: quickProviderForm.address, email: quickProviderForm.email, phone: quickProviderForm.phone });
+      selectSavedProvider(saved); setShowAddProviderModal(false); setSuccessNotice('Provider saved to the database.');
+    } catch (error) { setSuccessNotice(`Provider save failed: ${error.message}`); }
+    finally { setIsSubmittingQuickProvider(false); }
   };
-
-  // Add new Service Provider in Manager Panel (Persisted in DB & Local Storage & Cloud Hub)
-  const handleAddServiceProvider = async (e) => {
+  const handleAddServiceProvider = async e => {
     e.preventDefault();
-    if (!providerForm.name.trim()) return;
-    const newId = String(931000 + serviceProviders.length + 1);
-    const newP = {
-      id: newId,
-      name: providerForm.name.trim(),
-      address: providerForm.address.trim() || 'Bogoso',
-      email: providerForm.email.trim() || '',
-      phone: providerForm.telephone.trim() || ''
-    };
-    
-    // Save to PortalStore & backend database API
-    if (storeCreateProvider) {
-      await storeCreateProvider(newP);
-    } else {
-      try {
-        if (api.createServiceProvider) await api.createServiceProvider(newP);
-      } catch (err) {
-        console.warn('Backend provider creation warning:', err);
-      }
-      setLocalProviders(prev => {
-        const next = [newP, ...prev.filter(p => p.id !== newP.id && p.name !== newP.name)];
-        try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
-        return next;
-      });
-    }
-
-    if (cloudSync?.pushServiceProvider) {
-      await cloudSync.pushServiceProvider(newP);
-    }
-
-    setSelectedProviderInPanel(newP);
-    setSelectedProviderName(newP.name);
-    setProviderId(newP.id);
-    setSuccessNotice(`✅ Added & Saved Service Provider "${newP.name}" (ID: ${newP.id}) to database and synced across all devices.`);
-    setTimeout(() => setSuccessNotice(''), 4000);
+    try { const saved = await storeCreateProvider({ ...providerForm, phone: providerForm.telephone }); selectSavedProvider(saved); setSuccessNotice('Provider saved to the database.'); }
+    catch (error) { setSuccessNotice(`Provider save failed: ${error.message}`); }
   };
-
-  // Modify Service Provider in Manager Panel
   const handleModifyServiceProvider = async () => {
     if (!selectedProviderInPanel) return;
-    const updatedP = {
-      ...selectedProviderInPanel,
-      name: providerForm.name.trim(),
-      address: providerForm.address.trim(),
-      email: providerForm.email.trim(),
-      phone: providerForm.telephone.trim()
-    };
-
-    if (storeUpdateProvider) {
-      await storeUpdateProvider(selectedProviderInPanel.id, updatedP);
-    } else {
-      try {
-        if (api.updateServiceProvider) await api.updateServiceProvider(selectedProviderInPanel.id, updatedP);
-      } catch (_) {}
-      setLocalProviders(prev => {
-        const next = prev.map(p => p.id === selectedProviderInPanel.id ? updatedP : p);
-        try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
-        return next;
-      });
-    }
-
-    setSelectedProviderName(updatedP.name);
-    setSuccessNotice(`✏️ Updated Service Provider "${updatedP.name}" in database.`);
-    setTimeout(() => setSuccessNotice(''), 4000);
+    try { const saved = await storeUpdateProvider(selectedProviderInPanel.id, { ...providerForm, phone: providerForm.telephone }); selectSavedProvider(saved); setSuccessNotice('Provider updated in the database.'); }
+    catch (error) { setSuccessNotice(`Provider update failed: ${error.message}`); }
   };
-
-  // Delete Service Provider in Manager Panel
-  const handleDeleteServiceProvider = async (id) => {
-    const p = serviceProviders.find(item => item.id === id);
-    if (window.confirm(`Are you sure you want to delete service provider "${p?.name}"?`)) {
-      if (storeDeleteProvider) {
-        await storeDeleteProvider(id);
-      } else {
-        try {
-          if (api.deleteServiceProvider) await api.deleteServiceProvider(id);
-        } catch (_) {}
-        setLocalProviders(prev => {
-          const next = prev.filter(item => item.id !== id);
-          try { localStorage.setItem('says_service_providers', JSON.stringify(next)); } catch (_) {}
-          return next;
-        });
-      }
-
-      if (serviceProviders.length > 1) {
-        const fallback = serviceProviders.find(item => item.id !== id);
-        if (fallback) handleSelectProviderFromList(fallback);
-      }
-      setSuccessNotice(`🗑️ Removed service provider "${p?.name}".`);
-      setTimeout(() => setSuccessNotice(''), 4000);
-    }
+  const handleDeleteServiceProvider = async id => {
+    if (!window.confirm('Delete this service provider?')) return;
+    try { await storeDeleteProvider(id); setSelectedProviderInPanel(null); setSuccessNotice('Provider deleted from the database.'); }
+    catch (error) { setSuccessNotice(`Provider deletion failed: ${error.message}`); }
   };
 
   // Reset Form

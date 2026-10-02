@@ -8,7 +8,7 @@ import '../components/BusTracker/BusTracker.css';
 import BusTracker from '../components/BusTracker/BusTracker';
 import { StudentResults, StudentTimetable } from '../components/Academic/AcademicViews';
 import { StudentMessagesAssignments } from '../components/SchoolWorkflows/SchoolWorkflows';
-import { getAuthUser } from '../services/api';
+import { api, getAuthUser } from '../services/api';
 import { usePortalData, teachersForClass } from '../data/PortalStore';
 
 const STUDENT_BG    = '#5e2d0e';
@@ -23,63 +23,26 @@ const NAV = [
   { icon: <Zap size={15}/>,             label: 'e-Library',    badge: null },
 ];
 
-const STATS = [
-  { label: 'Cumulative GPA',    value: '3.92', trend: 'Top 5% of class',   up: true,  icon: '🎓', bg: STUDENT_LIGHT,  ic: STUDENT_BG   },
-  { label: 'Attendance Rate',   value: '94%',  trend: 'On Track',          up: true,  icon: '✅', bg: '#dcfce7',      ic: '#166534'    },
-  { label: 'Active Tasks',      value: '18',   trend: '5 due this week',   up: false, icon: '📋', bg: '#fef9c3',      ic: '#78350f'    },
-  { label: 'Credits This Term', value: '18',   trend: 'Active',            up: true,  icon: '⭐', bg: '#dbeafe',      ic: '#1e3a8a'    },
-];
-
-const FULL_SCHEDULE = [
-  {
-    time: '08:00 AM',
-    Monday: { sub: 'Pure Mathematics', room: 'Room 402', teacher: 'Prof. Mensah' },
-    Tuesday: null,
-    Wednesday: { sub: 'Literature in English', room: 'Auditorium B', teacher: 'Dr. Anane' },
-    Thursday: { sub: 'Integrated Science', room: 'Science Block 1', teacher: 'Mr. Boateng' },
-    Friday: { sub: 'Pure Mathematics', room: 'Room 402', teacher: 'Prof. Mensah' },
-  },
-  {
-    time: '10:30 AM',
-    Monday: null,
-    Tuesday: { sub: 'Physics Lab', room: 'Science Block 1', teacher: 'Mr. Boateng' },
-    Wednesday: null,
-    Thursday: { sub: 'Social Studies', room: 'Room 204', teacher: 'Mrs. Adjei' },
-    Friday: { sub: 'French Language', room: 'Room 301', teacher: 'Mme. Koffi' },
-  },
-  {
-    time: '01:00 PM',
-    Monday: { sub: 'ICT Project', room: 'Lab 2', teacher: 'Ms. Mensah' },
-    Tuesday: { sub: 'English Essay', room: 'Room 204', teacher: 'Mrs. Adjei' },
-    Wednesday: { sub: 'Mathematics', room: 'Room 402', teacher: 'Prof. Mensah' },
-    Thursday: { sub: 'ICT Project', room: 'Lab 2', teacher: 'Ms. Mensah' },
-    Friday: { sub: 'English Essay', room: 'Auditorium B', teacher: 'Dr. Anane' },
-  },
-];
-
-const DEADLINES = [
-  { title: 'Advanced Calculus Thesis', date: 'Oct 24', time: '10:00 PM',  type: 'Submission', color: '#c84a4a' },
-  { title: 'Eco-Sustainability Project', date: 'Oct 27', time: '02:30 PM', type: 'Presentation', color: '#c89a3a' },
-];
-
-const TIMETABLE = [
-  { day: 'Mon', classes: ['Math 8AM', 'English 10AM', 'ICT 2PM'] },
-  { day: 'Tue', classes: ['Science 8AM', 'Soc. Studies 11AM'] },
-  { day: 'Wed', classes: ['Math 8AM', 'English 10AM'] },
-  { day: 'Thu', classes: ['Science 9AM', 'ICT 1PM'] },
-  { day: 'Fri', classes: ['Math 8AM', 'Soc. Studies 10AM', 'English 2PM'] },
-];
-
-const ASSIGNMENTS = [
-  { title: 'Advanced Calculus Thesis',     due: 'Oct 24', status: 'Pending',     pct: 60, color: '#c84a4a' },
-  { title: 'Eco-Sustainability Project',   due: 'Oct 27', status: 'In Progress', pct: 40, color: '#c89a3a' },
-  { title: 'Science Lab Report – Osmosis', due: 'Oct 10', status: 'Overdue',     pct: 0,  color: '#991b1b' },
-  { title: 'ICT Project – Database',       due: 'Nov 1',  status: 'Pending',     pct: 10, color: '#7c3ac8' },
-];
-
 const STATUS_C = { 'Pending': 'status-pill--warn', 'In Progress': 'status-pill--info', 'Overdue': 'status-pill--danger', 'Submitted': 'status-pill--success' };
 
 export default function StudentPortal() {
+  const [dashboard, setDashboard] = useState(null);
+  const [dashboardError, setDashboardError] = useState('');
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setDashboardError('');
+    api.getStudentDashboard().then(raw => {
+      const next = raw.data || raw;
+      if (!Array.isArray(next.stats) || !Array.isArray(next.schedule) || !Array.isArray(next.assignments) || !Array.isArray(next.deadlines)) throw new Error('Invalid dashboard response.');
+      if (active) setDashboard(next);
+    }).catch(error => { if (active) setDashboardError(error.message); });
+    return () => { active = false; };
+  }, [retry]);
+  const STATS = (dashboard?.stats || []).map(item => ({ ...item, bg: STUDENT_LIGHT, ic: STUDENT_BG, icon: '📊' }));
+  const FULL_SCHEDULE = dashboard?.schedule || [];
+  const ASSIGNMENTS = dashboard?.assignments || [];
+  const DEADLINES = (dashboard?.deadlines || []).map(item => ({ ...item, date: String(item.date || ''), color: STUDENT_ACCENT }));
   const { teachingAssignments = [] } = usePortalData();
   const studentAccount = getAuthUser() || {};
   const studentClass = studentAccount.classSection || studentAccount.assignedClass || studentAccount.classLevel || studentAccount.class_assigned || '';
@@ -178,6 +141,9 @@ export default function StudentPortal() {
           {/* ── DASHBOARD VIEW ── */}
           {activeNav === 'My Dashboard' && (
             <>
+              {dashboardError && <p role="alert">Dashboard unavailable: {dashboardError} <button onClick={() => setRetry(x => x + 1)}>Retry</button></p>}
+              {!dashboard && !dashboardError && <p role="status">Loading database records…</p>}
+              {dashboard && STATS.length === 0 && <p>No dashboard statistics have been recorded.</p>}
               {/* Hero banner */}
               <div style={{
                 background: `linear-gradient(135deg, ${STUDENT_BG} 0%, #8b4a1e 100%)`,
@@ -187,9 +153,9 @@ export default function StudentPortal() {
                 <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '45%', background: 'linear-gradient(135deg, transparent, rgba(25,152,221,.28))', backgroundImage: 'url(/remalj-carewell-logo.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', opacity: .25, borderRadius: '0 var(--radius-lg) var(--radius-lg) 0' }} />
                 <div style={{ position: 'relative', zIndex: 1 }}>
                   <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,.55)', marginBottom: 6 }}>Academic Excellence</p>
-                  <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Welcome Back, Kwame 👋</h1>
+                  <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Welcome Back, {studentAccount.fullName || studentAccount.full_name || studentAccount.name || 'Student'} 👋</h1>
                   <p style={{ fontSize: 13, color: 'rgba(255,255,255,.7)', lineHeight: 1.6, maxWidth: 420 }}>
-                    Your term performance is exceptional. You are in the top 5% of the Senior High II cohort.
+                    View your current school records, assignments, and timetable.
                   </p>
                 </div>
               </div>

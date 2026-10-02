@@ -31,7 +31,7 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
     }
   }, [academicSettings]);
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     if (e) e.preventDefault();
 
     const newSettings = {
@@ -47,7 +47,8 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
       updatedAt: new Date().toISOString()
     };
 
-    updateAcademicSettings(newSettings);
+    try { await updateAcademicSettings(newSettings); }
+    catch (error) { setSavedNotice(`Settings not saved: ${error.message}`); return; }
 
     setSavedNotice(`✅ Academic Settings Synchronized! Global Session set to ${year} (${term}).`);
     setTimeout(() => setSavedNotice(''), 4500);

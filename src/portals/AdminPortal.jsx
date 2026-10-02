@@ -128,6 +128,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     submitApplication,
     deleteApplication,
     refreshBackendData,
+    invalidateQueries,
     syncApplicationsToStudentDatabase,
     adminSetUserPassword,
     paymentVouchers,
@@ -198,21 +199,19 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   useEffect(() => {
     if (activeNav !== 'Student Roster' && activeNav !== 'Applications & Forms') return undefined;
     let cancelled = false;
-    (async () => {
-      try {
-        if (activeNav === 'Student Roster' && syncApplicationsToStudentDatabase) {
-          await syncApplicationsToStudentDatabase();
-        } else if (refreshBackendData) {
-          await refreshBackendData();
-        }
-      } catch (e) {
-        if (!cancelled) console.warn('Admissions/roster database sync failed:', e);
-      }
-    })();
+    const refreshAdmissions = invalidateQueries
+      ? () => invalidateQueries(['admissions'])
+      : (activeNav === 'Student Roster' && syncApplicationsToStudentDatabase)
+        ? syncApplicationsToStudentDatabase
+        : refreshBackendData;
+    if (!refreshAdmissions) return undefined;
+    refreshAdmissions().catch((e) => {
+      if (!cancelled) console.warn('Admissions/roster database sync failed:', e);
+    });
     return () => {
       cancelled = true;
     };
-  }, [activeNav, refreshBackendData, syncApplicationsToStudentDatabase]);
+  }, [activeNav, invalidateQueries, refreshBackendData, syncApplicationsToStudentDatabase]);
   const [declineResultModal, setDeclineResultModal] = useState(null);
   const [declineInputNote, setDeclineInputNote] = useState('');
   const [academicSimsModal, setAcademicSimsModal] = useState(null);
@@ -870,7 +869,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const handlePrintRoster = async () => {
     setSuccessMsg('Loading live student roster from the database…');
     try {
-      if (syncApplicationsToStudentDatabase) await syncApplicationsToStudentDatabase();
+      if (invalidateQueries) await invalidateQueries(['admissions']);
+      else if (syncApplicationsToStudentDatabase) await syncApplicationsToStudentDatabase();
       else if (refreshBackendData) await refreshBackendData();
     } catch (e) {
       console.warn('Roster refresh before print failed:', e);
@@ -891,7 +891,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const handleRefreshRoster = async () => {
     setSuccessMsg('Syncing Student Roster with Applications & Forms from the database…');
     try {
-      if (syncApplicationsToStudentDatabase) await syncApplicationsToStudentDatabase();
+      if (invalidateQueries) await invalidateQueries(['admissions']);
+      else if (syncApplicationsToStudentDatabase) await syncApplicationsToStudentDatabase();
       else if (refreshBackendData) await refreshBackendData();
       setSuccessMsg('Student Roster updated from the live database.');
     } catch (e) {
@@ -2713,11 +2714,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                             ) : (
                               <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                                 <button
-                                  onClick={() => {
+                                  onClick={async () => {
+                                    try {
                                     const approver = adminRole === 'sub_admin' ? 'Sub-Admin' : 'Academic Head';
-                                    approveResult(r.id, approver);
+                                    await approveResult(r.id, approver);
                                     setSuccessMsg(`Exam result for ${r.studentName || r.subject} APPROVED by ${approver}.`);
                                     setTimeout(() => setSuccessMsg(''), 5000);
+                                    } catch (error) { setSuccessMsg(`Approval failed: ${error.message}`); }
                                   }}
                                   style={{ padding: '5px 12px', background: '#166534', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 11, cursor: 'pointer' }}
                                 >
@@ -4146,12 +4149,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
+                      try {
                       if (!declineInputNote.trim()) return;
-                      declineResult(declineResultModal.id, declineInputNote);
+                      await declineResult(declineResultModal.id, declineInputNote);
                       setDeclineResultModal(null);
                       setSuccessMsg(`Result for ${declineResultModal.subject} DECLINED with red error note sent to teacher.`);
                       setTimeout(() => setSuccessMsg(''), 5000);
+                      } catch (error) { setSuccessMsg(`Decline failed: ${error.message}`); }
                     }}
                     style={{ flex: 1, padding: 10, borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
                   >

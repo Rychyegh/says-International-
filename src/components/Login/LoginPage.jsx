@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, Phone, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
-import { api, setAuthToken, setAuthUser, getAuthUser, isClassTeacherAccount, enrichTeacherSession, extractAuthToken } from '../../services/api';
+import { api, clearAuthSession, setAuthToken, setAuthUser, getAuthUser, isClassTeacherAccount, enrichTeacherSession, extractAuthToken } from '../../services/api';
 import { usePortalData } from '../../data/PortalStore';
 import './Login.css';
 
@@ -206,6 +206,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
       return;
     }
 
+    clearAuthSession();
     setLoading(true);
 
     try {
@@ -213,7 +214,9 @@ export default function LoginPage({ portal, onLoginSuccess }) {
         const result = await api.login({ email, password, portal });
         const liveToken = extractAuthToken(result) || result.token;
         if (liveToken) setAuthToken(liveToken);
-        const userObj = result.user || { email, role: portal };
+        if (!liveToken) throw new Error('The server did not return an authentication token.');
+        const userObj = result.user || result.data?.user;
+        if (!userObj) throw new Error('The server did not return an authenticated user.');
         if (portal === 'teacher') {
           await finishTeacherLogin(userObj);
           return;
@@ -228,7 +231,9 @@ export default function LoginPage({ portal, onLoginSuccess }) {
         const result = await api.cardScan({ cardId, portal });
         const liveToken = extractAuthToken(result) || result.token;
         if (liveToken) setAuthToken(liveToken);
-        const userObj = result.user || { cardId, role: portal };
+        if (!liveToken) throw new Error('The server did not return an authentication token.');
+        const userObj = result.user || result.data?.user;
+        if (!userObj) throw new Error('The server did not return an authenticated user.');
         setAuthUser({
           ...userObj,
           fullName: userObj.fullName || userObj.full_name || userObj.name || `Student ${cardId}`,
@@ -391,57 +396,18 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   };
 
   // Step 2: Handle Admin Security PIN Verification
-  const handlePinSubmit = (e) => {
+  const handlePinSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
-    if (!adminPin.trim()) {
-      setError('Please enter your 4-digit Administrator Security PIN.');
-      return;
-    }
-
-    if (adminPin.trim().length !== 4) {
-      setError('Security PIN must be exactly 4 digits.');
-      return;
-    }
-
-    if (adminPin.trim() === '8888') {
-      const currentAuth = getAuthUser() || {};
-      setAuthUser({
-        ...currentAuth,
-        role: 'head_admin',
-        adminRole: 'head_admin',
-        fullName: currentAuth.fullName && currentAuth.fullName !== 'School Administration Office' ? currentAuth.fullName : 'Head Administrator',
-      });
-      setLoading(true);
-      setSuccess(true);
-      setTimeout(() => {
-        onLoginSuccess('head_admin');
-      }, 900);
-    } else if (adminPin.trim() === '1234') {
-      const currentAuth = getAuthUser() || {};
-      setAuthUser({
-        ...currentAuth,
-        role: 'sub_admin',
-        adminRole: 'sub_admin',
-        fullName: currentAuth.fullName && currentAuth.fullName !== 'School Administration Office' ? currentAuth.fullName : 'Sub-Admin Officer',
-      });
-      setLoading(true);
-      setSuccess(true);
-      setTimeout(() => {
-        onLoginSuccess('sub_admin');
-      }, 900);
-    } else {
-      if (addSecurityAlert) {
-        addSecurityAlert({
-          portal: 'admin',
-          targetAccount: email || 'Admin 2FA Authorization',
-          reason: `Unauthorized Admin Access Attempt: Incorrect Security PIN entered (${adminPin.trim()})`,
-          severity: 'High'
-        });
-      }
-      setError('❌ Invalid Security PIN. Please check your assigned 4-digit Administrator PIN.');
-    }
+    if (!/^\d{4}$/.test(adminPin.trim())) { setError('Enter your four-digit security PIN.'); return; }
+    setLoading(true);
+    try {
+      const result = await api.verifyAdminPin(adminPin.trim());
+      const token = extractAuthToken(result);
+      if (token) setAuthToken(token);
+      await onLoginSuccess();
+    } catch (error) { setError(error.message || 'Security verification failed.'); }
+    finally { setLoading(false); setAdminPin(''); }
   };
 
   // Step 1: Handle Request Phone SMS OTP
