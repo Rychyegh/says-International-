@@ -7,7 +7,7 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, ArrowRight, BellRing, Filter, RefreshCw
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
-import { usePortalData, formatClassToBasic, buildStudentTranscriptData, MISSING_SCORE } from '../data/PortalStore';
+import { usePortalData, formatClassToBasic, buildStudentTranscriptData, MISSING_SCORE, findTeachingAssignment } from '../data/PortalStore';
 import OfficialApplicationForm from '../components/Onboarding/OfficialApplicationForm';
 import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeStructure';
 import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
@@ -19,7 +19,7 @@ import PayPVForm from '../components/Finance/PayPVForm';
 import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
 import UserAccessControl from '../components/AccessControl/UserAccessControl';
 import { getAuthUser } from '../services/api';
-import { getMappedSubClasses, formatDetailedClass } from '../data/classStructure';
+import { getMappedSubClasses, formatDetailedClass, CLASS_SUBCLASS_MAP } from '../data/classStructure';
 
 const ADMIN_BG = '#4a1d6e';
 const ADMIN_LIGHT = '#f3e8ff';
@@ -113,6 +113,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     deleteStaffMember,
     addClassLevel,
     addSubject,
+    teachingAssignments,
+    saveTeachingAssignment,
     securityAlerts,
     resolveSecurityAlert,
     deleteSecurityAlert,
@@ -288,21 +290,28 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [isAddingClass, setIsAddingClass] = useState(false);
   const [isAddingSubject, setIsAddingSubject] = useState(false);
   const [newClassName, setNewClassName] = useState('');
-  const [newClassCategory, setNewClassCategory] = useState('Primary');
+  const [newClassCategory, setNewClassCategory] = useState('Primary School');
   const [newSubjectName, setNewSubjectName] = useState('');
+  const [classCreateError, setClassCreateError] = useState('');
+  const [classCreateLoading, setClassCreateLoading] = useState(false);
 
-  const handleAddClassSubmit = (e) => {
+  const handleAddClassSubmit = async (e) => {
     e.preventDefault();
     if (!newClassName.trim()) return;
-
-    if (addClassLevel) {
-      addClassLevel(newClassName.trim());
+    setClassCreateLoading(true);
+    setClassCreateError('');
+    try {
+      if (!addClassLevel) throw new Error('The database did not save this class.');
+      const savedName = await addClassLevel(newClassName.trim(), newClassCategory);
+      setSuccessMsg(`🏫 Class Level "${savedName || newClassName.trim()}" was saved. It is now available when creating a user.`);
+      setNewClassName('');
+      setIsAddingClass(false);
+      setTimeout(() => setSuccessMsg(''), 6000);
+    } catch (err) {
+      setClassCreateError(err?.message || 'The database did not save this class.');
+    } finally {
+      setClassCreateLoading(false);
     }
-
-    setSuccessMsg(`🏫 Class Level "${newClassName.trim()}" created successfully! Available across all class selectors.`);
-    setNewClassName('');
-    setIsAddingClass(false);
-    setTimeout(() => setSuccessMsg(''), 6000);
   };
 
   const handleAddSubjectSubmit = (e) => {
@@ -328,8 +337,22 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [staffSubjectFilter, setStaffSubjectFilter] = useState('All');
   const [staffStatusFilter, setStaffStatusFilter] = useState('All');
   const [staffKindFilter, setStaffKindFilter] = useState('all');
+  const [assignmentTeacherKey, setAssignmentTeacherKey] = useState('');
+  const [assignmentClasses, setAssignmentClasses] = useState([]);
+  const [assignmentSubjects, setAssignmentSubjects] = useState([]);
+  const [assignmentError, setAssignmentError] = useState('');
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
 
   const staffDirectory = teacherDirectory || [];
+  const assignableTeachers = staffDirectory.filter((person) => {
+    if (person.status === 'Offboarded' || !isTeachingStaffMember(person)) return false;
+    const role = String(person.role || '').toLowerCase();
+    return /class teacher|subject teacher|teaching staff|teacher|tutor/.test(role);
+  });
+  const assignmentClassOptions = Array.from(new Set([
+    ...LEVEL_OPTIONS,
+    ...LEVEL_OPTIONS.flatMap((level) => CLASS_SUBCLASS_MAP[level] || []),
+  ]));
 
   const visibleStaff = useMemo(() => {
     return staffDirectory.filter((t) => {
@@ -2672,7 +2695,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <button
                     type="button"
-                    onClick={() => setIsAddingClass(true)}
+                    onClick={() => { setClassCreateError(''); setIsAddingClass(true); }}
                     style={{
                       padding: '10px 16px', borderRadius: 8, background: '#1e1b4b', color: '#fff',
                       border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
@@ -2877,11 +2900,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                           <div style={{ fontSize: 11, color: 'var(--gray-500)', fontWeight: 600 }}>{t.role || 'Subject Teacher'}</div>
                         </td>
                         <td>
-                          <strong style={{ color: '#0369a1', fontSize: 12 }}>{t.subject}</strong>
+                          <strong style={{ color: '#0369a1', fontSize: 12 }}>
+                            {(findTeachingAssignment(teachingAssignments, t)?.subjects || []).join(', ') || t.subject}
+                          </strong>
                         </td>
                         <td>
                           <span style={{ padding: '3px 10px', background: ADMIN_LIGHT, color: ADMIN_BG, borderRadius: 6, fontWeight: 800, fontSize: 11.5 }}>
-                            {t.classAssigned}
+                            {(findTeachingAssignment(teachingAssignments, t)?.classes || []).join(', ') || t.classAssigned}
                           </span>
                         </td>
                         <td>
@@ -2944,6 +2969,143 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="panel" style={{ marginTop: 20 }}>
+                <div className="panel__header">
+                  <h2 className="panel__title">Class & Subject Assignments</h2>
+                </div>
+                <div className="panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--gray-600)', fontWeight: 600 }}>
+                    Assign a subject teacher or class teacher to more than one class and more than one subject. The teacher, parent, student, and accounts portals use this list.
+                  </p>
+                  {assignableTeachers.length === 0 ? (
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--gray-500)' }}>
+                      No subject teachers or class teachers are stored in the database.
+                    </p>
+                  ) : (
+                    <form
+                      onSubmit={async (event) => {
+                        event.preventDefault();
+                        const teacher = assignableTeachers.find((person) => (person.staffId || person.id || person.email) === assignmentTeacherKey);
+                        if (!teacher) {
+                          setAssignmentError('Choose a teacher.');
+                          return;
+                        }
+                        if (assignmentClasses.length === 0 && assignmentSubjects.length === 0) {
+                          setAssignmentError('Choose at least one class or one subject.');
+                          return;
+                        }
+                        setAssignmentSaving(true);
+                        setAssignmentError('');
+                        try {
+                          if (!saveTeachingAssignment) throw new Error('The database did not save this teaching assignment.');
+                          await saveTeachingAssignment({
+                            staffId: teacher.staffId || '',
+                            userId: teacher.userId || '',
+                            teacherName: teacher.name,
+                            role: teacher.role,
+                            email: teacher.email || '',
+                            classes: assignmentClasses,
+                            subjects: assignmentSubjects,
+                          });
+                          setSuccessMsg(`Saved classes and subjects for ${teacher.name}.`);
+                          setTimeout(() => setSuccessMsg(''), 5000);
+                        } catch (err) {
+                          setAssignmentError(err?.message || 'The database did not save this teaching assignment.');
+                        } finally {
+                          setAssignmentSaving(false);
+                        }
+                      }}
+                      style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+                    >
+                      <label>
+                        <span style={{ fontSize: 12, fontWeight: 800 }}>Teacher</span>
+                        <select
+                          value={assignmentTeacherKey}
+                          onChange={(event) => {
+                            const key = event.target.value;
+                            const teacher = assignableTeachers.find((person) => (person.staffId || person.id || person.email) === key);
+                            const existing = teacher ? findTeachingAssignment(teachingAssignments, teacher) : null;
+                            setAssignmentTeacherKey(key);
+                            setAssignmentClasses(existing?.classes || []);
+                            setAssignmentSubjects(existing?.subjects || []);
+                            setAssignmentError('');
+                          }}
+                          style={{ width: '100%', marginTop: 4, padding: '9px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontWeight: 700 }}
+                        >
+                          <option value="">Select a subject teacher or class teacher</option>
+                          {assignableTeachers.map((person) => {
+                            const key = person.staffId || person.id || person.email;
+                            return <option key={key} value={key}>{person.name} · {person.role || 'Teacher'}</option>;
+                          })}
+                        </select>
+                      </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                        <fieldset style={{ border: '1px solid var(--gray-200)', borderRadius: 10, padding: 12, margin: 0 }}>
+                          <legend style={{ fontSize: 12, fontWeight: 800, padding: '0 6px' }}>Classes</legend>
+                          <div style={{ maxHeight: 180, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {assignmentClassOptions.map((name) => (
+                              <label key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={assignmentClasses.includes(name)}
+                                  onChange={() => setAssignmentClasses((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name])}
+                                />
+                                {name}
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                        <fieldset style={{ border: '1px solid var(--gray-200)', borderRadius: 10, padding: 12, margin: 0 }}>
+                          <legend style={{ fontSize: 12, fontWeight: 800, padding: '0 6px' }}>Subjects</legend>
+                          <div style={{ maxHeight: 180, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {SUBJECT_OPTIONS.map((name) => (
+                              <label key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={assignmentSubjects.includes(name)}
+                                  onChange={() => setAssignmentSubjects((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name])}
+                                />
+                                {name}
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                      </div>
+                      {assignmentError && <p style={{ margin: 0, color: '#991b1b', fontSize: 12, fontWeight: 700 }}>{assignmentError}</p>}
+                      <button
+                        type="submit"
+                        disabled={assignmentSaving || !assignmentTeacherKey}
+                        style={{ alignSelf: 'flex-start', padding: '10px 16px', border: 'none', borderRadius: 8, background: '#4a1d6e', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+                      >
+                        {assignmentSaving ? 'Saving...' : 'Save assignment'}
+                      </button>
+                    </form>
+                  )}
+                  {(teachingAssignments || []).length > 0 && (
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Teacher</th>
+                          <th>Role</th>
+                          <th>Classes</th>
+                          <th>Subjects</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {teachingAssignments.map((item) => (
+                          <tr key={item.id || item.staffId || item.teacherName}>
+                            <td><strong>{item.teacherName}</strong></td>
+                            <td>{item.role}</td>
+                            <td>{(item.classes || []).join(', ') || '—'}</td>
+                            <td>{(item.subjects || []).join(', ') || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -3300,19 +3462,24 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     </select>
                   </label>
 
+                  {classCreateError && (
+                    <p style={{ fontSize: 12, color: '#991b1b', fontWeight: 700, margin: 0 }}>{classCreateError}</p>
+                  )}
+
                   <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
                     <button
                       type="button"
-                      onClick={() => setIsAddingClass(false)}
+                      onClick={() => { setIsAddingClass(false); setClassCreateError(''); }}
                       style={{ flex: 1, padding: 10, border: '1px solid var(--gray-300)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 700 }}
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
+                      disabled={classCreateLoading}
                       style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: '#1e1b4b', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
                     >
-                      🏫 Create Class Level
+                      {classCreateLoading ? 'Saving...' : '🏫 Create Class Level'}
                     </button>
                   </div>
                 </form>

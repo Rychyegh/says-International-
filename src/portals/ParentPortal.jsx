@@ -10,7 +10,7 @@ import ParentCommunication from '../components/ParentCommunication/ParentCommuni
 import ContactDirectory from '../components/ContactDirectory/ContactDirectory';
 import { ParentReports } from '../components/ReportWorkflow/ReportWorkflow';
 import { ParentFees, ParentProgress } from '../components/SchoolWorkflows/SchoolWorkflows';
-import { usePortalData, resultsForStudent, hasRecordedClassScore, hasRecordedExamScore, MISSING_SCORE } from '../data/PortalStore';
+import { usePortalData, resultsForStudent, hasRecordedClassScore, hasRecordedExamScore, MISSING_SCORE, teachersForClass } from '../data/PortalStore';
 import { getAuthUser } from '../services/api';
 
 const PARENT_BG    = '#1a3668';
@@ -119,7 +119,7 @@ export default function ParentPortal() {
   }, []);
 
   const [activeChild, setActiveChild] = useState(0);
-  const { onboardedStudents = [], results: staffResults = [], studentFees = [], messages = [] } = usePortalData();
+  const { onboardedStudents = [], results: staffResults = [], studentFees = [], messages = [], teachingAssignments = [] } = usePortalData();
 
   const parentIdentity = useMemo(() => resolveParentIdentity(), [onboardedStudents, studentFees]);
 
@@ -275,6 +275,22 @@ export default function ParentPortal() {
                 <h1 className="page-header__title">Welcome back, {getAuthUser()?.fullName || getAuthUser()?.name || 'Guardian'} 👩</h1>
                 <p className="page-header__subtitle">Stay on top of your children's education, fees, and school activities.</p>
               </div>
+              {teachersForClass(teachingAssignments, child.grade).length > 0 && (
+                <div className="panel" style={{ marginBottom: 16 }}>
+                  <div className="panel__header"><h2 className="panel__title">Teachers for {child.name}</h2></div>
+                  <div className="panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {teachersForClass(teachingAssignments, child.grade).map((teacher) => (
+                      <div key={teacher.id || teacher.staffId || teacher.teacherName}>
+                        <strong>{teacher.teacherName}</strong>
+                        <span style={{ color: 'var(--gray-500)', fontWeight: 600 }}> · {teacher.role || 'Teacher'}</span>
+                        <div style={{ fontSize: 12, color: 'var(--gray-600)' }}>
+                          {(teacher.subjects || []).join(', ') || 'Subjects not listed'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Stats */}
               <div className="stats-grid">

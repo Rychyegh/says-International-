@@ -1986,10 +1986,41 @@ export const api = {
     });
   },
 
-  createCatalogEntry: async (collection, name) => {
+  getCatalog: async (collection) => {
+    return await request(`/academic/catalog/${collection}`);
+  },
+
+  getTeachingAssignments: async () => {
+    return await request('/academic/teaching-assignments');
+  },
+
+  saveTeachingAssignment: async (assignment = {}) => {
+    const classes = Array.isArray(assignment.classes) ? assignment.classes.filter(Boolean) : [];
+    const subjects = Array.isArray(assignment.subjects) ? assignment.subjects.filter(Boolean) : [];
+    return await request('/academic/teaching-assignments', {
+      method: 'PUT',
+      body: JSON.stringify({
+        staff_id: assignment.staffId || assignment.staff_id || undefined,
+        user_id: assignment.userId || assignment.user_id || undefined,
+        teacher_name: assignment.teacherName || assignment.teacher_name || assignment.name || undefined,
+        role: assignment.role || undefined,
+        email: assignment.email || undefined,
+        classes,
+        subjects,
+        assigned_classes: classes,
+        assigned_subjects: subjects,
+      }),
+    });
+  },
+
+  createCatalogEntry: async (collection, name, extra = {}) => {
     return await request(`/academic/catalog/${collection}`, {
       method: 'POST',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({
+        name,
+        category: extra.category || undefined,
+        class_category: extra.category || undefined,
+      }),
     });
   },
 

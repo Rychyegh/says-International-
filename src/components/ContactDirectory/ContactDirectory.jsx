@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Mail, Phone, Search, Users } from 'lucide-react';
-import { usePortalData, resolveGuardianPhone } from '../../data/PortalStore';
+import { usePortalData, resolveGuardianPhone, findTeachingAssignment } from '../../data/PortalStore';
 import './ContactDirectory.css';
 
 export default function ContactDirectory({ parentMode = false }) {
@@ -10,12 +10,17 @@ export default function ContactDirectory({ parentMode = false }) {
   const busRoutes = store?.busRoutes || [];
 
   const dynamicContacts = useMemo(() => {
-    const teachers = (teacherDirectory || []).filter(t => t.status !== 'Offboarded').map(t => ({
-      name: t.name,
-      role: `${t.role || 'Teacher'} · ${t.subject || 'General'} (${t.classAssigned || 'All Classes'})`,
-      phone: t.phone || '+233 24 000 0000',
-      email: t.email || `${t.name.toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`
-    }));
+    const teachers = (teacherDirectory || []).filter(t => t.status !== 'Offboarded').map(t => {
+      const assignment = findTeachingAssignment(store?.teachingAssignments || [], t);
+      const subjects = assignment?.subjects?.length ? assignment.subjects.join(', ') : (t.subject || 'General');
+      const classes = assignment?.classes?.length ? assignment.classes.join(', ') : (t.classAssigned || 'All Classes');
+      return {
+        name: t.name,
+        role: `${t.role || 'Teacher'} · ${subjects} (${classes})`,
+        phone: t.phone || '+233 24 000 0000',
+        email: t.email || `${t.name.toLowerCase().replace(/\s+/g, '.')}@remaljcarewell.edu.gh`
+      };
+    });
 
     const students = (onboardedStudents || []).map(s => ({
       name: s.fullName,
@@ -49,7 +54,7 @@ export default function ContactDirectory({ parentMode = false }) {
       Students: students,
       Drivers: drivers,
     };
-  }, [teacherDirectory, onboardedStudents, busRoutes]);
+  }, [teacherDirectory, store?.teachingAssignments, onboardedStudents, busRoutes]);
 
   const categories = parentMode ? ['Parents', 'Teachers'] : Object.keys(dynamicContacts);
   const [category, setCategory] = useState(categories[0]);

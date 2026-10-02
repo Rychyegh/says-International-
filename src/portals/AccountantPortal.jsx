@@ -272,6 +272,7 @@ export default function AccountantPortal({ onSignOut }) {
   const {
     studentFees,
     teacherDirectory,
+    teachingAssignments,
     onboardedStudents,
     accountantMessages,
     recordFeePayment,
@@ -916,7 +917,19 @@ export default function AccountantPortal({ onSignOut }) {
                   <tbody>
                     {(onboardedStudents || []).map((stu) => {
                       const fee = studentFees.find((f) => f.studentId === stu.studentId) || { balance: 0, status: 'Active' };
-                      const teacher = teacherDirectory.find((t) => t.classAssigned.includes(stu.level) || t.classAssigned.includes('Grade 4')) || teacherDirectory[0];
+                      const classKey = String(stu.classSection || stu.level || '').trim();
+                      const assigned = (teachingAssignments || []).find((item) => (
+                        /class teacher/i.test(item.role || '')
+                        && (item.classes || []).some((name) => {
+                          const value = String(name || '').trim().toLowerCase();
+                          const level = String(stu.level || '').trim().toLowerCase();
+                          const section = classKey.toLowerCase();
+                          return value && (value === section || value === level || section.startsWith(value) || level.startsWith(value));
+                        })
+                      ));
+                      const teacher = assigned
+                        ? (teacherDirectory.find((person) => person.staffId === assigned.staffId || person.name === assigned.teacherName) || { name: assigned.teacherName, photo: '👨‍🏫', subject: (assigned.subjects || []).join(', ') })
+                        : (teacherDirectory.find((t) => String(t.classAssigned || '').includes(stu.level) || String(t.classAssigned || '').includes('Grade 4')) || teacherDirectory[0]);
 
                       return (
                         <tr key={stu.id}>

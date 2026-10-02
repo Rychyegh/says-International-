@@ -9,6 +9,7 @@ import BusTracker from '../components/BusTracker/BusTracker';
 import { StudentResults, StudentTimetable } from '../components/Academic/AcademicViews';
 import { StudentMessagesAssignments } from '../components/SchoolWorkflows/SchoolWorkflows';
 import { getAuthUser } from '../services/api';
+import { usePortalData, teachersForClass } from '../data/PortalStore';
 
 const STUDENT_BG    = '#5e2d0e';
 const STUDENT_LIGHT = '#fff1e8';
@@ -79,6 +80,10 @@ const ASSIGNMENTS = [
 const STATUS_C = { 'Pending': 'status-pill--warn', 'In Progress': 'status-pill--info', 'Overdue': 'status-pill--danger', 'Submitted': 'status-pill--success' };
 
 export default function StudentPortal() {
+  const { teachingAssignments = [] } = usePortalData();
+  const studentAccount = getAuthUser() || {};
+  const studentClass = studentAccount.classSection || studentAccount.assignedClass || studentAccount.classLevel || studentAccount.class_assigned || '';
+  const myTeachers = teachersForClass(teachingAssignments, studentClass);
   const [schedulePage, setSchedulePage] = useState(0); // 0: Mon - Wed, 1: Thu - Fri
   const [activeNav, setActiveNavState] = useState(() => {
     const saved = localStorage.getItem('says_student_active_nav');
@@ -188,6 +193,20 @@ export default function StudentPortal() {
                   </p>
                 </div>
               </div>
+              {myTeachers.length > 0 && (
+                <div className="panel" style={{ marginBottom: 20 }}>
+                  <div className="panel__header"><h2 className="panel__title">My teachers · {studentClass}</h2></div>
+                  <div className="panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {myTeachers.map((teacher) => (
+                      <div key={teacher.id || teacher.staffId || teacher.teacherName}>
+                        <strong>{teacher.teacherName}</strong>
+                        <span style={{ color: 'var(--gray-500)' }}> · {teacher.role || 'Teacher'}</span>
+                        <div style={{ fontSize: 12, color: 'var(--gray-600)' }}>{(teacher.subjects || []).join(', ')}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Stats */}
               <div className="stats-grid">

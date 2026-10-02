@@ -16,7 +16,7 @@ import { AdmissionsRegister } from '../components/Onboarding/Onboarding';
 import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
 import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
 import { api, getAuthUser, getUserFullName, setAuthUser, enrichTeacherSession, isClassTeacherAccount } from '../services/api';
-import { usePortalData, resultsForStudent, hasRecordedClassScore, hasRecordedExamScore, MISSING_SCORE } from '../data/PortalStore';
+import { usePortalData, resultsForStudent, hasRecordedClassScore, hasRecordedExamScore, MISSING_SCORE, findTeachingAssignment, classLabelsMatch } from '../data/PortalStore';
 
 const TEACHER_GREEN = '#204d2d';
 const TEACHER_LIGHT = '#edf8f0';
@@ -202,6 +202,14 @@ export default function TeacherPortal() {
   const staffId = authUser?.staffId || authUser?.staff_id || classDashboard?.teacher?.staffId || '';
   const teacherLabel = getUserFullName(authUser) || classDashboard?.teacher?.fullName || '';
   const classLabel = classDashboard?.teacher?.classAssigned || authUser?.classAssigned || authUser?.class_assigned || '';
+  const myAssignment = findTeachingAssignment(store?.teachingAssignments || [], {
+    staffId,
+    email: authUser?.email,
+    name: teacherLabel,
+    fullName: teacherLabel,
+  });
+  const assignedClasses = myAssignment?.classes || [];
+  const assignedSubjects = myAssignment?.subjects || [];
 
   useEffect(() => {
     if (!isClassTeacher) return undefined;
@@ -330,9 +338,11 @@ export default function TeacherPortal() {
   })) : FALLBACK_STUDENTS;
 
   const assignedKey = classAssignedLabel.trim().toLowerCase();
-  const classRoster = assignedKey
-    ? rosterFromStore.filter((student) => String(student.class || '').trim().toLowerCase() === assignedKey)
-    : [];
+  const classRoster = rosterFromStore.filter((student) => {
+    const studentClass = student.class || student.classSection || student.level || '';
+    if (assignedKey && classLabelsMatch(studentClass, classAssignedLabel)) return true;
+    return assignedClasses.some((name) => classLabelsMatch(name, studentClass));
+  });
   const displayStudents = classDashboard?.students?.length
     ? classDashboard.students.map((student) => ({ ...student, color: TEACHER_GREEN }))
     : (classRoster.length ? classRoster : rosterFromStore);
@@ -362,6 +372,8 @@ export default function TeacherPortal() {
             </div>
             <div style={{ fontSize: 11, color: '#166534', marginTop: 4, fontWeight: 700 }}>
               {isClassTeacher ? `Form Tutor${classAssignedLabel ? ` • ${classAssignedLabel}` : ''}` : 'Subject Instructor'}
+              {assignedClasses.length > 0 ? ` · ${assignedClasses.join(', ')}` : ''}
+              {assignedSubjects.length > 0 ? ` · ${assignedSubjects.join(', ')}` : ''}
             </div>
           </div>
           <span className="sidebar-section-label">Navigation</span>
@@ -476,6 +488,8 @@ export default function TeacherPortal() {
                   You have <strong style={{ color: TEACHER_ACCENT }}>{classesTodayLabel} classes</strong> today and{' '}
                   <strong style={{ color: '#c89a3a' }}>{assignmentsUngraded == null ? '—' : assignmentsUngraded} assignments</strong> pending review.
                   {isClassTeacher && classAssignedLabel ? <> Form class: <strong style={{ color: TEACHER_ACCENT }}>{classAssignedLabel}</strong>.</> : null}
+                  {assignedClasses.length > 0 ? <> Assigned classes: <strong style={{ color: TEACHER_ACCENT }}>{assignedClasses.join(', ')}</strong>.</> : null}
+                  {assignedSubjects.length > 0 ? <> Subjects: <strong style={{ color: TEACHER_ACCENT }}>{assignedSubjects.join(', ')}</strong>.</> : null}
                 </p>
               </div>
               <div className="stats-grid">

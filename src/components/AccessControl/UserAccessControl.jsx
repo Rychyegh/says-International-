@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { usePortalData, directoryProfileFromUser } from '../../data/PortalStore';
 import { api, getAuthUser, getAuthToken, ensureDemoClassTeacherAccounts } from '../../services/api';
-import { ALL_SUB_CLASSES, CLASS_LEVELS, getMappedSubClasses } from '../../data/classStructure';
+import { ALL_SUB_CLASSES, CLASS_LEVELS, CLASS_SUBCLASS_MAP } from '../../data/classStructure';
 
 const ROLES = [
   { value: 'admin', label: 'Head Administrator', badgeColor: '#4a1d6e', bg: '#f3e8ff', desc: 'Full institutional control and administrative governance' },
@@ -21,7 +21,10 @@ const ROLES = [
   { value: 'security_driver', label: 'Transport / Security', badgeColor: '#374151', bg: '#f3f4f6', desc: 'Bus routing, RFID gate scans, and safety logging' },
 ];
 
-const CLASS_OPTIONS = CLASS_LEVELS;
+function sectionsForClass(level) {
+  if (!level || !CLASS_SUBCLASS_MAP[level]) return [];
+  return CLASS_SUBCLASS_MAP[level];
+}
 
 function RoleSelect({ value, onChange }) {
   const [open, setOpen] = useState(false);
@@ -149,7 +152,15 @@ function mapBackendUser(item) {
 }
 
 export default function UserAccessControl({ adminRole = 'head_admin' }) {
-  const { addStaffMember, refreshBackendData } = usePortalData();
+  const { addStaffMember, refreshBackendData, classLevels } = usePortalData();
+  const assignedClassOptions = useMemo(
+    () => Array.from(new Set([...(CLASS_LEVELS || []), ...(classLevels || [])].filter(Boolean))),
+    [classLevels]
+  );
+  const mainClassOptions = useMemo(() => {
+    const custom = (classLevels || []).filter((level) => level && !ALL_SUB_CLASSES.includes(level) && !CLASS_LEVELS.includes(level));
+    return [...ALL_SUB_CLASSES, ...custom];
+  }, [classLevels]);
 
   const [activeTab, setActiveTab] = useState('users'); // 'users' | 'matrix' | 'audit'
   const [searchQuery, setSearchQuery] = useState('');
@@ -1245,7 +1256,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                   <option value="">
                     {createForm.role === 'class_teacher' ? 'Select main class' : 'Available when Class Teacher is selected'}
                   </option>
-                  {createForm.role === 'class_teacher' && ALL_SUB_CLASSES.map((level) => (
+                  {createForm.role === 'class_teacher' && mainClassOptions.map((level) => (
                     <option key={level} value={level}>{level}</option>
                   ))}
                 </select>
@@ -1297,7 +1308,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                     value={createForm.assignedClass}
                     onChange={(e) => {
                       const assignedClass = e.target.value;
-                      const mapped = getMappedSubClasses(assignedClass);
+                      const mapped = sectionsForClass(assignedClass);
                       setCreateForm((prev) => ({
                         ...prev,
                         assignedClass,
@@ -1307,7 +1318,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13, background: '#fff' }}
                   >
                     <option value="">Not assigned</option>
-                    {CLASS_OPTIONS.map((level) => (
+                    {assignedClassOptions.map((level) => (
                       <option key={level} value={level}>{level}</option>
                     ))}
                   </select>
@@ -1322,7 +1333,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13, background: createForm.assignedClass ? '#fff' : 'var(--bg-muted, #f1f5f9)' }}
                   >
                     <option value="">{createForm.assignedClass ? 'No sub class' : 'Select a class first'}</option>
-                    {getMappedSubClasses(createForm.assignedClass).map((section) => (
+                    {sectionsForClass(createForm.assignedClass).map((section) => (
                       <option key={section} value={section}>{section}</option>
                     ))}
                   </select>

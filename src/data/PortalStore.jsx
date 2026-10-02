@@ -4,6 +4,73 @@ import { cloudSync } from '../services/cloudSync';
 
 const STORAGE_KEY = 'remalj-portal-live-data-v3';
 
+export function classLabelsMatch(assigned, target) {
+  const left = String(assigned || '').trim().toLowerCase();
+  const right = String(target || '').trim().toLowerCase();
+  if (!left || !right) return false;
+  if (left === right) return true;
+  if (left.startsWith(right) && !/\d/.test(left.slice(right.length))) return true;
+  if (right.startsWith(left) && !/\d/.test(right.slice(left.length))) return true;
+  return false;
+}
+
+export function findTeachingAssignment(assignments = [], person = {}) {
+  const keys = [person.staffId, person.staff_id, person.id, person.userId, person.email, person.name, person.fullName, person.teacherName]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+  return (assignments || []).find((item) => {
+    const itemKeys = [item.staffId, item.userId, item.email, item.teacherName, item.id]
+      .map((value) => String(value || '').trim().toLowerCase())
+      .filter(Boolean);
+    return itemKeys.some((value) => keys.includes(value));
+  }) || null;
+}
+
+export function teachersForClass(assignments = [], classLabel = '') {
+  return (assignments || []).filter((item) => (item.classes || []).some((name) => classLabelsMatch(name, classLabel)));
+}
+
+function mapTeachingAssignment(item) {
+  if (!item || typeof item !== 'object') return null;
+  const classes = item.classes || item.assigned_classes || item.assignedClasses || [];
+  const subjects = item.subjects || item.assigned_subjects || item.assignedSubjects || [];
+  const staffId = String(item.staffId || item.staff_id || item.staff_code || '').trim();
+  const teacherName = String(item.teacherName || item.teacher_name || item.name || '').trim();
+  if (!staffId && !teacherName) return null;
+  return {
+    id: item.id || staffId || teacherName,
+    staffId,
+    userId: item.userId || item.user_id || '',
+    teacherName,
+    role: item.role || '',
+    email: item.email || '',
+    classes: Array.isArray(classes) ? classes.map((value) => String(value)).filter(Boolean) : [],
+    subjects: Array.isArray(subjects) ? subjects.map((value) => String(value)).filter(Boolean) : [],
+  };
+}
+
+function extractTeachingAssignments(raw) {
+  const list = Array.isArray(raw) ? raw
+    : Array.isArray(raw?.assignments) ? raw.assignments
+    : Array.isArray(raw?.teaching_assignments) ? raw.teaching_assignments
+    : Array.isArray(raw?.data) ? raw.data
+    : [];
+  return list.map(mapTeachingAssignment).filter(Boolean);
+}
+
+function extractCatalogNames(raw) {
+  const list = Array.isArray(raw) ? raw
+    : Array.isArray(raw?.classes) ? raw.classes
+    : Array.isArray(raw?.items) ? raw.items
+    : Array.isArray(raw?.data) ? raw.data
+    : Array.isArray(raw?.results) ? raw.results
+    : [];
+  return list.map((item) => {
+    if (typeof item === 'string') return item.trim();
+    return String(item?.name || item?.class_name || item?.title || '').trim();
+  }).filter(Boolean);
+}
+
 function extractAccountList(raw) {
   if (Array.isArray(raw)) return raw;
   if (Array.isArray(raw?.users)) return raw.users;
@@ -1450,6 +1517,7 @@ const INITIAL_DATA = {
   securityAlerts: [],
   onboardedStudents: [],
   teacherDirectory: [],
+  teachingAssignments: [],
   classLevels: DEFAULT_CLASS_LEVELS,
   subjects: DEFAULT_SUBJECTS,
   studentFees: [],
@@ -1489,6 +1557,7 @@ function readData() {
       ...INITIAL_DATA,
       ...parsed,
       teacherDirectory: [],
+      teachingAssignments: [],
       classLevels: Array.isArray(parsed.classLevels) && parsed.classLevels.length > 0 ? parsed.classLevels : DEFAULT_CLASS_LEVELS,
       subjects: Array.isArray(parsed.subjects) && parsed.subjects.length > 0 ? parsed.subjects : DEFAULT_SUBJECTS,
       timetable: Array.isArray(parsed.timetable) && parsed.timetable.length > 0 ? parsed.timetable : DEFAULT_TIMETABLE,
@@ -1695,7 +1764,9 @@ export function PortalDataProvider({ children }) {
         semRegsRes,
         examRegsRes,
         scoreSheetsRes,
-        providersRes
+        providersRes,
+        classesRes,
+        teachingAssignmentsRes
       ] = await Promise.allSettled([
         cloudSync.pullLatestData(),
         api.getBusRoutes(),
@@ -1717,7 +1788,9 @@ export function PortalDataProvider({ children }) {
         api.getSemesterRegistrations(),
         api.getExamRegistrations(),
         api.getScoreSheetEntries(),
-        api.getServiceProviders ? api.getServiceProviders() : Promise.resolve([])
+        api.getServiceProviders ? api.getServiceProviders() : Promise.resolve([]),
+        api.getCatalog('classes'),
+        api.getTeachingAssignments()
       ]);
 
       const cloudData = (cloudRes.status === 'fulfilled' && cloudRes.value && typeof cloudRes.value === 'object') ? cloudRes.value : null;
@@ -1726,6 +1799,23 @@ export function PortalDataProvider({ children }) {
       setData(current => {
         let hasChanges = false;
         const updates = {};
+
+        if (classesRes.status === 'fulfilled') {
+          const names = extractCatalogNames(classesRes.value);
+          const merged = Array.from(new Set([...DEFAULT_CLASS_LEVELS, ...names]));
+          if (!isDeepEqual(current.classLevels, merged)) {
+            updates.classLevels = merged;
+            hasChanges = true;
+          }
+        }
+
+        if (teachingAssignmentsRes.status === 'fulfilled') {
+          const mapped = extractTeachingAssignments(teachingAssignmentsRes.value);
+          if (!isDeepEqual(current.teachingAssignments, mapped)) {
+            updates.teachingAssignments = mapped;
+            hasChanges = true;
+          }
+        }
 
         // Bus Routes
         if (routesRes.status === 'fulfilled' && routesRes.value) {
@@ -4189,22 +4279,33 @@ export function PortalDataProvider({ children }) {
       }));
     },
     // Dynamic Classes & Subjects Methods
-    addClassLevel: async (newClass) => {
-      if (!newClass) return;
-      const formatted = formatClassToBasic(newClass.trim());
-      try {
-        await api.createCatalogEntry('classes', formatted);
-      } catch (e) {
-        console.warn('Backend class catalog fallback:', e);
-      }
+    addClassLevel: async (newClass, category) => {
+      const name = String(newClass || '').trim();
+      if (!name) return;
+      await api.createCatalogEntry('classes', name, { category });
       setData((current) => {
         const existing = current.classLevels || DEFAULT_CLASS_LEVELS;
-        if (existing.includes(formatted)) return current;
+        if (existing.includes(name)) return current;
         return {
           ...current,
-          classLevels: [...existing, formatted]
+          classLevels: [...existing, name]
         };
       });
+      return name;
+    },
+    saveTeachingAssignment: async (assignment) => {
+      const saved = await api.saveTeachingAssignment(assignment);
+      const mapped = mapTeachingAssignment(saved) || mapTeachingAssignment(assignment);
+      if (!mapped) throw new Error('The database did not save this teaching assignment.');
+      setData((current) => {
+        const list = current.teachingAssignments || [];
+        const index = list.findIndex((item) => findTeachingAssignment([item], mapped));
+        const next = index >= 0
+          ? list.map((item, itemIndex) => (itemIndex === index ? { ...item, ...mapped } : item))
+          : [mapped, ...list];
+        return { ...current, teachingAssignments: next };
+      });
+      return mapped;
     },
     addSubject: async (newSubject) => {
       if (!newSubject) return;
