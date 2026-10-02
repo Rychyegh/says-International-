@@ -253,8 +253,39 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   body:has(.credential-slip-printable) .portal__content > *:not(div:has(.credential-slip-printable)),
   body:has(.accountant-printable) .portal__content > *:not(div:has(.accountant-printable)),
   body:has(.sims-printable) .portal__content > *:not(div:has(.sims-printable)),
-  body:has(.pv-print-page) .portal__content > *:not(div:has(.pv-print-page)) {
+  body:has(.pv-print-page) .portal__content > *:not(div:has(.pv-print-page)),
+  body:has(.exam-roster-printable) .portal__content > *:not(div:has(.exam-roster-printable)),
+  body:has(.exam-roster-printable) .portal__sidebar,
+  body:has(.exam-roster-printable) .topbar,
+  body:has(.exam-roster-printable) .pre-header {
     display: none !important;
+  }
+
+  .exam-roster-printable {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .exam-roster-student-page {
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    width: 100% !important;
+    min-height: 98vh !important;
+    box-shadow: none !important;
+    border: 2px solid #0284c7 !important;
+    margin: 0 0 10mm 0 !important;
+    padding: 10mm 12mm !important;
+    box-sizing: border-box !important;
+  }
+
+  .exam-roster-student-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
 
   /* Reset layout wrappers to visible static containers */

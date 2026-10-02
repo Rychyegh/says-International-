@@ -19,7 +19,7 @@ import {
   Sparkles,
   Trash2
 } from 'lucide-react';
-import { CLASS_LEVELS, ALL_SUB_CLASSES, getMappedSubClasses } from '../../data/classStructure';
+import { CLASS_LEVELS, ALL_SUB_CLASSES, getMappedSubClasses, formatDetailedClass } from '../../data/classStructure';
 
 const DEFAULT_SUBJECTS = [
   'Mathematics',
@@ -52,12 +52,23 @@ const EXAM_CENTERS = [
 ];
 
 export default function RegisterForExamsForm({ setM, students: propStudents }) {
-  const { academicSettings, onboardedStudents, examRegistrations, registerIndividualExam, registerClassExams, cancelExamRegistration, subjects: catalogSubjects } = usePortalData();
+  const {
+    academicSettings,
+    onboardedStudents,
+    examRegistrations,
+    registerIndividualExam,
+    registerClassExams,
+    cancelExamRegistration,
+    subjects: catalogSubjects,
+    teachingAssignments,
+    addSubject: saveSubjectToDb
+  } = usePortalData();
 
   const allStudents = propStudents || onboardedStudents || [];
   const currentRegistrations = examRegistrations || [];
 
   const [activeTab, setActiveTab] = useState('individual'); // 'individual' | 'bulk' | 'roster'
+  const [isPrintingRoster, setIsPrintingRoster] = useState(false);
 
   // Individual Registration State
   const [indivSearch, setIndivSearch] = useState('');
@@ -77,8 +88,7 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
   const [indivRegFilter, setIndivRegFilter] = useState('All'); // 'All' | 'Not Registered' | 'Registered'
 
   // ── Subject Pool ─────────────────────────────────────────────────────────
-  // Load from localStorage so custom subjects survive page refresh.
-  // Merged with DEFAULT_SUBJECTS so built-ins are always present.
+  // Pull subjects from the database (catalog subjects and subjects added/assigned on the staff and classes page)
   const SUBJECTS_STORAGE_KEY = 'rcis_exam_subjects_pool';
 
   const loadPersistedSubjects = () => {
@@ -87,31 +97,33 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
       if (raw) {
         const saved = JSON.parse(raw);
         if (Array.isArray(saved) && saved.length > 0) {
-          // Merge: saved list takes priority; ensure all DEFAULT_SUBJECTS are included
-          const merged = [...new Set([...DEFAULT_SUBJECTS, ...saved])];
-          return merged;
+          return saved;
         }
       }
     } catch (e) {}
-    return [...DEFAULT_SUBJECTS];
+    return [];
   };
 
-  const [allSubjects, setAllSubjects] = useState(() => (
-    [...new Set([
-      ...loadPersistedSubjects(),
-      ...(catalogSubjects || []).map((subject) => String(subject || '').trim()).filter(Boolean),
-    ])]
-  ));
+  // Dynamically compute subjects pulled directly from DB (classes & staff catalog + teaching assignments)
+  const dbSubjects = React.useMemo(() => {
+    const listFromCatalog = (catalogSubjects || []).map((subject) => String(subject || '').trim()).filter(Boolean);
+    const listFromAssignments = (teachingAssignments || [])
+      .flatMap((t) => (Array.isArray(t?.subjects) ? t.subjects : [t?.subject, t?.department]))
+      .map((s) => String(s || '').trim())
+      .filter(Boolean);
+    const persisted = loadPersistedSubjects();
+    return Array.from(new Set([...listFromCatalog, ...listFromAssignments, ...persisted, ...DEFAULT_SUBJECTS]));
+  }, [catalogSubjects, teachingAssignments]);
+
+  const [allSubjects, setAllSubjects] = useState(dbSubjects);
   const [newSubjectInput, setNewSubjectInput] = useState('');
 
   React.useEffect(() => {
-    const incoming = (catalogSubjects || []).map((subject) => String(subject || '').trim()).filter(Boolean);
-    if (!incoming.length) return;
     setAllSubjects((current) => {
-      const merged = [...new Set([...current, ...incoming])];
+      const merged = Array.from(new Set([...current, ...dbSubjects]));
       return merged.length === current.length ? current : merged;
     });
-  }, [catalogSubjects]);
+  }, [dbSubjects]);
 
   // Persist pool to localStorage whenever it changes
   React.useEffect(() => {
@@ -121,7 +133,7 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
   }, [allSubjects]);
 
   // Start with all subjects pre-selected for individual
-  const [selectedSubjects, setSelectedSubjects] = useState(loadPersistedSubjects);
+  const [selectedSubjects, setSelectedSubjects] = useState(dbSubjects);
 
   const filteredAllStudents = React.useMemo(() => {
     let list = [...(allStudents || [])];
@@ -222,7 +234,7 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
     }
   };
 
-  // Add a new subject to the shared pool
+  // Add a new subject to the shared pool and database
   const addSubjectToPool = (forBulk = false) => {
     const trimmed = newSubjectInput.trim();
     if (!trimmed) return;
@@ -232,6 +244,9 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
     }
     const updated = [...allSubjects, trimmed];
     setAllSubjects(updated);
+    if (saveSubjectToDb) {
+      saveSubjectToDb(trimmed);
+    }
     // Auto-select the new subject in whichever tab added it
     if (forBulk) {
       setBulkSubjects(prev => [...prev, trimmed]);
@@ -270,6 +285,8 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
       studentId: stu.studentId || stu.id,
       studentName: stu.fullName,
       classLevel: stu.level || 'General',
+      subClass: stu.classSection || stu.subClass || stu.section || (stu.level ? formatDetailedClass(stu.level, stu.classSection) : '') || '',
+      gender: stu.gender || stu.sex || '',
       academicYear: indivYear,
       term: indivTerm,
       examType: indivExamType,
@@ -318,6 +335,8 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
         studentUuid,
         studentId: stu.studentId || stu.id,
         studentName: stu.fullName,
+        subClass: stu.classSection || stu.subClass || stu.section || (stu.level ? formatDetailedClass(stu.level, stu.classSection) : '') || '',
+        gender: stu.gender || stu.sex || '',
         indexNumber: `${bulkPrefix}${cleanLevel}-${numStr}`
       };
     });
@@ -346,11 +365,25 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
 
   // Filtered Roster
   const filteredRoster = currentRegistrations.filter(r => {
-    const matchesClass = rosterClassFilter === 'All' || (r.classLevel || '').toLowerCase() === rosterClassFilter.toLowerCase();
+    const stu = (allStudents || []).find(s =>
+      (s.id && (s.id === r.studentUuid || s.id === r.studentId)) ||
+      (s.studentId && (s.studentId === r.studentId || s.studentId === r.studentUuid)) ||
+      (s.fullName && r.studentName && s.fullName.toLowerCase().trim() === r.studentName.toLowerCase().trim())
+    );
+    const candidateSubClass = r.subClass || stu?.classSection || stu?.subClass || stu?.section || (r.classLevel ? formatDetailedClass(r.classLevel, stu?.classSection) : '') || r.classLevel || '';
+    const rawGender = r.gender || stu?.gender || stu?.sex || '';
+
+    const matchesClass = rosterClassFilter === 'All' ||
+      (r.classLevel || '').toLowerCase() === rosterClassFilter.toLowerCase() ||
+      candidateSubClass.toLowerCase() === rosterClassFilter.toLowerCase();
+
     const matchesSearch = !rosterSearch || 
       (r.studentName || '').toLowerCase().includes(rosterSearch.toLowerCase()) ||
       (r.indexNumber || '').toLowerCase().includes(rosterSearch.toLowerCase()) ||
-      (r.studentId || '').toLowerCase().includes(rosterSearch.toLowerCase());
+      (r.studentId || '').toLowerCase().includes(rosterSearch.toLowerCase()) ||
+      candidateSubClass.toLowerCase().includes(rosterSearch.toLowerCase()) ||
+      rawGender.toLowerCase().includes(rosterSearch.toLowerCase());
+
     return matchesClass && matchesSearch;
   });
 
@@ -1003,11 +1036,11 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
 
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => setIsPrintingRoster(true)}
                 style={{
                   padding: '10px 16px', background: '#0369a1', color: '#fff', border: 'none',
                   borderRadius: 8, fontWeight: 800, fontSize: 12.5, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 6
+                  display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(3, 105, 161, 0.3)'
                 }}
               >
                 <Printer size={15} /> Print Complete Examination Roster
@@ -1027,67 +1060,95 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
                   <tr style={{ background: '#0f172a', color: '#94a3b8', textAlign: 'left', borderBottom: '2px solid #334155' }}>
                     <th style={{ padding: '10px 14px' }}>Candidate Index #</th>
                     <th style={{ padding: '10px 14px' }}>Student Full Name</th>
-                    <th style={{ padding: '10px 14px' }}>Student ID</th>
-                    <th style={{ padding: '10px 14px' }}>Class Level</th>
+                    <th style={{ padding: '10px 14px' }}>Sub Class Level</th>
+                    <th style={{ padding: '10px 14px' }}>Gender</th>
                     <th style={{ padding: '10px 14px' }}>Exam Category / Hall</th>
                     <th style={{ padding: '10px 14px' }}>Registered Subjects</th>
                     <th style={{ padding: '10px 14px', textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRoster.map((r) => (
-                    <tr key={r.id || r.indexNumber} style={{ borderBottom: '1px solid #334155' }}>
-                      <td style={{ padding: '10px 14px', fontWeight: 900, color: '#38bdf8' }}>{r.indexNumber}</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 800, color: '#fff' }}>{r.studentName}</td>
-                      <td style={{ padding: '10px 14px', color: '#94a3b8' }}>{r.studentId}</td>
-                      <td style={{ padding: '10px 14px', color: '#e2e8f0', fontWeight: 700 }}>{r.classLevel}</td>
-                      <td style={{ padding: '10px 14px', color: '#cbd5e1' }}>
-                        <div>{r.examType}</div>
-                        <div style={{ fontSize: 11, color: '#94a3b8' }}>🏢 {r.examCenter}</div>
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <span style={{ background: '#0284c7', color: '#fff', padding: '3px 8px', borderRadius: 12, fontSize: 11, fontWeight: 800 }}>
-                          {(r.subjects || []).length} Subjects Registered
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                          <button
-                            type="button"
-                            onClick={() => setPrintingPass(r)}
-                            style={{
-                              padding: '5px 10px', background: '#166534', color: '#a7f3d0',
-                              border: '1px solid #22c55e', borderRadius: 6, fontSize: 11, fontWeight: 800,
-                              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4
-                            }}
-                          >
-                            <Printer size={12} /> Hall Pass
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (window.confirm(`⚠️ Are you sure you want to DELETE candidate registration for ${r.studentName} (${r.indexNumber}) from examinations?\nThis will remove their candidate index number, subjects, and admit pass.`)) {
-                                Promise.resolve(cancelExamRegistration(r.id || r.indexNumber || r.studentId))
-                                  .then(() => {
-                                    setNotice(`Deleted ${r.studentName} (${r.indexNumber}) from examination registration.`);
-                                    setTimeout(() => setNotice(''), 5000);
-                                  })
-                                  .catch((err) => setNotice(err?.message || 'The database did not delete this exam registration.'));
-                              }
-                            }}
-                            style={{
-                              padding: '5px 10px', background: '#991b1b', color: '#fca5a5',
-                              border: '1px solid #ef4444', borderRadius: 6, fontSize: 11, fontWeight: 800,
-                              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4
-                            }}
-                            title="Delete candidate from exam registration"
-                          >
-                            <Trash2 size={12} /> Delete from Exams
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredRoster.map((r) => {
+                    const stu = (allStudents || []).find(s =>
+                      (s.id && (s.id === r.studentUuid || s.id === r.studentId)) ||
+                      (s.studentId && (s.studentId === r.studentId || s.studentId === r.studentUuid)) ||
+                      (s.fullName && r.studentName && s.fullName.toLowerCase().trim() === r.studentName.toLowerCase().trim())
+                    );
+                    const candidateSubClass = r.subClass || stu?.classSection || stu?.subClass || stu?.section || (r.classLevel ? formatDetailedClass(r.classLevel, stu?.classSection) : '') || r.classLevel || '—';
+                    const rawGender = r.gender || stu?.gender || stu?.sex || '—';
+                    const isFemale = String(rawGender).toLowerCase().startsWith('f') || String(rawGender).toLowerCase() === 'girl';
+                    const genderText = rawGender !== '—' ? (isFemale ? 'Female' : 'Male') : '—';
+
+                    return (
+                      <tr key={r.id || r.indexNumber} style={{ borderBottom: '1px solid #334155' }}>
+                        <td style={{ padding: '10px 14px', fontWeight: 900, color: '#38bdf8' }}>{r.indexNumber}</td>
+                        <td style={{ padding: '10px 14px', fontWeight: 800, color: '#fff' }}>
+                          <div>{r.studentName}</div>
+                          {r.studentId && <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>ID: {r.studentId}</div>}
+                        </td>
+                        <td style={{ padding: '10px 14px', color: '#e2e8f0', fontWeight: 700 }}>
+                          <span style={{ background: '#1e293b', border: '1px solid #475569', padding: '3px 8px', borderRadius: 6, fontSize: 12 }}>
+                            {candidateSubClass}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px', fontWeight: 700 }}>
+                          <span style={{
+                            background: genderText === 'Female' ? 'rgba(236, 72, 153, 0.15)' : (genderText === 'Male' ? 'rgba(56, 189, 248, 0.15)' : '#1e293b'),
+                            color: genderText === 'Female' ? '#f472b6' : (genderText === 'Male' ? '#38bdf8' : '#94a3b8'),
+                            border: `1px solid ${genderText === 'Female' ? 'rgba(236, 72, 153, 0.3)' : (genderText === 'Male' ? 'rgba(56, 189, 248, 0.3)' : '#475569')}`,
+                            padding: '2px 8px', borderRadius: 6, fontSize: 11.5
+                          }}>
+                            {genderText}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px', color: '#cbd5e1' }}>
+                          <div>{r.examType}</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>🏢 {r.examCenter}</div>
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <span style={{ background: '#0284c7', color: '#fff', padding: '4px 10px', borderRadius: 12, fontSize: 11.5, fontWeight: 800, whiteSpace: 'nowrap', display: 'inline-block' }} title={(r.subjects || []).join(', ')}>
+                            {(r.subjects || []).length} {(r.subjects || []).length === 1 ? 'Subject' : 'Subjects'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              onClick={() => setPrintingPass(r)}
+                              style={{
+                                padding: '5px 10px', background: '#166534', color: '#a7f3d0',
+                                border: '1px solid #22c55e', borderRadius: 6, fontSize: 11, fontWeight: 800,
+                                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4
+                              }}
+                            >
+                              <Printer size={12} /> Hall Pass
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(`⚠️ Are you sure you want to DELETE candidate registration for ${r.studentName} (${r.indexNumber}) from examinations?\nThis will remove their candidate index number, subjects, and admit pass.`)) {
+                                  Promise.resolve(cancelExamRegistration(r.id || r.indexNumber || r.studentId))
+                                    .then(() => {
+                                      setNotice(`Deleted ${r.studentName} (${r.indexNumber}) from examination registration.`);
+                                      setTimeout(() => setNotice(''), 5000);
+                                    })
+                                    .catch((err) => setNotice(err?.message || 'The database did not delete this exam registration.'));
+                                }
+                              }}
+                              style={{
+                                padding: '5px 10px', background: '#991b1b', color: '#fca5a5',
+                                border: '1px solid #ef4444', borderRadius: 6, fontSize: 11, fontWeight: 800,
+                                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4
+                              }}
+                              title="Delete candidate from exam registration"
+                            >
+                              <Trash2 size={12} /> Delete from Exams
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1196,6 +1257,264 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
                 <Printer size={15} /> Print Official Admit Card
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PRINTABLE COMPLETE EXAMINATION ROSTER (DEDICATED 1 PAGE PER STUDENT) ── */}
+      {isPrintingRoster && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setIsPrintingRoster(false); }}
+          style={{
+            position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+            background: 'rgba(15, 23, 42, 0.95)', zIndex: 9999, display: 'flex',
+            flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
+            overflowY: 'auto', padding: '24px 14px'
+          }}
+        >
+          {/* Floating Action Header Bar */}
+          <div className="no-print" style={{
+            position: 'sticky', top: 0, zIndex: 10000, background: '#1e293b',
+            border: '1px solid #475569', borderRadius: 12, padding: '14px 24px',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            width: '100%', maxWidth: 840, marginBottom: 24, boxShadow: '0 10px 30px rgba(0,0,0,0.6)'
+          }}>
+            <div>
+              <div style={{ fontWeight: 900, fontSize: 16, color: '#fff', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Printer size={20} color="#38bdf8" /> Official Complete Examination Roster
+              </div>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                {filteredRoster.length} Candidates · Dedicated 1 Page Per Student with Full Subject Details
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                style={{
+                  padding: '10px 20px', background: '#0284c7', color: '#fff', border: 'none',
+                  borderRadius: 8, fontWeight: 900, fontSize: 13, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)'
+                }}
+              >
+                <Printer size={16} /> Print Roster ({filteredRoster.length} Pages)
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsPrintingRoster(false)}
+                style={{
+                  padding: '10px 16px', background: '#334155', color: '#cbd5e1', border: 'none',
+                  borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer'
+                }}
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+
+          {/* Printable Roster Container */}
+          <div className="exam-roster-printable" style={{ width: '100%', maxWidth: 840, display: 'flex', flexDirection: 'column', gap: 28 }}>
+            {filteredRoster.map((r, idx) => {
+              const stu = (allStudents || []).find(s =>
+                (s.id && (s.id === r.studentUuid || s.id === r.studentId)) ||
+                (s.studentId && (s.studentId === r.studentId || s.studentId === r.studentUuid)) ||
+                (s.fullName && r.studentName && s.fullName.toLowerCase().trim() === r.studentName.toLowerCase().trim())
+              );
+              const candidateSubClass = r.subClass || stu?.classSection || stu?.subClass || stu?.section || (r.classLevel ? formatDetailedClass(r.classLevel, stu?.classSection) : '') || r.classLevel || '—';
+              const rawGender = r.gender || stu?.gender || stu?.sex || '—';
+              const isFemale = String(rawGender).toLowerCase().startsWith('f') || String(rawGender).toLowerCase() === 'girl';
+              const genderText = rawGender !== '—' ? (isFemale ? 'Female' : 'Male') : '—';
+
+              return (
+                <div
+                  key={r.id || r.indexNumber || idx}
+                  className="exam-roster-student-page"
+                  style={{
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    borderRadius: 8,
+                    padding: '30px 36px',
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+                    border: '2px solid #0284c7',
+                    pageBreakAfter: 'always',
+                    breakAfter: 'page',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    minHeight: '275mm',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  {/* Top Header & Crest */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2.5px solid #0284c7', paddingBottom: 14, marginBottom: 16 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <img src="/remalj-carewell-logo.jpg" alt="Logo" style={{ height: 58, borderRadius: 6, border: '1px solid #cbd5e1' }} />
+                        <div>
+                          <h1 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0369a1', letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+                            REMALJ CAREWELL INSPIRATIONAL SCHOOL
+                          </h1>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginTop: 2, letterSpacing: '0.01em' }}>
+                            OFFICIAL CANDIDATE EXAMINATION DOSSIER & INDIVIDUAL ROSTER
+                          </div>
+                          <div style={{ fontSize: 11, color: '#475569', marginTop: 1 }}>
+                            Bogoso Main Campus · P.O. Box 112, Western Region · Academic Session {r.academicYear || academicSettings?.academicYear || '2025/2026'} · {r.term || academicSettings?.academicTerm || 'Term 1'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ background: '#0284c7', color: '#fff', padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          OFFICIAL CANDIDATE
+                        </div>
+                        <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 4, fontWeight: 700 }}>
+                          Candidate {idx + 1} of {filteredRoster.length}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Candidate Identity Dossier Box */}
+                    <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #cbd5e1', marginBottom: 18, display: 'grid', gridTemplateColumns: '1.2fr 1.1fr 100px', gap: 16 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12 }}>
+                        <div>
+                          <div style={{ color: '#64748b', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase' }}>CANDIDATE FULL NAME</div>
+                          <div style={{ fontWeight: 900, fontSize: 15.5, color: '#0f172a' }}>{r.studentName}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#64748b', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase' }}>ALLOCATED EXAM INDEX NUMBER</div>
+                          <div style={{ fontWeight: 900, fontSize: 15, color: '#0284c7', fontFamily: 'monospace', letterSpacing: '0.5px' }}>{r.indexNumber}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#64748b', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase' }}>STUDENT SYSTEM ID</div>
+                          <div style={{ fontWeight: 700, fontSize: 12, color: '#334155' }}>{r.studentId || '—'}</div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12 }}>
+                        <div style={{ display: 'flex', gap: 18 }}>
+                          <div>
+                            <div style={{ color: '#64748b', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase' }}>CLASS LEVEL</div>
+                            <div style={{ fontWeight: 800, fontSize: 13.5, color: '#0f172a' }}>{r.classLevel}</div>
+                          </div>
+                          <div>
+                            <div style={{ color: '#64748b', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase' }}>SUB CLASS LEVEL</div>
+                            <div style={{ fontWeight: 800, fontSize: 13.5, color: '#0369a1' }}>{candidateSubClass}</div>
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#64748b', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase' }}>GENDER</div>
+                          <div style={{ fontWeight: 800, fontSize: 13, color: '#0f172a' }}>{genderText}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#64748b', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase' }}>EXAM CENTER & HALL</div>
+                          <div style={{ fontWeight: 700, fontSize: 12, color: '#0f172a' }}>🏢 {r.examCenter} ({r.examType})</div>
+                        </div>
+                      </div>
+
+                      {/* Photo Placeholder */}
+                      <div style={{ border: '2px dashed #94a3b8', borderRadius: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 6, background: '#f1f5f9' }}>
+                        <div style={{ fontSize: 9, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>AFFIX PASSPORT PHOTO</div>
+                        <div style={{ fontSize: 8, color: '#94a3b8', marginTop: 4 }}>35mm × 45mm</div>
+                      </div>
+                    </div>
+
+                    {/* Registered Subjects Detailed Table */}
+                    <div style={{ marginBottom: 18 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <div style={{ fontSize: 13, fontWeight: 900, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                          Registered Examination Subjects ({(r.subjects || []).length} Subjects Total)
+                        </div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#166534', background: '#dcfce7', padding: '2px 8px', borderRadius: 4 }}>
+                          ✓ Confirmed Official Candidate
+                        </div>
+                      </div>
+
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+                        <thead>
+                          <tr style={{ background: '#0284c7', color: '#fff', textAlign: 'left' }}>
+                            <th style={{ padding: '8px 10px', width: 32, border: '1px solid #0284c7', textAlign: 'center' }}>#</th>
+                            <th style={{ padding: '8px 10px', border: '1px solid #0284c7' }}>Subject Name & Examination Paper</th>
+                            <th style={{ padding: '8px 10px', width: 150, border: '1px solid #0284c7' }}>Designated Hall</th>
+                            <th style={{ padding: '8px 10px', width: 140, border: '1px solid #0284c7' }}>Candidate Signature</th>
+                            <th style={{ padding: '8px 10px', width: 130, border: '1px solid #0284c7' }}>Invigilator Initials</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(r.subjects || []).map((sub, sIdx) => (
+                            <tr key={sub} style={{ background: sIdx % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                              <td style={{ padding: '7px 10px', fontWeight: 800, color: '#0369a1', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                                {sIdx + 1}
+                              </td>
+                              <td style={{ padding: '7px 10px', fontWeight: 800, color: '#0f172a', border: '1px solid #e2e8f0' }}>
+                                {sub}
+                              </td>
+                              <td style={{ padding: '7px 10px', color: '#475569', border: '1px solid #e2e8f0', fontSize: 11 }}>
+                                {r.examCenter}
+                              </td>
+                              <td style={{ padding: '7px 10px', border: '1px solid #e2e8f0', color: '#cbd5e1' }}>
+                                ____________________
+                              </td>
+                              <td style={{ padding: '7px 10px', border: '1px solid #e2e8f0', color: '#cbd5e1' }}>
+                                ____________________
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Examination Regulations */}
+                    <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 6, border: '1px dashed #cbd5e1', fontSize: 10.5, color: '#475569', marginBottom: 14 }}>
+                      <strong style={{ color: '#0f172a' }}>Examination Regulations & Instructions:</strong>
+                      <ol style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                        <li>Candidates must be seated in the examination hall at least 15 minutes prior to commencement.</li>
+                        <li>No mobile phones, smart watches, or unauthorized materials are permitted inside the examination hall.</li>
+                        <li>This official dossier must be presented for invigilation alongside the active student ID card.</li>
+                      </ol>
+                    </div>
+                  </div>
+
+                  {/* Footer & Endorsements */}
+                  <div style={{ borderTop: '2px solid #0284c7', paddingTop: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 14, alignItems: 'flex-end' }}>
+                      <div>
+                        <div style={{ fontSize: 9.5, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>SECURITY VERIFICATION BARCODE</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 900, letterSpacing: '2px', color: '#0f172a', marginTop: 2 }}>
+                          *{r.indexNumber}*
+                        </div>
+                        <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>
+                          Issued by Academic Board & Examinations Secretariat
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ height: 26 }}></div>
+                        <div style={{ borderTop: '1px solid #0f172a', paddingTop: 4 }}>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: '#0369a1' }}>Candidate Signature</div>
+                          <div style={{ fontSize: 9, color: '#64748b' }}>I certify my registered subjects</div>
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: '#0284c7', fontStyle: 'italic' }}>Mr. Samuel Amponsah</span>
+                        </div>
+                        <div style={{ borderTop: '1px solid #0f172a', paddingTop: 4 }}>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a' }}>Head of Academic Board</div>
+                          <div style={{ fontSize: 9, color: '#64748b' }}>Controller of Examinations</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 6, borderTop: '1px dotted #e2e8f0', fontSize: 9.5, color: '#94a3b8' }}>
+                      <span>REMALJ Carewell Inspirational School — Official Examination Roster System</span>
+                      <span>Page {idx + 1} of {filteredRoster.length} · Dedicated Student Examination Dossier</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

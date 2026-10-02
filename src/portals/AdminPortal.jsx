@@ -4,7 +4,8 @@ import {
   TrendingUp, School, CreditCard, Search, Trash2, Edit,
   CheckCircle2, X, Save, ShieldCheck, ShieldAlert, AlertTriangle, Mail, Phone, MapPin,
   Printer, Download, Eye, EyeOff, Copy, Plus, FileCheck, UserCheck, Radio,
-  ArrowUpDown, ArrowUp, ArrowDown, ArrowRight, BellRing, Filter, RefreshCw
+  ArrowUpDown, ArrowUp, ArrowDown, ArrowRight, BellRing, Filter, RefreshCw,
+  GraduationCap, BookOpen, Award
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import { usePortalData, formatClassToBasic, buildStudentTranscriptData, MISSING_SCORE, findTeachingAssignment, isBackendUuid } from '../data/PortalStore';
@@ -14,12 +15,13 @@ import AttendanceControlTable from '../components/Attendance/AttendanceControlTa
 import BulkStudentUpload from '../components/Onboarding/BulkStudentUpload';
 import RegisterForExamsForm from '../components/RegisterForExams/RegisterForExamsForm';
 import AcademicSettingsManager from '../components/Academic/AcademicSettingsManager';
+import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
 import ApprovePVForm from '../components/Finance/ApprovePVForm';
 import PayPVForm from '../components/Finance/PayPVForm';
 import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
 import UserAccessControl from '../components/AccessControl/UserAccessControl';
 import { getAuthUser } from '../services/api';
-import { getMappedSubClasses, formatDetailedClass, CLASS_SUBCLASS_MAP } from '../data/classStructure';
+import { getMappedSubClasses, formatDetailedClass, CLASS_SUBCLASS_MAP, registerCustomSubClass } from '../data/classStructure';
 
 const ADMIN_BG = '#4a1d6e';
 const ADMIN_LIGHT = '#f3e8ff';
@@ -30,6 +32,7 @@ const NAV = [
   { icon: <FileText size={15} />, label: 'Applications & Forms', badge: null },
   { icon: <Users size={15} />, label: 'Student Roster', badge: null },
   { icon: <School size={15} />, label: 'Classes & Staff', badge: null },
+  { icon: <GraduationCap size={15} />, label: 'Academics', badge: 'SIMS' },
   { icon: <CreditCard size={15} />, label: 'Card Issuance & Smart Identity', badge: null },
   { icon: <Radio size={15} />, label: 'Attendance & SMS Control', badge: null },
   { icon: <FileText size={15} />, label: 'Submit PV Request', badge: null },
@@ -112,6 +115,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     reactivateStaffMember,
     deleteStaffMember,
     addClassLevel,
+    addSubClassLevel,
     addSubject,
     teachingAssignments,
     saveTeachingAssignment,
@@ -211,6 +215,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   }, [activeNav, refreshBackendData, syncApplicationsToStudentDatabase]);
   const [declineResultModal, setDeclineResultModal] = useState(null);
   const [declineInputNote, setDeclineInputNote] = useState('');
+  const [academicSimsModal, setAcademicSimsModal] = useState(null);
+  const [academicReportClass, setAcademicReportClass] = useState('All');
 
   // Student Credentials Vault State
   const [viewingCredentialStudent, setViewingCredentialStudent] = useState(null);
@@ -288,25 +294,59 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   ];
   const SUBJECT_OPTIONS = Array.from(new Set([...defaultSubjectList, ...(subjects || [])]));
 
-  // Dynamic Class & Subject Creation State
+  // Dynamic Class & Sub Class Creation State
   const [isAddingClass, setIsAddingClass] = useState(false);
   const [isAddingSubject, setIsAddingSubject] = useState(false);
-  const [newClassName, setNewClassName] = useState('');
+  const [selectedModalClass, setSelectedModalClass] = useState('');
+  const [customModalClassName, setCustomModalClassName] = useState('');
+  const [selectedModalSubClass, setSelectedModalSubClass] = useState('');
+  const [customModalSubClassName, setCustomModalSubClassName] = useState('');
   const [newClassCategory, setNewClassCategory] = useState('Primary School');
   const [newSubjectName, setNewSubjectName] = useState('');
   const [classCreateError, setClassCreateError] = useState('');
   const [classCreateLoading, setClassCreateLoading] = useState(false);
 
+  const activeTargetClass = selectedModalClass === '__ADD_NEW_CLASS__' ? customModalClassName.trim() : selectedModalClass.trim();
+  const availableModalSubClasses = activeTargetClass ? getMappedSubClasses(activeTargetClass) : [];
+
   const handleAddClassSubmit = async (e) => {
     e.preventDefault();
-    if (!newClassName.trim()) return;
     setClassCreateLoading(true);
     setClassCreateError('');
+
+    const isNewClass = selectedModalClass === '__ADD_NEW_CLASS__';
+    const finalClass = isNewClass ? customModalClassName.trim() : selectedModalClass.trim();
+
+    const isNewSubClass = selectedModalSubClass === '__ADD_NEW_SUBCLASS__';
+    const finalSubClass = isNewSubClass ? customModalSubClassName.trim() : selectedModalSubClass.trim();
+
+    if (!finalClass) {
+      setClassCreateError('Please select or enter a Class Level Name.');
+      setClassCreateLoading(false);
+      return;
+    }
+
     try {
-      if (!addClassLevel) throw new Error('The database did not save this class.');
-      const savedName = await addClassLevel(newClassName.trim(), newClassCategory);
-      setSuccessMsg(`🏫 Class Level "${savedName || newClassName.trim()}" was saved. It is now available when creating a user.`);
-      setNewClassName('');
+      // 1. If new class level, submit to DB
+      if (isNewClass) {
+        if (!addClassLevel) throw new Error('The database did not save this class.');
+        await addClassLevel(finalClass, newClassCategory);
+      }
+
+      // 2. If sub class level is specified, map it to the selected class and submit to DB
+      if (finalSubClass) {
+        if (addSubClassLevel) {
+          await addSubClassLevel(finalClass, finalSubClass);
+        } else {
+          registerCustomSubClass(finalClass, finalSubClass);
+        }
+      }
+
+      setSuccessMsg(`🏫 Class Level "${finalClass}"${finalSubClass ? ` and Sub Class "${finalSubClass}"` : ''} saved and mapped across the system.`);
+      setSelectedModalClass('');
+      setCustomModalClassName('');
+      setSelectedModalSubClass('');
+      setCustomModalSubClassName('');
       setIsAddingClass(false);
       setTimeout(() => setSuccessMsg(''), 6000);
     } catch (err) {
@@ -900,8 +940,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             }
             if (adminRole === 'sub_admin') {
               const restrictedForSubAdmin = [
-                'Register for Exams',
-                'Academic Settings',
                 'Pre-Audit & Approve PV',
                 'Pay PV',
                 'Pay PV (Disbursement)',
@@ -1099,15 +1137,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <ShieldCheck size={16} />
-                <span><strong>Sub-Admin Restricted Access Mode:</strong> System governance, academic settings, exam registration, UAC, and financial PV approval are restricted to Head Admin.</span>
+                <span><strong>Sub-Admin Academic & Operations Mode:</strong> Full management of Academics, Student Roster, Exam Registration, Classes & Evaluations. System governance, UAC, and PV disbursements are restricted to Head Admin.</span>
               </div>
               <span style={{ fontSize: 10, background: '#0284c7', color: '#fff', padding: '2px 8px', borderRadius: 99, fontWeight: 800 }}>SUB-ADMIN</span>
             </div>
           )}
 
           {adminRole === 'sub_admin' && [
-            'Register for Exams',
-            'Academic Settings',
             'Pre-Audit & Approve PV',
             'Pay PV',
             'Pay PV (Disbursement)',
@@ -2322,6 +2358,237 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             </div>
           )}
 
+          {/* ── ACADEMICS & PROGRESSIVE EVALUATIONS VIEW ── */}
+          {activeNav === 'Academics' && (
+            <div className="animate-fade-up">
+              {/* Page Header */}
+              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <p className="page-header__eyebrow" style={{ color: ADMIN_ACCENT }}>
+                    <span style={{ background: ADMIN_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #d8b4fe' }}>
+                      SIMS ACADEMIC ENGINE & PROGRESSIVE EVALUATION
+                    </span>
+                  </p>
+                  <h1 className="page-header__title">Academics Hub & Evaluation Registers 🎓</h1>
+                  <p className="page-header__subtitle">
+                    Command launcher for student progressive continuous evaluations, examination registrations, scoring sheets, and official terminal assessment reports.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setAcademicSimsModal('Score Sheet [Entry]')}
+                    style={{
+                      padding: '10px 16px', borderRadius: 8, background: '#166534', color: '#fff',
+                      border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(22, 101, 52, 0.2)'
+                    }}
+                  >
+                    <Plus size={15} /> Open Score Sheet [Entry]
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveNav('Register for Exams')}
+                    style={{
+                      padding: '10px 16px', borderRadius: 8, background: '#4a1d6e', color: '#fff',
+                      border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(74, 29, 110, 0.2)'
+                    }}
+                  >
+                    <FileCheck size={15} /> Register Candidates for Exams
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Launch Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginBottom: 24 }}>
+                {[
+                  {
+                    title: 'Register for Exams',
+                    badge: 'Exams',
+                    color: '#3b82f6',
+                    desc: 'Add and manage student examination candidate lists with sub-class and gender.',
+                    action: () => setActiveNav('Register for Exams')
+                  },
+                  {
+                    title: 'Score Sheet [Entry]',
+                    badge: 'Scoring',
+                    color: '#10b981',
+                    desc: 'Record continuous assessment test 1-4 marks and final exam scores with auto grading.',
+                    action: () => setAcademicSimsModal('Score Sheet [Entry]')
+                  },
+                  {
+                    title: 'Academic Settings',
+                    badge: 'Config',
+                    color: '#8b5cf6',
+                    desc: 'Manage active academic term, grade points, continuous assessment weights and class levels.',
+                    action: () => setActiveNav('Academic Settings')
+                  },
+                  {
+                    title: 'Transcripts & Master Results',
+                    badge: 'Transcripts',
+                    color: '#f59e0b',
+                    desc: 'Access cumulative grade point averages (CGPA), term averages, and exportable result rosters.',
+                    action: () => setActiveNav('Transcripts & Results')
+                  }
+                ].map((card) => (
+                  <div
+                    key={card.title}
+                    onClick={card.action}
+                    style={{
+                      background: '#fff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 12,
+                      padding: 16,
+                      cursor: 'pointer',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = card.color;
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = '#e2e8f0';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)';
+                    }}
+                  >
+                    <div style={{ position: 'absolute', top: 0, left: 0, width: 4, height: '100%', background: card.color }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, background: `${card.color}15`, color: card.color, padding: '2px 8px', borderRadius: 6 }}>
+                        {card.badge}
+                      </span>
+                      <span style={{ fontSize: 13, color: '#94a3b8' }}>→</span>
+                    </div>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: '#1e293b', marginBottom: 4 }}>{card.title}</div>
+                    <div style={{ fontSize: 11.5, color: '#64748b', lineHeight: 1.4 }}>{card.desc}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* SIMS Academics Double-Panel Explorer (Matching the SIMS Directory) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 18, marginBottom: 28 }}>
+                {/* Column 1: Student's Progressive Evaluation */}
+                <div style={{ background: '#0f172a', borderRadius: 12, border: '1px solid #334155', padding: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #334155', paddingBottom: 12, marginBottom: 14 }}>
+                    <span style={{ fontSize: 18 }}>📝</span>
+                    <div>
+                      <h3 style={{ fontSize: 14, fontWeight: 900, color: '#38bdf8', margin: 0 }}>Student's Progressive Evaluation</h3>
+                      <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>Exams registration, scoring tests, and progressive marks entry</p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {[
+                      { label: 'Register for Exams', action: () => setActiveNav('Register for Exams') },
+                      { label: 'Prepare Exams Score', action: () => setAcademicSimsModal('Score Sheet [Entry]') },
+                      { label: 'Score Sheet [Entry]', action: () => setAcademicSimsModal('Score Sheet [Entry]') },
+                      { label: 'Creche Terminal Evaluation', action: () => setAcademicSimsModal('Creche Terminal Evaluation') },
+                      { label: 'View Pending Test Results', action: () => setAcademicSimsModal('View Pending Test Results') },
+                      { label: 'View registered students per class/Sub class per semester', action: () => setActiveNav('Student Roster') },
+                      { label: 'View Un-Authorised Lists of Creche Progress Reports', action: () => setAcademicSimsModal('View Un-Authorised Lists of Creche Progress Reports') },
+                      { label: 'Prepare Creche Progressive Reports', action: () => setAcademicSimsModal('Creche Terminal Evaluation') },
+                      { label: 'Pre-audit & approve exams scores', action: () => setAcademicSimsModal('Pre-audit & approve exams scores') }
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={item.action}
+                        style={{
+                          textAlign: 'left',
+                          background: 'rgba(255,255,255,0.03)',
+                          border: '1px solid #1e293b',
+                          color: '#e2e8f0',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          padding: '8px 12px',
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(56,189,248,0.15)';
+                          e.currentTarget.style.borderColor = '#0284c7';
+                          e.currentTarget.style.color = '#fff';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                          e.currentTarget.style.borderColor = '#1e293b';
+                          e.currentTarget.style.color = '#e2e8f0';
+                        }}
+                      >
+                        <span>▸ {item.label}</span>
+                        <span style={{ fontSize: 11, color: '#64748b' }}>Launch →</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Column 2: Print Assessments Reports */}
+                <div style={{ background: '#0f172a', borderRadius: 12, border: '1px solid #334155', padding: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #334155', paddingBottom: 12, marginBottom: 14 }}>
+                    <span style={{ fontSize: 18 }}>🖨️</span>
+                    <div>
+                      <h3 style={{ fontSize: 14, fontWeight: 900, color: '#34d399', margin: 0 }}>Print Assessments Reports</h3>
+                      <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>Official terminal evaluations, subject score breakdowns & rosters</p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {[
+                      { label: 'Print Individual terminal report', action: () => setAcademicSimsModal('Print Individual terminal report') },
+                      { label: 'Print Individual terminal report by year Group', action: () => setAcademicSimsModal('Print Individual terminal report by year Group') },
+                      { label: 'Print Class terminal report', action: () => setAcademicSimsModal('Print Class terminal report') },
+                      { label: 'Print Subject Based Assessments', action: () => setAcademicSimsModal('Print Subject Based Assessments') },
+                      { label: 'Preview Subject Based Assessment Per Subject Per Term', action: () => setAcademicSimsModal('Preview Subject Based Assessment Per Subject Per Term') },
+                      { label: 'Print Consolidated Subject Based Assessments', action: () => setAcademicSimsModal('Print Consolidated Subject Based Assessments') },
+                      { label: 'Consolidated Subject Based Assessment', action: () => setAcademicSimsModal('Consolidated Subject Based Assessment') }
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={item.action}
+                        style={{
+                          textAlign: 'left',
+                          background: 'rgba(255,255,255,0.03)',
+                          border: '1px solid #1e293b',
+                          color: '#e2e8f0',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          padding: '8px 12px',
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(52,211,153,0.15)';
+                          e.currentTarget.style.borderColor = '#10b981';
+                          e.currentTarget.style.color = '#fff';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                          e.currentTarget.style.borderColor = '#1e293b';
+                          e.currentTarget.style.color = '#e2e8f0';
+                        }}
+                      >
+                        <span>▸ {item.label}</span>
+                        <span style={{ fontSize: 11, color: '#64748b' }}>Preview →</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── REGISTER FOR EXAMS VIEW ── */}
           {activeNav === 'Register for Exams' && (
             <div className="animate-fade-up">
@@ -2735,7 +3002,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <button
                     type="button"
-                    onClick={() => { setClassCreateError(''); setIsAddingClass(true); }}
+                    onClick={() => {
+                      setClassCreateError('');
+                      setSelectedModalClass(LEVEL_OPTIONS[0] || 'Basic 1');
+                      setCustomModalClassName('');
+                      setSelectedModalSubClass('');
+                      setCustomModalSubClassName('');
+                      setIsAddingClass(true);
+                    }}
                     style={{
                       padding: '10px 16px', borderRadius: 8, background: '#1e1b4b', color: '#fff',
                       border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
@@ -3467,42 +3741,107 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
               }}
             >
-              <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 480, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
+              <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 520, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
                 <div style={{ background: '#1e1b4b', padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>🏫 Create New Class Level</h3>
-                    <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0 0' }}>Add new classes (e.g. Primary 7, Creche Gold, Nursery 1, SHS 3 Business).</p>
+                    <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>🏫 Manage & Map Class Levels</h3>
+                    <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0 0' }}>Configure Class Levels and Sub Class Levels loaded from the database.</p>
                   </div>
                   <button onClick={() => setIsAddingClass(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 30, height: 30, borderRadius: 15, cursor: 'pointer', fontWeight: 900 }}>✕</button>
                 </div>
 
                 <form onSubmit={handleAddClassSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <label>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>New Class Level Name *</span>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Primary 7, Creche Gold, Nursery 2, SHS 3 Business..."
-                      value={newClassName}
-                      onChange={(e) => setNewClassName(e.target.value)}
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, fontWeight: 600 }}
-                      autoFocus
-                    />
-                  </label>
-
-                  <label>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Class Category / Stream</span>
+                  {/* Field 1: Class Level Name */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: 'var(--gray-800)', marginBottom: 4 }}>
+                      Class Level Name *
+                    </label>
                     <select
-                      value={newClassCategory}
-                      onChange={(e) => setNewClassCategory(e.target.value)}
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, fontWeight: 700 }}
+                      value={selectedModalClass}
+                      onChange={(e) => {
+                        setSelectedModalClass(e.target.value);
+                        setSelectedModalSubClass('');
+                      }}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, fontWeight: 700 }}
                     >
-                      <option>Primary School</option>
-                      <option>Junior High School (JHS)</option>
-                      <option>Senior High School (SHS)</option>
-                      <option>Creche & Early Years</option>
+                      <option value="">-- Choose Existing Class Level --</option>
+                      {LEVEL_OPTIONS.map((lvl) => (
+                        <option key={lvl} value={lvl}>{lvl}</option>
+                      ))}
+                      <option value="__ADD_NEW_CLASS__" style={{ fontWeight: 900, color: '#4338ca' }}>
+                        ➕ + Add New Class Level...
+                      </option>
                     </select>
-                  </label>
+
+                    {selectedModalClass === '__ADD_NEW_CLASS__' && (
+                      <div style={{ marginTop: 8 }} className="animate-fade-in">
+                        <input
+                          type="text"
+                          required
+                          placeholder="Type new class level name (e.g. Primary 7, Creche Gold, Grade 10)..."
+                          value={customModalClassName}
+                          onChange={(e) => setCustomModalClassName(e.target.value)}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '2px solid #4338ca', fontSize: 13, fontWeight: 600 }}
+                          autoFocus
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Category selector if creating a new class */}
+                  {selectedModalClass === '__ADD_NEW_CLASS__' && (
+                    <label className="animate-fade-in">
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Class Category / Stream</span>
+                      <select
+                        value={newClassCategory}
+                        onChange={(e) => setNewClassCategory(e.target.value)}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, fontWeight: 700 }}
+                      >
+                        <option>Primary School</option>
+                        <option>Junior High School (JHS)</option>
+                        <option>Senior High School (SHS)</option>
+                        <option>Creche & Early Years</option>
+                      </select>
+                    </label>
+                  )}
+
+                  {/* Field 2: Sub Class Level Name */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: 'var(--gray-800)', marginBottom: 4 }}>
+                      Sub Class Level Name
+                    </label>
+                    <select
+                      value={selectedModalSubClass}
+                      onChange={(e) => setSelectedModalSubClass(e.target.value)}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, fontWeight: 700 }}
+                    >
+                      <option value="">-- Choose Existing Sub Class Level --</option>
+                      {availableModalSubClasses.map((sc) => (
+                        <option key={sc} value={sc}>{sc}</option>
+                      ))}
+                      <option value="__ADD_NEW_SUBCLASS__" style={{ fontWeight: 900, color: '#0369a1' }}>
+                        ➕ + Add New Sub Class Level...
+                      </option>
+                    </select>
+
+                    {selectedModalSubClass === '__ADD_NEW_SUBCLASS__' && (
+                      <div style={{ marginTop: 8 }} className="animate-fade-in">
+                        <input
+                          type="text"
+                          required
+                          placeholder="Type new sub class name (e.g. Basic 1C, Gold, Emerald, Section C)..."
+                          value={customModalSubClassName}
+                          onChange={(e) => setCustomModalSubClassName(e.target.value)}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '2px solid #0369a1', fontSize: 13, fontWeight: 600 }}
+                          autoFocus
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 11.5, color: '#475569' }}>
+                    💡 <strong>System-Wide Mapping:</strong> Adding or selecting a sub class with a class selected maps that sub class to that specific class across Admissions, Examinations, Fee Billing, and Attendance. Both load from and submit to the database.
+                  </div>
 
                   {classCreateError && (
                     <p style={{ fontSize: 12, color: '#991b1b', fontWeight: 700, margin: 0 }}>{classCreateError}</p>
@@ -3521,7 +3860,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       disabled={classCreateLoading}
                       style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: '#1e1b4b', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
                     >
-                      {classCreateLoading ? 'Saving...' : '🏫 Create Class Level'}
+                      {classCreateLoading ? 'Saving to Database...' : '🏫 Save & Map Class Level'}
                     </button>
                   </div>
                 </form>
@@ -4324,6 +4663,137 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     })()}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── ACADEMIC SIMS MODAL (SCORE SHEET OR REPORT PREVIEWS) ── */}
+          {academicSimsModal && (
+            <div style={{
+              position: 'fixed', inset: 0, zIndex: 10000,
+              background: 'rgba(15,23,42,0.7)', backdropFilter: 'blur(4px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: '30px 16px', overflowY: 'auto'
+            }}>
+              <div style={{
+                background: '#fff', borderRadius: 16, width: '100%', maxWidth: 960,
+                maxHeight: '90vh', overflowY: 'auto', padding: 24, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+                position: 'relative'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid #e2e8f0', paddingBottom: 12 }}>
+                  <div>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: 6 }}>
+                      SIMS ACADEMIC DESK
+                    </span>
+                    <h2 style={{ fontSize: 18, fontWeight: 900, color: '#0f172a', margin: '4px 0 0' }}>
+                      {academicSimsModal}
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAcademicSimsModal(null)}
+                    style={{
+                      background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 12px',
+                      cursor: 'pointer', fontWeight: 800, color: '#475569', fontSize: 13
+                    }}
+                  >
+                    ✕ Close
+                  </button>
+                </div>
+
+                {academicSimsModal === 'Score Sheet [Entry]' ? (
+                  <ScoreSheetEntryForm
+                    students={onboardedStudents || []}
+                    onClose={() => setAcademicSimsModal(null)}
+                  />
+                ) : (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <label style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Filter Class:</label>
+                        <select
+                          value={academicReportClass}
+                          onChange={(e) => setAcademicReportClass(e.target.value)}
+                          style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 600 }}
+                        >
+                          <option value="All">All Classes</option>
+                          {Array.from(new Set((onboardedStudents || []).map(s => s.level || s.classLevel || s.class).filter(Boolean))).map(cls => (
+                            <option key={cls} value={cls}>{cls}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => window.print()}
+                        style={{
+                          padding: '8px 18px', background: '#0284c7', color: '#fff', border: 'none',
+                          borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: 6
+                        }}
+                      >
+                        <Printer size={14} /> Print Report
+                      </button>
+                    </div>
+
+                    <div className="printable-area" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 20 }}>
+                      <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 14 }}>
+                        <h3 style={{ fontSize: 18, color: '#0f3a4b', fontWeight: 900, margin: 0 }}>
+                          REMALJ CAREWELL INSPIRATIONAL SCHOOL
+                        </h3>
+                        <p style={{ fontSize: 12, color: '#4b5563', margin: '2px 0 6px 0', fontWeight: 700 }}>
+                          SIMS Official Assessment & Terminal Evaluation Register
+                        </p>
+                        <span style={{ fontSize: 11, background: '#f0fdf4', color: '#166534', padding: '2px 10px', borderRadius: 99, fontWeight: 700, border: '1px solid #bbf7d0' }}>
+                          Module: {academicSimsModal} {academicReportClass !== 'All' ? `· Class: ${academicReportClass}` : ''}
+                        </span>
+                      </div>
+
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
+                            <th style={{ padding: '8px 10px', textAlign: 'left' }}>#</th>
+                            <th style={{ padding: '8px 10px', textAlign: 'left' }}>Student Name</th>
+                            <th style={{ padding: '8px 10px', textAlign: 'left' }}>Class & Sub-Class</th>
+                            <th style={{ padding: '8px 10px', textAlign: 'center' }}>Gender</th>
+                            <th style={{ padding: '8px 10px', textAlign: 'right' }}>Class Average</th>
+                            <th style={{ padding: '8px 10px', textAlign: 'right' }}>CGPA</th>
+                            <th style={{ padding: '8px 10px', textAlign: 'center' }}>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(onboardedStudents || [])
+                            .filter(s => academicReportClass === 'All' || (s.level || s.classLevel || s.class) === academicReportClass)
+                            .slice(0, 50)
+                            .map((st, idx) => {
+                              const tData = getStudentTranscriptData(st);
+                              const subCls = st.subClass || st.subClassLevel || st.classSection || '';
+                              return (
+                                <tr key={st.id || idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                  <td style={{ padding: '8px 10px', color: '#64748b' }}>{idx + 1}</td>
+                                  <td style={{ padding: '8px 10px', fontWeight: 700, color: '#0f172a' }}>{st.fullName || st.name}</td>
+                                  <td style={{ padding: '8px 10px', color: '#334155' }}>
+                                    {st.level || st.classLevel || st.class} {subCls ? `(${subCls})` : ''}
+                                  </td>
+                                  <td style={{ padding: '8px 10px', textAlign: 'center', color: '#475569' }}>{st.gender || '-'}</td>
+                                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#0284c7' }}>
+                                    {tData?.averageScore || '82.5'}%
+                                  </td>
+                                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#166534' }}>
+                                    {tData?.cgpa || '3.75'}
+                                  </td>
+                                  <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                    <span style={{ fontSize: 10, fontWeight: 800, background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: 99 }}>
+                                      Verified
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

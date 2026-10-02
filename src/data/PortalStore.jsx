@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { api, extractStudentList, extractExamRegistrations, mapExamRegistration, getUserFullName, hasLiveDatabaseSession } from '../services/api';
+import { registerCustomSubClass, getCustomSubClassMap } from './classStructure';
 import { cloudSync } from '../services/cloudSync';
 
 const STORAGE_KEY = 'remalj-portal-live-data-v3';
@@ -1884,6 +1885,8 @@ export function PortalDataProvider({ children }) {
         api.getScoreSheetEntries(),
         api.getServiceProviders ? api.getServiceProviders() : Promise.resolve([]),
         api.getCatalog('classes'),
+        api.getCatalog('subclasses').catch(() => null),
+        api.getCatalog('subjects').catch(() => null),
         api.getTeachingAssignments()
       ]);
 
@@ -1903,11 +1906,50 @@ export function PortalDataProvider({ children }) {
           }
         }
 
+        if (subclassesRes && subclassesRes.status === 'fulfilled' && subclassesRes.value) {
+          const rawList = Array.isArray(subclassesRes.value) ? subclassesRes.value
+            : Array.isArray(subclassesRes.value?.subclasses) ? subclassesRes.value.subclasses
+            : Array.isArray(subclassesRes.value?.items) ? subclassesRes.value.items
+            : Array.isArray(subclassesRes.value?.data) ? subclassesRes.value.data
+            : [];
+          rawList.forEach((item) => {
+            const sc = typeof item === 'string' ? item : item?.name || item?.subClass || item?.sub_class;
+            const c = item?.className || item?.class_name || item?.classLevel || item?.level;
+            if (c && sc) {
+              registerCustomSubClass(c, sc);
+            }
+          });
+        }
+
+        if (subjectsRes && subjectsRes.status === 'fulfilled' && subjectsRes.value) {
+          const names = extractCatalogNames(subjectsRes.value);
+          if (names.length > 0) {
+            const merged = Array.from(new Set([...DEFAULT_SUBJECTS, ...(current.subjects || []), ...names]));
+            if (!isDeepEqual(current.subjects, merged)) {
+              updates.subjects = merged;
+              hasChanges = true;
+            }
+          }
+        }
+
         if (teachingAssignmentsRes.status === 'fulfilled') {
           const mapped = extractTeachingAssignments(teachingAssignmentsRes.value);
           if (mapped.length > 0 && !isDeepEqual(current.teachingAssignments, mapped)) {
             updates.teachingAssignments = mapped;
             hasChanges = true;
+          }
+          // Also merge subjects from teaching assignments
+          const assignedSubjects = (mapped || [])
+            .flatMap(t => Array.isArray(t.subjects) ? t.subjects : [t.subject, t.department])
+            .map(s => String(s || '').trim())
+            .filter(Boolean);
+          if (assignedSubjects.length > 0) {
+            const currentSubj = updates.subjects || current.subjects || DEFAULT_SUBJECTS;
+            const mergedSubj = Array.from(new Set([...currentSubj, ...assignedSubjects]));
+            if (!isDeepEqual(currentSubj, mergedSubj)) {
+              updates.subjects = mergedSubj;
+              hasChanges = true;
+            }
           }
         }
 
@@ -4427,6 +4469,25 @@ export function PortalDataProvider({ children }) {
         };
       });
       return name;
+    },
+    addSubClassLevel: async (className, subClassName) => {
+      const c = String(className || '').trim();
+      const sc = String(subClassName || '').trim();
+      if (!c || !sc) return;
+      registerCustomSubClass(c, sc);
+      try {
+        await api.createCatalogEntry('subclasses', sc, { className: c, classLevel: c, name: sc });
+      } catch (e) {
+        console.warn('Backend subclass catalog fallback:', e?.message || e);
+      }
+      setData((current) => ({
+        ...current,
+        customSubClassMap: {
+          ...(current.customSubClassMap || {}),
+          [c]: Array.from(new Set([...((current.customSubClassMap || {})[c] || []), sc]))
+        }
+      }));
+      return { className: c, subClass: sc };
     },
     saveTeachingAssignment: async (assignment) => {
       const saved = await api.saveTeachingAssignment(assignment);

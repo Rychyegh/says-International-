@@ -199,6 +199,8 @@ export function mapExamRegistration(raw, fallback = {}) {
     studentId,
     studentName: source.student_name || source.studentName || fallback.studentName || '',
     classLevel: source.class_level || source.classLevel || fallback.classLevel || '',
+    subClass: source.sub_class || source.subClass || source.class_section || source.section || fallback.subClass || fallback.classSection || '',
+    gender: source.gender || source.sex || fallback.gender || '',
     academicYear: source.academic_year || source.academicYear || fallback.academicYear || '',
     term: source.term || fallback.term || '',
     examType: source.exam_type || source.examType || fallback.examType || '',
@@ -2122,10 +2124,10 @@ export const api = {
     };
   },
 
-  createCatalogEntry: async (collection, name) => {
+  createCatalogEntry: async (collection, name, metadata = {}) => {
     return await request(`/academic/catalog/${collection}`, {
       method: 'POST',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, ...metadata }),
     });
   },
 

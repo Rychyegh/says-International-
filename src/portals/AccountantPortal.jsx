@@ -6,11 +6,9 @@ import {
 import '../components/Portal/Portal.css';
 import { usePortalData, resolveGuardianPhone } from '../data/PortalStore';
 
-import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeStructure';
 import RegisterForExamsForm from '../components/RegisterForExams/RegisterForExamsForm';
 import AcademicSettingsManager from '../components/Academic/AcademicSettingsManager';
 import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
-import ApprovePVForm from '../components/Finance/ApprovePVForm';
 import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
 import OfficialPayPVForm from '../components/Finance/PayPVForm';
 import { getAuthUser, api } from '../services/api';
@@ -33,74 +31,10 @@ const NAV = [
 const SIMS_DATA = {
   'Student Services Centre': [
     {
-      category: 'Admissions',
-      links: [
-        'Add new Admissions',
-        'Edit Existing Admissions',
-        'Change Student\'s Photo'
-      ]
-    },
-    {
-      category: 'Semester Registration',
-      links: [
-        '1st Timers Semester Enrollment',
-        'Continuing Student Semester Registration',
-        'Delete Semester Registration'
-      ]
-    },
-    {
-      category: 'Student\'s Progressive Reports',
-      links: [
-        'Register New Examination Candidate',
-        'Register Student for a Specific Subject Examination',
-        'Cancel Exams Registration',
-        'Print Student\'s Progressive Report',
-        'Print Class Based Progressive Report',
-        'Print Creche\' Based Progressive Report'
-      ]
-    },
-    {
       category: 'Billings & Accounts',
       links: [
         'Print Student\'s Academic Bill',
         'Print student ledger'
-      ]
-    },
-    {
-      category: 'Registers',
-      links: [
-        'Preview Registers',
-        'View registered students per class/Sub class per semester',
-        'View Un-Authorised Lists of Creche Progress Reports',
-        'Preview Lists of Parents and their Wards'
-      ]
-    }
-  ],
-  'Academics': [
-    {
-      category: 'Student\'s Progressive Evaluation',
-      links: [
-        'Register for Exams',
-        'Prepare Exams Score',
-        'Score Sheet [Entry]',
-        'Creche Terminal Evaluation',
-        'View Pending Test Results',
-        'View registered students per class/Sub class per semester',
-        'View Un-Authorised Lists of Creche Progress Reports',
-        'Prepare Creche Progressive Reports',
-        'Pre-audit & approve exams scores'
-      ]
-    },
-    {
-      category: 'Print Assessments Reports',
-      links: [
-        'Print Individual terminal report',
-        'Print Individual terminal report by year Group',
-        'Print Class terminal report',
-        'Print Subject Based Assessments',
-        'Preview Subject Based Assessment Per Subject Per Term',
-        'Print Consolidated Subject Based Assessments',
-        'Consolidated Subject Based Assessment'
       ]
     }
   ],
@@ -115,17 +49,6 @@ const SIMS_DATA = {
         'Re-print Commercial Receipt',
         'Print & Post Student\'s Academic Bill',
         'Print student ledger'
-      ]
-    },
-    {
-      category: 'Back office Internal Accounts',
-      links: [
-        'Prepare Bills/Accounts Payables',
-        'Create New Accounts/Bills Receivables (Record Entry)',
-        'Pre Audit Approve Payment Voucher (PV)',
-        'Authorise Accounts/Bills Receivables',
-        'Pay PV',
-        'Print Out PV'
       ]
     },
     {
@@ -149,37 +72,6 @@ const SIMS_DATA = {
   ],
   'System Administrator': [
     {
-      category: 'User Account Management',
-      links: [
-        'Create new User Account',
-        'Reset User Password',
-        'User account status'
-      ]
-    },
-    {
-      category: 'Finance & Admin Settings',
-      subCategories: [
-        {
-          title: 'Charts of Accounts',
-          links: [
-            'Define Assets Charts of Accounts',
-            'Setup Liabilities Share Holder\'s Charts of Accounts',
-            'Create Profits Loss Charts of Accounts'
-          ]
-        },
-        {
-          title: 'Billings & Others',
-          links: [
-            'Define Bill Items',
-            'Adjust Bills on Year Group Accounts',
-            'Cancel Student Bill',
-            'Configure Merchants',
-            'Manage Clients & Service Providers'
-          ]
-        }
-      ]
-    },
-    {
       category: 'HR Payroll settings',
       links: [
         'Income Tax rate',
@@ -187,29 +79,6 @@ const SIMS_DATA = {
         'Organisation\'s header',
         'Close Month',
         'Close Year'
-      ]
-    },
-    {
-      category: 'Academic settings',
-      links: [
-        'Departments & Sub Units',
-        'Academic year settings',
-        'Semester/term settings',
-        'Class settings',
-        'Sub class settings',
-        'Class master',
-        'Subject Lists',
-        'Subject Instructors',
-        'Grade points',
-        'Creche Subjects category',
-        'Creche activities'
-      ]
-    },
-    {
-      category: 'Transport & Feeding Settings',
-      links: [
-        'Route settings',
-        'Configure Feeding Fees'
       ]
     }
   ]
@@ -1059,13 +928,6 @@ export default function AccountantPortal({ onSignOut }) {
             </div>
           )}
 
-          {/* ── APPROVE PV VIEW ── */}
-          {activeNav === 'Approve Payment Voucher (PV)' && (
-            <div style={{ background: '#ffffff', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', padding: 12 }}>
-              <ApprovePVForm setM={() => {}} />
-            </div>
-          )}
-
           {/* ── PAY PV VIEW ── */}
           {activeNav === 'Pay PV' && (
             <div style={{ background: '#ffffff', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', padding: 12 }}>
@@ -1152,9 +1014,7 @@ export default function AccountantPortal({ onSignOut }) {
             activeNav === 'Batch Processing' ||
             activeNav === 'Reprint Commercial Receipt' ||
             activeNav === 'Other Accounts Receivables' ||
-            activeNav === 'Authorise Bills/Accounts Receivables' ||
-            activeNav === 'Approve Payment Voucher (PV)' ||
-            activeNav === 'Official Fee Schedule') && (
+            activeNav === 'Authorise Bills/Accounts Receivables') && (
             <SimsAuthTerminalView
               onOpenSimsModal={setActiveSimsModal}
               students={onboardedStudents || []}
@@ -12218,11 +12078,6 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
     return <AccountsAndFinancialReportsTree onSelectReport={(r) => setM({ category: 'Accounts & Financial Reports', link: r })} />;
   }
 
-  // Approve PV Form
-  if (link === 'Pre Audit Approve Payment Voucher (PV)' || link === 'Approve Payment Voucher (PV)') {
-    return <ApprovePVForm setM={setM} />;
-  }
-
   if (link === 'Accounts' || link === 'Financial statements' || link === 'HR Payroll Reports' || link === 'Preview Registers' || link === 'Preview Lists of Parents and their Wards') {
     return (
       <div>
@@ -14861,8 +14716,6 @@ function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment
     { id: 'Reprint Commercial Receipt', label: 'Reprint Commercial Receipt', badge: 'Reprint', icon: '🖨️' },
     { id: 'Other Accounts Receivables', label: 'Other Accounts Receivables', badge: 'Recv', icon: '💲' },
     { id: 'Authorise Bills/Accounts Receivables', label: 'Authorise Bills/Accounts Receivables', badge: 'Auth', icon: '☑️' },
-    { id: 'Approve Payment Voucher (PV)', label: 'Approve Payment Voucher (PV)', badge: 'Audit', icon: '🛡️' },
-    { id: 'Official Fee Schedule', label: 'Official Fee Schedule', badge: 'Bill', icon: '📊' },
   ];
 
   return (
@@ -14970,14 +14823,14 @@ function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment
       {/* Authenticated Command Center Section */}
       {isAuthenticated ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* ── 10 QUICK ACTION TABS BAR (TOP ACTION HUB) ── */}
+          {/* ── 8 QUICK ACTION TABS BAR (TOP ACTION HUB) ── */}
           <div style={{ background: '#1e293b', borderRadius: 14, border: '1px solid #334155', padding: 18 }}>
             <div style={{ fontSize: 12, fontWeight: 900, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span>⚡</span> SIMS Financial Action Tools & Billing Hub
               </span>
               <span style={{ fontSize: 10.5, background: 'rgba(56,189,248,0.15)', color: '#38bdf8', padding: '3px 10px', borderRadius: 12, border: '1px solid rgba(56,189,248,0.3)' }}>
-                10 Active Modules
+                {ACTION_TABS.length} Active Modules
               </span>
             </div>
 
@@ -14991,7 +14844,7 @@ function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      justify: 'space-between',
+                      justifyContent: 'space-between',
                       padding: '11px 13px',
                       borderRadius: 10,
                       border: `1.5px solid ${isActive ? '#38bdf8' : '#334155'}`,
@@ -15065,12 +14918,6 @@ function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment
             {activeActionTab === 'Authorise Bills/Accounts Receivables' && (
               <AuthoriseBillsReceivablesForm setM={() => {}} students={students} />
             )}
-            {activeActionTab === 'Approve Payment Voucher (PV)' && (
-              <ApprovePVForm setM={() => {}} />
-            )}
-            {activeActionTab === 'Official Fee Schedule' && (
-              <OfficialSchoolFeeStructure onOpenSimsModal={onOpenSimsModal} />
-            )}
           </div>
 
           {/* ── EXPANDABLE SECONDARY DIRECTORY & EXPLORER ── */}
@@ -15083,14 +14930,9 @@ function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment
               {/* Quick Launch Cards Grid */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginBottom: 20 }}>
                 {[
-                  { label: 'Approve Payment Voucher (PV)', category: 'Back office Internal Accounts', badge: 'PV Audit', color: '#ef4444', desc: 'Pre-audit, review and authorize payment vouchers.' },
-                  { label: 'Pay PV', category: 'Back office Internal Accounts', badge: 'Disburse', color: '#f59e0b', desc: 'Disburse funds for approved payment vouchers.' },
-                  { label: 'Score Sheet [Entry]', category: 'Student\'s Progressive Evaluation', badge: 'Exams', color: '#3b82f6', desc: 'Record class tests, exams scores, and calculate grades.' },
                   { label: 'List of Staff', category: 'HR & Payroll', badge: 'Staff', color: '#8b5cf6', desc: 'Generate and print complete staff roster report.' },
-                  { label: 'Creche Terminal Evaluation', category: 'Student\'s Progressive Evaluation', badge: 'Creche', color: '#10b981', desc: 'Assess early childhood developmental milestones checklist.' },
-                  { label: 'View Pending Test Results', category: 'Student\'s Progressive Evaluation', badge: 'Audit', color: '#ec4899', desc: 'Review and approve un-published test scores.' },
-                  { label: 'View registered students per class/Sub class per semester', category: 'Registers', badge: 'Roster', color: '#06b6d4', desc: 'Filter and print student class registration lists.' },
-                  { label: 'View Un-Authorised Lists of Creche Progress Reports', category: 'Registers', badge: 'Creche', color: '#f97316', desc: 'Review and authorise pending creche progress reports.' }
+                  { label: 'Print student ledger', category: 'Student\'s Billings & Accounts', badge: 'Ledger', color: '#06b6d4', desc: 'Generate and review student financial ledger accounts.' },
+                  { label: 'Batch Processing', category: 'Student\'s Billings & Accounts', badge: 'Billing', color: '#f97316', desc: 'Execute batch billing and financial fee processing.' }
                 ].map((card) => (
                   <div key={card.label} onClick={() => onOpenSimsModal({ category: card.category, link: card.label })} style={{
                     background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: 12,
@@ -15110,7 +14952,7 @@ function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment
               {/* SIMS Category Explorer Tabs */}
               <div style={{ background: '#0f172a', borderRadius: 10, border: '1px solid #334155', padding: 14 }}>
                 <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid #334155', paddingBottom: 10, marginBottom: 14, overflowX: 'auto' }}>
-                  {['Finance & Administration', 'Academics', 'Student Services Centre', 'System Administrator'].map((hub) => (
+                  {['Finance & Administration', 'Student Services Centre', 'System Administrator'].map((hub) => (
                     <button key={hub} onClick={() => setSelectedHub(hub)} style={{
                       padding: '6px 14px', borderRadius: 6, border: 'none',
                       background: selectedHub === hub ? '#0284c7' : 'rgba(255,255,255,0.05)',
@@ -15150,7 +14992,7 @@ function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment
           <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
           <h3 style={{ fontSize: 17, fontWeight: 900, color: '#fff', margin: 0 }}>SIMS Enterprise Features & Action Tools Locked</h3>
           <p style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 6, maxWidth: 520, margin: '8px auto 18px auto', lineHeight: 1.5 }}>
-            Please authenticate using your SIMS username and password above to unlock Post Academic Bill Header, Print Student Bills, Receive Payments, Batch Processing, PV Approvals, and Official Fee Schedules.
+            Please authenticate using your SIMS username and password above to unlock Post Academic Bill Header, Print Student Bills, Receive Payments, Batch Processing, and Accounts Receivables.
           </p>
           <button type="button" onClick={() => handleLogin()} style={{ padding: '10px 24px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 12px rgba(2,132,199,0.3)' }}>
             🔓 Authenticate SIMS Access Now
