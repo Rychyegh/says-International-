@@ -2013,14 +2013,10 @@ export const api = {
     });
   },
 
-  createCatalogEntry: async (collection, name, extra = {}) => {
+  createCatalogEntry: async (collection, name) => {
     return await request(`/academic/catalog/${collection}`, {
       method: 'POST',
-      body: JSON.stringify({
-        name,
-        category: extra.category || undefined,
-        class_category: extra.category || undefined,
-      }),
+      body: JSON.stringify({ name }),
     });
   },
 
