@@ -808,10 +808,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     return {
       studentName: student?.fullName || '—',
       studentClass: studentDetailedClass(student),
-      fatherName: student?.fatherName || app.fatherName || student?.guardianName || '—',
-      fatherContact: student?.fatherPhone || app.fatherPhone || student?.guardianPhone || '—',
-      motherName: student?.motherName || app.motherName || '—',
-      motherContact: student?.motherPhone || app.motherPhone || '—',
+      fatherName: [student?.fatherName, app.fatherName].map((value) => String(value || '').trim()).find((value) => value && !/^(parent\s*\/?\s*guardian|parent|guardian)$/i.test(value)) || '—',
+      fatherContact: [student?.fatherPhone, app.fatherPhone].map((value) => String(value || '').trim()).find(Boolean) || '—',
+      motherName: [student?.motherName, app.motherName].map((value) => String(value || '').trim()).find((value) => value && !/^(parent\s*\/?\s*guardian|parent|guardian)$/i.test(value)) || '—',
+      motherContact: [student?.motherPhone, app.motherPhone].map((value) => String(value || '').trim()).find(Boolean) || '—',
     };
   };
 

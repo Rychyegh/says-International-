@@ -196,9 +196,36 @@ export function normalizeApplicationForm(raw) {
   }
   const academicYear = merged.academicYear || nested.academicYear || '2025/2026';
   const academicTerm = merged.academicTerm || merged.term || nested.academicTerm || nested.term || 'Term 1';
+  const blankGuardian = (value) => {
+    const text = String(value || '').trim();
+    if (!text || /^(parent\s*\/?\s*guardian|parent|guardian|n\/a|na|—|-)$/i.test(text)) return '';
+    return text;
+  };
+  const fatherName = blankGuardian(merged.fatherName);
+  const motherName = blankGuardian(merged.motherName);
+  const generatedEmail = (value) => {
+    const text = String(value || '').trim().toLowerCase();
+    if (!text || text === 'parent@example.com' || text === 'parent@remaljcarewell.edu.gh') return true;
+    if (/^parent\.[a-z0-9.]+@remaljcarewell\.edu\.gh$/.test(text)) return true;
+    const bits = [surname, learnerName, firstName].map((part) => String(part || '').toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
+    return bits.some((bit) => text === `${bit}@remaljcarewell.edu.gh`);
+  };
+  const fatherEmail = (!fatherName && generatedEmail(merged.fatherEmail)) ? '' : (merged.fatherEmail || '');
+  const motherEmail = (!motherName && generatedEmail(merged.motherEmail)) ? '' : (merged.motherEmail || '');
 
   return {
     ...merged,
+    fatherName,
+    fatherOccupation: merged.fatherOccupation || '',
+    fatherOrganisation: merged.fatherOrganisation || '',
+    fatherPhone: merged.fatherPhone || '',
+    fatherEmail,
+    motherName,
+    motherOccupation: merged.motherOccupation || '',
+    motherOrganisation: merged.motherOrganisation || '',
+    motherPhone: merged.motherPhone || '',
+    motherEmail,
+    guardian: [fatherName, motherName].filter(Boolean).join(' / '),
     id: merged.id || nested.id || raw.id || '',
     applyingClass: (applyingClass || '').trim(),
     classSection: (classSection || '').trim(),
@@ -805,47 +832,47 @@ export default function OfficialApplicationForm({
 
             <div className="form-line-row">
               <span className="form-line-label">Father's/Guardian's full name:</span>
-              <input className="form-line-input" value={formData.fatherName} onChange={(e) => handleChange('fatherName', e.target.value)} disabled={readOnly && !isAdmin} />
+              <input className="form-line-input" value={formData.fatherName} onChange={(e) => handleChange('fatherName', e.target.value)} placeholder="—" disabled={readOnly && !isAdmin} />
             </div>
 
             <div className="form-line-row">
               <span className="form-line-label">Occupation/Profession:</span>
-              <input className="form-line-input" value={formData.fatherOccupation} onChange={(e) => handleChange('fatherOccupation', e.target.value)} disabled={readOnly && !isAdmin} />
+              <input className="form-line-input" value={formData.fatherOccupation} onChange={(e) => handleChange('fatherOccupation', e.target.value)} placeholder="—" disabled={readOnly && !isAdmin} />
             </div>
 
             <div className="form-line-row">
               <span className="form-line-label">Organisation:</span>
-              <input className="form-line-input" value={formData.fatherOrganisation} onChange={(e) => handleChange('fatherOrganisation', e.target.value)} disabled={readOnly && !isAdmin} />
+              <input className="form-line-input" value={formData.fatherOrganisation} onChange={(e) => handleChange('fatherOrganisation', e.target.value)} placeholder="—" disabled={readOnly && !isAdmin} />
             </div>
 
             <div className="form-line-row">
               <span className="form-line-label">Telephone number(s):</span>
-              <input className="form-line-input" value={formData.fatherPhone} onChange={(e) => handleChange('fatherPhone', e.target.value)} disabled={readOnly && !isAdmin} />
+              <input className="form-line-input" value={formData.fatherPhone} onChange={(e) => handleChange('fatherPhone', e.target.value)} placeholder="—" disabled={readOnly && !isAdmin} />
             </div>
 
             <div className="form-line-row">
               <span className="form-line-label">Email address:</span>
-              <input type="email" className="form-line-input" value={formData.fatherEmail} onChange={(e) => handleChange('fatherEmail', e.target.value)} disabled={readOnly && !isAdmin} />
+              <input type="email" className="form-line-input" value={formData.fatherEmail} onChange={(e) => handleChange('fatherEmail', e.target.value)} placeholder="—" disabled={readOnly && !isAdmin} />
             </div>
 
             <div className="form-line-row" style={{ marginTop: 12 }}>
               <span className="form-line-label">Mother's/Guardian's full name:</span>
-              <input className="form-line-input" value={formData.motherName} onChange={(e) => handleChange('motherName', e.target.value)} disabled={readOnly && !isAdmin} />
+              <input className="form-line-input" value={formData.motherName} onChange={(e) => handleChange('motherName', e.target.value)} placeholder="—" disabled={readOnly && !isAdmin} />
             </div>
 
             <div className="form-line-row">
               <span className="form-line-label">Occupation/Profession:</span>
-              <input className="form-line-input" value={formData.motherOccupation} onChange={(e) => handleChange('motherOccupation', e.target.value)} disabled={readOnly && !isAdmin} />
+              <input className="form-line-input" value={formData.motherOccupation} onChange={(e) => handleChange('motherOccupation', e.target.value)} placeholder="—" disabled={readOnly && !isAdmin} />
             </div>
 
             <div className="form-line-row">
               <span className="form-line-label">Organisation:</span>
-              <input className="form-line-input" value={formData.motherOrganisation} onChange={(e) => handleChange('motherOrganisation', e.target.value)} disabled={readOnly && !isAdmin} />
+              <input className="form-line-input" value={formData.motherOrganisation} onChange={(e) => handleChange('motherOrganisation', e.target.value)} placeholder="—" disabled={readOnly && !isAdmin} />
             </div>
 
             <div className="form-line-row">
               <span className="form-line-label">Telephone number(s):</span>
-              <input className="form-line-input" value={formData.motherPhone} onChange={(e) => handleChange('motherPhone', e.target.value)} disabled={readOnly && !isAdmin} />
+              <input className="form-line-input" value={formData.motherPhone} onChange={(e) => handleChange('motherPhone', e.target.value)} placeholder="—" disabled={readOnly && !isAdmin} />
             </div>
 
             <div className="form-line-row" style={{ marginTop: 12 }}>

@@ -345,7 +345,7 @@ function studentDraftFromApplication(app = {}) {
     gender: app.sex || app.gender || 'Not Specified',
     level: formatClassToBasic(app.level || app.applyingClass || 'Basic 1'),
     classSection: app.classSection || app.subClass || app.officeFormAssigned || 'A',
-    guardianName: app.guardian || app.fatherName || app.motherName || app.guardianName || 'Parent/Guardian',
+    guardianName: blankGuardianText(app.fatherName) || blankGuardianText(app.motherName) || blankGuardianText(app.guardian) || blankGuardianText(app.guardianName),
     guardianEmail: app.email || app.fatherEmail || app.guardianEmail || '',
     guardianPhone: resolveGuardianPhone(app),
     fatherName: app.fatherName || '',
@@ -447,12 +447,38 @@ function mergeApplicationRecords(prev = {}, incoming = {}) {
   };
 }
 
+function blankGuardianText(value) {
+  const text = String(value || '').trim();
+  if (!text || /^(parent\s*\/?\s*guardian|parent|guardian|n\/a|na|—|-)$/i.test(text)) return '';
+  return text;
+}
+
+function isGeneratedGuardianEmail(email, app = {}) {
+  const text = String(email || '').trim().toLowerCase();
+  if (!text) return false;
+  if (text === 'parent@example.com' || text === 'parent@remaljcarewell.edu.gh') return true;
+  if (/^parent\.[a-z0-9.]+@remaljcarewell\.edu\.gh$/.test(text)) return true;
+  const bits = [app.surname, app.learner, app.firstName, app.fullName, app.learner_name]
+    .map((part) => String(part || '').toLowerCase().replace(/[^a-z0-9]/g, ''))
+    .filter(Boolean);
+  return bits.some((bit) => text === `${bit}@remaljcarewell.edu.gh`);
+}
+
 function mapApiApplication(a = {}) {
   const formData = a.formData || a.form_data || {};
+  const fatherName = blankGuardianText(formData.fatherName || formData.father_name || a.fatherName || a.father_name);
+  const motherName = blankGuardianText(formData.motherName || formData.mother_name || a.motherName || a.mother_name);
+  const emailSource = { ...a, ...formData };
+  const fatherEmailRaw = blankGuardianText(formData.fatherEmail || formData.father_email || a.fatherEmail || a.father_email);
+  const motherEmailRaw = blankGuardianText(formData.motherEmail || formData.mother_email || a.motherEmail || a.mother_email);
+  const fatherEmail = (!fatherName && isGeneratedGuardianEmail(fatherEmailRaw, emailSource)) ? '' : fatherEmailRaw;
+  const motherEmail = (!motherName && isGeneratedGuardianEmail(motherEmailRaw, emailSource)) ? '' : motherEmailRaw;
+  const guardian = [fatherName, motherName].filter(Boolean).join(' / ')
+    || blankGuardianText(formData.guardian)
+    || blankGuardianText(a.guardian)
+    || blankGuardianText(a.guardian_name);
   return {
     learner: a.learner || a.learner_name || formData.learner,
-    guardian: a.guardian || a.guardian_name || formData.guardian,
-    email: a.email || a.contact_email || formData.email,
     phone: a.phone || a.contact_phone || formData.phone,
     level: formatClassToBasic(a.level || a.applying_level || formData.level || formData.applyingClass),
     submittedAt: a.submittedAt || a.submitted_at,
@@ -464,6 +490,12 @@ function mapApiApplication(a = {}) {
     dob: formData.dob || a.dob,
     academicYear: formData.academicYear || a.academicYear,
     ...formData,
+    fatherName,
+    motherName,
+    fatherEmail,
+    motherEmail,
+    guardian,
+    email: fatherEmail || motherEmail || '',
     id: preferCanonicalId(a.id, formData.id),
     status: a.status || formData.status,
     rfidCardCode: preferIssuedRfid(formData.rfidCardCode, a.rfidCardCode, a.rfid_card_code),
