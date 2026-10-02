@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, Phone, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
-import { api, clearAuthSession, setAuthToken, setAuthUser, getAuthUser, isClassTeacherAccount, enrichTeacherSession, extractAuthToken } from '../../services/api';
+import { api, clearAuthSession, setAuthToken, setAuthUser, getAuthUser, isClassTeacherAccount, enrichTeacherSession, extractAuthToken, normalizeSessionUser } from '../../services/api';
 import { usePortalData } from '../../data/PortalStore';
 import './Login.css';
+import { loadAdminPortal } from '../../lib/adminPortalLoader.js';
 
 const PORTAL_CONFIG = {
   teacher: {
@@ -207,6 +208,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     }
 
     clearAuthSession();
+    if (portal === 'admin') void loadAdminPortal().catch(() => {});
     setLoading(true);
 
     try {
@@ -215,7 +217,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
         const liveToken = extractAuthToken(result) || result.token;
         if (liveToken) setAuthToken(liveToken);
         if (!liveToken) throw new Error('The server did not return an authentication token.');
-        const userObj = result.user || result.data?.user;
+        const userObj = normalizeSessionUser(result.user || result.data?.user);
         if (!userObj) throw new Error('The server did not return an authenticated user.');
         if (portal === 'teacher') {
           await finishTeacherLogin(userObj);
@@ -232,7 +234,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
         const liveToken = extractAuthToken(result) || result.token;
         if (liveToken) setAuthToken(liveToken);
         if (!liveToken) throw new Error('The server did not return an authentication token.');
-        const userObj = result.user || result.data?.user;
+        const userObj = normalizeSessionUser(result.user || result.data?.user);
         if (!userObj) throw new Error('The server did not return an authenticated user.');
         setAuthUser({
           ...userObj,

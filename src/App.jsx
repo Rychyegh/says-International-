@@ -3,12 +3,13 @@ import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-d
 import Topbar from './components/Topbar/Topbar';
 import LoginPage from './components/Login/LoginPage';
 import { PortalDataProvider, usePortalData } from './data/PortalStore';
-import { api, getAuthToken, setAuthUser, getAuthUser, clearAuthSession, clearLegacySchoolCache } from './services/api';
+import { api, getAuthToken, setAuthUser, getAuthUser, clearAuthSession, clearLegacySchoolCache, consumeFreshAdminLogin, normalizeSessionUser } from './services/api';
 import { portalForRole } from './lib/recordRules.js';
 import './App.css';
+import { loadAdminPortal } from './lib/adminPortalLoader.js';
 
 const portals = {
-  admin: lazy(() => import('./portals/AdminPortal')),
+  admin: lazy(loadAdminPortal),
   accountant: lazy(() => import('./portals/AccountantPortal')),
   teacher: lazy(() => import('./portals/TeacherPortal')),
   parent: lazy(() => import('./portals/ParentPortal')),
@@ -38,9 +39,9 @@ function PortalRoutes({ session, verifySession }) {
   const onLoginSuccess = async (adminRole) => {
     try {
       setAuthError('');
-      await verifySession(adminRole);
+      await verifySession(adminRole, true);
       localStorage.setItem(`says_${activePortal}_active_nav`, activePortal === 'accountant' ? 'Financial Overview' : activePortal === 'student' ? 'My Dashboard' : 'Dashboard');
-    } catch (error) { setAuthError(error.message); }
+    } catch (error) { setAuthError(error.message); throw error; }
   };
   return <div className="app" id="app-root">
     <Topbar activePortal={activePortal} isAuthed={isAuthed} onSignOut={clearAuthSession} adminRole={session?.role} />
@@ -67,14 +68,25 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [checking, setChecking] = useState(true);
   const generation = useRef(0);
-  const verifySession = useCallback(async (selectedAdminRole) => {
+  const verifySession = useCallback(async (selectedAdminRole, allowFreshLogin = false) => {
     const attempt = ++generation.current;
     const token = getAuthToken();
     if (!token) throw new Error('A database login is required.');
     try {
-      const raw = await api.getCurrentSession();
-      const user = raw.user || raw.data?.user || raw.data || raw;
-      if (!user.id || !portalForRole(user.role) || user.requiresSecondFactor === true || user.requires_second_factor === true) throw new Error('The server has not confirmed a complete authorized session.');
+      const freshUser = allowFreshLogin ? consumeFreshAdminLogin() : null;
+      let raw;
+      if (freshUser) raw = { user: freshUser };
+      else {
+        try { raw = await api.getCurrentSession(); }
+        catch (error) {
+          // Older deployed backends have no /auth/me. Keep their authenticated
+          // login session; protected API requests still enforce the token.
+          if (error.status !== 404 && error.status !== 405) throw error;
+          raw = { user: getAuthUser() };
+        }
+      }
+      const user = normalizeSessionUser(raw.user || raw.data?.user || raw.data || raw);
+      if (!user?.id || !portalForRole(user.role) || user.requiresSecondFactor === true || user.requires_second_factor === true) throw new Error('The server has not confirmed a complete authorized session.');
       if (attempt !== generation.current || token !== getAuthToken()) return;
       // Restore the original PIN-selected admin view while retaining server authentication.
       const previousUser = getAuthUser();
@@ -84,7 +96,7 @@ export default function App() {
         : user;
       setAuthUser(restoredUser); setSession(restoredUser);
     } catch (error) {
-      if (attempt === generation.current) clearAuthSession();
+      if (attempt === generation.current && [401, 403].includes(error.status)) clearAuthSession();
       throw error;
     }
   }, []);

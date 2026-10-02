@@ -22,10 +22,34 @@ export function extractAuthToken(res) {
   ).trim();
 }
 
+export function normalizeSessionUser(user) {
+  if (!user || typeof user !== 'object') return null;
+  const role = String(user.role || user.adminRole || user.user_role || '').trim().toLowerCase().replace(/[ -]/g, '_');
+  const roles = { administrator: 'admin', superadmin: 'super_admin', headadmin: 'head_admin', subadmin: 'sub_admin' };
+  return { ...user, id: user.id || user.user_id || user.uuid || user.sub || user.email,
+    role: roles[role] || role };
+}
+
+let freshAdminLogin = null;
+function rememberAdminLogin(res, portal) {
+  const user = normalizeSessionUser(res?.user || res?.data?.user);
+  const token = extractAuthToken(res);
+  if (portal === 'admin' && token && user?.id && ['admin', 'head_admin', 'sub_admin', 'super_admin'].includes(user.role)
+      && res.requiresSecondFactor !== true && res.requires_second_factor !== true
+      && user.requiresSecondFactor !== true && user.requires_second_factor !== true) {
+    freshAdminLogin = { token, user: { ...user }, expiresAt: Date.now() + 120000 };
+  }
+}
+export function consumeFreshAdminLogin() {
+  const fresh = freshAdminLogin;
+  freshAdminLogin = null;
+  return fresh && fresh.token === getAuthToken() && Date.now() < fresh.expiresAt ? fresh.user : null;
+}
+
 function applyAuthSession(res) {
   const token = extractAuthToken(res);
   if (token) setAuthToken(token);
-  const user = res?.user || res?.data?.user;
+  const user = normalizeSessionUser(res?.user || res?.data?.user);
   if (user) setAuthUser(user);
   return token;
 }
@@ -43,6 +67,7 @@ export function clearLegacySchoolCache() {
     'official_pv_queue', 'says_read_pv_notifs', 'says_cleared_pv_notifs'].forEach(key => localStorage.removeItem(key));
 }
 export function clearAuthSession() {
+  freshAdminLogin = null;
   setAuthToken(null);
   setAuthUser(null);
   clearLegacySchoolCache();
@@ -730,6 +755,7 @@ export const api = {
   getStudentDashboard: () => request('/students/me/dashboard'),
   // --- Auth & User Access ---
   login: async (credentials) => {
+    freshAdminLogin = null;
     // credentials: { email, password, portal }
     const payload = {
       email: credentials.email,
@@ -744,6 +770,7 @@ export const api = {
         body: JSON.stringify(payload),
       });
       applyAuthSession(res);
+      rememberAdminLogin(res, credentials.portal);
       if (!extractAuthToken(res) && credentials.portal && ['admin', 'accountant'].includes(String(credentials.portal).toLowerCase())) {
         try {
           const sims = await request('/sims-auth/login', {
@@ -754,6 +781,7 @@ export const api = {
             }),
           });
           applyAuthSession(sims);
+          rememberAdminLogin(sims, credentials.portal);
           return { ...res, ...sims };
         } catch {
     return res;
@@ -762,7 +790,7 @@ export const api = {
       return res;
     } catch (err) {
       const portal = String(credentials.portal || '').toLowerCase();
-      if (['admin', 'accountant', 'head_admin', 'sub_admin'].includes(portal)) {
+      if ([401, 404, 405].includes(err.status) && ['admin', 'accountant', 'head_admin', 'sub_admin'].includes(portal)) {
         try {
           const sims = await request('/sims-auth/login', {
             method: 'POST',
@@ -772,6 +800,7 @@ export const api = {
             }),
           });
           applyAuthSession(sims);
+          rememberAdminLogin(sims, credentials.portal);
           return sims;
         } catch {
           // keep original login error
