@@ -45,6 +45,14 @@ try {
  await page.getByRole('button',{name:'Retry original payment'}).click();
  const receipt=page.getByRole('dialog',{name:'Print student receipt'});
  await receipt.getByText('RCPT-SAVED-001',{exact:true}).waitFor();
+ await receipt.getByText('P.O. Box 139, Bogoso',{exact:true}).waitFor();
+ await receipt.getByRole('img',{name:'REMALJ Carewell Inspirational School Logo'}).evaluate(img=>img.decode());
+ await page.evaluate(()=>document.body.classList.add('print-student-receipt'));
+ await page.emulateMedia({media:'print'});
+ assert.equal(await page.locator('.student-receipt-letterhead').evaluate(el=>getComputedStyle(el).visibility),'visible');
+ await page.locator('.student-receipt-paper').screenshot({path:'/private/tmp/student-receipt-letterhead.png'});
+ await page.emulateMedia({media:'screen'});
+ await page.evaluate(()=>document.body.classList.remove('print-student-receipt'));
  assert.deepEqual(calls.at(-1),original);assert.equal(committed.size,1);assert.equal(fee.paid_amount,25);
  assert.match(original.payload.paymentDate,/T00:00:00Z$/);
  assert.equal(await page.evaluate(()=>window.testStore.studentFees[0].balance),75);
