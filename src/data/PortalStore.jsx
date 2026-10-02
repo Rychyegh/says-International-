@@ -223,7 +223,7 @@ function isSyntheticLocalId(id) {
     || /^pv-\d+$/i.test(s);
 }
 
-function isBackendUuid(value) {
+export function isBackendUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || '').trim());
 }
 
@@ -956,11 +956,14 @@ export function mapStudentFromApi(s = {}, fallback = {}) {
       return raw;
     })(),
     guardianPhone: resolveGuardianPhone(s, fallback) || '',
-    homeAddress: s.homeAddress || s.home_address || fallback.homeAddress || 'Bogoso',
+    homeAddress: s.homeAddress || s.home_address || fallback.homeAddress || '',
     enrollmentDate: s.enrollmentDate || s.enrollment_date || fallback.enrollmentDate || new Date().toISOString().split('T')[0],
     onboardedAt: s.onboardedAt || s.onboarded_at || s.created_at || s.createdAt || fallback.onboardedAt || s.enrollmentDate || s.enrollment_date || fallback.enrollmentDate || null,
     createdAt: s.created_at || s.createdAt || fallback.createdAt || null,
-    status: s.status || fallback.status || 'Active',
+    status: (/inactive|withdrawn|declin|cancel|suspend|deleted|archived/i.test(String(s.status || '')) || s.is_active === false || s.isActive === false)
+      ? 'Inactive'
+      : (s.status || fallback.status || 'Active'),
+    is_active: s.is_active !== false && s.isActive !== false && !/inactive|withdrawn|declin|cancel|suspend|deleted|archived/i.test(String(s.status || '')),
     studentEmail: s.studentEmail || s.student_email || s.school_email || fallback.studentEmail || '',
     defaultPassword: s.defaultPassword || s.default_password || fallback.defaultPassword || '',
     fatherName: s.fatherName || s.father_name || fallback.fatherName || '',
@@ -1637,8 +1640,12 @@ function readData() {
     return {
       ...INITIAL_DATA,
       ...parsed,
-      teacherDirectory: [],
-      teachingAssignments: [],
+      teacherDirectory: Array.isArray(parsed.teacherDirectory)
+        ? parsed.teacherDirectory.filter((t) => t?.id || t?.staffId)
+        : [],
+      teachingAssignments: Array.isArray(parsed.teachingAssignments)
+        ? parsed.teachingAssignments
+        : [],
       classLevels: Array.isArray(parsed.classLevels) && parsed.classLevels.length > 0 ? parsed.classLevels : DEFAULT_CLASS_LEVELS,
       subjects: Array.isArray(parsed.subjects) && parsed.subjects.length > 0 ? parsed.subjects : DEFAULT_SUBJECTS,
       timetable: Array.isArray(parsed.timetable) && parsed.timetable.length > 0 ? parsed.timetable : DEFAULT_TIMETABLE,
@@ -1646,8 +1653,12 @@ function readData() {
         ...INITIAL_DATA.profiles,
         ...(parsed.profiles || {})
       },
-      onboardedStudents: [],
-      applications: [],
+      onboardedStudents: Array.isArray(parsed.onboardedStudents)
+        ? parsed.onboardedStudents.filter((s) => isBackendUuid(s?.id) && s?.is_active !== false && s?.status === 'Active')
+        : [],
+      applications: Array.isArray(parsed.applications)
+        ? parsed.applications.filter((a) => isBackendUuid(a?.id))
+        : [],
       isLoadingBackend: true,
       studentFees: deduplicateFees(parsed.studentFees || []),
       academicSettings: {
@@ -2083,7 +2094,11 @@ export function PortalDataProvider({ children }) {
         if (studentsRes.status === 'fulfilled') {
           const students = extractStudentList(studentsRes.value);
           if (Array.isArray(students)) {
-            const mapped = deduplicateStudents(students.map((s) => mapStudentFromApi(s)));
+            const mapped = deduplicateStudents(
+              students
+                .map((s) => mapStudentFromApi(s))
+                .filter((s) => isBackendUuid(s?.id) && s?.is_active !== false && s?.status === 'Active')
+            );
             if (!isDeepEqual(current.onboardedStudents, mapped)) {
               updates.onboardedStudents = mapped;
               hasChanges = true;
@@ -2330,10 +2345,7 @@ export function PortalDataProvider({ children }) {
         }
 
         const nextApps = updates.applications || current.applications;
-        const nextStudents = mergeRosterWithApplications(
-          updates.onboardedStudents || current.onboardedStudents,
-          nextApps,
-        );
+        const nextStudents = updates.onboardedStudents || current.onboardedStudents;
         const syncedIdentities = syncIssuedRfidAcrossIdentities(nextStudents, nextApps);
         if (!isDeepEqual(current.onboardedStudents, syncedIdentities.students)) {
           updates.onboardedStudents = syncedIdentities.students;
@@ -2892,7 +2904,7 @@ export function PortalDataProvider({ children }) {
       setData((current) => {
         const newApp = {
           ...(existingMatch || {}),
-          id: resolvedId,
+          id: applicationRecordId(resolvedId, existingMatch?.id, application.id) || resolvedId,
           ...application,
           learner: learnerName,
           fullName: learnerName,
@@ -2916,7 +2928,6 @@ export function PortalDataProvider({ children }) {
             ...application,
             rfidCardCode: application.rfidCardCode || existingMatch?.rfidCardCode || '',
           },
-          id: applicationRecordId(resolvedId, existingMatch?.id, application.id) || resolvedId,
         };
 
         const issuedRfid = application.rfidCardCode || '';

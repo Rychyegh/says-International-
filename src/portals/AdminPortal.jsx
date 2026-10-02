@@ -7,7 +7,7 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, ArrowRight, BellRing, Filter, RefreshCw
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
-import { usePortalData, formatClassToBasic, buildStudentTranscriptData, MISSING_SCORE, findTeachingAssignment } from '../data/PortalStore';
+import { usePortalData, formatClassToBasic, buildStudentTranscriptData, MISSING_SCORE, findTeachingAssignment, isBackendUuid } from '../data/PortalStore';
 import OfficialApplicationForm from '../components/Onboarding/OfficialApplicationForm';
 import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeStructure';
 import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
@@ -680,6 +680,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const filteredStudents = useMemo(() => {
     const q = String(searchQuery || '').toLowerCase();
     return (onboardedStudents || [])
+      .filter((s) => isBackendUuid(s?.id) && s?.status === 'Active' && s?.is_active !== false)
       .map((s) => ({
         ...s,
         level: formatClassToBasic(s.level)
@@ -709,13 +710,13 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       'Creche', 'Nursery 1', 'Nursery 2', 'Kindergarten 1', 'Kindergarten 2',
       'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6', 'Basic 7', 'Basic 8', 'Basic 9'
     ];
-    const classes = (applications || []).map(a => formatClassToBasic(a.level || a.applyingClass || '')).filter(Boolean);
+    const classes = (applications || []).filter((a) => isBackendUuid(a?.id)).map(a => formatClassToBasic(a.level || a.applyingClass || '')).filter(Boolean);
     return ['All', ...Array.from(new Set([...defaultClasses, ...classes]))];
   }, [applications]);
 
   const appUniqueYears = useMemo(() => {
     const defaultYears = ['2024/2025', '2025/2026', '2026/2027', '2027/2028'];
-    const years = (applications || []).map(a => a.academicYear).filter(Boolean);
+    const years = (applications || []).filter((a) => isBackendUuid(a?.id)).map(a => a.academicYear).filter(Boolean);
     return ['All', ...Array.from(new Set([...defaultYears, ...years]))];
   }, [applications]);
 
@@ -723,7 +724,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
   const filteredApplications = useMemo(() => {
     return (applications || []).filter((a) => {
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(a?.id || '').trim())) return false;
+      if (!isBackendUuid(a?.id)) return false;
       const name = (a.firstName || a.surname || a.otherNames)
         ? `${a.firstName || ''} ${a.otherNames ? a.otherNames + ' ' : ''}${a.surname || ''}`.replace(/\s+/g, ' ').trim()
         : (a.learner || a.learner_name || a.fullName || '');
@@ -743,9 +744,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     });
   }, [applications, appSearchQuery, searchQuery, appClassFilter, appYearFilter, appTermFilter]);
 
-  const totalStudents = (onboardedStudents || []).length;
-  const activeStudents = (onboardedStudents || []).filter((s) => s.status === 'Active').length;
-  const totalApplications = (applications || []).length;
+  const activeStudents = (onboardedStudents || []).filter((s) => isBackendUuid(s?.id) && s?.status === 'Active' && s?.is_active !== false).length;
+  const totalStudents = activeStudents;
+  const totalApplications = (applications || []).filter((a) => isBackendUuid(a?.id)).length;
   const loadingCount = isLoadingBackend ? '…' : null;
 
   const recentOnboardedStudents = useMemo(() => {
@@ -755,6 +756,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       return Number.isFinite(ts) ? ts : 0;
     };
     return [...(onboardedStudents || [])]
+      .filter((s) => isBackendUuid(s?.id) && s?.status === 'Active' && s?.is_active !== false)
       .sort((a, b) => recency(b) - recency(a))
       .slice(0, 8);
   }, [onboardedStudents]);
