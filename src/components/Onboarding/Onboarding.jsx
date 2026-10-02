@@ -7,6 +7,24 @@ import './Onboarding.css';
 
 const statuses = ['Submitted', 'Documents review', 'Assessment scheduled', 'Accepted', 'Enrolled'];
 
+function enteredGuardianText(value) {
+  const text = String(value || '').trim();
+  if (!text || /^(parent\/guardian|parent|guardian|n\/a|na|—|-)$/i.test(text)) return '';
+  return text;
+}
+
+function guardianDetailsFromApplication(item = {}) {
+  const names = [item.fatherName, item.motherName].map(enteredGuardianText).filter(Boolean);
+  const emails = [item.fatherEmail, item.motherEmail].map(enteredGuardianText).filter(Boolean);
+  const storedName = enteredGuardianText(item.guardian) || enteredGuardianText(item.guardianName);
+  return {
+    name: names.join(' / ') || storedName || '—',
+    email: emails.join(' / ') || '—',
+    guardianName: names.join(' / ') || storedName,
+    contactEmail: emails[0] || '',
+  };
+}
+
 export function LearnerOnboarding() {
   const { submitApplication, onboardStudent } = usePortalData();
   const [notice, setNotice] = useState('');
@@ -17,8 +35,9 @@ export function LearnerOnboarding() {
     const learnerName = (formData.firstName || formData.surname || otherNames)
       ? `${formData.firstName || ''} ${otherNames ? otherNames + ' ' : ''}${formData.surname || ''}`.replace(/\s+/g, ' ').trim()
       : (formData.learner || formData.fullName || 'Applicant');
-    const guardianName = formData.fatherName || formData.motherName || formData.guardian || 'Parent/Guardian';
-    const contactEmail = formData.fatherEmail || formData.email || 'parent@example.com';
+    const guardianDetails = guardianDetailsFromApplication(formData);
+    const guardianName = guardianDetails.guardianName;
+    const contactEmail = guardianDetails.contactEmail;
     const contactPhone = formData.fatherPhone || formData.motherPhone || formData.phone || '';
 
     const applicationRecord = {
@@ -494,8 +513,7 @@ export function AdmissionsRegister() {
                     const learnerName = (item.firstName || item.surname || item.otherNames)
                       ? `${item.firstName || ''} ${item.otherNames ? item.otherNames + ' ' : ''}${item.surname || ''}`.replace(/\s+/g, ' ').trim()
                       : (item.learner || item.learner_name || item.fullName || 'Applicant');
-                    const guardianName = item.guardian || item.fatherName || item.motherName || 'Parent/Guardian';
-                    const email = item.email || item.fatherEmail || item.motherEmail || `${learnerName.toLowerCase().replace(/\s+/g, '')}@remaljcarewell.edu.gh`;
+                    const guardianDetails = guardianDetailsFromApplication(item);
                     const enrolmentType = item.residenceType || item.enrolmentType || 'Day';
 
                     return (
@@ -515,8 +533,8 @@ export function AdmissionsRegister() {
                           )}
                         </td>
                         <td style={{ padding: '12px 14px', verticalAlign: 'middle' }}>
-                          <div style={{ fontWeight: 600, color: '#334155' }}>{guardianName}</div>
-                          <div style={{ fontSize: 11, color: '#94a3b8' }}>{email}</div>
+                          <div style={{ fontWeight: 600, color: '#334155' }}>{guardianDetails.name}</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>{guardianDetails.email}</div>
                         </td>
                         <td style={{ padding: '12px 14px', verticalAlign: 'middle' }}>
                           <span style={{

@@ -2004,7 +2004,15 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                             const learnerName = (app.firstName || app.surname || app.otherNames)
                               ? `${app.firstName || ''} ${app.otherNames ? app.otherNames + ' ' : ''}${app.surname || ''}`.replace(/\s+/g, ' ').trim()
                               : (app.learner || app.learner_name || app.fullName || 'Applicant');
-                            const guardianName = app.guardian || app.fatherName || app.motherName || 'Parent';
+                            const enteredGuardian = (value) => {
+                              const text = String(value || '').trim();
+                              if (!text || /^(parent\/guardian|parent|guardian|n\/a|na|—|-)$/i.test(text)) return '';
+                              return text;
+                            };
+                            const guardianNames = [app.fatherName, app.motherName].map(enteredGuardian).filter(Boolean);
+                            const guardianEmails = [app.fatherEmail, app.motherEmail].map(enteredGuardian).filter(Boolean);
+                            const guardianName = guardianNames.join(' / ') || enteredGuardian(app.guardian) || '—';
+                            const guardianEmail = guardianEmails.join(' / ') || '—';
 
                             return (
                               <tr key={app.id}>
@@ -2022,7 +2030,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                                 </td>
                                 <td>
                                   <div>{guardianName}</div>
-                                  <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{app.email || app.fatherEmail || app.phone}</div>
+                                  <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{guardianEmail}</div>
                                 </td>
                                 <td>
                                   <span style={{

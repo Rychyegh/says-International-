@@ -2767,8 +2767,15 @@ export function PortalDataProvider({ children }) {
       const learnerName = (application.firstName || application.surname || otherNames)
         ? `${application.firstName || ''} ${otherNames ? otherNames + ' ' : ''}${application.surname || ''}`.replace(/\s+/g, ' ').trim()
         : (application.learner || application.fullName || 'Applicant');
-      const guardianName = application.fatherName || application.motherName || application.guardian || application.guardianName || 'Parent/Guardian';
-      const contactEmail = application.fatherEmail || application.motherEmail || application.email || application.guardianEmail || `${(application.surname || 'parent').toLowerCase()}@remaljcarewell.edu.gh`;
+      const enteredGuardian = (value) => {
+        const text = String(value || '').trim();
+        if (!text || /^(parent\/guardian|parent|guardian|n\/a|na|—|-)$/i.test(text)) return '';
+        return text;
+      };
+      const guardianName = [application.fatherName, application.motherName].map(enteredGuardian).filter(Boolean).join(' / ')
+        || enteredGuardian(application.guardianName)
+        || enteredGuardian(application.guardian);
+      const contactEmail = enteredGuardian(application.fatherEmail) || enteredGuardian(application.motherEmail);
       const contactPhone = resolveGuardianPhone(application) || '';
       const applyingLevel = formatClassToBasic(application.applyingClass || application.level || 'Basic 1');
       const academicYear = application.academicYear || '2025/2026';

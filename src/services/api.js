@@ -1300,8 +1300,16 @@ export const api = {
     const learnerName = (applicationData.firstName || applicationData.surname)
       ? `${applicationData.firstName || ''} ${applicationData.surname || ''}`.trim()
       : applicationData.learner || applicationData.learner_name;
-    const guardianName = applicationData.fatherName || applicationData.motherName || applicationData.guardian || applicationData.guardian_name;
-    const contactEmail = applicationData.fatherEmail || applicationData.email || applicationData.contact_email;
+    const enteredGuardian = (value) => {
+      const text = String(value || '').trim();
+      if (!text || /^(parent\/guardian|parent|guardian|n\/a|na|—|-)$/i.test(text)) return '';
+      return text;
+    };
+    const guardianName = [applicationData.fatherName, applicationData.motherName].map(enteredGuardian).filter(Boolean).join(' / ')
+      || enteredGuardian(applicationData.guardianName)
+      || enteredGuardian(applicationData.guardian)
+      || enteredGuardian(applicationData.guardian_name);
+    const contactEmail = enteredGuardian(applicationData.fatherEmail) || enteredGuardian(applicationData.motherEmail);
     const contactPhone = applicationData.fatherPhone || applicationData.phone || applicationData.contact_phone;
     const applyingLevel = applicationData.applyingClass || applicationData.level || applicationData.applying_level;
 
