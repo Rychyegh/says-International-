@@ -19,7 +19,7 @@ await page.route('**/api/**',async route=>{
    else {fees[1]={...fees[1],paid_amount:10};value={fee:fees[1],payment:{id:'p1'}};}
  }else if(path==='/sims/score-sheets/entry'){
    if(failScore){status=503;value={detail:'Score failed'};}
-   else value={...req.postDataJSON(),id:'score-1'};
+   else {const body=req.postDataJSON();value={...body,scores:body.scores.map(score=>({...score,id:'33333333-3333-4333-8333-333333333333'}))};}
  }else if(path==='/parents/me/children')value={children:[]};
  await route.fulfill({status,contentType:'application/json',body:JSON.stringify(value)});
 });
@@ -38,7 +38,7 @@ try {
  assert.match(await page.evaluate(()=>window.testStore.recordFeePayment({id:'fee-b',paidAmount:20}).catch(e=>e.message)),/Payment failed/);
  assert.equal(await page.evaluate(()=>window.testStore.studentFees.find(f=>f.id==='fee-b').paidAmount),10);
  await page.evaluate(()=>window.testStore.saveScoreSheetEntry({studentId:'s-b',studentName:'Same Name',subject:'Math',term:'Term 1',year:'2026/2027',classLevel:'Basic 1',submitKind:'class',classScore:40,hasClassScore:true}));
- await page.waitForFunction(()=>window.testStore.results.some(r=>r.backendId==='score-1'));
+ await page.waitForFunction(()=>window.testStore.results.some(r=>r.backendId==='33333333-3333-4333-8333-333333333333'));
  failScore=true;
  assert.match(await page.evaluate(()=>window.testStore.saveScoreSheetEntry({studentId:'s-a',subject:'Math',term:'Term 1',year:'2026/2027',classScore:30}).catch(e=>e.message)),/Score failed/);
  assert.equal(await page.evaluate(()=>window.testStore.results.some(r=>r.studentId==='s-a')),false);

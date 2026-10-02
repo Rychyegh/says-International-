@@ -8,7 +8,7 @@ import StudentPortal from './portals/StudentPortal';
 import AdminPortal from './portals/AdminPortal';
 import AccountantPortal from './portals/AccountantPortal';
 import { PortalDataProvider } from './data/PortalStore';
-import { setAuthToken, setAuthUser } from './services/api';
+import { api, getAuthToken, setAuthToken, setAuthUser } from './services/api';
 import './App.css';
 
 const REQUIRES_AUTH = ['admin', 'accountant', 'parent', 'teacher', 'student'];
@@ -105,9 +105,41 @@ function AppRoutes() {
   };
 
   const activePortal = getPortalFromPath(location.pathname);
-  const isAuthed = authed[activePortal];
+  const [adminSession, setAdminSession] = useState('checking');
+  const [verifiedAdminToken, setVerifiedAdminToken] = useState(null);
+  const [sessionError, setSessionError] = useState('');
+  const [sessionRetry, setSessionRetry] = useState(0);
+  useEffect(() => {
+    if (activePortal !== 'admin' || !authed.admin) return;
+    let active = true;
+    const token = getAuthToken();
+    setAdminSession('checking'); setSessionError('');
+    api.getVerifiedSession().then(session => {
+      if (!active || token !== getAuthToken()) return;
+      const role = session.user.role || session.user.portalRole;
+      if (session.requiresSecondFactor || !['head_admin', 'sub_admin'].includes(role)) {
+        setAuthed(current => ({ ...current, admin: false })); setAdminSession('login'); return;
+      }
+      setAuthUser({ ...session.user, role, adminRole: role, requiresSecondFactor: false });
+      setAdminRole(role); setVerifiedAdminToken(token); setAdminSession('ready');
+    }).catch(error => {
+      if (!active) return;
+      if ([401, 403].includes(error.status)) { setAuthed(current => ({ ...current, admin: false })); setAdminSession('login'); }
+      else { setSessionError(error.message); setAdminSession('error'); }
+    });
+    return () => { active = false; };
+  }, [activePortal, authed.admin, sessionRetry]);
+  useEffect(() => {
+    const reauthenticate = () => { setAdminSession('login'); setAuthed(current => ({ ...current, admin: false })); };
+    const verified = () => { setAdminSession('checking'); setSessionRetry(value => value + 1); };
+    window.addEventListener('says_reauthenticate', reauthenticate);
+    window.addEventListener('says_session_verified', verified);
+    return () => { window.removeEventListener('says_reauthenticate', reauthenticate); window.removeEventListener('says_session_verified', verified); };
+  }, []);
+  const isAuthed = authed[activePortal] && (activePortal !== 'admin' || (adminSession === 'ready' && verifiedAdminToken === getAuthToken()));
 
   const handleSignOut = () => {
+    setVerifiedAdminToken(null); setAdminSession('checking');
     setAuthToken(null);
     setAuthUser(null);
     setAuthed((prev) => {
@@ -162,6 +194,7 @@ function AppRoutes() {
   }, [isAuthed, activePortal]);
 
   const renderPortalView = (portalKey, Component) => {
+    if (portalKey === 'admin' && authed.admin && (adminSession !== 'ready' || verifiedAdminToken !== getAuthToken())) return <div style={{ padding: '120px 32px' }} role="status">{sessionError || 'Checking your database session…'}{sessionError && <button onClick={() => setSessionRetry(value => value + 1)}>Retry session check</button>}</div>;
     if (!authed[portalKey]) {
       return (
         <LoginPage

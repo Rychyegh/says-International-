@@ -1,0 +1,34 @@
+SERVER PIN VERIFICATION AND FINANCE RETRY RECOVERY
+2026-10-02 — frontend implementation; not a deployment record.
+
+Authentication
+Admin password/card sign-in now checks GET /api/v1/auth/me. If verification is pending, the PIN view sends POST /auth/verify-admin-pin with {pin}. It accepts only a response containing a replacement token, identified user and requiresSecondFactor:false. Role is derived from server portalRole/role (head_admin or sub_admin), never from the entered PIN. There are no frontend shared-PIN shortcuts.
+Admin sessions restored after refresh must pass /auth/me before PortalDataProvider loads protected records. Existing provisional sessions resume PIN entry. Session errors are displayed; transient failures allow retry. Other portals retain their existing primary sign-in flows.
+If pinSetupRequired is true (or verify returns enrollment-required409), the form offers initial PIN enrollment through POST /auth/admin-pin with {pin,password}; users confirm the new PIN. PINs/passwords are not stored in retry records. HTTP429 uses Retry-After when readable, with a conservative15-minute fallback. Backend must expose Retry-After via CORS for precise timing. Existing PIN change and administrator-assisted PIN reset management are outside this change.
+Backend must keep roles/permission enforcement authoritative. A server head_admin/sub_admin response maps presentation only; no database permission is granted client-side. The live schema for these routes was inspected; real account enrollment or live provider writes were not performed.
+
+Retry state
+- Finance create keys are random UUIDs, scoped to endpoint and submitting account.
+- Before dispatch, durable retry metadata marks the result uncertain. If the browser closes during a request, recovery therefore cannot assume non-commit.
+- A first401/403/422 response is classified as confirmed non-write, allowing corrected input. Retrying identical inputs retains the same key.
+- Transport failures, timeouts,409,5xx and malformed success responses remain uncertain. A successful response must contain a database UUID before the key can be marked complete.
+- Uncertainty is sticky: after a lost response, a later401/403/422 does NOT prove that the earlier request did not commit. Original failure remains visible and changed input remains blocked.
+- Legacy pending records without uncertainty metadata are treated as uncertain.
+- A confirmed completed finance operation permits a later deliberate new creation with a new key. Completed student/admission replay behavior remains as before.
+
+Recovery UI in Submit PV Request
+Retry recovery shows the original failure, latest failure, classification and request reference. Verify sign-in / PIN returns to authentication without clearing retry storage. Retry original request checks the server session, verifies the submitting account, verifies the saved input fingerprint and dispatches the original payload using the same key. Provider and voucher lists are refreshed after confirmation.
+Finance input payloads are retained only in tab-scoped sessionStorage, including the original dates and amounts; keys, hashes and failure metadata live in localStorage. Same-tab refresh and sign-in preserve those inputs. Closing the tab, older-client requests or unavailable sessionStorage may mean original inputs cannot be recovered automatically. Credentials are never part of the saved finance payload.
+If original inputs are lost, the UI offers a downloadable reconciliation reference for the backend developer. It does not blindly clear storage, create another key or infer success/failure from a name match or an empty list. The report includes endpoint, actor UUID, original key, payload fingerprint and original/latest failure. It makes no live reconciliation mutation.
+
+Backend reconciliation procedure
+1. Inspect durable idempotency_requests using actor, operation and original key; include transaction/in-flight state. Do not query by supplier/student name as an identity substitute.
+2. If committed, retrieve the canonical resource UUID and original response; return/recover that saved response under the original key. Refresh the resource for current status.
+3. If still in progress or unknown, retain the pending operation. Do not reissue a new create.
+4. Only positively established non-commit after in-flight work has ended can support a reviewed release/reset. A404 or no visible provider is not evidence of non-commit.
+There is no published backend reconciliation API in the supplied contract. Automated release of uncertain keys is intentionally not implemented; manual database reconciliation is required when the original payload cannot be recovered.
+
+Validation
+Unit/API tests cover replacement token and role, enrollment payload, lockout metadata, first authentication rejection, uncertainty followed by authentication rejection, dispatch crash, malformed success and original-key reuse.
+Mocked browser flows cover administrator login/refresh, invalid PIN, server-derived head/sub-admin roles, no provisional protected reads, existing non-admin login, provider/PV workflow, and a committed provider with lost response followed by refresh, PIN verification and identical-key replay.
+Production deployment, real-account permission checks and durable replay on the deployed database still need staging/live verification. No production records were modified by these tests.

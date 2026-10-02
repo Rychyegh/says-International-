@@ -3,33 +3,39 @@ import assert from 'node:assert/strict';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const browser=await chromium.launch({headless:true,...(process.env.CHROME_EXECUTABLE ? {executablePath:process.env.CHROME_EXECUTABLE} : {})});
 try{
-for(const [pin,role] of [['8888','head_admin'],['1234','sub_admin']]){
- const page=await browser.newPage();let pinCalls=0; let sessionChecks=0;
+for(const [pin,role] of [['2468','head_admin'],['2468','sub_admin']]){
+ const page=await browser.newPage();let pinCalls=0,sessionChecks=0,verified=false,protectedBeforeVerified=0;
+ const user={id:'admin-uuid',email:'admin@test.com',role,portalRole:'admin',fullName:'Test Admin'};
  await page.route('**/api/**',async route=>{
- const path=new URL(route.request().url()).pathname;let data=[];
- if(path.includes('/verify-admin-pin'))pinCalls++;
- if(path.endsWith('/auth/login')||path.endsWith('/sims-auth/login'))data={token:'eyJ-test-token',user:{email:'admin@test.com',role:'ADMIN',fullName:'Test Admin'}};
- if(path.endsWith('/auth/me')){ sessionChecks++; }
- if(path.endsWith('/auth/me'))data={user:{email:'admin@test.com',role:'ADMIN',fullName:'Test Admin'}};
- await route.fulfill({status:path.endsWith('/auth/me')?404:200,contentType:'application/json',body:JSON.stringify(path.endsWith('/auth/me')?{detail:'Not Found'}:data)});
+  const req=route.request(),path=new URL(req.url()).pathname;let data=[],status=200;
+  if(path.endsWith('/auth/login')) data={token:'eyJ-provisional',requiresSecondFactor:true,user};
+  else if(path.endsWith('/auth/me')) {sessionChecks++;if(!req.headers().authorization){status=401;data={detail:'Sign in required'};}else data={user,requiresSecondFactor:verified?false:true,pinSetupRequired:false};}
+  else if(path.endsWith('/verify-admin-pin')) {
+   pinCalls++;
+   assert.equal(req.headers().authorization,'Bearer eyJ-provisional');
+   if(req.postDataJSON().pin!==pin) {status=401;data={detail:'Invalid PIN'};}
+   else {verified=true;data={token:'eyJ-verified',user,requiresSecondFactor:false};}
+  } else {
+   if(!verified) protectedBeforeVerified++;
+   assert.equal(req.headers().authorization,'Bearer eyJ-verified');
+  }
+  await route.fulfill({status,contentType:'application/json',body:JSON.stringify(data)});
  });
  await page.goto('http://127.0.0.1:5179/#/admin');
  await page.locator('#admin-email').fill('admin@test.com');
  await page.locator('#admin-password').fill('test-password');
  await page.getByRole('button',{name:'Sign In',exact:true}).click();
+ await page.locator('#admin-pin-input').waitFor();
  await page.locator('#admin-pin-input').fill('0000');
  await page.getByRole('button',{name:'Verify PIN & Complete Sign In'}).click();
- await page.getByText('Invalid Security PIN.',{exact:false}).waitFor();
+ await page.getByText('Invalid PIN',{exact:false}).waitFor();
  await page.locator('#admin-pin-input').fill(pin);
  await page.getByRole('button',{name:'Verify PIN & Complete Sign In'}).click();
- await page.waitForFunction(role=>JSON.parse(localStorage.getItem('auth_user'))?.adminRole===role,role);
- assert.equal(sessionChecks,0,'fresh login should not wait for auth/me');
  await page.getByRole('button',{name:'Sign Out',exact:true}).waitFor();
- await page.reload();
- await page.getByRole('button',{name:'Sign Out',exact:true}).waitFor();
- assert.equal(sessionChecks,0,'original refresh must not call auth/me');
- await page.waitForFunction(role=>JSON.parse(localStorage.getItem('auth_user'))?.role===role,role);
- assert.equal(pinCalls,0);
+ assert.equal(await page.evaluate(()=>localStorage.getItem('auth_token')),'eyJ-verified');
+ assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('auth_user')).role),role);
+ await page.reload();await page.getByRole('button',{name:'Sign Out',exact:true}).waitFor();
+ assert.ok(sessionChecks>=3);assert.equal(pinCalls,2);assert.equal(protectedBeforeVerified,0);
  await page.close();
 }
 for (const portal of ['accountant','teacher','parent','student']) {
@@ -55,5 +61,5 @@ for (const portal of ['accountant','teacher','parent','student']) {
  await page.locator(`#${portal}-email`).waitFor();
  await page.close();
 }
-console.log('PASS: original login and refresh for all five portals; both admin PINs; invalid PIN rejection; no new auth/me or PIN API dependency; sign out.');
+console.log('PASS: server PIN verification, replacement token, server-derived roles, refresh checks, no provisional data reads; unchanged non-admin sign-in.');
 }finally{await browser.close();}

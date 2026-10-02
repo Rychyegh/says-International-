@@ -138,7 +138,7 @@ test('proposed merge integration requires UUIDs, reviewed preview and visible ba
 
 test('provider persistence trims fields and keeps server errors visible', async () => {
  let payload;
- globalThis.fetch=async(url,opts)=>{payload=JSON.parse(opts.body);return json({id:'provider',...payload});};
+ globalThis.fetch=async(url,opts)=>{payload=JSON.parse(opts.body);return json({id:'11111111-1111-4111-8111-111111111111',...payload});};
  const saved=await api.createServiceProvider({name:' Supplier ',telephone:' 123 ',email:'',address:''});
  assert.deepEqual(payload,{name:'Supplier',phone:'123',email:null,address:null});assert.equal(saved.name,'Supplier');
  globalThis.fetch=async()=>json({detail:'Not permitted'},403);await assert.rejects(api.createServiceProvider({name:'Forbidden supplier'}),/Not permitted/);
@@ -189,7 +189,7 @@ test('provider transport retries persist random keys, with new keys only after c
  await assert.rejects(api.createServiceProvider({name:'Provider Retry Test'}));
  // An independent module instance simulates losing all in-memory request state.
  const fresh=await import(`../src/services/api.js?retry-test=${Date.now()}`);
- globalThis.fetch=async(url,options)=>{keys.push(options.headers['Idempotency-Key']);return json({id:'provider-id',name:'Provider Retry Test'});};
+ globalThis.fetch=async(url,options)=>{keys.push(options.headers['Idempotency-Key']);return json({id:'11111111-1111-4111-8111-111111111111',name:'Provider Retry Test'});};
  await fresh.api.createServiceProvider({name:'Provider Retry Test'});
  await fresh.api.createServiceProvider({name:'Provider Retry Test'});
  assert.match(keys[0],/^[0-9a-f-]{36}$/);
@@ -204,4 +204,32 @@ test('voucher totals reject a one-cent difference and provider aliases must agre
  assert.throws(()=>api.normalizePaymentVoucherPayload({...base,payee_id:'different'}),/same saved provider/);
  const aggregate=api.normalizePaymentVoucherPayload({provider_id:'provider-uuid',amount:10,quantity:3});
  assert.equal(aggregate.quantity,1);assert.equal(aggregate.unit_cost,10);assert.equal(aggregate.amount,10);
+});
+
+test('verified PIN uses server role and replacement token; provisional responses never authorize',async()=>{
+ setAuthToken('eyJ-primary');setAuthUser({id:'admin-user',role:'head_admin',requiresSecondFactor:true});
+ globalThis.fetch=async(url,opts)=>{
+  assert.ok(url.endsWith('/auth/verify-admin-pin'));assert.deepEqual(JSON.parse(opts.body),{pin:'2468'});
+  assert.equal(opts.headers.Authorization,'Bearer eyJ-primary');
+  return json({token:'eyJ-complete',requiresSecondFactor:false,user:{id:'admin-user',role:'sub_admin',portalRole:'admin'}});
+ };
+ const result=await api.verifyAdminPin('2468');assert.equal(result.role,'sub_admin');assert.equal(getAuthToken(),'eyJ-complete');
+ globalThis.fetch=async()=>json({token:'eyJ-incomplete',requiresSecondFactor:true,user:{id:'admin-user',role:'head_admin'}});
+ await assert.rejects(api.verifyAdminPin('2468'),/fully verified/);assert.equal(getAuthToken(),'eyJ-complete');
+});
+test('PIN enrollment sends account password and lockout retains Retry-After',async()=>{
+ setAuthToken('eyJ-primary');
+ globalThis.fetch=async(url,opts)=>{
+  assert.ok(url.endsWith('/auth/admin-pin'));assert.deepEqual(JSON.parse(opts.body),{pin:'2468',password:'password-test'});
+  return new Response(JSON.stringify({detail:'Locked'}),{status:429,headers:{'Content-Type':'application/json','Retry-After':'900'}});
+ };
+ try {await api.verifyAdminPin('2468','password-test');assert.fail('Expected lockout');}catch(error){assert.equal(error.status,429);assert.equal(error.retryAfter,'900');}
+});
+
+test('ambiguous successful provider response cannot retire its retry key',async()=>{
+ setAuthUser({id:'ambiguous-actor'});const keys=[];
+ globalThis.fetch=async(url,opts)=>{keys.push(opts.headers['Idempotency-Key']);return json({success:true});};
+ await assert.rejects(api.createServiceProvider({name:'Unconfirmed'}),/did not confirm/);
+ globalThis.fetch=async(url,opts)=>{keys.push(opts.headers['Idempotency-Key']);return json({id:'11111111-1111-4111-8111-111111111111',name:'Unconfirmed'});};
+ await api.createServiceProvider({name:'Unconfirmed'});assert.equal(keys[0],keys[1]);
 });

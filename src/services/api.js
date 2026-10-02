@@ -1,4 +1,4 @@
-import { identityRetry } from '../lib/identityRetry.js';
+import { identityRetry, recoveryPayload, listRetryOperations } from '../lib/identityRetry.js';
 import { validateTimetableWorkspace, validatePublishedTimetable } from '../lib/timetableRules.js';
 import { rawAssessment, normalizeAssessment } from '../lib/assessmentRules.js';
 import { stripCredentials } from '../lib/recordRules.js';
@@ -84,6 +84,7 @@ export function setAuthUser(user) {
 
 const pendingCreates = new Map();
 async function createOnce(endpoint, payload, { multipart = false, cacheSuccess = true, durableIdentity = false, replayCompleted = true } = {}) {
+  if (endpoint.startsWith('/finance/') && getAuthUser()?.requiresSecondFactor === true) throw new Error('Complete server-side PIN verification before submitting. No request was sent.');
   const body = JSON.stringify(payload);
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body));
   const retry = durableIdentity ? await identityRetry(endpoint, getAuthUser()?.id || getAuthToken() || 'public', payload, localStorage, { replayCompleted }) : null;
@@ -92,7 +93,15 @@ async function createOnce(endpoint, payload, { multipart = false, cacheSuccess =
   if (pendingCreates.has(scope)) return pendingCreates.get(scope);
   const requestBody = multipart ? new FormData() : body;
   if (multipart) requestBody.append('metadata', body);
-  const operation = request(endpoint, { method: 'POST', headers: { 'Idempotency-Key': key }, body: requestBody });
+  retry?.dispatched();
+  const operation = request(endpoint, { method: 'POST', headers: { 'Idempotency-Key': key }, body: requestBody }).then(saved => {
+    if (['/finance/service-providers', '/finance/vouchers'].includes(endpoint)) {
+      const body = saved.data || saved;
+      const record = body.provider || body.voucher || body.payment_voucher || body.paymentVoucher || body;
+      if (!isUuid(record?.id)) throw new Error('The server response did not confirm a saved database record. Reconcile or retry the original request with its original key.');
+    }
+    return saved;
+  });
   pendingCreates.set(scope, operation);
   try { const saved = await operation; retry?.complete(); if (!cacheSuccess) pendingCreates.delete(scope); return saved; } catch (error) { pendingCreates.delete(scope); try { retry?.rejected(error); } catch {} throw error; }
 }
@@ -165,6 +174,7 @@ async function originalAuthRequest(endpoint, options = {}) {
         lastError = new Error(errorMessage);
         lastError.status = response.status;
         lastError.payload = data;
+        lastError.retryAfter = response.headers.get('Retry-After');
         if (response.status >= 400 && response.status < 500) throw lastError;
         continue;
       }
@@ -785,6 +795,38 @@ export const api = {
   createReceipt: (data, key) => request('/finance/receipts', { method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify(data) }),
   getMyChildren: () => request('/parents/me/children'),
   getStudentDashboard: () => request('/students/me/dashboard'),
+  retryFinanceCreation: async (record) => {
+    if (!['/finance/service-providers', '/finance/vouchers'].includes(record.endpoint)) throw new Error('Unsupported recovery operation.');
+    const session = await api.getVerifiedSession();
+    if (session.requiresSecondFactor) throw new Error('Complete server-side PIN verification before retrying.');
+    if (session.user.id !== getAuthUser()?.id) throw new Error('Sign in as the original submitting account before retrying.');
+    const current = (await listRetryOperations(record.endpoint, session.user.id)).find(item => item.key === record.key && item.fingerprint === record.fingerprint);
+    if (!current) throw new Error('This operation is no longer pending for this account. Refresh recovery.');
+    const payload = await recoveryPayload(current);
+    return createOnce(record.endpoint, payload, { durableIdentity: true, cacheSuccess: false, replayCompleted: false });
+  },
+  getVerifiedSession: async () => {
+    const token = getAuthToken();
+    const result = await request('/auth/me');
+    if (token !== getAuthToken()) throw new Error('Session changed while checking verification. Please retry.');
+    if (!result?.user?.id || typeof result.requiresSecondFactor !== 'boolean') throw new Error('The backend did not return a valid session verification response.');
+    return result;
+  },
+  verifyAdminPin: async (pin, setupPassword) => {
+    const primaryToken = getAuthToken();
+    const result = await request(setupPassword === undefined ? '/auth/verify-admin-pin' : '/auth/admin-pin', {
+      method: 'POST', body: JSON.stringify(setupPassword === undefined ? { pin } : { pin, password: setupPassword }),
+    });
+    if (primaryToken !== getAuthToken()) throw new Error('Session changed while verifying PIN. Sign in again.');
+    const token = extractAuthToken(result);
+    if (!token || !result.user?.id || result.requiresSecondFactor !== false || result.user.requiresSecondFactor === true) throw new Error('The server did not confirm a fully verified session.');
+    const role = result.user.role || result.user.portalRole;
+    if (!['head_admin', 'sub_admin'].includes(role)) throw new Error('This account does not have administrator portal access.');
+    setAuthToken(token);
+    setAuthUser({ ...result.user, role, adminRole: role, requiresSecondFactor: false });
+    window.dispatchEvent(new Event('says_session_verified'));
+    return { ...result, role };
+  },
   // --- Auth & User Access ---
   login: async (credentials) => {
     // credentials: { email, password, portal }

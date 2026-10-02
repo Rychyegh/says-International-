@@ -1,3 +1,4 @@
+import RetryRecovery from './RetryRecovery';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   FileText, Plus, Search, RotateCcw, Printer, Trash2, Edit, CheckCircle2,
@@ -432,6 +433,10 @@ export default function SubmitPVRequest({ setM = () => {} }) {
 
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a', paddingBottom: 40 }}>
+      <RetryRecovery onRecovered={async (endpoint, saved) => {
+        await portalData.refreshPaymentVoucherDesk();
+        if (endpoint === '/finance/service-providers') selectSavedProvider(saved.provider || saved.data || saved);
+      }} />
       {/* Top Banner Header */}
       <div style={{
         background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',

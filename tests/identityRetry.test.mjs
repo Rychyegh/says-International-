@@ -29,7 +29,7 @@ test('409 and 503 keep the original key; explicit validation rejection allows co
  const db=storage();const a=await identityRetry('/admissions','actor',{name:'Original'},db);
  a.rejected({status:409});await assert.rejects(identityRetry('/admissions','actor',{name:'Changed'},db),/unresolved/);
  a.rejected({status:503});assert.equal((await identityRetry('/admissions','actor',{name:'Original'},db)).key,a.key);
- a.rejected({status:422});assert.notEqual((await identityRetry('/admissions','actor',{name:'Corrected'},db)).key,a.key);
+ a.rejected({status:422});await assert.rejects(identityRetry('/admissions','actor',{name:'Corrected'},db),/unresolved/);
 });
 
 test('finance operations retain unresolved keys but allow another identical operation after confirmed success', async () => {
@@ -42,4 +42,25 @@ test('finance operations retain unresolved keys but allow another identical oper
  const second=await identityRetry('/finance/vouchers','actor',payload,db,options);
  assert.notEqual(second.key,first.key);
  assert.equal((await identityRetry('/finance/vouchers','actor',payload,db,options)).key,second.key);
+});
+
+
+test('authentication rejection permits corrected non-write input but never erases prior uncertainty',async()=>{
+ const db=storage();
+ const first=await identityRetry('/finance/service-providers','actor',{name:'Original'},db);
+ first.dispatched(); first.rejected({status:403,message:'PIN verification required'});
+ const corrected=await identityRetry('/finance/service-providers','actor',{name:'Corrected'},db);
+ assert.notEqual(corrected.key,first.key);
+ corrected.dispatched();corrected.rejected({message:'Connection lost'});
+ const replay=await identityRetry('/finance/service-providers','actor',{name:'Corrected'},db);
+ replay.dispatched();replay.rejected({status:401,message:'Expired'});
+ await assert.rejects(identityRetry('/finance/service-providers','actor',{name:'Third'},db),/Connection lost/);
+ assert.equal((await identityRetry('/finance/service-providers','actor',{name:'Corrected'},db)).key,corrected.key);
+});
+test('a crash after dispatch remains uncertain when subsequent authentication is rejected',async()=>{
+ const db=storage();const first=await identityRetry('/finance/vouchers','actor',{amount:100},db);
+ first.dispatched();
+ const afterReload=await identityRetry('/finance/vouchers','actor',{amount:100},db);
+ afterReload.rejected({status:401,message:'Expired'});
+ await assert.rejects(identityRetry('/finance/vouchers','actor',{amount:200},db),/unresolved/);
 });

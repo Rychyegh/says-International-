@@ -1,0 +1,40 @@
+RELEASE VERIFICATION — 2026-10-02
+Verdict: LOCAL CHECKS PASS; LIVE RELEASE IS BLOCKED.
+
+Live checks performed
+Production frontend: https://remaljcarewellinspirational.vercel.app
+Live JavaScript asset: /assets/index-BE6AfkO0.js
+It does not contain the server PIN verification call, restored-session gate or original-key recovery UI. This is the older data-loading diagnostic release, not the completed PIN/recovery fix. The same unverified-session403 can therefore still occur in production. A local build is not a deployment.
+
+Backend OpenAPI checked at https://rcis-backend.onrender.com/api/v1/openapi.json:
+Present: /auth/me, /auth/verify-admin-pin, /auth/admin-pin.
+Missing from published schema: /timetables/workspace, /timetables/workspace/publish, /timetables/published.
+The timetable frontend cannot be considered live-ready until those backend routes and their permissions/database behavior are implemented and verified.
+
+Local verification
+60 unit/API tests passed; production build passed (existing large-bundle warning remains).
+Nine mocked browser suites passed:
+- admin-login-integration: server PIN verification, replacement token, server account role, refresh gate, no provisional data reads; non-admin primary sign-in regression.
+- pin-retry-recovery-integration: committed create with lost response, refresh, verification-required recovery, original payload/key replay and one resulting provider.
+- loading-status-integration: denied reads display status/detail and successful retry clears errors.
+- pv-workflow-integration: provider CRUD, double-click protection, submission error handling, head review queue, approval retries and refresh.
+- student-billing-integration: application/enrollment identity, no preset charges, exact student UUID billing and amount persistence.
+- timetable-integration: failed draft save retains edits, explicit publication and separate-reader refresh.
+- browser-integration: authenticated read scoping, fee updates, failed-write preservation, score persistence and offline handling.
+- sync-integration: progressive reads, cache/reload, authoritative empty lists, identity and account isolation.
+- remediation-integration: raw grading, score drafts, correction retries, invoice credits/cancellation and settings errors.
+All browser API calls were intercepted; no production records were changed.
+
+Corrections during this audit
+Canonical server account role now takes precedence over the generic portalRole label (for example role=sub_admin, portalRole=admin). Test fixtures exercise that distinction.
+The older generic browser test returned an ID on the score-sheet envelope instead of the saved score record; its fixture now matches the per-score response contract. The application validation was not weakened.
+Added scripts/check-live-release.mjs: run `node scripts/check-live-release.mjs` after deployment. It reads public assets/schema and exits nonzero when required release markers/endpoints are absent. Presence checks are not substitutes for authenticated end-to-end tests.
+
+Release gates still required
+1. Deploy the corrected frontend and confirm the live asset changes and PIN/session/recovery release checks pass.
+2. Test Head Admin and Sub-Admin with real approved accounts: password/card -> account PIN/enrollment -> replacement token -> successful students/applications/staff reads -> refresh still authorized. Do not share credentials in the handoff.
+3. Verify a provider/PV create and original-key replay against a staging database, including role restrictions, durable commit and approval visibility. Production write tests require an agreed test-record/cleanup plan.
+4. Implement and verify timetable publishing routes; role filtering and concurrent clash prevention require backend tests.
+5. Reconcile existing uncertain operations by original actor/key. Do not clear retry storage, duplicate records or infer non-commit from an empty list.
+
+This report does not certify every school workflow or claim production data access has been restored. No deployment was performed during this check.

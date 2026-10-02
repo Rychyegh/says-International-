@@ -89,6 +89,24 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   const { addSecurityAlert } = usePortalData() || {};
 
   // View state: 'login' | 'forgot' | 'signup'
+  const [pinSetupRequired, setPinSetupRequired] = useState(false);
+  const [pinPassword, setPinPassword] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const [pinRetryAt, setPinRetryAt] = useState(0);
+  const pinLock = useRef(false);
+  useEffect(() => {
+    if (portal !== 'admin') return;
+    let active = true;
+    api.getVerifiedSession().then(session => {
+      if (!active) return;
+      if (session.requiresSecondFactor) {
+        setPinStep(true); setPinSetupRequired(Boolean(session.pinSetupRequired));
+        setAuthUser({ ...session.user, requiresSecondFactor: true });
+      }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [portal]);
+
   const [viewMode, setViewMode] = useState('login');
 
   // Sign In State
@@ -239,6 +257,14 @@ export default function LoginPage({ portal, onLoginSuccess }) {
       setLoading(false);
 
       if (portal === 'admin') {
+        const session = await api.getVerifiedSession();
+        setAuthUser({ ...session.user, requiresSecondFactor: session.requiresSecondFactor });
+        if (!session.requiresSecondFactor) {
+          const role = session.user.role || session.user.portalRole;
+          if (!['head_admin', 'sub_admin'].includes(role)) throw new Error('This account does not have administrator portal access.');
+          setSuccess(true); onLoginSuccess(role); return;
+        }
+        setPinSetupRequired(Boolean(session.pinSetupRequired));
         setPinStep(true);
         setError('');
         return;
@@ -391,57 +417,27 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   };
 
   // Step 2: Handle Admin Security PIN Verification
-  const handlePinSubmit = (e) => {
+  const handlePinSubmit = async (e) => {
     e.preventDefault();
+    if (pinLock.current) return;
     setError('');
-
-    if (!adminPin.trim()) {
-      setError('Please enter your 4-digit Administrator Security PIN.');
-      return;
-    }
-
-    if (adminPin.trim().length !== 4) {
-      setError('Security PIN must be exactly 4 digits.');
-      return;
-    }
-
-    if (adminPin.trim() === '8888') {
-      const currentAuth = getAuthUser() || {};
-      setAuthUser({
-        ...currentAuth,
-        role: 'head_admin',
-        adminRole: 'head_admin',
-        fullName: currentAuth.fullName && currentAuth.fullName !== 'School Administration Office' ? currentAuth.fullName : 'Head Administrator',
-      });
-      setLoading(true);
-      setSuccess(true);
-      setTimeout(() => {
-        onLoginSuccess('head_admin');
-      }, 900);
-    } else if (adminPin.trim() === '1234') {
-      const currentAuth = getAuthUser() || {};
-      setAuthUser({
-        ...currentAuth,
-        role: 'sub_admin',
-        adminRole: 'sub_admin',
-        fullName: currentAuth.fullName && currentAuth.fullName !== 'School Administration Office' ? currentAuth.fullName : 'Sub-Admin Officer',
-      });
-      setLoading(true);
-      setSuccess(true);
-      setTimeout(() => {
-        onLoginSuccess('sub_admin');
-      }, 900);
-    } else {
-      if (addSecurityAlert) {
-        addSecurityAlert({
-          portal: 'admin',
-          targetAccount: email || 'Admin 2FA Authorization',
-          reason: `Unauthorized Admin Access Attempt: Incorrect Security PIN entered (${adminPin.trim()})`,
-          severity: 'High'
-        });
+    if (Date.now() < pinRetryAt) { setError(`PIN verification is locked. Try again in ${Math.ceil((pinRetryAt - Date.now()) / 1000)} seconds.`); return; }
+    if (!/^\d{4}$/.test(adminPin)) { setError('Security PIN must be exactly 4 digits.'); return; }
+    if (pinSetupRequired && (!pinPassword || adminPin !== pinConfirm)) { setError('Enter your account password and matching new PINs.'); return; }
+    pinLock.current = true; setLoading(true);
+    try {
+      const result = await api.verifyAdminPin(adminPin, pinSetupRequired ? pinPassword : undefined);
+      setAdminPin(''); setPinPassword(''); setPassword(''); setPinConfirm('');
+      setSuccess(true); onLoginSuccess(result.role);
+    } catch (err) {
+      if (err.status === 409) setPinSetupRequired(true);
+      if (err.status === 429) {
+        const seconds = Number(err.retryAfter);
+        const until = Number.isFinite(seconds) && seconds > 0 ? Date.now() + seconds * 1000 : Date.parse(err.retryAfter);
+        setPinRetryAt(Number.isFinite(until) ? until : Date.now() + 15 * 60 * 1000);
       }
-      setError('❌ Invalid Security PIN. Please check your assigned 4-digit Administrator PIN.');
-    }
+      setError(err.status === 429 ? `PIN verification is locked. ${err.message}` : err.message);
+    } finally { pinLock.current = false; setLoading(false); }
   };
 
   // Step 1: Handle Request Phone SMS OTP
@@ -630,10 +626,17 @@ export default function LoginPage({ portal, onLoginSuccess }) {
 
               <h2 className="login-form__title">Admin Security PIN</h2>
               <p className="login-form__subtitle">
-                Enter your 4-digit Administrator Security PIN to verify your authorization level.
+                {pinSetupRequired ? 'Create your own 4-digit PIN. Confirm your account password to enrol it securely.' : 'Enter your account’s 4-digit PIN to complete server verification.'}
               </p>
 
               <form onSubmit={handlePinSubmit} noValidate>
+                {pinSetupRequired && <>
+                  <label className="form-label" htmlFor="pin-setup-password">Account password</label>
+                  <input id="pin-setup-password" className="form-input" type="password" autoComplete="current-password" value={pinPassword} onChange={e => setPinPassword(e.target.value)} />
+                  <label className="form-label" htmlFor="pin-confirm">Confirm new PIN</label>
+                  <input id="pin-confirm" className="form-input" type="password" inputMode="numeric" maxLength={4} value={pinConfirm} onChange={e => setPinConfirm(e.target.value.replace(/\D/g, ''))} />
+                </>}
+
                 <div className="form-group">
                   <label className="form-label" htmlFor="admin-pin-input">4-Digit Security PIN</label>
                   <div className="form-input-wrap">

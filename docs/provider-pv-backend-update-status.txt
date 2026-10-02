@@ -13,7 +13,6 @@ Frontend changes made against the reported contract
 - Quantity must be a positive whole number. Finite, non-negative amounts are required. A one-cent mismatch between quantity × unit cost and amount is rejected, not silently rewritten. Amount-only aggregate payloads use quantity1 and unit_cost=amount to preserve the total.
 - Existing multi-item form explicitly uses aggregate quantity1 and total as unit cost. Academic period and line details stay in description; structured items are not claimed persisted by this backend set.
 - Existing pre-audit then approve sequence remains; PRE_AUDITED is not payment authorization. Provider delete409 remains a visible error and keeps the record. No legacy /review or mixed-item approval API was introduced.
-
 Release boundaries
 This report does not implement timetable workspace/publish endpoints. See docs/timetable-backend-handoff.txt for that separate contract. Existing duplicate records have not been merged, and exact billing remains a separate backend set.
 Login/PIN/frontend authentication behavior was not changed here. The cumulative backend branch includes provisional-session and per-user PIN changes; compatibility with the unchanged frontend must be resolved and verified before deploying that branch. Do not treat the provider/PV changes alone as evidence the full branch is safe to deploy.
