@@ -722,6 +722,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
   const filteredApplications = useMemo(() => {
     return (applications || []).filter((a) => {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(a?.id || '').trim())) return false;
       const name = (a.firstName || a.surname || a.otherNames)
         ? `${a.firstName || ''} ${a.otherNames ? a.otherNames + ' ' : ''}${a.surname || ''}`.replace(/\s+/g, ' ').trim()
         : (a.learner || a.learner_name || a.fullName || '');
@@ -852,7 +853,11 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
               </span>
             </div>
             <div style={{ fontSize: 11, color: '#6b21a8', marginTop: 4, fontWeight: 600 }}>
-              {getAuthUser()?.fullName || getAuthUser()?.name || 'School Administration Office'}
+              {(() => {
+                const accountName = String(getAuthUser()?.fullName || getAuthUser()?.name || '').trim();
+                if (!accountName || /^(admin user|test user|test admin|user|admin)$/i.test(accountName)) return 'School Administration Office';
+                return accountName;
+              })()}
             </div>
             <div style={{ fontSize: 11, color: '#7e22ce', marginTop: 4, fontWeight: 700 }}>
               {adminRole === 'head_admin' ? 'Full Institutional Control' : 'Restricted Administrative Access'}

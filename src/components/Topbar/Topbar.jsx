@@ -15,12 +15,17 @@ const PORTAL_INFO = {
 };
 
 const PORTAL_USER = {
-  teacher: { name: 'Mr. S. Amponsah', role: 'Staff' },
-  parent: { name: 'Mrs. A. Edwards', role: 'Parent' },
-  student: { name: 'Kwame Edwards', role: 'Student' },
-  admin: { name: 'Mr. John Admin', role: 'Administrator' },
-  accountant: { name: 'Mrs. Grace Accountant', role: 'Finance Head' },
+  teacher: { name: '', role: 'Staff' },
+  parent: { name: '', role: 'Parent' },
+  student: { name: '', role: 'Student' },
+  admin: { name: '', role: 'Administrator' },
+  accountant: { name: '', role: 'Finance Head' },
 };
+
+function isPlaceholderAccountName(value) {
+  const text = String(value || '').trim();
+  return !text || /^(admin user|test user|test admin|mr\.?\s*john admin|mrs\.?\s*grace accountant|mrs\.?\s*a\.?\s*edwards|kwame edwards|mr\.?\s*s\.?\s*amponsah|user|admin)$/i.test(text);
+}
 
 export default function Topbar({ activePortal, isAuthed, onSignOut, adminRole }) {
   const currentInfo = PORTAL_INFO[activePortal] || PORTAL_INFO.admin;
@@ -52,10 +57,10 @@ export default function Topbar({ activePortal, isAuthed, onSignOut, adminRole })
 
   const isSubAdmin = currentAdminRole === 'sub_admin' || authUser?.role === 'sub_admin' || authUser?.adminRole === 'sub_admin';
 
-  const signedInName = getUserFullName(authUser);
+  const signedInName = isPlaceholderAccountName(getUserFullName(authUser)) ? '' : getUserFullName(authUser);
   const userName = activePortal === 'teacher'
     ? (signedInName || 'Staff')
-    : (signedInName || authUser?.email || (isSubAdmin && activePortal === 'admin' ? 'Sub-Admin Officer' : defaultUser.name));
+    : (signedInName || (isSubAdmin && activePortal === 'admin' ? 'Sub-Admin Officer' : (defaultUser.name || currentInfo.label)));
   const userRole = activePortal === 'admin'
     ? (isSubAdmin ? 'Sub-Administrator' : 'Head Administrator')
     : (authUser?.role

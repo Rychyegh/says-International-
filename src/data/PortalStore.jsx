@@ -1634,7 +1634,7 @@ function readData() {
         ...(parsed.profiles || {})
       },
       onboardedStudents: [],
-      applications: deduplicateApplications(parsed.applications || []),
+      applications: [],
       studentFees: deduplicateFees(parsed.studentFees || []),
       academicSettings: {
         ...INITIAL_DATA.academicSettings,
@@ -2051,16 +2051,17 @@ export function PortalDataProvider({ children }) {
           }
         }
 
-        // Admissions Applications
+        // Applications come only from the database. An empty response clears the list.
         if (appsRes.status === 'fulfilled') {
           const appList = extractApplicationsList(appsRes.value);
-          if (Array.isArray(appList) && appList.length > 0) {
-            const mapped = appList.map(mapApiApplication);
-            const merged = deduplicateApplications([...(current.applications || []), ...mapped]);
-            if (!isDeepEqual(current.applications, merged)) {
-              updates.applications = merged;
-              hasChanges = true;
-            }
+          const mapped = deduplicateApplications(
+            (Array.isArray(appList) ? appList : [])
+              .map(mapApiApplication)
+              .filter((app) => isBackendUuid(app?.id))
+          );
+          if (!isDeepEqual(current.applications, mapped)) {
+            updates.applications = mapped;
+            hasChanges = true;
           }
         }
 
@@ -2521,30 +2522,12 @@ export function PortalDataProvider({ children }) {
     rosterDbSyncRef.current = true;
     try {
       await refreshBackendData();
-      let waits = 0;
-      while (isRefreshingRef.current && waits < 20) {
-        await new Promise((resolve) => setTimeout(resolve, 150));
-        waits += 1;
-      }
-      const apps = dataRef.current.applications || [];
-      const roster = dataRef.current.onboardedStudents || [];
-      for (const app of apps) {
-        const draft = studentDraftFromApplication(app);
-        if (!draft.fullName) continue;
-        const match = findStudentForUpsert(roster, draft);
-        if (match && !isSyntheticLocalId(match.id)) continue;
-        try {
-          await performOnboardStudent(draft);
-        } catch (e) {
-          console.warn('Application-to-roster database sync skipped a learner:', e);
-        }
-      }
     } catch (e) {
-      console.warn('Application-to-roster database sync failed:', e);
+      console.warn('Student roster refresh failed:', e);
     } finally {
       rosterDbSyncRef.current = false;
     }
-  }, [refreshBackendData, performOnboardStudent]);
+  }, [refreshBackendData]);
 
   const lastAutoRefreshedAtRef = useRef(new Date().toLocaleTimeString());
 
