@@ -160,6 +160,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewingRecordStudent, setViewingRecordStudent] = useState(null);
   const [successMsg, setSuccessMsg] = useState('');
+  const [enrollingAppId, setEnrollingAppId] = useState('');
 
   // Application Forms state
   const [selectedApp, setSelectedApp] = useState(null);
@@ -565,43 +566,19 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   };
 
   const handleEnrollApplicant = async (app) => {
+    if (!app?.id || enrollingAppId) return;
     const learnerName = (app.firstName || app.surname || app.otherNames)
       ? `${app.firstName || ''} ${app.otherNames ? app.otherNames + ' ' : ''}${app.surname || ''}`.replace(/\s+/g, ' ').trim()
       : (app.learner || app.learner_name || app.fullName || 'Student');
-    const guardianName = app.guardian || app.fatherName || app.motherName || 'Parent';
-    const guardianEmail = app.email || app.fatherEmail || 'parent@remaljcarewell.edu.gh';
-    const guardianPhone = app.phone || app.fatherPhone || app.motherPhone || '';
-    const level = formatClassToBasic(app.level || app.applyingClass || 'Basic 1');
-    const homeAddress = app.residentialAddress || app.address || 'Bogoso';
-
+    setEnrollingAppId(app.id);
     try {
-      await onboardStudent({
-        fullName: learnerName,
-        firstName: app.firstName,
-        otherNames: app.otherNames,
-        surname: app.surname,
-        dob: app.dob || '',
-        gender: app.sex || 'Male',
-        level: level,
-        classSection: app.officeFormAssigned || app.classSection || app.subClass || 'A',
-        guardianName: guardianName,
-        guardianEmail: guardianEmail,
-        guardianPhone: guardianPhone,
-        fatherName: app.fatherName || '',
-        fatherPhone: app.fatherPhone || guardianPhone,
-        motherName: app.motherName || '',
-        motherPhone: app.motherPhone || '',
-        applicationId: app.id,
-        homeAddress: homeAddress,
-        rfidCardCode: app.rfidCardCode || '',
-      });
-
       await updateApplicationStatus(app.id, 'Enrolled');
-      setActiveNav('Dashboard');
-      setSuccessMsg(`Applicant ${learnerName} officially admitted and enrolled into Student Roster!`);
-      setTimeout(() => setSuccessMsg(''), 5000);
+      setActiveNav('Student Roster');
+      setSuccessMsg(`${learnerName} was enrolled and added to the student roster.`);
     } catch (err) {
       setSuccessMsg(err?.message || 'Enrolling this applicant failed.');
+    } finally {
+      setEnrollingAppId('');
       setTimeout(() => setSuccessMsg(''), 8000);
     }
   };
@@ -2095,15 +2072,18 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
                                     {app.status !== 'Enrolled' && (
                                       <button
+                                        type="button"
+                                        disabled={enrollingAppId === app.id}
                                         onClick={() => handleEnrollApplicant(app)}
                                         style={{
                                           padding: '4px 8px', background: '#dcfce7', color: '#166534',
-                                          border: '1px solid #86efac', borderRadius: 4, cursor: 'pointer',
-                                          fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4
+                                          border: '1px solid #86efac', borderRadius: 4, cursor: enrollingAppId === app.id ? 'wait' : 'pointer',
+                                          fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4,
+                                          opacity: enrollingAppId === app.id ? 0.7 : 1
                                         }}
                                         title="Transfer to Student Roster & Create Fee Account"
                                       >
-                                        <UserCheck size={13} /> Enrol Student
+                                        <UserCheck size={13} /> {enrollingAppId === app.id ? 'Enrolling...' : 'Enrol Student'}
                                       </button>
                                     )}
 

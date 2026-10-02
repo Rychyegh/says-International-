@@ -464,6 +464,24 @@ function isGeneratedGuardianEmail(email, app = {}) {
   return bits.some((bit) => text === `${bit}@remaljcarewell.edu.gh`);
 }
 
+function buildAdmissionEnrollPayload(app = {}) {
+  const dobRaw = String(app.dob || app.dateOfBirth || '').trim();
+  const dob = /^\d{4}-\d{2}-\d{2}/.test(dobRaw) ? dobRaw.slice(0, 10) : null;
+  const level = formatClassToBasic(app.level || app.applyingClass || '') || null;
+  const section = String(app.classSection || app.subClass || 'A').trim() || 'A';
+  return {
+    academic_year: app.academicYear || null,
+    term: app.academicTerm || app.term || null,
+    class_section: section,
+    level,
+    student_id: app.officeStudentID || null,
+    card_id: app.rfidCardCode || null,
+    home_address: app.residentialAddress || app.homeAddress || null,
+    dob,
+    gender: app.sex || app.gender || null,
+  };
+}
+
 function mapApiApplication(a = {}) {
   const formData = a.formData || a.form_data || {};
   const fatherName = blankGuardianText(formData.fatherName || formData.father_name || a.fatherName || a.father_name);
@@ -496,7 +514,8 @@ function mapApiApplication(a = {}) {
     motherEmail,
     guardian,
     email: fatherEmail || motherEmail || '',
-    id: preferCanonicalId(a.id, formData.id),
+    id: applicationRecordId(a.id, a.application_id, a.uuid, a._id, formData.application_id, formData.id)
+      || preferCanonicalId(a.id, formData.id),
     status: a.status || formData.status,
     rfidCardCode: preferIssuedRfid(formData.rfidCardCode, a.rfidCardCode, a.rfid_card_code),
   };
@@ -832,10 +851,19 @@ function isOfficialStudentCode(code) {
   return /REMALJ-\d{4}-\d{3,}$/i.test(String(code || '').trim());
 }
 
+function applicationRecordId(...values) {
+  const texts = values.map((value) => String(value || '').trim()).filter(Boolean);
+  return texts.find((value) => isBackendUuid(value)) || '';
+}
+
 function preferCanonicalId(incoming, existing) {
+  const incomingId = applicationRecordId(incoming);
+  const existingId = applicationRecordId(existing);
+  if (incomingId && !existingId) return incomingId;
+  if (existingId && !incomingId) return existingId;
   if (incoming && !isSyntheticLocalId(incoming) && isSyntheticLocalId(existing)) return incoming;
   if (existing && !isSyntheticLocalId(existing) && isSyntheticLocalId(incoming)) return existing;
-  return incoming || existing;
+  return incomingId || existingId || incoming || existing;
 }
 
 function preferStudentCode(incoming, existing) {
@@ -2335,11 +2363,11 @@ export function PortalDataProvider({ children }) {
     };
     window.addEventListener('focus', handleFocus);
 
-    // Background auto-refresh every 5 seconds (5,000ms)
+    // Background auto-refresh every 30 seconds (30,000ms)
     // Runs silently in the background without UI flicker or glitching
     const autoRefreshInterval = setInterval(() => {
       refreshBackendData();
-    }, 5000);
+    }, 30000);
 
     return () => {
       window.removeEventListener('focus', handleFocus);
@@ -2891,6 +2919,7 @@ export function PortalDataProvider({ children }) {
             ...application,
             rfidCardCode: application.rfidCardCode || existingMatch?.rfidCardCode || '',
           },
+          id: applicationRecordId(resolvedId, existingMatch?.id, application.id) || resolvedId,
         };
 
         const issuedRfid = application.rfidCardCode || '';
@@ -2931,12 +2960,32 @@ export function PortalDataProvider({ children }) {
       });
     },
     updateApplicationStatus: async (id, status) => {
-      requireLiveDatabase('Updating this application');
-      requireBackendUuid(id, 'Updating this application');
+      const action = status === 'Enrolled' ? 'Enrolling this applicant' : 'Updating this application';
+      requireLiveDatabase(action);
+      const localApp = (dataRef.current.applications || []).find((item) => String(item.id) === String(id)) || { id };
+      let persistId = applicationRecordId(id, localApp.id, localApp.application_id, localApp.formData?.id);
+      if (!persistId) {
+        persistId = applicationRecordId(await findRemoteApplicationId(localApp));
+      }
+      persistId = requireBackendUuid(persistId, action);
+      let enrolledOnServer = false;
+      if (status === 'Enrolled') {
+        const app = localApp;
+        try {
+          await api.enrollApplication(persistId, buildAdmissionEnrollPayload(app));
+          enrolledOnServer = true;
+        } catch (e) {
+          const message = String(e?.message || e || '');
+          if (/already|409/i.test(message)) enrolledOnServer = true;
+          else throw new Error(failedDatabaseAction('Enrolling this applicant', e));
+        }
+      }
       try {
-        await api.updateApplicationStatus(id, { status });
+        await api.updateApplicationStatus(persistId, { status });
       } catch (e) {
-        throw new Error(failedDatabaseAction('Updating this application', e));
+        if (!enrolledOnServer) {
+          throw new Error(failedDatabaseAction(status === 'Enrolled' ? 'Enrolling this applicant' : 'Updating this application', e));
+        }
       }
       setData((current) => {
         const targetApp = (current.applications || []).find((item) => item.id === id);
@@ -2954,6 +3003,7 @@ export function PortalDataProvider({ children }) {
 
           return {
             ...item,
+            id: persistId,
             status,
             email: defaultEmail,
             defaultPassword,
@@ -2999,33 +3049,7 @@ export function PortalDataProvider({ children }) {
       });
 
       if (status === 'Enrolled') {
-        const app = (dataRef.current.applications || []).find((item) => item.id === id);
-        if (app) {
-          const learnerName = (app.firstName || app.surname || app.otherNames)
-            ? `${app.firstName || ''} ${app.otherNames ? app.otherNames + ' ' : ''}${app.surname || ''}`.replace(/\s+/g, ' ').trim()
-            : (app.learner || app.fullName || 'Student');
-          await performOnboardStudent({
-            ...studentDraftFromApplication({ ...app, id }),
-            fullName: learnerName,
-            firstName: app.firstName,
-            otherNames: app.otherNames,
-            surname: app.surname,
-            dob: app.dob,
-            gender: app.sex || app.gender,
-            level: app.level || app.applyingClass,
-            classSection: app.officeFormAssigned || app.classSection || app.subClass || 'A',
-            guardianName: app.guardian || app.fatherName || app.motherName,
-            guardianEmail: app.email || app.fatherEmail || app.guardianEmail,
-            guardianPhone: resolveGuardianPhone(app),
-            fatherName: app.fatherName,
-            fatherPhone: app.fatherPhone,
-            motherName: app.motherName,
-            motherPhone: app.motherPhone,
-            homeAddress: app.residentialAddress || app.homeAddress,
-            rfidCardCode: app.rfidCardCode || '',
-            applicationId: id,
-          });
-        }
+        try { await refreshBackendData(); } catch (e) { console.warn('Roster refresh after enroll failed:', e); }
       }
     },
     updateApplication: async (id, updatedForm) => {

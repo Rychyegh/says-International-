@@ -1296,6 +1296,13 @@ export const api = {
     });
   },
 
+  enrollApplication: async (applicationId, payload = {}) => {
+    return await request(`/admissions/applications/${applicationId}/enroll`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   updateApplication: async (applicationId, applicationData) => {
     const learnerName = (applicationData.firstName || applicationData.surname)
       ? `${applicationData.firstName || ''} ${applicationData.surname || ''}`.trim()
