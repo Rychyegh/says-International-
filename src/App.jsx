@@ -79,9 +79,8 @@ function AppRoutes() {
     };
   });
 
-  const [adminRole, setAdminRole] = useState(() => {
-    return localStorage.getItem('says_admin_role') || 'head_admin';
-  });
+  // Browser preferences never establish administrator privileges.
+  const [adminRole, setAdminRole] = useState(null);
 
   useEffect(() => {
     try {
@@ -91,7 +90,8 @@ function AppRoutes() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('says_admin_role', adminRole);
+      if (adminRole) localStorage.setItem('says_admin_role', adminRole);
+      else localStorage.removeItem('says_admin_role');
     } catch (e) {}
   }, [adminRole]);
 
@@ -113,11 +113,11 @@ function AppRoutes() {
     if (activePortal !== 'admin' || !authed.admin) return;
     let active = true;
     const token = getAuthToken();
-    setAdminSession('checking'); setSessionError('');
+    setAdminRole(null); setAdminSession('checking'); setSessionError('');
     api.getVerifiedSession().then(session => {
       if (!active || token !== getAuthToken()) return;
       const role = session.user.role || session.user.portalRole;
-      if (session.requiresSecondFactor || !['head_admin', 'sub_admin'].includes(role)) {
+      if (session.requiresSecondFactor || session.user.requiresSecondFactor === true || !['head_admin', 'sub_admin'].includes(role)) {
         setAuthed(current => ({ ...current, admin: false })); setAdminSession('login'); return;
       }
       setAuthUser({ ...session.user, role, adminRole: role, requiresSecondFactor: false });
@@ -139,7 +139,7 @@ function AppRoutes() {
   const isAuthed = authed[activePortal] && (activePortal !== 'admin' || (adminSession === 'ready' && verifiedAdminToken === getAuthToken()));
 
   const handleSignOut = () => {
-    setVerifiedAdminToken(null); setAdminSession('checking');
+    setAdminRole(null); setVerifiedAdminToken(null); setAdminSession('checking');
     setAuthToken(null);
     setAuthUser(null);
     setAuthed((prev) => {
@@ -225,7 +225,7 @@ function AppRoutes() {
         activePortal={activePortal}
         isAuthed={isAuthed}
         onSignOut={handleSignOut}
-        adminRole={adminRole}
+        adminRole={isAuthed ? adminRole : null}
       />
 
       {logoutNotice && (

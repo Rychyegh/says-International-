@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { api, getAuthUser } from '../../services/api';
 import { listRetryOperations, recoveryPayload } from '../../lib/identityRetry';
+import { retryPresentation } from '../../lib/retryPresentation';
+import './RetryRecovery.css';
 
 export default function RetryRecovery({ onRecovered }) {
   const [records, setRecords] = useState([]);
@@ -38,21 +40,30 @@ export default function RetryRecovery({ onRecovered }) {
     setNotice('Reconciliation report prepared for the backend developer. This operation stays protected until its database outcome is confirmed.');
   };
   if (!records.length && !notice) return null;
-  return <section aria-label="Retry recovery" style={{ padding: 16, marginBottom: 16, background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10 }}>
-    <h2>Retry recovery</h2>
-    <p>Fix authentication first. An uncertain request must use its original inputs and key; do not clear browser storage.</p>
-    {notice && <p role="status">{notice}</p>}
-    {records.map(record => <div key={record.key} style={{ marginBottom: 16 }}>
-      <strong>{record.endpoint.endsWith('vouchers') ? 'Voucher creation' : 'Provider creation'} — {record.state === 'rejected' ? 'Confirmed non-write response' : 'Database outcome uncertain'}</strong>
+  return <section aria-label="Retry recovery" className="retry-recovery">
+    <h2>Submission updates</h2>
+    <p className="retry-recovery-intro">Review requests that need your attention.</p>
+    {notice && <p className="retry-recovery-notice" role="status">{notice}</p>}
+    {records.map(record => {
+      const presentation = retryPresentation(record);
+      return <article key={record.key} className="retry-recovery-card">
+      <p className="retry-recovery-label">{record.endpoint.endsWith('vouchers') ? 'Voucher request' : 'Provider creation'}</p>
+      <h3>{presentation.title}</h3>
+      <p>{presentation.message}</p>
+      {presentation.kind === 'validation' && <p>Correct the values in the form below, then submit again.</p>}
+      {presentation.kind !== 'validation' && !record.hasInputs && <p>Original inputs are unavailable in this tab. Restore the exact original form values or send a reconciliation report to the backend developer.</p>}
+      {presentation.kind !== 'validation' && <div className="retry-recovery-actions">
+        <button className="btn btn-outline-green" type="button" disabled={busy} onClick={() => window.dispatchEvent(new Event('says_reauthenticate'))}>Verify sign-in / PIN</button>
+        <button className="btn btn-green" type="button" disabled={busy || !record.hasInputs} onClick={() => retry(record)}>Retry original request with same key</button>
+        <button className="btn btn-outline-green" type="button" disabled={busy} onClick={() => reconcile(record)}>Prepare reconciliation report</button>
+      </div>}
+      <details className="retry-recovery-details">
+      <summary>Technical details</summary>
       <p>Original failure: {record.firstFailure?.message || 'Unknown outcome saved by an earlier client.'}</p>
       {record.lastFailure && <p>Latest failure: {record.lastFailure.status ? `HTTP ${record.lastFailure.status}: ` : ''}{record.lastFailure.message}</p>}
       <small>Request reference: {record.key}</small>
-      {!record.hasInputs && <p>Original inputs are unavailable in this tab. Restore the exact original form values or send a reconciliation report to the backend developer.</p>}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-        <button type="button" disabled={busy} onClick={() => window.dispatchEvent(new Event('says_reauthenticate'))}>Verify sign-in / PIN</button>
-        <button type="button" disabled={busy || !record.hasInputs} onClick={() => retry(record)}>Retry original request with same key</button>
-        <button type="button" disabled={busy} onClick={() => reconcile(record)}>Prepare reconciliation report</button>
-      </div>
-    </div>)}
+      </details>
+    </article>;
+    })}
   </section>;
 }

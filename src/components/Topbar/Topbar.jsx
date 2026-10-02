@@ -32,37 +32,16 @@ export default function Topbar({ activePortal, isAuthed, onSignOut, adminRole })
   const defaultUser = PORTAL_USER[activePortal] || PORTAL_USER.admin;
 
   const authUser = getAuthUser();
-  const [currentAdminRole, setCurrentAdminRole] = useState(() => {
-    return adminRole || authUser?.adminRole || (authUser?.role === 'sub_admin' || authUser?.role === 'head_admin' ? authUser.role : null) || (typeof window !== 'undefined' ? localStorage.getItem('says_admin_role') : null) || 'head_admin';
-  });
-
-  useEffect(() => {
-    if (adminRole) {
-      setCurrentAdminRole(adminRole);
-    }
-  }, [adminRole]);
-
-  useEffect(() => {
-    const handleRoleChange = () => {
-      const stored = localStorage.getItem('says_admin_role');
-      if (stored) setCurrentAdminRole(stored);
-    };
-    window.addEventListener('storage', handleRoleChange);
-    window.addEventListener('says_admin_role_changed', handleRoleChange);
-    return () => {
-      window.removeEventListener('storage', handleRoleChange);
-      window.removeEventListener('says_admin_role_changed', handleRoleChange);
-    };
-  }, []);
-
-  const isSubAdmin = currentAdminRole === 'sub_admin' || authUser?.role === 'sub_admin' || authUser?.adminRole === 'sub_admin';
+  // Keep the label and controls tied to the verified role supplied by App.
+  const currentAdminRole = isAuthed ? adminRole : null;
+  const isSubAdmin = currentAdminRole === 'sub_admin';
 
   const signedInName = isPlaceholderAccountName(getUserFullName(authUser)) ? '' : getUserFullName(authUser);
   const userName = activePortal === 'teacher'
     ? (signedInName || 'Staff')
     : (signedInName || (isSubAdmin && activePortal === 'admin' ? 'Sub-Admin Officer' : (defaultUser.name || currentInfo.label)));
   const userRole = activePortal === 'admin'
-    ? (isSubAdmin ? 'Sub-Administrator' : 'Head Administrator')
+    ? (isSubAdmin ? 'Sub-Administrator' : currentAdminRole === 'head_admin' ? 'Head Administrator' : 'Administrator')
     : (authUser?.role
       ? (authUser.role.charAt(0).toUpperCase() + authUser.role.slice(1))
       : defaultUser.role);
@@ -76,7 +55,7 @@ export default function Topbar({ activePortal, isAuthed, onSignOut, adminRole })
   const markPVNotificationRead = portalData?.markPVNotificationRead;
 
   // Show bell on admin portal when authenticated ONLY if user is not a Sub-Admin
-  const showBell = activePortal === 'admin' && isAuthed && !isSubAdmin;
+  const showBell = activePortal === 'admin' && isAuthed && currentAdminRole === 'head_admin';
   const unreadCount = pvNotifications.filter(n => !n.read).length;
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const notifPanelRef = useRef(null);

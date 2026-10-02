@@ -188,14 +188,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [transcriptClassFilter, setTranscriptClassFilter] = useState('All');
   const [transcriptTermFilter, setTranscriptTermFilter] = useState('Term 1 · 2026');
   const [viewingTranscriptStudent, setViewingTranscriptStudent] = useState(null);
-  // Admin Role State
-  const [adminRole, setAdminRole] = useState(() => initialAdminRole || (typeof window !== 'undefined' ? localStorage.getItem('says_admin_role') : null) || 'head_admin'); // 'head_admin' | 'sub_admin'
-
-  useEffect(() => {
-    if (initialAdminRole) {
-      setAdminRole(initialAdminRole);
-    }
-  }, [initialAdminRole]);
+  // App supplies this only after verifying the current server session.
+  const adminRole = ['head_admin', 'sub_admin'].includes(initialAdminRole) ? initialAdminRole : null;
 
   useEffect(() => {
     if (adminRole === 'head_admin' && SUB_ADMIN_PV_NAV.includes(activeNav)) {
@@ -922,6 +916,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       setTimeout(() => setSuccessMsg(''), 5000);
     }
   };
+
+  if (!adminRole) return <div role="status">Checking your administrator role…</div>;
 
   return (
     <div className="portal">
