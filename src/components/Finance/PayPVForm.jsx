@@ -173,6 +173,86 @@ export default function PayPVForm() {
     });
   }, [disbursedVouchers, searchQuery]);
 
+  // Resolve detailed individual PV items for disbursement receipt printing
+  const getReceiptPvItems = useCallback((v) => {
+    if (!v) return [];
+
+    const storeMatch = (paymentVouchers || []).find((pv) => pvNosMatch(pv.pvNo || pv.id, v.pvNo || v.id));
+    const candidateItems = (Array.isArray(v.items) && v.items.length > 0)
+      ? v.items
+      : (Array.isArray(storeMatch?.items) && storeMatch.items.length > 0)
+        ? storeMatch.items
+        : null;
+
+    if (candidateItems && candidateItems.length > 0) {
+      const desc = String(v.description || storeMatch?.description || '').trim();
+      if (candidateItems.length === 1 && desc.includes(',')) {
+        // Fall through to parse comma separated items
+      } else {
+        return candidateItems.map((it, idx) => {
+          const qty = Number(it.qty !== undefined ? it.qty : (it.quantity !== undefined ? it.quantity : 1)) || 1;
+          const lineTotal = Number(it.totalAmount !== undefined ? it.totalAmount : (it.total !== undefined ? it.total : (it.amount || 0))) || 0;
+          const unitRate = Number(it.costPerItem !== undefined ? it.costPerItem : (it.unit_cost !== undefined ? it.unit_cost : (it.cost || (qty > 0 ? lineTotal / qty : lineTotal)))) || 0;
+
+          return {
+            itemNo: idx + 1,
+            description: it.description || it.particulars || it.itemDescription || `Item Line #${idx + 1}`,
+            category: it.category || it.plAccountName || v.plAccountName || 'Operational Expense',
+            provider: it.provider || it.payee_name || v.provider || v.payee_name || 'Vendor',
+            qty,
+            costPerItem: unitRate,
+            totalAmount: lineTotal > 0 ? lineTotal : Number((qty * unitRate).toFixed(2)),
+            status: it.status || v.status || 'Disbursed',
+            remarks: it.auditRemarks || it.remarks || ''
+          };
+        });
+      }
+    }
+
+    const desc = String(v.description || storeMatch?.description || '').trim();
+    const rawParts = desc.includes(',') ? desc.split(',').map((s) => s.trim()).filter(Boolean) : (desc ? [desc] : []);
+
+    if (rawParts.length > 1) {
+      const totalAmount = Number(v.total || v.cost || v.amount || storeMatch?.total || 0);
+      const splitAmount = totalAmount / rawParts.length;
+
+      return rawParts.map((part, idx) => {
+        const qtyMatch = part.match(/\((?:x|X)?\s*(\d+)\)/);
+        const parsedQty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
+        const itemTotal = Number(splitAmount.toFixed(2));
+        const itemCost = parsedQty > 0 ? Number((itemTotal / parsedQty).toFixed(2)) : itemTotal;
+
+        return {
+          itemNo: idx + 1,
+          description: part,
+          category: v.plAccountName || 'Operational Expense',
+          provider: v.provider || v.payee_name || 'Vendor',
+          qty: parsedQty,
+          costPerItem: itemCost,
+          totalAmount: itemTotal,
+          status: v.status || 'Disbursed',
+          remarks: ''
+        };
+      });
+    }
+
+    const totalAmount = Number(v.total || v.cost || v.amount || 0);
+    const qty = Number(v.qty || v.quantity || 1) || 1;
+    const unitRate = Number(v.costPerItem || v.cost || (qty > 0 ? totalAmount / qty : totalAmount)) || totalAmount;
+
+    return [{
+      itemNo: 1,
+      description: desc || 'School operational expenditure settlement line item',
+      category: v.plAccountName || 'Operational Expense',
+      provider: v.provider || v.payee_name || 'Vendor',
+      qty,
+      costPerItem: unitRate,
+      totalAmount,
+      status: v.status || 'Disbursed',
+      remarks: v.disbursementNotes || ''
+    }];
+  }, [paymentVouchers]);
+
   // Open Payment Modal
   const handleOpenPayModal = (voucher) => {
     setPayingVoucher(voucher);
@@ -1234,13 +1314,118 @@ export default function PayPVForm() {
                 </div>
               </div>
 
-              {/* Particulars Description */}
-              <div style={{ marginBottom: 24, fontSize: 11.5 }}>
-                <div style={{ fontWeight: 800, color: '#0f3a4b', marginBottom: 4 }}>Purpose / Particulars:</div>
-                <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 6, padding: '10px 14px', color: '#334155' }}>
-                  {receiptVoucher.description || 'School operational expenditure settlement.'}
-                </div>
-              </div>
+              {/* Detailed Purpose & Particulars Section (Itemized Individual PV Items View) */}
+              {(() => {
+                const receiptItems = getReceiptPvItems(receiptVoucher);
+                const itemsSubtotal = receiptItems.reduce((acc, i) => acc + (Number(i.totalAmount) || (Number(i.qty) * Number(i.costPerItem)) || 0), 0);
+                const voucherTotal = parseFloat(receiptVoucher.total || receiptVoucher.cost || receiptVoucher.amount) || itemsSubtotal || 0;
+
+                return (
+                  <div style={{ marginBottom: 20, fontSize: 11 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <div style={{ fontWeight: 800, color: '#0f3a4b', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>📋</span> Purpose &amp; Particulars — Itemized PV Breakdown ({receiptItems.length} {receiptItems.length === 1 ? 'Line Item' : 'Line Items'}):
+                      </div>
+                      <span style={{ fontSize: 10, color: '#0284c7', fontWeight: 800, background: '#e0f2fe', padding: '2px 8px', borderRadius: 4 }}>
+                        Official Disbursement Schedule
+                      </span>
+                    </div>
+
+                    {/* Overall Requisition Purpose / Narrative */}
+                    {receiptVoucher.description && (
+                      <div style={{
+                        background: '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderBottom: 'none',
+                        borderRadius: '6px 6px 0 0',
+                        padding: '8px 12px',
+                        color: '#334155',
+                        lineHeight: 1.4
+                      }}>
+                        <strong style={{ color: '#0f3a4b' }}>Primary Requisition Purpose: </strong>
+                        <span>{receiptVoucher.description}</span>
+                      </div>
+                    )}
+
+                    {/* Individual PV Items Detailed Table */}
+                    <div style={{
+                      border: '1px solid #cbd5e1',
+                      borderRadius: receiptVoucher.description ? '0 0 6px 6px' : '6px',
+                      overflow: 'hidden'
+                    }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5, textAlign: 'left' }}>
+                        <thead>
+                          <tr style={{ background: '#0f3a4b', color: '#ffffff' }}>
+                            <th style={{ padding: '6px 8px', width: 28, textAlign: 'center' }}>#</th>
+                            <th style={{ padding: '6px 8px' }}>Item Particulars &amp; Description</th>
+                            <th style={{ padding: '6px 8px', width: 50, textAlign: 'center' }}>Qty</th>
+                            <th style={{ padding: '6px 8px', width: 95, textAlign: 'right' }}>Unit Cost (GHS)</th>
+                            <th style={{ padding: '6px 8px', width: 105, textAlign: 'right' }}>Total (GHS)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {receiptItems.map((it, idx) => {
+                            const lineTotal = Number(it.totalAmount !== undefined ? it.totalAmount : (Number(it.qty) * Number(it.costPerItem))) || 0;
+                            const unitCost = Number(it.costPerItem !== undefined ? it.costPerItem : (it.qty > 0 ? lineTotal / it.qty : lineTotal)) || 0;
+                            return (
+                              <tr
+                                key={it.itemNo || idx}
+                                style={{
+                                  borderBottom: idx === receiptItems.length - 1 ? 'none' : '1px solid #e2e8f0',
+                                  background: idx % 2 === 0 ? '#ffffff' : '#f8fafc'
+                                }}
+                              >
+                                <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 800, color: '#64748b' }}>
+                                  {it.itemNo || idx + 1}
+                                </td>
+                                <td style={{ padding: '6px 8px' }}>
+                                  <div style={{ fontWeight: 800, color: '#0f3a4b' }}>
+                                    {it.description}
+                                  </div>
+                                  {(it.category || it.provider || it.remarks) && (
+                                    <div style={{ fontSize: 9.5, color: '#64748b', marginTop: 1 }}>
+                                      {it.category && <span>Account: {it.category}</span>}
+                                      {it.provider && it.provider !== (receiptVoucher.provider || receiptVoucher.payee_name) && <span> · Payee: {it.provider}</span>}
+                                      {it.remarks && <span> · Remarks: {it.remarks}</span>}
+                                    </div>
+                                  )}
+                                </td>
+                                <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 800, color: '#334155' }}>
+                                  {it.qty}
+                                </td>
+                                <td style={{ padding: '6px 8px', textAlign: 'right', color: '#475569' }}>
+                                  {unitCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 900, color: '#15803d' }}>
+                                  {lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ background: '#f1f5f9', borderTop: '2px solid #cbd5e1', fontWeight: 900 }}>
+                            <td colSpan={4} style={{ padding: '6px 8px', textAlign: 'right', color: '#0f3a4b', textTransform: 'uppercase', fontSize: 10 }}>
+                              Total of Itemized Particulars:
+                            </td>
+                            <td style={{ padding: '6px 8px', textAlign: 'right', fontSize: 11.5, color: '#15803d' }}>
+                              GHS {(itemsSubtotal || voucherTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+
+                    {/* Disbursement / Audit Notes if present */}
+                    {receiptVoucher.disbursementNotes && (
+                      <div style={{ marginTop: 6, fontSize: 10, color: '#475569', background: '#f8fafc', padding: '4px 8px', borderRadius: 4, border: '1px solid #e2e8f0' }}>
+                        <strong style={{ color: '#0f3a4b' }}>Settlement Notes: </strong>
+                        <span>{receiptVoucher.disbursementNotes}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Signatures */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 32, paddingTop: 16, borderTop: '1px dashed #cbd5e1' }}>

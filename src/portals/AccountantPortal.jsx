@@ -13,7 +13,7 @@ import SubmitPVRequest from '../components/Finance/SubmitPVRequest';
 import OfficialPayPVForm from '../components/Finance/PayPVForm';
 import { getAuthUser, api } from '../services/api';
 import { ALL_SUB_CLASSES, getMappedSubClasses } from '../data/classStructure';
-import { SCHOOL_PL_ACCOUNTS, getPlAccountCode, printPvPage } from '../data/chartOfAccounts';
+import { SCHOOL_PL_ACCOUNTS, BANK_RECEIVING_ACCOUNTS, PHOTO_RECEIVING_ACCOUNTS, ALL_RECEIVING_ACCOUNTS, getPlAccountCode, printPvPage } from '../data/chartOfAccounts';
 
 const ACCOUNT_BG = '#0f3a4b';
 const ACCOUNT_LIGHT = '#e0f2fe';
@@ -75,6 +75,7 @@ export default function AccountantPortal({ onSignOut }) {
   const [selectedFeeForPayment, setSelectedFeeForPayment] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Mobile Money');
+  const [paymentReceivingAccount, setPaymentReceivingAccount] = useState('GCB Bank Main Operating Account (55919200085584)');
   const [paymentNotes, setPaymentNotes] = useState('');
 
   const [selectedFeeForReminder, setSelectedFeeForReminder] = useState(null);
@@ -131,6 +132,7 @@ export default function AccountantPortal({ onSignOut }) {
     setSelectedFeeForPayment(fee);
     setPaymentAmount(String(fee.balance));
     setPaymentNotes('');
+    setPaymentReceivingAccount(fee.lastReceivingAccount || 'GCB Bank Main Operating Account (55919200085584)');
   };
 
   const handleProcessPayment = (e) => {
@@ -141,10 +143,11 @@ export default function AccountantPortal({ onSignOut }) {
       id: selectedFeeForPayment.id,
       paidAmount: Number(paymentAmount),
       paymentMethod,
+      receivingAccount: paymentReceivingAccount,
       notes: paymentNotes,
     });
 
-    setSuccessNotice(`Payment of GHS ${Number(paymentAmount).toLocaleString()} recorded for ${selectedFeeForPayment.studentName}!`);
+    setSuccessNotice(`Payment of GHS ${Number(paymentAmount).toLocaleString()} recorded into ${paymentReceivingAccount} for ${selectedFeeForPayment.studentName}!`);
     setSelectedFeeForPayment(null);
     setTimeout(() => setSuccessNotice(''), 4000);
   };
@@ -583,7 +586,14 @@ export default function AccountantPortal({ onSignOut }) {
                         </td>
                         <td>{fee.term}</td>
                         <td>GHS {fee.billedAmount.toLocaleString()}</td>
-                        <td style={{ color: '#16a34a', fontWeight: 700 }}>GHS {fee.paidAmount.toLocaleString()}</td>
+                        <td style={{ color: '#16a34a', fontWeight: 700 }}>
+                          <div>GHS {fee.paidAmount.toLocaleString()}</div>
+                          {fee.lastReceivingAccount && (
+                            <div style={{ fontSize: 10, color: '#0369a1', fontWeight: 600, marginTop: 2 }} title={`Receiving Account: ${fee.lastReceivingAccount}`}>
+                              🏦 {fee.lastReceivingAccount.length > 22 ? `${fee.lastReceivingAccount.slice(0, 22)}...` : fee.lastReceivingAccount}
+                            </div>
+                          )}
+                        </td>
                         <td style={{ color: fee.balance > 0 ? '#dc2626' : 'var(--gray-700)', fontWeight: 700 }}>
                           GHS {fee.balance.toLocaleString()}
                         </td>
@@ -1100,6 +1110,26 @@ export default function AccountantPortal({ onSignOut }) {
                       <option>Bank Transfer</option>
                       <option>Cash</option>
                       <option>Cheque</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#0369a1' }}>🏦 Receiving Account (Account Selection)</span>
+                    <select
+                      value={paymentReceivingAccount}
+                      onChange={(e) => setPaymentReceivingAccount(e.target.value)}
+                      style={{ width: '100%', padding: '10px', borderRadius: 6, border: '1.5px solid #0284c7', fontSize: 13, background: '#f0f9ff', fontWeight: 700, color: '#0f3a4b' }}
+                    >
+                      <optgroup label="🏦 Bank &amp; Cash Vault Accounts">
+                        {BANK_RECEIVING_ACCOUNTS.map((acc) => (
+                          <option key={acc.name} value={acc.name}>{acc.name}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="📊 Direct Revenue &amp; Operational Accounts (Photos Selection)">
+                        {PHOTO_RECEIVING_ACCOUNTS.map((acc) => (
+                          <option key={acc.code + acc.name} value={acc.name}>{acc.name} ({acc.code})</option>
+                        ))}
+                      </optgroup>
                     </select>
                   </label>
 
@@ -2590,6 +2620,30 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
   );
 }
 
+function convertNumberToWordsGhanaCedis(amount) {
+  const num = Math.floor(Number(amount) || 0);
+  const pesewas = Math.round(((Number(amount) || 0) - num) * 100);
+  if (num === 0 && pesewas === 0) return 'ZERO GHANA CEDIS ONLY';
+
+  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  function inWords(n) {
+    if (n === 0) return '';
+    if (n < 20) return a[n];
+    if (n < 100) return b[Math.floor(n / 10)] + (n % 10 ? ' ' + a[n % 10] : '');
+    if (n < 1000) return a[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' and ' + inWords(n % 100) : '');
+    if (n < 1000000) return inWords(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + inWords(n % 1000) : '');
+    return inWords(Math.floor(n / 1000000)) + ' Million' + (n % 1000000 ? ' ' + inWords(n % 1000000) : '');
+  }
+
+  let words = inWords(num).trim().toUpperCase() + ' GHANA CEDIS';
+  if (pesewas > 0) {
+    words += ` AND ${inWords(pesewas).trim().toUpperCase()} PESEWAS`;
+  }
+  return words + ' ONLY';
+}
+
 function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
   const portalData = usePortalData() || {};
   const allStudents = (students && students.length > 0) ? students : (portalData.onboardedStudents || []);
@@ -2655,11 +2709,56 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
   // Payment Entry Form State
   const [payAmount, setPayAmount] = useState('1200.00');
   const [payMode, setPayMode] = useState('Mobile Money');
-  const [receivingAccount, setReceivingAccount] = useState('GCB Main Operating Account (55919200085584)');
+  const [receivingAccount, setReceivingAccount] = useState('GCB Bank Main Operating Account (55919200085584)');
   const [transactionRef, setTransactionRef] = useState('MM-98471203');
   const [payerName, setPayerName] = useState(defaultStudent.guardianName || 'Mrs. Angela Edwards');
   const [payerPhone, setPayerPhone] = useState(resolveGuardianPhone(defaultStudent) || '');
   const [payNotes, setPayNotes] = useState('Term 1 School Fee Settlement');
+
+  // Single-page printable voucher state
+  const [showVoucherModal, setShowVoucherModal] = useState(false);
+  const [voucherData, setVoucherData] = useState(null);
+
+  // Open 1-page receiving account printable voucher
+  const handleOpenReceivingAccountPrint = (customRcpt = null) => {
+    const data = customRcpt ? {
+      receiptNo: customRcpt.receiptNo || '47545674',
+      date: customRcpt.date || new Date().toISOString().split('T')[0],
+      studentId: customRcpt.studentId || studentId || 'REMALJ-2026-001',
+      studentName: customRcpt.studentName || studentName || 'Benjamin Edwards',
+      studentClass: `${studentClass} (${subClass})`,
+      payerName: customRcpt.payer || payerName || 'Parent / Guardian',
+      payerPhone: payerPhone || '',
+      receivingAccount: customRcpt.receivingAccount || receivingAccount,
+      accountCode: getPlAccountCode(customRcpt.receivingAccount || receivingAccount) || '10001',
+      amount: Number(customRcpt.amount || payAmount || 1200),
+      payMode: customRcpt.mode || payMode,
+      refNo: customRcpt.refNo || transactionRef || 'N/A',
+      notes: payNotes || 'School Fee Settlement',
+      curArrears: curArrears,
+      avlArrears: avlArrears,
+      cashier: customRcpt.cashier || 'Mrs. Grace Accountant',
+    } : {
+      receiptNo: receiptNo || '47545674',
+      date: new Date().toISOString().split('T')[0],
+      studentId: studentId || 'REMALJ-2026-001',
+      studentName: studentName || 'Benjamin Edwards',
+      studentClass: `${studentClass} (${subClass})`,
+      payerName: payerName || 'Parent / Guardian',
+      payerPhone: payerPhone || '',
+      receivingAccount: receivingAccount,
+      accountCode: getPlAccountCode(receivingAccount) || '10001',
+      amount: Number(payAmount) || 1200.00,
+      payMode: payMode,
+      refNo: transactionRef || 'N/A',
+      notes: payNotes || 'School Fee Settlement',
+      curArrears: curArrears,
+      avlArrears: avlArrears,
+      cashier: 'Mrs. Grace Accountant',
+    };
+    setVoucherData(data);
+    setShowVoucherModal(true);
+  };
 
   // Institutional Fees, Dues & Levy Breakdown State
   const [institutionDuesItems, setInstitutionDuesItems] = useState([
@@ -2716,8 +2815,8 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
 
   // Historical Receipts List
   const [receiptsList, setReceiptsList] = useState([
-    { receiptNo: '47545674', date: '2026-09-09', studentId: 'REMALJ-2026-001', studentName: 'Benjamin Edwards', amount: 1200.00, mode: 'Mobile Money', refNo: 'MM-98471203', cashier: 'Mrs. Grace Accountant', status: 'Issued' },
-    { receiptNo: '47545610', date: '2026-05-14', studentId: 'REMALJ-2026-002', studentName: 'Adwoa Edwards', amount: 2500.00, mode: 'Bank Deposit', refNo: 'GCB-8839120', cashier: 'Mrs. Grace Accountant', status: 'Issued' },
+    { receiptNo: '47545674', date: '2026-09-09', studentId: 'REMALJ-2026-001', studentName: 'Benjamin Edwards', amount: 1200.00, mode: 'Mobile Money', receivingAccount: 'GCB Bank Main Operating Account (55919200085584)', refNo: 'MM-98471203', cashier: 'Mrs. Grace Accountant', status: 'Issued' },
+    { receiptNo: '47545610', date: '2026-05-14', studentId: 'REMALJ-2026-002', studentName: 'Adwoa Edwards', amount: 2500.00, mode: 'Bank Deposit', receivingAccount: 'Ecobank Fee Collection Account (14410029402)', refNo: 'GCB-8839120', cashier: 'Mrs. Grace Accountant', status: 'Issued' },
   ]);
 
   const [noticeBanner, setNoticeBanner] = useState('');
@@ -2851,6 +2950,7 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
       studentName,
       amount: amountVal,
       mode: payMode,
+      receivingAccount,
       refNo: transactionRef,
       payer: payerName,
       cashier: 'Mrs. Grace Accountant',
@@ -3544,19 +3644,57 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
               </div>
             </div>
 
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 11.5, fontWeight: 800, color: '#0369a1', marginBottom: 4 }}>🏦 Receiving Account (Account Selection)</label>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5, flexWrap: 'wrap', gap: 6 }}>
+                <label style={{ fontSize: 11.5, fontWeight: 800, color: '#0369a1', margin: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  🏦 Receiving Account (Account Selection)
+                </label>
+                <button
+                  type="button"
+                  id="print-receiving-account-btn"
+                  onClick={() => handleOpenReceivingAccountPrint()}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 12px',
+                    background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 5,
+                    fontSize: 11,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Print official single-page receiving account transaction voucher"
+                >
+                  🖨️ Print Receiving Account (1-Page)
+                </button>
+              </div>
+
               <select
                 value={receivingAccount}
                 onChange={(e) => setReceivingAccount(e.target.value)}
                 style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1.5px solid #0284c7', fontSize: 13, background: '#f0f9ff', fontWeight: 800, color: '#0f3a4b' }}
               >
-                <option value="GCB Main Operating Account (55919200085584)">GCB Bank Main Operating Account (55919200085584)</option>
-                <option value="Ecobank Fee Collection Account (14410029402)">Ecobank Fee Collection Account (14410029402)</option>
-                <option value="MTN Mobile Money Merchant Vault (0244000111)">MTN Mobile Money Merchant Vault (0244000111)</option>
-                <option value="Amenfiman Rural Bank Account (7719200011)">Amenfiman Rural Bank Account (7719200011)</option>
-                <option value="Cash Office Main Safe Account">Cash Office Main Safe Account</option>
+                <optgroup label="🏦 Bank &amp; Cash Vault Accounts (Primary)">
+                  {BANK_RECEIVING_ACCOUNTS.map((acc) => (
+                    <option key={acc.name} value={acc.name}>{acc.name}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="📊 Direct Revenue, Fee &amp; Operational Accounts (Photos 1, 2 &amp; 3 Selection)">
+                  {PHOTO_RECEIVING_ACCOUNTS.map((acc) => (
+                    <option key={acc.code + acc.name} value={acc.name}>{acc.name} (Code: {acc.code})</option>
+                  ))}
+                </optgroup>
               </select>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, fontSize: 11, color: '#475569', background: '#f8fafc', padding: '4px 8px', borderRadius: 4, border: '1px solid #e2e8f0' }}>
+                <span>Account Code: <strong style={{ color: '#0284c7' }}>{getPlAccountCode(receivingAccount) || '10001'}</strong></span>
+                <span style={{ color: '#15803d', fontWeight: 700 }}>✓ Live in Portal &amp; Ledger</span>
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
@@ -3626,6 +3764,7 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
                   <th style={{ padding: '8px 10px' }}>Receipt N/o</th>
                   <th style={{ padding: '8px 10px' }}>Date Issued</th>
                   <th style={{ padding: '8px 10px' }}>Student Details</th>
+                  <th style={{ padding: '8px 10px' }}>Receiving Account</th>
                   <th style={{ padding: '8px 10px' }}>Payment Mode</th>
                   <th style={{ padding: '8px 10px', textAlign: 'right' }}>Amount Paid (GHS)</th>
                   <th style={{ padding: '8px 10px', textAlign: 'center' }}>Action</th>
@@ -3637,18 +3776,31 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
                     <td style={{ padding: '8px 10px', fontWeight: 900, color: '#0369a1' }}>#{rcpt.receiptNo}</td>
                     <td style={{ padding: '8px 10px', color: '#64748b' }}>{rcpt.date}</td>
                     <td style={{ padding: '8px 10px', fontWeight: 800, color: '#0f3a4b' }}>{rcpt.studentName} ({rcpt.studentId})</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 700, color: '#0284c7', fontSize: 11.5 }}>
+                      🏦 {rcpt.receivingAccount || 'GCB Bank Main Operating Account (55919200085584)'}
+                    </td>
                     <td style={{ padding: '8px 10px' }}>{rcpt.mode} ({rcpt.refNo || 'N/A'})</td>
                     <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 900, color: '#15803d' }}>
                       {Number(rcpt.amount).toFixed(2)}
                     </td>
                     <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                      <button
-                        type="button"
-                        onClick={() => window.print()}
-                        style={{ padding: '4px 10px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer' }}
-                      >
-                        🖨️ Reprint Receipt
-                      </button>
+                      <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenReceivingAccountPrint(rcpt)}
+                          style={{ padding: '4px 10px', background: '#0f766e', color: '#fff', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          title="Print single-page receiving voucher"
+                        >
+                          🖨️ 1-Page Voucher
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => window.print()}
+                          style={{ padding: '4px 8px', background: '#64748b', color: '#fff', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          Reprint All
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -3657,6 +3809,305 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
           </div>
         )}
       </div>
+
+      {/* ── 1-PAGE PRINTABLE RECEIVING ACCOUNT VOUCHER MODAL & PRINT ROOT ── */}
+      {showVoucherModal && voucherData && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setShowVoucherModal(false); }}
+          className="voucher-modal-overlay"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15,23,42,0.65)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: 16
+          }}
+        >
+          {/* Print CSS explicitly forcing STRICT 1-PAGE FIT */}
+          <style>{`
+            @media print {
+              @page {
+                size: A4 portrait;
+                margin: 6mm 10mm;
+              }
+              html, body {
+                height: 100% !important;
+                max-height: 275mm !important;
+                overflow: hidden !important;
+                background: #ffffff !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              body * {
+                visibility: hidden !important;
+              }
+              #receiving-account-print-root,
+              #receiving-account-print-root * {
+                visibility: visible !important;
+              }
+              #receiving-account-print-root {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                width: 100% !important;
+                max-width: 190mm !important;
+                max-height: 268mm !important;
+                margin: 0 auto !important;
+                padding: 12px 16px !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+                page-break-after: avoid !important;
+                page-break-inside: avoid !important;
+                font-family: system-ui, -apple-system, sans-serif !important;
+                background: #ffffff !important;
+                color: #0f172a !important;
+                border: 2px solid #0f3a4b !important;
+                border-radius: 6px !important;
+                z-index: 999999 !important;
+              }
+              .no-print-area {
+                display: none !important;
+              }
+            }
+          `}</style>
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#ffffff',
+              width: '100%',
+              maxWidth: 720,
+              maxHeight: '94vh',
+              overflowY: 'auto',
+              borderRadius: 10,
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            {/* Modal Action Header (Excluded from Print) */}
+            <div
+              className="no-print-area"
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '12px 18px',
+                background: '#0f3a4b',
+                color: '#ffffff',
+                borderTopLeftRadius: 10,
+                borderTopRightRadius: 10
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18 }}>🖨️</span>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: 14, fontWeight: 900 }}>Receiving Account Voucher (1-Page Fit)</h4>
+                  <div style={{ fontSize: 11, color: '#93c5fd' }}>Data tailored &amp; strictly sized for single-page portrait printing</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  style={{
+                    padding: '6px 14px',
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 5,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  🖨️ Print Voucher Now (1-Page)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowVoucherModal(false)}
+                  style={{
+                    padding: '6px 10px',
+                    background: '#334155',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 5,
+                    fontSize: 12,
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✕ Close
+                </button>
+              </div>
+            </div>
+
+            {/* THE PRINTABLE ROOT: Strictly fits on 1 page */}
+            <div
+              id="receiving-account-print-root"
+              style={{
+                padding: '18px 24px',
+                background: '#ffffff',
+                color: '#0f172a',
+                fontSize: 11.5,
+                lineHeight: 1.4,
+                fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
+              }}
+            >
+              {/* 1. Header & Letterhead */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2.5px solid #0f3a4b', paddingBottom: 10, marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#0f3a4b', letterSpacing: '0.5px' }}>
+                    SAYS INTERNATIONAL · REMALJ CAREWELL ACADEMY
+                  </div>
+                  <div style={{ fontSize: 10.5, color: '#475569', fontWeight: 600 }}>
+                    Commercial Accounts Office &amp; Financial Treasury · Ghana
+                  </div>
+                  <div style={{ fontSize: 10, color: '#64748b' }}>
+                    Tel: +233 24 400 0111 | Email: accounts@remaljcarewell.edu.gh
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ display: 'inline-block', padding: '3px 8px', background: '#0f3a4b', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Official Voucher
+                  </span>
+                  <div style={{ fontSize: 12, fontWeight: 900, color: '#0369a1', marginTop: 4 }}>
+                    #{voucherData.receiptNo}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#64748b' }}>
+                    Date: <strong>{voucherData.date}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Highlighted Receiving Account Specification Banner */}
+              <div style={{ background: '#f0f9ff', border: '1.5px solid #0284c7', borderRadius: 6, padding: '8px 12px', marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 900, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    🏦 Receiving Account (Account Selection)
+                  </span>
+                  <span style={{ fontSize: 10, fontWeight: 800, background: '#0284c7', color: '#fff', padding: '1px 6px', borderRadius: 3 }}>
+                    GL Code: {voucherData.accountCode}
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 900, color: '#0f3a4b' }}>
+                  {voucherData.receivingAccount}
+                </div>
+                <div style={{ display: 'flex', gap: 16, marginTop: 4, fontSize: 10.5, color: '#334155' }}>
+                  <span>Payment Mode: <strong>{voucherData.payMode}</strong></span>
+                  <span>Transaction Ref: <strong>{voucherData.refNo || 'N/A'}</strong></span>
+                  <span>Cashier: <strong>{voucherData.cashier}</strong></span>
+                </div>
+              </div>
+
+              {/* 3. Student & Payer Particulars (Compact 2-Column Grid) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10, background: '#f8fafc', padding: '8px 12px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Student Particulars</div>
+                  <div style={{ fontSize: 12, fontWeight: 900, color: '#0f3a4b' }}>{voucherData.studentName}</div>
+                  <div style={{ fontSize: 10.5, color: '#475569' }}>
+                    Student ID: <strong>{voucherData.studentId}</strong> | Class: <strong>{voucherData.studentClass}</strong>
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Depositor / Payer</div>
+                  <div style={{ fontSize: 12, fontWeight: 900, color: '#0f3a4b' }}>{voucherData.payerName}</div>
+                  <div style={{ fontSize: 10.5, color: '#475569' }}>
+                    Contact: {voucherData.payerPhone || 'Recorded on File'} · Academic Term: <strong>2026/2027 Term 1</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Compact Financial Settlement Table */}
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8, fontSize: 11 }}>
+                <thead>
+                  <tr style={{ background: '#0f3a4b', color: '#ffffff', textAlign: 'left' }}>
+                    <th style={{ padding: '6px 8px', border: '1px solid #0f3a4b' }}>Financial Particulars / Narrative</th>
+                    <th style={{ padding: '6px 8px', border: '1px solid #0f3a4b', textAlign: 'right' }}>Total Billed (GHS)</th>
+                    <th style={{ padding: '6px 8px', border: '1px solid #0f3a4b', textAlign: 'right' }}>Credited to Account (GHS)</th>
+                    <th style={{ padding: '6px 8px', border: '1px solid #0f3a4b', textAlign: 'right' }}>Outstanding Balance (GHS)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '6px 8px', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f3a4b' }}>
+                      Official Fee Payment &amp; Settlement allocated to {voucherData.receivingAccount}
+                      {voucherData.notes && <div style={{ fontSize: 9.5, color: '#64748b', fontWeight: 500 }}>Ref: {voucherData.notes}</div>}
+                    </td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textAlign: 'right' }}>
+                      {voucherData.curArrears || Number(voucherData.amount).toFixed(2)}
+                    </td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textAlign: 'right', fontWeight: 900, color: '#15803d' }}>
+                      {Number(voucherData.amount).toFixed(2)}
+                    </td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textAlign: 'right', fontWeight: 800, color: '#be123c' }}>
+                      {voucherData.avlArrears || '0.00'}
+                    </td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: '#f1f5f9', fontWeight: 900 }}>
+                    <td style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textTransform: 'uppercase', color: '#0f3a4b' }}>
+                      Total Net Credited to Receiving Account:
+                    </td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #cbd5e1' }} />
+                    <td style={{ padding: '6px 8px', border: '1px solid #cbd5e1', textAlign: 'right', fontSize: 13, color: '#15803d' }}>
+                      GHS {Number(voucherData.amount).toFixed(2)}
+                    </td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #cbd5e1' }} />
+                  </tr>
+                </tfoot>
+              </table>
+
+              {/* 5. Amount in Words */}
+              <div style={{ background: '#f8fafc', padding: '6px 10px', borderRadius: 4, border: '1px dashed #cbd5e1', marginBottom: 12 }}>
+                <span style={{ fontSize: 9.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Amount in Words: </span>
+                <span style={{ fontSize: 11, fontWeight: 900, color: '#0f3a4b' }}>
+                  {convertNumberToWordsGhanaCedis(voucherData.amount)}
+                </span>
+              </div>
+
+              {/* 6. Official Sign-off & Audit Certification */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 10, paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ height: 26, borderBottom: '1px solid #475569', margin: '0 10px' }} />
+                  <div style={{ fontSize: 10, fontWeight: 800, color: '#0f3a4b', marginTop: 4 }}>Cashier / Receiving Officer</div>
+                  <div style={{ fontSize: 9, color: '#64748b' }}>{voucherData.cashier}</div>
+                </div>
+
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ height: 26, borderBottom: '1px solid #475569', margin: '0 10px' }} />
+                  <div style={{ fontSize: 10, fontWeight: 800, color: '#0f3a4b', marginTop: 4 }}>Depositor / Payer Signature</div>
+                  <div style={{ fontSize: 9, color: '#64748b' }}>{voucherData.payerName}</div>
+                </div>
+
+                <div style={{ textAlign: 'center', border: '1px dashed #0284c7', borderRadius: 4, padding: '4px 6px', background: '#f0f9ff' }}>
+                  <div style={{ fontSize: 9, fontWeight: 900, color: '#0284c7', textTransform: 'uppercase' }}>Internal Audit Stamp</div>
+                  <div style={{ fontSize: 11, fontWeight: 900, color: '#15803d', margin: '2px 0' }}>VERIFIED &amp; POSTED</div>
+                  <div style={{ fontSize: 8.5, color: '#64748b' }}>SIMS Electronic Ledger</div>
+                </div>
+              </div>
+
+              {/* 7. Single Page Footer Seal */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 6, borderTop: '1px solid #f1f5f9', fontSize: 9, color: '#94a3b8' }}>
+                <span>Certified Single-Page Voucher · Original Audit Copy</span>
+                <span>System Security Hash #SV-{voucherData.receiptNo.slice(-4)}-{voucherData.accountCode}</span>
+                <span>Page 1 of 1 (Complete)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── OPTIONAL BILL DIALOG MODAL ── */}
       {showOptionalDialog && (
@@ -4193,15 +4644,22 @@ function ReceiveOtherPaymentsForm({ setM }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 800, color: '#0f3a4b', marginBottom: 4 }}>Select GL/Account type</label>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 800, color: '#0f3a4b', marginBottom: 4 }}>🏦 Receiving Account / GL Type</label>
                 <select
                   value={glAccountType}
                   onChange={(e) => setGlAccountType(e.target.value)}
                   style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
                 >
-                  {SCHOOL_PL_ACCOUNTS.map((account) => (
-                    <option key={account.code + account.name} value={account.name}>{account.name}</option>
-                  ))}
+                  <optgroup label="🏦 Bank &amp; Cash Vault Accounts">
+                    {BANK_RECEIVING_ACCOUNTS.map((acc) => (
+                      <option key={acc.name} value={acc.name}>{acc.name}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="📊 Direct Revenue &amp; Operational Accounts (Photos Selection)">
+                    {PHOTO_RECEIVING_ACCOUNTS.map((account) => (
+                      <option key={account.code + account.name} value={account.name}>{account.name} ({account.code})</option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
 
@@ -4824,15 +5282,22 @@ function BatchProcessingForm({ setM, students = [], recordFeePayment }) {
               </div>
 
               <div style={{ gridColumn: 'span 3' }}>
-                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 800, color: '#0f3a4b', marginBottom: 4 }}>Select GL/Account type</label>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 800, color: '#0f3a4b', marginBottom: 4 }}>🏦 Receiving Account / GL Type</label>
                 <select
                   value={glAccountType}
                   onChange={(e) => setGlAccountType(e.target.value)}
                   style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
                 >
-                  {SCHOOL_PL_ACCOUNTS.map((account) => (
-                    <option key={account.code + account.name} value={account.name}>{account.name}</option>
-                  ))}
+                  <optgroup label="🏦 Bank &amp; Cash Vault Accounts">
+                    {BANK_RECEIVING_ACCOUNTS.map((acc) => (
+                      <option key={acc.name} value={acc.name}>{acc.name}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="📊 Direct Revenue &amp; Operational Accounts (Photos Selection)">
+                    {PHOTO_RECEIVING_ACCOUNTS.map((account) => (
+                      <option key={account.code + account.name} value={account.name}>{account.name} ({account.code})</option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
 

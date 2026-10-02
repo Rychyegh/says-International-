@@ -85,9 +85,28 @@ export const SCHOOL_PL_ACCOUNTS = [
   { name: 'Transport Account', code: '10913' },
 ];
 
+export const BANK_RECEIVING_ACCOUNTS = [
+  { name: 'GCB Bank Main Operating Account (55919200085584)', code: '10001', category: 'Bank / Operating' },
+  { name: 'Ecobank Fee Collection Account (14410029402)', code: '10002', category: 'Bank / Collection' },
+  { name: 'MTN Mobile Money Merchant Vault (0244000111)', code: '10003', category: 'Mobile Money / Vault' },
+  { name: 'Amenfiman Rural Bank Account (7719200011)', code: '10004', category: 'Bank / Rural' },
+  { name: 'Cash Office Main Safe Account', code: '10005', category: 'Cash Office / Vault' },
+];
+
+export const PHOTO_RECEIVING_ACCOUNTS = SCHOOL_PL_ACCOUNTS.slice(0, 62);
+
+export const ALL_RECEIVING_ACCOUNTS = [
+  ...BANK_RECEIVING_ACCOUNTS,
+  ...PHOTO_RECEIVING_ACCOUNTS.map((a) => ({
+    name: a.name,
+    code: a.code,
+    category: 'SIMS Revenue / Fee Account',
+  })),
+];
+
 export const PL_ACCOUNT_NAMES = SCHOOL_PL_ACCOUNTS.map((a) => a.name);
 
-const ACCOUNT_CODE_BY_NAME = SCHOOL_PL_ACCOUNTS.reduce((acc, item) => {
+const ACCOUNT_CODE_BY_NAME = [...SCHOOL_PL_ACCOUNTS, ...BANK_RECEIVING_ACCOUNTS].reduce((acc, item) => {
   acc[item.name] = item.code;
   return acc;
 }, {});
