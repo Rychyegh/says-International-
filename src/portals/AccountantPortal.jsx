@@ -1,3 +1,4 @@
+import StudentReceiptModal from '../components/Finance/StudentReceiptModal';
 import ViewportModal from '../components/Modal/ViewportModal';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
@@ -75,6 +76,7 @@ export default function AccountantPortal({ onSignOut }) {
 
   // Standard Modals state
   const [selectedFeeForPayment, setSelectedFeeForPayment] = useState(null);
+  const [receiptFee, setReceiptFee] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Mobile Money');
   const [paymentReceivingAccount, setPaymentReceivingAccount] = useState('GCB Bank Main Operating Account (55919200085584)');
@@ -340,7 +342,9 @@ export default function AccountantPortal({ onSignOut }) {
 
     setActiveSimsModal(null);
     setTimeout(() => setSuccessNotice(''), 5000);
-    } catch (error) { setSuccessNotice(`Action failed: ${error.message}`); }
+    } catch (error) {
+      setActiveSimsModal(current => current ? {...current, submitError: `Action failed: ${error.message}`} : current);
+    }
   };
 
   return (
@@ -485,10 +489,10 @@ export default function AccountantPortal({ onSignOut }) {
                             <td>
                               <div style={{ display: 'flex', gap: 6 }}>
                                 <button
-                                  onClick={() => handleOpenPayment(fee)}
+                                  onClick={() => setReceiptFee(fee)}
                                   style={{ padding: '4px 10px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
                                 >
-                                  Record Payment
+                                  Print Receipt
                                 </button>
                                 <button
                                   onClick={() => handleSendSingleOwingSms(fee)}
@@ -622,10 +626,10 @@ export default function AccountantPortal({ onSignOut }) {
                         <td>
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button
-                              onClick={() => handleOpenPayment(fee)}
+                              onClick={() => setReceiptFee(fee)}
                               style={{ padding: '6px 12px', background: ACCOUNT_ACCENT, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
                             >
-                              Record Payment
+                              Print Receipt
                             </button>
                             {fee.balance > 0 && (
                               <>
@@ -1080,6 +1084,7 @@ export default function AccountantPortal({ onSignOut }) {
             </ViewportModal>
           )}
 
+          {receiptFee && <StudentReceiptModal fee={receiptFee} onClose={() => setReceiptFee(null)} />}
           {/* ── RECORD PAYMENT MODAL ── */}
           {selectedFeeForPayment && (
             <ViewportModal
@@ -1187,7 +1192,7 @@ export default function AccountantPortal({ onSignOut }) {
 }
 
 // Custom Tailored SimsModalRenderer for EVERY unique link
-function SimsModalRenderer({ modalData, setModalData, onClose, onSubmit, students }) {
+export function SimsModalRenderer({ modalData, setModalData, onClose, onSubmit, students }) {
   const { link, category } = modalData;
 
   const isPrintOrReport =
@@ -1201,6 +1206,10 @@ function SimsModalRenderer({ modalData, setModalData, onClose, onSubmit, student
   const isReceivePayment = link === 'Receive Payments from Students' || link === 'Issue Other receipts' || link === 'Re-print Commercial Receipt' || link === 'Receive Other Payments' || link === 'Batch Processing' || link.toLowerCase().includes('receivables') || link.toLowerCase().includes('pv') || link.toLowerCase().includes('authorise');
 
   const portalStore = usePortalData() || {};
+
+  const content = renderSpecificContent(link, modalData, setModalData, students, portalStore);
+  // Embedded forms own their submissions; nesting forms breaks browser submit routing.
+  const ContentWrapper = content?.type === 'form' || typeof content?.type !== 'string' ? 'div' : 'form';
 
   return (
     <ViewportModal className="sims-modal-overlay" onClick={onClose}>
@@ -1216,9 +1225,10 @@ function SimsModalRenderer({ modalData, setModalData, onClose, onSubmit, student
           <button className="sims-modal-close" onClick={onClose}>✕</button>
         </div>
 
-        <form className="sims-modal-body" onSubmit={onSubmit}>
-          {renderSpecificContent(link, modalData, setModalData, students, portalStore)}
-        </form>
+        <ContentWrapper className="sims-modal-body" onSubmit={ContentWrapper === 'form' ? onSubmit : undefined}>
+          {modalData.submitError && <p role="alert" style={{color:'#991b1b',background:'#fef2f2',padding:12}}>{modalData.submitError}</p>}
+          {content}
+        </ContentWrapper>
       </div>
     </ViewportModal>
   );
@@ -2920,9 +2930,12 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
     setTimeout(() => setNoticeBanner(''), 3000);
   };
 
+  const receiptSaveLock = useRef(false);
   // Process Payment & Issue Receipt
-  const handleProcessPayment = (e) => {
+  const handleProcessPayment = async (e) => {
     e?.preventDefault();
+    e?.stopPropagation();
+    if (receiptSaveLock.current) return;
     const amountVal = Number(payAmount) || 0;
     if (amountVal <= 0) {
       alert('Please enter a valid payment amount.');
@@ -2932,8 +2945,11 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
     const newReceiptNo = String(Math.floor(47000000 + Math.random() * 900000));
     setReceiptNo(newReceiptNo);
 
-    if (typeof effectiveRecordPayment === 'function') {
-      effectiveRecordPayment({
+    receiptSaveLock.current = true;
+    try {
+    if (typeof effectiveRecordPayment !== 'function') throw new Error('Payment saving is unavailable.');
+    {
+      await effectiveRecordPayment({
         id: studentId || studentName,
         studentId,
         studentName,
@@ -2967,6 +2983,9 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
 
     setNoticeBanner(`✅ Payment of GHS ${amountVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} recorded for ${studentName}! Receipt #${newReceiptNo} issued.`);
     setActiveTab('Reprint receipt');
+    setM?.(null);
+    } catch (error) { setNoticeBanner(`Payment not confirmed: ${error.message}`); }
+    finally { receiptSaveLock.current = false; }
   };
 
   const toggleOptionalSelect = (id) => {
@@ -12155,7 +12174,7 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
 
   // Academic Settings & Academic Header Manager
   if (link === 'Academic Settings' || link === 'Add new year student academic bill header file' || link.toLowerCase().includes('academic setting') || link === 'Global Academic Settings') {
-    return <AcademicSettingsManager inline={true} />;
+    return <AcademicSettingsManager inline={true} onSaved={() => setM(null)} />;
   }
 
   // Register for Exams Form (Individual & Class Bulk Candidate Exam Registration)
@@ -12383,7 +12402,7 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
 
   // Pay PV Form
   if (link === 'Pay PV' || link === 'Disburse Payment Voucher (PV)') {
-    return <OfficialPayPVForm />;
+    return <OfficialPayPVForm onCompleted={() => setM(null)} />;
   }
 
   // Print PV Form

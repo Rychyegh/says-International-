@@ -19,7 +19,7 @@ function isPvDisbursed(v) {
   return false;
 }
 
-export default function PayPVForm() {
+export default function PayPVForm({ onCompleted } = {}) {
   const { paymentVouchers = [], disbursePaymentVoucher } = usePortalData();
 
   const voucherPayableAmount = payableAmount;
@@ -240,7 +240,8 @@ export default function PayPVForm() {
       
       const paidSnapshot = mapApiPaymentVoucher(confirmedVoucher);
       setPayingVoucher(null);
-      setReceiptVoucher(paidSnapshot);
+      if (onCompleted) onCompleted(paidSnapshot);
+      else setReceiptVoucher(paidSnapshot);
     } catch (err) {
       setPaymentNotice(err?.message || 'Disbursing this payment voucher failed.');
     } finally {

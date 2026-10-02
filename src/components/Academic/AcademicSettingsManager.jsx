@@ -4,7 +4,7 @@ import { validateAcademicSettings } from '../../lib/assessmentRules.js';
 import { usePortalData } from '../../data/PortalStore';
 import { Settings, Calendar, Save, CheckCircle2, RefreshCw, ShieldCheck, Award, BookOpen, Building } from 'lucide-react';
 
-export default function AcademicSettingsManager({ onClose, inline = false }) {
+export default function AcademicSettingsManager({ onClose, onSaved, inline = false }) {
   const { academicSettings, updateAcademicSettings } = usePortalData();
 
   const [year, setYear] = useState(academicSettings?.academicYear || '2025/2026');
@@ -65,6 +65,7 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
     setSavedNotice(`✅ Academic Settings Synchronized! Global Session set to ${year} (${term}).`);
     setTimeout(() => setSavedNotice(''), 4500);
 
+    onSaved?.();
     if (onClose && !inline) {
       onClose();
     }

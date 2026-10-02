@@ -374,6 +374,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
         setItemRequisitionNo(`REQ-2026-${Math.floor(100 + Math.random() * 900)}`);
         setPvItems([]);
         setDescription('');
+        setM(null);
       } catch (err) {
         setSuccessNotice(`PV submission failed: ${err?.message || 'Database did not confirm the voucher.'}`);
       } finally { pvLock.current = false; setPostingPV(false); }
