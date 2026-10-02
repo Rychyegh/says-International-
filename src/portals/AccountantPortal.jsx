@@ -119,10 +119,10 @@ export default function AccountantPortal({ onSignOut }) {
   const [refreshError, setRefreshError] = useState('');
   const reloadAccounts = async () => { setRefreshError(''); try { await refreshAccounts(); } catch (error) { setRefreshError(error.message); } };
   const STATS = [
-    { label: 'Total Revenue Billed', value: `GHS ${totalBilled.toLocaleString()}`, trend: 'Term 1 · 2026', icon: '💳', bg: '#e0f2fe', ic: '#0369a1', nav: 'Fee Structure & Rates' },
-    { label: 'Total Collected', value: `GHS ${totalPaid.toLocaleString()}`, trend: `${Math.round((totalPaid / (totalBilled || 1)) * 100)}% collected`, icon: '✅', bg: '#dcfce7', ic: '#15803d', nav: 'Daily Collection Summary' },
-    { label: 'Outstanding Balance', value: `GHS ${totalOutstanding.toLocaleString()}`, trend: `${owingCount} accounts owing`, icon: '⚠️', bg: '#fee2e2', ic: '#b91c1c', nav: 'Fee Debtors & Arrears' },
-    { label: 'Settled Accounts', value: String(paidCount), trend: `Out of ${studentFees.length} students`, icon: '🎉', bg: '#fef3c7', ic: '#b45309', nav: 'Fee Ledgers & Payments' },
+    { label: 'Total Revenue Billed', value: `GHS ${totalBilled.toLocaleString()}`, trend: 'Term 1 · 2026', icon: '💳', bg: '#e0f2fe', ic: '#0369a1', filter: 'All' },
+    { label: 'Total Collected', value: `GHS ${totalPaid.toLocaleString()}`, trend: `${Math.round((totalPaid / (totalBilled || 1)) * 100)}% collected`, icon: '✅', bg: '#dcfce7', ic: '#15803d', filter: 'Collected' },
+    { label: 'Outstanding Balance', value: `GHS ${totalOutstanding.toLocaleString()}`, trend: `${owingCount} accounts owing`, icon: '⚠️', bg: '#fee2e2', ic: '#b91c1c', filter: 'Owing' },
+    { label: 'Settled Accounts', value: String(paidCount), trend: `Out of ${studentFees.length} students`, icon: '🎉', bg: '#fef3c7', ic: '#b45309', filter: 'Paid' },
   ].map(stat => ({ ...stat, value: accountError ? 'Unavailable' : accountsLoading && !studentFees.length ? '…' : stat.value, trend: accountError ? 'Accounts data could not be loaded' : accountsLoading ? 'Refreshing database records' : stat.trend }));
 
   const filteredFees = (studentFees || []).filter((fee) => {
@@ -135,6 +135,7 @@ export default function AccountantPortal({ onSignOut }) {
       studentId.includes(query) ||
       guardianName.includes(query);
 
+    if (feeFilter === 'Collected') return matchesSearch && Number(fee?.paidAmount || 0) > 0;
     if (feeFilter === 'Paid') return matchesSearch && Number(fee?.balance || 0) === 0;
     if (feeFilter === 'Owing') return matchesSearch && Number(fee?.balance || 0) > 0;
     return matchesSearch;
@@ -417,14 +418,19 @@ export default function AccountantPortal({ onSignOut }) {
               {/* Stats */}
               <div className="stats-grid">
                 {STATS.map((s) => (
-                  <div
+                  <button
+                    type="button"
+                    aria-label={`View ${s.label}`}
                     className="stat-card"
                     key={s.label}
                     onClick={() => {
-                      if (s.nav) setActiveNav(s.nav);
+                      setSearchQuery('');
+                      setFeeFilter(s.filter);
+                      setActiveNav('Fee Ledgers & Payments');
+                      window.scrollTo({top:0,behavior:'smooth'});
                     }}
-                    style={{ cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease' }}
-                    title={`Click to view ${s.nav}`}
+                    style={{ textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease' }}
+                    title={`View ${s.label}`}
                   >
                     <div className="stat-card__icon" style={{ background: s.bg, color: s.ic, fontSize: 20 }}>{s.icon}</div>
                     <div>
@@ -432,7 +438,7 @@ export default function AccountantPortal({ onSignOut }) {
                       <div className="stat-card__label">{s.label}</div>
                     </div>
                     <div className="stat-card__trend" style={{ color: s.ic }}>{s.trend}</div>
-                  </div>
+                  </button>
                 ))}
               </div>
 
@@ -564,10 +570,11 @@ export default function AccountantPortal({ onSignOut }) {
                 </div>
 
                 <div style={{ display: 'flex', gap: 6 }}>
-                  {['All', 'Paid', 'Owing'].map((filter) => (
+                  {['All', 'Collected', 'Paid', 'Owing'].map((filter) => (
                     <button
                       key={filter}
                       onClick={() => setFeeFilter(filter)}
+                      aria-pressed={feeFilter === filter}
                       style={{
                         padding: '8px 16px', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                         background: feeFilter === filter ? ACCOUNT_BG : 'var(--gray-100)',
