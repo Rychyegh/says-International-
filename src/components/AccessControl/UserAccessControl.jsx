@@ -410,7 +410,9 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       return;
     }
 
-    if (refreshBackendData) await refreshBackendData();
+    // The write is confirmed: close before background list refreshes.
+    setEditingUser(null);
+    if (refreshBackendData) void refreshBackendData().catch(console.warn);
     addAuditLog('Account Modified', editingUser.email, `Updated profile / role details for ${editingUser.fullName}.`);
     setEditingUser(null);
     triggerToast(`User record for ${editingUser.fullName} was updated in the database.`);

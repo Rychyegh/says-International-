@@ -26,6 +26,7 @@ async function setup(view,role){
  await page.goto(`http://127.0.0.1:5179/tests/store-harness.html?enabled=1&view=${view}`);await page.evaluate(role=>window.mountStore(role,true),role);await page.waitForFunction(()=>window.testStore&&!window.testStore.isRefreshingBackend);return page;
 }
 try{
+ const head=await setup('approve','head_admin');
  const sub=await setup('pv','sub_admin');const form=sub.getByRole('form',{name:'Service provider form'});
  await form.getByPlaceholder('e.g. Market Depot / Vendor Name').fill('Test Supplier');
  await form.getByPlaceholder('e.g. vendor@example.com').fill('supplier@example.test');
@@ -35,15 +36,22 @@ try{
  assert.equal(await sub.getByLabel('Select or Add Provider').inputValue(),pid);
  assert.equal(providers.length,1);
  await sub.getByPlaceholder('e.g. Electricity bill, Canteen supplies, Bus maintenance...').fill('Repair classroom fans');await sub.getByPlaceholder('1',{exact:true}).fill('2');await sub.getByPlaceholder('0.00',{exact:true}).fill('25');
+ await sub.getByRole('button',{name:'+ Add to PV',exact:true}).click();
+ await sub.getByPlaceholder('1',{exact:true}).fill('');await sub.getByPlaceholder('0.00',{exact:true}).fill('');
  pvFail=500;await sub.getByRole('button',{name:'Post PV for Approval >>',exact:true}).click();await sub.getByText('PV submission failed:',{exact:false}).waitFor();assert.equal(vouchers.length,0);assert.equal(calls.filter(c=>c.path==='/finance/pv'&&c.method==='POST').length,0);
  pvFail=0;await sub.getByRole('button',{name:'Post PV for Approval >>',exact:true}).dblclick();await sub.waitForFunction(()=>window.testStore.paymentVouchers.length===1);assert.equal(vouchers[0].payee_id,pid);assert.equal(vouchers[0].amount,50);
  const attempts=calls.filter(c=>c.path==='/finance/vouchers'&&c.method==='POST');assert.equal(attempts.length,2);assert.equal(attempts[0].key,attempts[1].key);
- const head=await setup('approve','head_admin');await head.waitForFunction(()=>window.testStore?.paymentVouchers.some(v=>v.pvNo==='PV-2026-1001'));
+ await head.waitForFunction(()=>window.testStore?.paymentVouchers.some(v=>v.pvNo==='PV-2026-1001'));
+ await head.waitForFunction(()=>window.testStore.pvNotifications.some(n=>n.pvNo==='PV-2026-1001'),{},{timeout:15000});
+ await head.evaluate(()=>window.testStore.markAllPVNotificationsRead());
+ assert.equal(await head.evaluate(()=>window.testStore.pvNotifications[0].read),true);
  await head.getByText('Test Supplier',{exact:true}).first().waitFor();
  await head.getByText('Test Supplier',{exact:true}).first().click();
  const approve=head.getByRole('button',{name:'Approve',exact:true}).first();approveFail=403;await approve.click();await head.getByText('Approval rejected',{exact:false}).first().waitFor();assert.equal(vouchers[0].status,'PRE_AUDITED');
  approveFail=0;await approve.click();await head.waitForFunction(()=>window.testStore.paymentVouchers[0]?.status==='Validated');assert.equal(vouchers[0].status,'APPROVED');
  assert.equal(calls.filter(c=>c.path.endsWith('/pre-audit')).length,1,'retry resumes approval without repeating pre-audit');
+ await head.waitForFunction(()=>window.testStore.pvNotifications.length===0);
+ await sub.waitForFunction(()=>window.testStore.paymentVouchers[0]?.status==='Validated',{},{timeout:15000});
  await sub.reload();await sub.waitForFunction(()=>window.testStore?.paymentVouchers[0]?.status==='Validated');assert.equal(await sub.getByLabel('Select or Add Provider').locator('option', {hasText:'Test Supplier'}).count(),1);
  await sub.getByLabel('Select or Add Provider').selectOption('__NEW_PROVIDER__');
  const quick=sub.getByRole('form',{name:'Quick provider form'});

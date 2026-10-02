@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Topbar from './components/Topbar/Topbar';
 import LoginPage from './components/Login/LoginPage';
@@ -8,7 +8,8 @@ import StudentPortal from './portals/StudentPortal';
 import AdminPortal from './portals/AdminPortal';
 import AccountantPortal from './portals/AccountantPortal';
 import { PortalDataProvider } from './data/PortalStore';
-import { api, getAuthToken, setAuthToken, setAuthUser } from './services/api';
+import { api, getAuthToken, getAuthUser, setAuthToken, setAuthUser } from './services/api';
+import { portalForRole } from './lib/recordRules';
 import './App.css';
 
 const REQUIRES_AUTH = ['admin', 'accountant', 'parent', 'teacher', 'student'];
@@ -66,18 +67,23 @@ function AppRoutes() {
 
   // Portals require authentication sign-in (persisted across page refresh)
   const [authed, setAuthed] = useState(() => {
-    try {
-      const stored = localStorage.getItem('says_authed_portals');
-      if (stored) return JSON.parse(stored);
-    } catch (e) {}
+    let stored = {};
+    try { stored = JSON.parse(localStorage.getItem('says_authed_portals') || '{}') || {}; }
+    catch { /* The server session can still restore admin access. */ }
+    const user = getAuthUser();
+    // These flags select the restore flow; /auth/me still gates admin access.
+    const restoreAdmin = Boolean(getAuthToken()) && (stored.admin === true || portalForRole(user?.role || user?.portalRole) === 'admin');
     return {
-      admin: false,
-      accountant: false,
-      parent: false,
-      teacher: false,
-      student: false,
+      ...stored,
+      admin: restoreAdmin,
+      accountant: stored.accountant === true,
+      parent: stored.parent === true,
+      teacher: stored.teacher === true,
+      student: stored.student === true,
     };
   });
+
+  const resumeAdminUser = useRef(authed.admin ? getAuthUser()?.id : null);
 
   // Browser preferences never establish administrator privileges.
   const [adminRole, setAdminRole] = useState(null);
@@ -130,7 +136,7 @@ function AppRoutes() {
     return () => { active = false; };
   }, [activePortal, authed.admin, sessionRetry]);
   useEffect(() => {
-    const reauthenticate = () => { setAdminSession('login'); setAuthed(current => ({ ...current, admin: false })); };
+    const reauthenticate = () => { resumeAdminUser.current = getAuthUser()?.id; setAdminSession('login'); setAuthed(current => ({ ...current, admin: false })); };
     const verified = () => { setAdminSession('checking'); setSessionRetry(value => value + 1); };
     window.addEventListener('says_reauthenticate', reauthenticate);
     window.addEventListener('says_session_verified', verified);
@@ -139,6 +145,7 @@ function AppRoutes() {
   const isAuthed = authed[activePortal] && (activePortal !== 'admin' || (adminSession === 'ready' && verifiedAdminToken === getAuthToken()));
 
   const handleSignOut = () => {
+    resumeAdminUser.current = null;
     setAdminRole(null); setVerifiedAdminToken(null); setAdminSession('checking');
     setAuthToken(null);
     setAuthUser(null);
@@ -200,7 +207,9 @@ function AppRoutes() {
         <LoginPage
           portal={portalKey}
           onLoginSuccess={(role) => {
-            openPortalOnDashboard(portalKey);
+            const resumePage = portalKey === 'admin' && resumeAdminUser.current && resumeAdminUser.current === getAuthUser()?.id;
+            if (!resumePage) openPortalOnDashboard(portalKey);
+            resumeAdminUser.current = null;
             if (role) {
               setAdminRole(role);
               localStorage.setItem('says_admin_role', role);

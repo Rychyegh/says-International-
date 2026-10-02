@@ -1,3 +1,4 @@
+import ItemDisbursementModal from './ItemDisbursementModal';
 import ViewportModal from '../Modal/ViewportModal';
 import { payableAmount, voucherIdentityKey as disbursementIdentityKey } from '../../lib/recordRules.js';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
@@ -214,7 +215,7 @@ export default function PayPVForm() {
   // Submit Payment / Disbursement
   const handleConfirmDisbursement = async (e) => {
     e.preventDefault();
-    if (!payingVoucher) return;
+    if (!payingVoucher || payingVoucher.items?.length > 1 || isProcessing) return;
 
     setIsProcessing(true);
     const targetPvNo = payingVoucher.pvNo || payingVoucher.id;
@@ -869,7 +870,8 @@ export default function PayPVForm() {
       </div>
 
       {/* DISBURSEMENT PAYMENT MODAL */}
-      {payingVoucher && (
+      {payingVoucher?.items?.length > 1 && <ItemDisbursementModal voucher={payingVoucher} onClose={() => setPayingVoucher(null)} />}
+      {payingVoucher && !(payingVoucher.items?.length > 1) && (
         <ViewportModal onClose={() => setPayingVoucher(null)} style={{
           position: 'fixed',
           top: 0,

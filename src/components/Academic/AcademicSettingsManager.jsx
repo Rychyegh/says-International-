@@ -66,7 +66,7 @@ export default function AcademicSettingsManager({ onClose, inline = false }) {
     setTimeout(() => setSavedNotice(''), 4500);
 
     if (onClose && !inline) {
-      setTimeout(() => onClose(), 1200);
+      onClose();
     }
   };
 

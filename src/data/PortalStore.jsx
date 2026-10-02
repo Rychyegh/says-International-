@@ -1,3 +1,4 @@
+import { voucherNotifications } from '../lib/pvNotifications.js';
 import { sameStudentIdentity, studentDisplayCode } from '../lib/studentIdentity.js';
 import { validateAcademicSettings } from '../lib/assessmentRules.js';
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
@@ -1423,6 +1424,14 @@ export function PortalDataProvider({ children, enabled = false }) {
   const cacheGenerationRef = useRef({ admissions: 0, 'payment-vouchers': 0 });
   useEffect(() => { document.documentElement.dataset.theme = data.theme || 'light'; }, [data.theme]);
 
+  const dismissedPVNotifications = useRef(new Set());
+  useEffect(() => {
+    setData(current => {
+      const notices = voucherNotifications(current.paymentVouchers || [], current.pvNotifications, dismissedPVNotifications.current);
+      return isDeepEqual(notices, current.pvNotifications) ? current : {...current, pvNotifications: notices};
+    });
+  }, [data.paymentVouchers]);
+
   const isRefreshingRef = useRef(false);
 
   // Sync strictly with live backend API endpoints  on mount & intervals
@@ -2145,18 +2154,24 @@ export function PortalDataProvider({ children, enabled = false }) {
       const generation = (cacheGenerationRef.current['payment-vouchers'] || 0) + 1;
       cacheGenerationRef.current['payment-vouchers'] = generation;
       jobs.push((async () => {
+        const token = getAuthToken();
+        const epoch = mutationEpochRef.current;
+        const isCurrent = () => mountedRef.current && token === getAuthToken() && epoch === mutationEpochRef.current && cacheGenerationRef.current['payment-vouchers'] === generation;
         try {
           const raw = await api.getPaymentVouchers();
-          if (cacheGenerationRef.current['payment-vouchers'] !== generation) return;
-          setData((current) => {
-            if (cacheGenerationRef.current['payment-vouchers'] !== generation) return current;
-            const pvs = api.extractPaymentVoucherList(raw);
-            const mapped = Array.isArray(pvs) ? deduplicatePaymentVouchers(pvs.map(mapApiPaymentVoucher)) : [];
-            if (isDeepEqual(current.paymentVouchers, mapped)) return current;
-            return { ...current, paymentVouchers: mapped };
+          const mapped = deduplicatePaymentVouchers(api.extractPaymentVoucherList(raw).map(mapApiPaymentVoucher));
+          if (!isCurrent()) return;
+          if (!isDeepEqual(dataRef.current.paymentVouchers, mapped)) mutationEpochRef.current += 1;
+          setData(current => {
+            if (token !== getAuthToken() || cacheGenerationRef.current['payment-vouchers'] !== generation) return current;
+            if (isDeepEqual(current.paymentVouchers, mapped) && !current.syncErrors?.paymentVouchersRes) return current;
+            const syncErrors = {...current.syncErrors};
+            delete syncErrors.paymentVouchersRes;
+            return {...current, paymentVouchers: mapped, syncErrors};
           });
-        } catch (e) {
-          console.warn('Payment voucher cache refresh failed:', e);
+        } catch (error) {
+          if (!isCurrent()) return;
+          setData(current => ({...current, syncErrors: {...current.syncErrors, paymentVouchersRes: `PV updates could not be loaded. ${error.message}`}}));
         }
       })());
     }
@@ -2186,6 +2201,27 @@ export function PortalDataProvider({ children, enabled = false }) {
       clearInterval(autoRefreshInterval);
     };
   }, [refreshBackendData, enabled]);
+
+  // Fetch vouchers independently of slower school-wide refreshes, including
+  // submissions made from another account/device. Never overlap these polls.
+  useEffect(() => {
+    if (!enabled || !['admin', 'accountant'].includes(portalForRole(getAuthUser()?.role))) return;
+    let busy = false;
+    const refresh = async () => {
+      if (busy || document.visibilityState === 'hidden') return;
+      busy = true;
+      try { await invalidateQueries(['payment-vouchers']); }
+      finally { busy = false; }
+    };
+    const timer = setInterval(refresh, 5000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [enabled, invalidateQueries]);
 
   const performOnboardStudent = useCallback(async (student) => {
     const fName = (student.firstName || '').trim();
@@ -3796,11 +3832,7 @@ export function PortalDataProvider({ children, enabled = false }) {
     addSubject: async (newSubject) => {
       if (!newSubject) return;
       const subjectName = newSubject.trim();
-      try {
-        await api.createCatalogEntry('subjects', subjectName);
-      } catch (e) {
-        console.warn('Backend subject catalog fallback:', e);
-      }
+      await api.createCatalogEntry('subjects', subjectName);
       setData((current) => {
         const existing = current.subjects || DEFAULT_SUBJECTS;
         if (existing.includes(subjectName)) return current;
@@ -3965,10 +3997,10 @@ export function PortalDataProvider({ children, enabled = false }) {
         pvNotifications: notifs.map(n => ({ ...n, read: true }))
       };
     }),
-    clearPVNotifications: () => setData((current) => ({
-      ...current,
-      pvNotifications: []
-    })),
+    clearPVNotifications: () => setData(current => {
+      (current.pvNotifications || []).forEach(notice => dismissedPVNotifications.current.add(notice.voucherId));
+      return {...current, pvNotifications: []};
+    }),
     markPVNotificationRead: (idOrPvNo) => setData((current) => {
       const key = String(idOrPvNo).toLowerCase().trim();
       return {

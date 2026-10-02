@@ -1,0 +1,15 @@
+Independent PV item authorization and disbursement — backend dependency
+
+Frontend now presents multi-item PVs as separate instruction forms. Each item has source account, destination account, beneficiary, method, expense account, reference, date and notes. Draft instructions are saved only in this tab's sessionStorage, scoped to account, voucher and item. Saving is not authorization or payment. Single-item vouchers retain the existing flow.
+
+Live schema inspected at https://rcis-backend.onrender.com/api/v1/openapi.json on 2026-10-02. It exposes POST /api/v1/finance/vouchers/{pv_id}/disburse and no item disbursement route or request body. The frontend therefore disables multi-item payment actions; it must not send an item selection to a route that can settle the entire voucher. No backend source is present in this workspace.
+
+Required backend implementation (proposed contract, not an existing API):
+- Stable database item IDs, separate approved amount, paid amount, unpaid balance and item payment status in voucher reads. Never target an item by generated client index.
+- Item-specific authorization and disbursement operations accepting the item ID, source account ID, destination account/payee details, payment method, expense account ID, reference, date, notes, expected version and idempotency key. Resolve real accounts and validate permissions on the server.
+- Only approved, unpaid items can be paid. Compute amounts from persisted items, never the client. Lock/check the item and version in one transaction; commit item status, balanced ledger and audit trail together. Other items must remain unchanged.
+- Durable idempotency scoped to actor/voucher/item/operation; reject changed inputs under the same key. Uncertain retries preserve the original inputs and key. Return canonical item/payment/voucher state and receipt identity; support reconciliation after lost responses.
+- Keep the voucher partially paid until all payable approved items are settled. Expose individual references, accounts, amounts and dates for history and receipts. Do not label partially paid vouchers fully disbursed.
+- Define whether authorization and disbursement are distinct server actions/roles and publish both contracts if so.
+
+After the API is implemented: connect each button to the documented operation, validate its confirmed item result, refresh only affected state, persist retry protection and test independent sources/destinations, mixed approvals, partial payments, duplicate clicks, refresh, concurrency and lost-response replay. Remove the temporary unavailability message only after those tests pass.

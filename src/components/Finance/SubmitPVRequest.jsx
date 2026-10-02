@@ -293,7 +293,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
 
     setPvItems(prev => [...prev, newItem]);
     setSuccessNotice(`➕ Added "${newItem.description}" (GHS ${totalNum.toFixed(2)}) to Payment Voucher #${pvNo}.`);
-    setTimeout(() => setSuccessNotice(''), 4000);
+
   };
 
   // Action 2: Post PV for Approval >>
@@ -305,7 +305,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
     }
 
     if (!providerId || !serviceProviders.some(p => p.id === providerId)) { setSuccessNotice('PV validation failed: select a saved provider first.'); return; }
-    if (!Number.isInteger(Number(qty)) || Number(qty) <= 0 || !Number.isFinite(Number(costPerItem)) || Number(costPerItem) <= 0) { setSuccessNotice('PV validation failed: enter a positive whole quantity and unit cost.'); return; }
+    if (pvItems.length === 0 && (!Number.isInteger(Number(qty)) || Number(qty) <= 0 || !Number.isFinite(Number(costPerItem)) || Number(costPerItem) <= 0)) { setSuccessNotice('PV validation failed: enter a positive whole quantity and unit cost.'); return; }
     const cleanQtyStr = String(qty);
     const cleanCostStr = String(costPerItem).replace(/[^0-9.]/g, '');
     const fallbackQty = parseInt(cleanQtyStr, 10) || 1;
@@ -364,7 +364,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
     };
 
     if (createPaymentVoucher) {
-      pvLock.current = true; setPostingPV(true);
+      pvLock.current = true; setPostingPV(true); setSuccessNotice('Submitting PV for approval…');
       try {
         const savedPV = await createPaymentVoucher(newPVRecord);
         setSuccessNotice(`⚡ ✅ Successfully posted Payment Voucher #${savedPV.pvNo} (GHS ${totalPVAmount.toFixed(2)}) to Headmaster for Pre-Audit & Approval!`);
@@ -379,7 +379,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       } finally { pvLock.current = false; setPostingPV(false); }
     }
 
-    setTimeout(() => setSuccessNotice(''), 7000);
+
   };
 
   // Action 3: Print Out PV/Memo //
@@ -419,7 +419,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
     } else {
       setSuccessNotice(`↩️ Reversed / Voided Payment Voucher #${pvNo}.`);
     }
-    setTimeout(() => setSuccessNotice(''), 4000);
+
   };
 
   // Format Date for Display (e.g. Wednesday, September 30, 2026)
@@ -470,7 +470,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
 
       {/* Success Notification Banner */}
       {successNotice && (
-        <div style={{
+        <div role="status" aria-live="polite" style={{
           padding: '12px 18px',
           background: /failed/i.test(successNotice) ? '#fee2e2' : '#dcfce7',
           border: /failed/i.test(successNotice) ? '1px solid #fca5a5' : '1px solid #86efac',

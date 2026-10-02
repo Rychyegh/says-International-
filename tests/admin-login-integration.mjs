@@ -36,10 +36,12 @@ for(const [pin,role] of [['2468','head_admin'],['2468','sub_admin']]){
  assert.equal(await page.getByText('Connection: No usable database session.',{exact:false}).count(),0);
  assert.equal(await page.evaluate(()=>localStorage.getItem('auth_token')),'opaque-verified');
  assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('auth_user')).role),role);
+ await page.locator('.sidebar-item').filter({hasText:'Student Roster'}).click();
+ await page.waitForFunction(()=>localStorage.getItem('says_admin_active_nav')==='Student Roster');
  // Missing or stale cached roles must never establish portal privileges.
  for (const cachedRole of [null, 'head_admin', 'sub_admin']) {
   await page.evaluate(value => {
-   if (value === null) localStorage.removeItem('says_admin_role');
+   if (value === null) {localStorage.removeItem('says_admin_role');localStorage.removeItem('says_authed_portals');}
    else localStorage.setItem('says_admin_role', value);
    const user = JSON.parse(localStorage.getItem('auth_user'));
    localStorage.setItem('auth_user', JSON.stringify({...user, role:'head_admin', adminRole:'head_admin'}));
@@ -51,6 +53,9 @@ for(const [pin,role] of [['2468','head_admin'],['2468','sub_admin']]){
   assert.equal(await page.getByText('👑 HEAD ADMIN',{exact:true}).count(),0);
   await page.getByRole('button',{name:'Sign Out',exact:true}).waitFor();
   await page.getByText(role==='sub_admin' ? '🛡️ SUB ADMIN' : '👑 HEAD ADMIN',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>localStorage.getItem('says_admin_active_nav')),'Student Roster');
+  await page.locator('.sidebar-item.active').filter({hasText:'Student Roster'}).waitFor();
+  assert.equal(await page.locator('#admin-email').count(),0);
   assert.equal(await page.evaluate(()=>localStorage.getItem('says_admin_role')),role);
   assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('auth_user')).role),role);
   if(role==='sub_admin') {
@@ -68,6 +73,18 @@ for(const [pin,role] of [['2468','head_admin'],['2468','sub_admin']]){
  }
 
  assert.ok(sessionChecks>=3);assert.equal(pinCalls,2);assert.equal(protectedBeforeVerified,0);
+ // If the server requires PIN verification again, return this account to its page.
+ verified=false;
+ await page.evaluate(()=>{
+  localStorage.setItem('auth_token','opaque-provisional');
+  window.dispatchEvent(new Event('says_reauthenticate'));
+ });
+ await page.locator('#admin-pin-input').waitFor();
+ await page.locator('#admin-pin-input').fill(pin);
+ await page.getByRole('button',{name:'Verify PIN & Complete Sign In'}).click();
+ await page.getByRole('button',{name:'Sign Out',exact:true}).waitFor();
+ await page.locator('.sidebar-item.active').filter({hasText:'Student Roster'}).waitFor();
+ assert.equal(await page.evaluate(()=>localStorage.getItem('says_admin_active_nav')),'Student Roster');
  await page.close();
 }
 for (const portal of ['accountant','teacher','parent','student']) {

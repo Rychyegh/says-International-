@@ -1,3 +1,4 @@
+import { isPendingVoucher } from '../lib/pvNotifications.js';
 import ViewportModal from '../components/Modal/ViewportModal';
 import { TimetableManager } from '../components/Academic/Timetable';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
@@ -228,15 +229,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
   // PV Approval Notifications & Pending Voucher Queue Detection
   const pendingPVs = useMemo(() => {
-    return (paymentVouchers || []).filter(p => {
-      const s = (p.status || '').toLowerCase().trim();
-      return s.includes('pending') || s === 'draft' || !s;
-    });
+    return (paymentVouchers || []).filter(isPendingVoucher);
   }, [paymentVouchers]);
 
-  const pendingPVCount = useMemo(() => {
-    return (pvNotifications || []).filter(n => !n.read).length;
-  }, [pvNotifications]);
+  const pendingPVCount = pendingPVs.length;
 
   // Uploaded exam scores awaiting Head Admin / Sub-Admin sign-off
   const pendingResultsCount = useMemo(() => {
@@ -356,19 +352,25 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     }
   };
 
-  const handleAddSubjectSubmit = (e) => {
+  const [subjectSaving, setSubjectSaving] = useState(false);
+  const [subjectError, setSubjectError] = useState('');
+  const subjectSaveLock = useRef(false);
+  useEffect(() => { if (isAddingSubject) setSubjectError(''); }, [isAddingSubject]);
+  const handleAddSubjectSubmit = async (e) => {
     e.preventDefault();
-    if (!newSubjectName.trim()) return;
-
-    if (addSubject) {
-      addSubject(newSubjectName.trim());
-    }
-
-    setStaffSubjectFilter(newSubjectName.trim());
-    setSuccessMsg(`📚 Subject / Department "${newSubjectName.trim()}" added successfully! Filter updated.`);
-    setNewSubjectName('');
-    setIsAddingSubject(false);
-    setTimeout(() => setSuccessMsg(''), 6000);
+    if (subjectSaveLock.current) return;
+    if (!newSubjectName.trim()) {setSubjectError('Enter a subject name.');return;}
+    subjectSaveLock.current = true; setSubjectSaving(true); setSubjectError('');
+    try {
+      if (!addSubject) throw new Error('Subject saving is unavailable.');
+      await addSubject(newSubjectName.trim());
+      setStaffSubjectFilter(newSubjectName.trim());
+      setSuccessMsg(`Subject / Department "${newSubjectName.trim()}" added successfully.`);
+      setNewSubjectName('');
+      setIsAddingSubject(false);
+      setTimeout(() => setSuccessMsg(''), 6000);
+    } catch (error) { setSubjectError(error.message || 'Subject could not be saved.'); }
+    finally { subjectSaveLock.current = false; setSubjectSaving(false); }
   };
 
   // Staff Management State
@@ -431,6 +433,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const [issuingCardStudent, setIssuingCardStudent] = useState(null);
   const [issuingParentCardStudent, setIssuingParentCardStudent] = useState(null);
   const [cardSearchQuery, setCardSearchQuery] = useState('');
+  const [cardSaving, setCardSaving] = useState(false);
+  const [cardError, setCardError] = useState('');
+  const cardSaveLock = useRef(false);
+  useEffect(() => { setCardError(''); }, [issuingCardStudent, issuingParentCardStudent]);
   const [cardForm, setCardForm] = useState({
     rfidCardCode: '',
     dailyLimit: '50',
@@ -441,7 +447,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
   const handleIssueStudentCardSubmit = async (e) => {
     e.preventDefault();
-    if (!issuingCardStudent || !cardForm.rfidCardCode.trim()) return;
+    if (!issuingCardStudent || cardSaveLock.current) return;
+    if (!cardForm.rfidCardCode.trim()) { setCardError('Enter or scan the RFID card UID.'); return; }
+    if (!Number.isFinite(Number(cardForm.dailyLimit)) || Number(cardForm.dailyLimit) < 0) { setCardError('Enter a valid daily limit of zero or more.'); return; }
+    cardSaveLock.current = true; setCardSaving(true); setCardError('');
 
     const issuedUid = cardForm.rfidCardCode.trim();
     try {
@@ -457,16 +466,17 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       setIssuingCardStudent(null);
       setCardForm({ rfidCardCode: '', dailyLimit: '50', pin: '1234', holderName: '', notes: '' });
     } catch (err) {
-      setSuccessMsg('RFID card issue failed. The database did not save this card, so nothing was kept in this browser.');
-    }
+      setCardError(`Card could not be issued: ${err.message || 'Please try again.'}`);
+    } finally { cardSaveLock.current = false; setCardSaving(false); }
     setTimeout(() => setSuccessMsg(''), 6000);
   };
 
   const handleIssueParentCardSubmit = async (e) => {
     e.preventDefault();
-    if (!issuingParentCardStudent) return;
-
-    const code = cardForm.rfidCardCode.trim() || `PCARD-${Date.now().toString().slice(-6)}`;
+    if (!issuingParentCardStudent || cardSaveLock.current) return;
+    const code = cardForm.rfidCardCode.trim();
+    if (!code) { setCardError('Enter the parent pickup card code.'); return; }
+    cardSaveLock.current = true; setCardSaving(true); setCardError('');
     try {
       if (!updateOnboardedStudent) {
         throw new Error('The database did not save this parent pickup card.');
@@ -479,8 +489,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       setIssuingParentCardStudent(null);
       setCardForm({ rfidCardCode: '', dailyLimit: '50', pin: '1234', holderName: '', notes: '' });
     } catch (err) {
-      setSuccessMsg('Parent pickup card issue failed. The database did not save this card, so nothing was kept in this browser.');
-    }
+      setCardError(`Parent card could not be issued: ${err.message || 'Please try again.'}`);
+    } finally { cardSaveLock.current = false; setCardSaving(false); }
     setTimeout(() => setSuccessMsg(''), 6000);
   };
 
@@ -787,7 +797,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const activeStudents = (onboardedStudents || []).filter((s) => isBackendUuid(s?.id) && s?.status === 'Active' && s?.is_active !== false).length;
   const totalStudents = activeStudents;
   const totalApplications = applicationsTotal;
-  const coreErrors = Object.entries({ studentsRes: 'Student roster', appsRes: 'Applications', staffRes: 'Teaching staff', connection: 'Connection' }).filter(([key]) => syncErrors[key]);
+  const coreErrors = Object.entries({ studentsRes: 'Student roster', appsRes: 'Applications', staffRes: 'Teaching staff', paymentVouchersRes: 'Payment vouchers', connection: 'Connection' }).filter(([key]) => syncErrors[key]);
   const recordCount = (key, count) => syncErrors[key] || syncErrors.connection || resourceStatus[key] === 'unavailable' ? 'Unavailable' : (resourceStatus[key] === 'loading' || isLoadingBackend) && !count ? '…' : count == null ? 'Unavailable' : String(count);
   const recordHint = key => syncErrors[key] || syncErrors.connection ? 'Could not load — see error above' : resourceStatus[key] === 'loading' ? 'Refreshing from the database' : null;
 
@@ -3910,6 +3920,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 </div>
 
                 <form onSubmit={handleAddSubjectSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {subjectError && <p role="alert" style={{color:'#991b1b'}}>{subjectError}</p>}
                   <label>
                     <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>New Subject / Department Name *</span>
                     <input
@@ -3932,10 +3943,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       Cancel
                     </button>
                     <button
-                      type="submit"
+                      type="submit" disabled={subjectSaving}
                       style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: 'var(--ics-green-600)', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
                     >
-                      📚 Add Subject & Update Filter
+                      {subjectSaving ? 'Saving subject…' : '📚 Add Subject & Update Filter'}
                     </button>
                   </div>
                 </form>
@@ -3994,7 +4005,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           {/* ── ISSUE / ENCODE STUDENT RFID CARD MODAL ── */}
           {issuingCardStudent && (
             <ViewportModal
-              onClick={(e) => { if (e.target === e.currentTarget) setIssuingCardStudent(null); }}
+              onClick={(e) => { if (!cardSaving && e.target === e.currentTarget) setIssuingCardStudent(null); }}
               style={{
                 position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
@@ -4006,19 +4017,20 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>💳 Encode & Issue Student Smart RFID Card</h3>
                     <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0 0' }}>Assign RFID/NFC Tag UID to {issuingCardStudent.fullName} ({issuingCardStudent.studentId})</p>
                   </div>
-                  <button onClick={() => setIssuingCardStudent(null)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 30, height: 30, borderRadius: 15, cursor: 'pointer', fontWeight: 900 }}>✕</button>
+                  <button disabled={cardSaving} onClick={() => setIssuingCardStudent(null)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 30, height: 30, borderRadius: 15, cursor: 'pointer', fontWeight: 900 }}>✕</button>
                 </div>
 
-                <form onSubmit={handleIssueStudentCardSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <form aria-busy={cardSaving} onSubmit={handleIssueStudentCardSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13 }}>
                     <div style={{ fontWeight: 800, color: '#0f172a' }}>Learner: {issuingCardStudent.fullName}</div>
                     <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>ID: <code>{issuingCardStudent.studentId}</code> | Grade: {issuingCardStudent.level} | Guardian: {issuingCardStudent.guardianName}</div>
                   </div>
 
+                  {cardError && <p role="alert" style={{color:'#991b1b',background:'#fef2f2',padding:12,borderRadius:8}}>{cardError}</p>}
                   <label>
                     <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>RFID / NFC Card Hardware UID *</span>
                     <input
-                      type="text"
+                      type="text" disabled={cardSaving}
                       required
                       placeholder="e.g. RFID-8849-2026 or tap RFID scanner"
                       value={cardForm.rfidCardCode}
@@ -4032,7 +4044,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     <label>
                       <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Daily Canteen Limit (GHS)</span>
                       <input
-                        type="number"
+                        type="number" disabled={cardSaving}
                         min="0"
                         value={cardForm.dailyLimit}
                         onChange={(e) => setCardForm({ ...cardForm, dailyLimit: e.target.value })}
@@ -4043,7 +4055,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     <label>
                       <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Card Security PIN</span>
                       <input
-                        type="text"
+                        type="text" disabled={cardSaving}
                         maxLength="4"
                         value={cardForm.pin}
                         onChange={(e) => setCardForm({ ...cardForm, pin: e.target.value })}
@@ -4055,16 +4067,16 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
                     <button
                       type="button"
-                      onClick={() => setIssuingCardStudent(null)}
+                      disabled={cardSaving} onClick={() => setIssuingCardStudent(null)}
                       style={{ flex: 1, padding: 10, border: '1px solid var(--gray-300)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 700 }}
                     >
                       Cancel
                     </button>
                     <button
-                      type="submit"
+                      type="submit" disabled={cardSaving}
                       style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: ADMIN_BG, color: '#fff', fontWeight: 900, cursor: 'pointer' }}
                     >
-                      💳 Write & Activate RFID Card
+                      {cardSaving ? 'Saving card…' : '💳 Write & Activate RFID Card'}
                     </button>
                   </div>
                 </form>
@@ -4075,7 +4087,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           {/* ── ISSUE PARENT PICKUP CARD MODAL ── */}
           {issuingParentCardStudent && (
             <ViewportModal
-              onClick={(e) => { if (e.target === e.currentTarget) setIssuingParentCardStudent(null); }}
+              onClick={(e) => { if (!cardSaving && e.target === e.currentTarget) setIssuingParentCardStudent(null); }}
               style={{
                 position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20
@@ -4087,19 +4099,20 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>👨‍👩‍👧 Issue Official Parent Pickup Pass</h3>
                     <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0 0' }}>Authorized Security Pickup Pass for {issuingParentCardStudent.guardianName}</p>
                   </div>
-                  <button onClick={() => setIssuingParentCardStudent(null)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 30, height: 30, borderRadius: 15, cursor: 'pointer', fontWeight: 900 }}>✕</button>
+                  <button disabled={cardSaving} onClick={() => setIssuingParentCardStudent(null)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 30, height: 30, borderRadius: 15, cursor: 'pointer', fontWeight: 900 }}>✕</button>
                 </div>
 
-                <form onSubmit={handleIssueParentCardSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <form aria-busy={cardSaving} onSubmit={handleIssueParentCardSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div style={{ background: '#faf5ff', padding: 12, borderRadius: 8, border: '1px solid #e9d5ff', fontSize: 13 }}>
                     <div style={{ fontWeight: 800, color: '#4c1d95' }}>Guardian: {issuingParentCardStudent.guardianName}</div>
                     <div style={{ fontSize: 12, color: '#6b21a8', marginTop: 2 }}>Associated Student: {issuingParentCardStudent.fullName} (<code>{issuingParentCardStudent.studentId}</code>)</div>
                   </div>
 
+                  {cardError && <p role="alert" style={{color:'#991b1b',background:'#fef2f2',padding:12,borderRadius:8}}>{cardError}</p>}
                   <label>
                     <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Parent Pickup Pass Serial / Barcode Code *</span>
                     <input
-                      type="text"
+                      type="text" disabled={cardSaving}
                       required
                       placeholder="e.g. PCARD-993821"
                       value={cardForm.rfidCardCode}
@@ -4112,16 +4125,16 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
                     <button
                       type="button"
-                      onClick={() => setIssuingParentCardStudent(null)}
+                      disabled={cardSaving} onClick={() => setIssuingParentCardStudent(null)}
                       style={{ flex: 1, padding: 10, border: '1px solid var(--gray-300)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 700 }}
                     >
                       Cancel
                     </button>
                     <button
-                      type="submit"
+                      type="submit" disabled={cardSaving}
                       style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: '#4a1d6e', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
                     >
-                      👨‍👩‍👧 Issue & Print Parent Pass
+                      {cardSaving ? 'Saving card…' : '👨‍👩‍👧 Issue & Print Parent Pass'}
                     </button>
                   </div>
                 </form>
