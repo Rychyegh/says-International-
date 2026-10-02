@@ -1,3 +1,4 @@
+import { requiresItemDisbursement } from '../lib/pvDisbursementItems.js';
 import { voucherNotifications } from '../lib/pvNotifications.js';
 import { sameStudentIdentity, studentDisplayCode } from '../lib/studentIdentity.js';
 import { validateAcademicSettings } from '../lib/assessmentRules.js';
@@ -617,8 +618,8 @@ export function mapApiPaymentVoucher(p = {}) {
     qty: Number(it.quantity || it.qty) || 1,
     cost: Number(it.unit_cost || it.cost) || 0,
     costPerItem: Number(it.unit_cost || it.costPerItem || it.cost) || 0,
-    total: Number(it.total_amount || it.total) || 0,
-    totalAmount: Number(it.total_amount || it.totalAmount || it.total) || 0,
+    total: Number(it.total_amount ?? it.total ?? it.amount) || 0,
+    totalAmount: Number(it.total_amount ?? it.totalAmount ?? it.total ?? it.amount) || 0,
     status: mapApiPvStatus(it.status || p.status),
     datePrepared: it.date_prepared || it.datePrepared || p.date_prepared || p.datePrepared,
   })) : [];
@@ -3491,7 +3492,7 @@ export function PortalDataProvider({ children, enabled = false }) {
       mutationEpochRef.current += 1;
       try {
         const raw = await api.recordFeePayment(fee.id, { ...payload, idempotencyKey });
-        const confirmed = raw.fee || raw.data?.fee;
+        const confirmed = raw.updatedFee || raw.fee || raw.data?.updatedFee || raw.data?.fee;
         if (!confirmed?.id || String(confirmed.id) !== String(fee.id)) throw new Error('Payment was not confirmed with the updated invoice. Refresh before retrying.');
         const saved = mapFeeFromApi(confirmed);
         setData(current => ({ ...current, studentFees: current.studentFees.map(f => String(f.id) === String(saved.id) ? saved : f), feeAccounts: buildFeeAccountsFromStudentFees(current.studentFees.map(f => String(f.id) === String(saved.id) ? saved : f)) }));
@@ -4078,6 +4079,7 @@ export function PortalDataProvider({ children, enabled = false }) {
       requireLiveDatabase('Disbursing this voucher');
       const voucher = (dataRef.current.paymentVouchers || []).find(v => String(v.id) === String(reference) || pvNosMatch(v.pvNo, reference));
       requireBackendUuid(voucher?.id, 'Disbursing this voucher');
+      if (requiresItemDisbursement(voucher)) throw new Error('This voucher needs separate item payments. Whole-voucher disbursement is unavailable for multi-item vouchers.');
       if (payableAmount(voucher) <= 0) throw new Error('This voucher has no approved amount to disburse.');
       const key = `disburse:${voucher.id}`;
       if (writeLocksRef.current.has(key)) throw new Error('This voucher is already being paid.');

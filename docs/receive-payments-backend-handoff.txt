@@ -1,0 +1,80 @@
+RECEIVE PAYMENTS AND PRINT RECEIPT — BACKEND HANDOFF
+2 October 2026
+
+Status
+The Accountant sidebar now includes Receive Payments, independently of the disabled Financial Hub. The frontend uses existing finance endpoints. This repository contains the frontend, not the backend service. No production payment was made during implementation. Browser tests use a simulated backend; live database behavior still requires staging verification.
+
+Workflow
+1. Load invoices from GET /api/v1/finance/fees.
+2. Select the specific invoice, not a name match. Enter an amount, payment method, payment date, transaction reference and notes.
+3. POST to /api/v1/finance/fees/{fee_id}/pay with Authorization: Bearer <token> and Idempotency-Key: <UUID>.
+4. Require the matching updated invoice before treating the payment as saved. Update the Accounts balance from that response.
+5. If the response includes receipt_number, open that exact receipt for printing. Print/reprint does not call POST and cannot create another payment.
+6. If the invoice is confirmed but receipt_number is missing, show payment saved / receipt unavailable. Do not ask the accountant to submit again to obtain a receipt.
+
+Existing API contract reviewed
+Source: https://rcis-backend.onrender.com/api/v1/openapi.json (public schema inspected 2 October 2026).
+POST /finance/fees/{fee_id}/pay accepts FeePaymentRequest:
+- paidAmount: positive decimal, maximum two decimal places / eight whole digits in the published schema.
+- paymentMethod: string.
+- paymentDate: ISO datetime or null. New UI sends the selected date as YYYY-MM-DDT00:00:00Z.
+- notes: optional string.
+- transactionRef: optional string.
+
+Example request body (all values synthetic):
+{
+  "paidAmount": 25,
+  "paymentMethod": "Mobile Money",
+  "paymentDate": "2026-10-02T00:00:00Z",
+  "notes": "Tuition instalment",
+  "transactionRef": "MOMO-123",
+  "idempotencyKey": "<same UUID as the header>"
+}
+
+Existing FeePaymentResponse declares message and updatedFee as required. It also declares success (default true), receipt_number and pdf_url. The previous frontend expected fee, causing a response-shape mismatch. PortalStore now supports updatedFee plus legacy fee and their data-wrapped forms.
+
+Expected successful response:
+{
+  "success": true,
+  "message": "Payment recorded",
+  "updatedFee": {
+    "id": "<same invoice ID as the request path>",
+    "student_id": "<database student ID>",
+    "student_name": "Payment Student",
+    "billed_amount": 100,
+    "paid_amount": 25,
+    "balance": 75
+  },
+  "receipt_number": "<server-issued unique receipt number>",
+  "pdf_url": "<optional authorized PDF route>"
+}
+
+The frontend uses the server-issued receipt number with the accepted request's amount, date, method and notes. Prefer returning a canonical receipt/payment object as well, containing payment ID, invoice ID, student ID, actual amount received, posted timestamp, cashier identity, reference and payment method. Agree and publish the field names before changing the response.
+
+Receipt APIs
+The live schema also exposes GET /finance/payments/{payment_id}/receipt.pdf and GET /finance/students/{studentId}/ledger. The current tab prints its confirmed receipt locally; it does not rely on arbitrary PDF URLs or add tokens to URLs. Fee Ledgers & Payments can print recorded payment entries from the student ledger. Ensure payment entries have an unambiguous PAYMENT / RECEIPT / FEE_PAYMENT type, reference, amount and date, and that reversals/waivers are not represented as received cash.
+
+Backend work to verify or implement
+A. Durable idempotency. The published payment route does not declare Idempotency-Key in its schema. The frontend sends it, but only server behavior can guarantee replay safety. Persist actor + operation + key + canonical request hash + status + original response. Same key and same inputs must return the original committed response. Same key with changed inputs must fail with 409. Concurrent identical requests must commit only once.
+B. Atomic commit. Lock/check the invoice and persist the payment, invoice totals, receipt, balanced accounting entries and audit trail together. Do not return success before the transaction commits. Roll back completely on validation or permission failure.
+C. Server validation. Enforce invoice/student identity, permitted roles, positive amount, decimal limits, current balance/overpayment policy, payment method and date. The UI rejects overpayments; the backend must independently do so. Do not trust a client balance or a student name.
+D. Confirmed response. Always include the matching invoice ID and canonical totals in updatedFee. Generate a unique, durable receipt number and return it on both original success and idempotent replay. Reject malformed success rather than silently returning an empty body.
+E. Reconciliation. Provide an authenticated lookup for an idempotency key/payment ID, especially when a browser tab closes during an uncertain request. A missing receipt or a temporary empty ledger is not evidence that a payment did not commit.
+F. Permission and audit. Authorize access to each invoice, receipt and PDF. Record the actual submitting account. Do not derive permission from frontend navigation or cached role labels.
+G. Error semantics. Return 401/403/422 only when that attempt did not write. A later rejection must not erase a previous uncertain outcome. Describe 409/version conflicts and transient failures in the schema.
+H. Receiving account. The published FeePaymentRequest does not declare a receiving-account field. This tab deliberately does not promise bank-account allocation. If required, publish account IDs, a permitted-accounts endpoint and the request field, validate it server-side, and include the canonical destination in the payment response/ledger before adding that selection.
+
+Frontend retry behavior
+The payment intent includes the original invoice ID, amount, date, method, reference and notes. A random UUID is retained with a hash and status in localStorage; original inputs are stored in this tab's sessionStorage, scoped to the logged-in account. While an outcome is uncertain, editing is locked and Retry original payment uses the same inputs and key. Reloading the same tab restores them. If original inputs are missing, further payments in this workflow remain blocked pending reconciliation. Do not tell users to clear browser storage to repair an uncertain payment.
+
+Frontend validation / release checks
+- New sidebar tab opens without enabling Financial Hub & Tools.
+- Initial 422 rejection retains editable inputs; no receipt is fabricated.
+- Simulated committed payment with lost response survives refresh and replays the original key/body without a duplicate transaction.
+- updatedFee response updates the visible balance.
+- Exact returned receipt number appears in the print preview; printing and reprinting create no new writes.
+- Missing receipt number after a confirmed invoice update must not trigger a new payment.
+- Explicitly test malformed responses, unavailable storage, denied permissions, concurrent cashiers, fully paid invoices and server-side replay in staging.
+
+Deployment
+Deploy the frontend build and confirm the sidebar tab on the hosted Accountant portal. Verify the backend idempotency guarantees above before treating lost-response retries as safe in production. No backend implementation or live financial transaction was performed in this task.

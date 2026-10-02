@@ -47,6 +47,7 @@ export default function ItemDisbursementModal({voucher,onClose}) {
       <header><div><h2>Authorization &amp; disbursement</h2><p>PV #{voucher.pvNo} · {voucher.items.length} items</p></div><button type="button" className="btn btn-outline-green" onClick={onClose}>Close</button></header>
       <p>Prepare each item separately, with its own source account, destination account and payment reference.</p>
       <p className="item-payment-availability" id="item-payment-availability">Item payments are not available yet. The payment service currently settles the whole voucher. You can save separate instructions in this tab; authorization and disbursement will be enabled when individual item payments are supported.</p>
+      {voucher.items.some(item => item.recoveredFromDescription) && <p className="item-payment-availability">These item details were recovered from the voucher description. The payment service must return saved item records before they can be paid separately.</p>}
       {voucher.items.map((item,index)=><ItemInstructions key={item.id || index} item={item} index={index} voucher={voucher} />)}
     </section>
   </ViewportModal>;

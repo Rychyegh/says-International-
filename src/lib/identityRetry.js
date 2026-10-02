@@ -4,7 +4,7 @@ const canonical = value => Array.isArray(value) ? value.map(canonical) : value &
   ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
 const hash = async value => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))), byte => byte.toString(16).padStart(2, '0')).join('');
 const slotFor = async (endpoint, actor) => PREFIX + await hash(JSON.stringify([endpoint, actor]));
-const finance = endpoint => ['/finance/service-providers', '/finance/vouchers'].includes(endpoint);
+const finance = endpoint => ['/finance/service-providers', '/finance/vouchers', '/finance/receive-payment'].includes(endpoint);
 const announce = () => { if (typeof window !== 'undefined') window.dispatchEvent(new Event('says_retry_changed')); };
 const description = error => ({ status: error?.status || null, message: String(error?.message || 'Response was lost; database outcome unknown.').slice(0, 500), at: new Date().toISOString() });
 

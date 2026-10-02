@@ -1,3 +1,4 @@
+import { voucherProviders } from '../../lib/pvProviders.js';
 import ViewportModal from '../Modal/ViewportModal';
 import RetryRecovery from './RetryRecovery';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -304,7 +305,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       return;
     }
 
-    if (!providerId || !serviceProviders.some(p => p.id === providerId)) { setSuccessNotice('PV validation failed: select a saved provider first.'); return; }
+    if (pvItems.length === 0 && (!providerId || !serviceProviders.some(p => p.id === providerId))) { setSuccessNotice('PV validation failed: select a saved provider first.'); return; }
     if (pvItems.length === 0 && (!Number.isInteger(Number(qty)) || Number(qty) <= 0 || !Number.isFinite(Number(costPerItem)) || Number(costPerItem) <= 0)) { setSuccessNotice('PV validation failed: enter a positive whole quantity and unit cost.'); return; }
     const cleanQtyStr = String(qty);
     const cleanCostStr = String(costPerItem).replace(/[^0-9.]/g, '');
@@ -323,7 +324,10 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       totalAmount: fallbackTotal
     }];
 
-    if (itemsToPost.some(item => item.providerId !== providerId)) { setSuccessNotice('PV validation failed: use one provider per voucher.'); return; }
+    if (itemsToPost.some(item => !serviceProviders.some(provider => String(provider.id) === String(item.providerId)))) { setSuccessNotice('PV validation failed: each item must have a saved provider.'); return; }
+    const providers = voucherProviders(itemsToPost);
+    const voucherProviderId = providers.length === 1 ? providers[0].id : null;
+    const voucherProviderName = providers.length === 1 ? providers[0].name : 'Multiple providers';
     const totalPVAmount = Number(itemsToPost.reduce((acc, i) => acc + (parseFloat(i.totalAmount) || 0), 0).toFixed(2));
 
     // FastAPI schema rule: if both amount and unit_cost are provided, amount must equal quantity * unit_cost.
@@ -339,10 +343,10 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       requisitionNo: itemRequisitionNo,
       academicYear,
       academicTerm,
-      provider: selectedProviderName,
-      payee_name: selectedProviderName,
-      providerId: providerId,
-      payee_id: providerId,
+      provider: voucherProviderName,
+      payee_name: voucherProviderName,
+      providerId: voucherProviderId,
+      payee_id: voucherProviderId,
       department: department || 'Administration',
       paymentMode: paymentMode || 'Cash',
       payment_mode: paymentMode || 'Cash',

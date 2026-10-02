@@ -1,3 +1,4 @@
+import { voucherProviders, supportsVoucherItemProviders } from '../lib/pvProviders.js';
 import { identityRetry, recoveryPayload, listRetryOperations } from '../lib/identityRetry.js';
 import { validateTimetableWorkspace, validatePublishedTimetable } from '../lib/timetableRules.js';
 import { rawAssessment, normalizeAssessment } from '../lib/assessmentRules.js';
@@ -1599,8 +1600,10 @@ export const api = {
     const providerIds = [pvData.payee_id, pvData.provider_id, pvData.providerId].filter(Boolean);
     if (new Set(providerIds).size > 1) throw new Error('Provider identifiers must refer to the same saved provider.');
 
+    const lineProviders = voucherProviders(pvData.items);
+    const multipleProviders = lineProviders.length > 1;
     return {
-      payee_name: payeeName,
+      payee_name: multipleProviders ? 'Multiple providers' : payeeName,
       department: department,
       description: description,
       payment_mode: paymentMode,
@@ -1609,7 +1612,7 @@ export const api = {
       amount,
       pv_number: pvData.pv_number || pvData.pvNo || undefined,
       requisitionNo: pvData.requisitionNo || pvData.requisition_no || null,
-      payee_id: providerIds[0] || null,
+      payee_id: multipleProviders ? null : providerIds[0] || null,
       date_prepared: pvData.date_prepared || pvData.datePrepared || new Date().toISOString().split('T')[0],
       valued_date: pvData.valued_date || pvData.valuedDate || pvData.date_prepared || pvData.datePrepared || new Date().toISOString().split('T')[0],
       expense_account_code: pvData.expense_account_code || '5000-EXPENSE',
@@ -1621,7 +1624,7 @@ export const api = {
             unit_cost: Number(it.costPerItem || it.unit_cost || it.cost) || 0,
             amount: Number(it.totalAmount || it.total || it.amount) || 0,
             payee_name: it.provider || it.payee_name || payeeName,
-            payee_id: it.providerId || it.payee_id || null,
+            payee_id: it.providerId || it.payee_id || (multipleProviders ? null : providerIds[0]) || null,
           }))
         : undefined,
     };
@@ -1629,7 +1632,14 @@ export const api = {
 
   createPaymentVoucher: async (pvData) => {
     const payload = api.normalizePaymentVoucherPayload(pvData);
-    if (!payload.payee_id || !Number.isFinite(payload.amount) || payload.amount <= 0) throw new Error('Select a saved provider and enter a positive voucher amount.');
+    const providers = voucherProviders(payload.items);
+    const multipleProviders = providers.length > 1;
+    if ((payload.items?.length && providers.some(provider => !provider.id)) || (!multipleProviders && !payload.payee_id) || !Number.isFinite(payload.amount) || payload.amount <= 0) throw new Error('Select a saved provider for every item and enter a positive voucher amount.');
+    if (multipleProviders) {
+      let supported = false;
+      try { supported = supportsVoucherItemProviders(await request('/openapi.json')); } catch { /* No write until the server contract can be verified. */ }
+      if (!supported) throw new Error('Multi-provider voucher support is required on the payment service. Your items are still here; nothing was submitted. Ask the backend developer to enable item-level payees.');
+    }
     return createOnce('/finance/vouchers', payload, { durableIdentity: true, cacheSuccess: false, replayCompleted: false });
   },
   createVoucher: async (pvData) => api.createPaymentVoucher(pvData),

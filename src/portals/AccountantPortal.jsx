@@ -1,3 +1,4 @@
+import ReceiveStudentPayment from '../components/Finance/ReceiveStudentPayment';
 import StudentReceiptModal from '../components/Finance/StudentReceiptModal';
 import ViewportModal from '../components/Modal/ViewportModal';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -26,6 +27,7 @@ const NAV = [
   { icon: <Layers size={15} />, label: 'SIMS Financial Hub & Tools', badge: 'Unavailable', disabled: true },
   { icon: <LayoutDashboard size={15} />, label: 'Financial Overview', badge: null },
   { icon: <CreditCard size={15} />, label: 'Fee Ledgers & Payments', badge: null },
+  { icon: <Receipt size={15} />, label: 'Receive Payments', badge: null },
   { icon: <Send size={15} />, label: 'Send Owing Reminders', badge: null },
   { icon: <Users size={15} />, label: 'Students & Teachers', badge: null },
   { icon: <MessageSquare size={15} />, label: 'Sent Messages Log', badge: null },
@@ -866,12 +868,7 @@ export default function AccountantPortal({ onSignOut }) {
             </div>
           )}
 
-          {/* ── RECEIVE PAYMENTS VIEW ── */}
-          {activeNav === 'Receive Payments' && (
-            <div style={{ background: '#ffffff', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', padding: 12 }}>
-              <ReceivePaymentsForm setM={() => {}} students={onboardedStudents || []} recordFeePayment={recordFeePayment} />
-            </div>
-          )}
+          {activeNav === 'Receive Payments' && <ReceiveStudentPayment />}
 
           {/* ── RECEIVE OTHER PAYMENTS VIEW ── */}
           {activeNav === 'Receive Other Payments' && (
@@ -1004,7 +1001,6 @@ export default function AccountantPortal({ onSignOut }) {
             activeNav === 'SIMS Auth & Login Terminal' ||
             activeNav === 'Post Academic Bill Header' ||
             activeNav === 'Print Individual Student Bill' ||
-            activeNav === 'Receive Payments' ||
             activeNav === 'Receive Other Payments' ||
             activeNav === 'Batch Processing' ||
             activeNav === 'Reprint Commercial Receipt' ||

@@ -266,3 +266,25 @@ test('application page retains server count without changing legacy list reads',
     assert.equal((await api.getApplicationsPage()).total, null);
   }
 });
+
+test('multi-provider vouchers preserve item payees and require a declared server contract', async () => {
+ setAuthToken('opaque-token');setAuthUser({id:'head-provider-test',role:'head_admin'});
+ const pv={description:'Two providers',quantity:1,unit_cost:75,amount:75,items:[
+  {description:'Books',providerId:'provider-a',provider:'Books supplier',qty:1,costPerItem:25,totalAmount:25},
+  {description:'Repairs',providerId:'provider-b',provider:'Repair supplier',qty:1,costPerItem:50,totalAmount:50},
+ ]};
+ let writes=0;
+ globalThis.fetch=async()=>json({paths:{}});
+ await assert.rejects(api.createPaymentVoucher(pv),/nothing was submitted/);
+ const schema={paths:{'/api/v1/finance/vouchers':{post:{requestBody:{content:{'application/json':{schema:{$ref:'#/components/schemas/Create'}}}}}}},components:{schemas:{Create:{properties:{items:{type:'array',items:{$ref:'#/components/schemas/Item'}}}},Item:{properties:{payee_id:{type:'string'},payee_name:{type:'string'}}}}}};
+ globalThis.fetch=async(url,opts)=>{
+  if(url.endsWith('/openapi.json')) return json(schema);
+  writes++;const body=JSON.parse(opts.body);
+  assert.equal(body.payee_id,null);assert.equal(body.payee_name,'Multiple providers');
+  assert.deepEqual(body.items.map(item=>item.payee_id),['provider-a','provider-b']);
+  assert.deepEqual(body.items.map(item=>item.payee_name),['Books supplier','Repair supplier']);
+  return json({id:'33333333-3333-4333-8333-333333333333',...body});
+ };
+ await api.createPaymentVoucher(pv);
+ assert.equal(writes,1);
+});

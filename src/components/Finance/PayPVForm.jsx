@@ -1,3 +1,4 @@
+import { disbursementItems, requiresItemDisbursement } from '../../lib/pvDisbursementItems.js';
 import ItemDisbursementModal from './ItemDisbursementModal';
 import ViewportModal from '../Modal/ViewportModal';
 import { payableAmount, voucherIdentityKey as disbursementIdentityKey } from '../../lib/recordRules.js';
@@ -205,7 +206,7 @@ export default function PayPVForm({ onCompleted } = {}) {
 
   // Open Payment Modal
   const handleOpenPayModal = (voucher) => {
-    setPayingVoucher(voucher);
+    setPayingVoucher({ ...voucher, items: disbursementItems(voucher) });
     const generatedRef = `TXN-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
     setReferenceNumber(generatedRef);
     setPaymentDate(new Date().toISOString().split('T')[0]);
@@ -215,7 +216,7 @@ export default function PayPVForm({ onCompleted } = {}) {
   // Submit Payment / Disbursement
   const handleConfirmDisbursement = async (e) => {
     e.preventDefault();
-    if (!payingVoucher || payingVoucher.items?.length > 1 || isProcessing) return;
+    if (!payingVoucher || requiresItemDisbursement(payingVoucher) || isProcessing) return;
 
     setIsProcessing(true);
     const targetPvNo = payingVoucher.pvNo || payingVoucher.id;
