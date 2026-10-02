@@ -52,7 +52,7 @@ const EXAM_CENTERS = [
 ];
 
 export default function RegisterForExamsForm({ setM, students: propStudents }) {
-  const { academicSettings, onboardedStudents, examRegistrations, registerIndividualExam, registerClassExams, cancelExamRegistration } = usePortalData();
+  const { academicSettings, onboardedStudents, examRegistrations, registerIndividualExam, registerClassExams, cancelExamRegistration, subjects: catalogSubjects } = usePortalData();
 
   const allStudents = propStudents || onboardedStudents || [];
   const currentRegistrations = examRegistrations || [];
@@ -96,8 +96,22 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
     return [...DEFAULT_SUBJECTS];
   };
 
-  const [allSubjects, setAllSubjects] = useState(loadPersistedSubjects);
+  const [allSubjects, setAllSubjects] = useState(() => (
+    [...new Set([
+      ...loadPersistedSubjects(),
+      ...(catalogSubjects || []).map((subject) => String(subject || '').trim()).filter(Boolean),
+    ])]
+  ));
   const [newSubjectInput, setNewSubjectInput] = useState('');
+
+  React.useEffect(() => {
+    const incoming = (catalogSubjects || []).map((subject) => String(subject || '').trim()).filter(Boolean);
+    if (!incoming.length) return;
+    setAllSubjects((current) => {
+      const merged = [...new Set([...current, ...incoming])];
+      return merged.length === current.length ? current : merged;
+    });
+  }, [catalogSubjects]);
 
   // Persist pool to localStorage whenever it changes
   React.useEffect(() => {
