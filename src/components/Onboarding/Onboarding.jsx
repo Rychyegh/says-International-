@@ -55,8 +55,6 @@ export function LearnerOnboarding() {
       rfidCardCode: formData.rfidCardCode || '',
     });
     await submitApplication(applicationRecord);
-    setNotice('✅ Student onboarded. One account created and synced across Student Roster, Credentials Vault, and Fee Schedule.');
-    setTimeout(() => setNotice(''), 7000);
   };
 
   return (
@@ -110,9 +108,31 @@ export function LearnerOnboarding() {
       </div>
 
       {notice && (
-        <div style={{ padding: '12px 18px', background: '#dcfce7', color: '#166534', borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: 13, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <CheckCircle2 size={16} />
-          {notice}
+        <div
+          role="status"
+          style={{
+            position: 'fixed',
+            left: '50%',
+            bottom: 24,
+            transform: 'translateX(-50%)',
+            zIndex: 10050,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            minWidth: 280,
+            maxWidth: 'min(520px, calc(100vw - 32px))',
+            padding: '14px 16px',
+            borderRadius: 12,
+            background: '#166534',
+            color: '#ffffff',
+            fontWeight: 800,
+            fontSize: 14,
+            boxShadow: '0 14px 32px rgba(0,0,0,0.28)',
+          }}
+        >
+          <CheckCircle2 size={18} />
+          <span style={{ flex: 1 }}>{notice}</span>
+          <button type="button" onClick={() => setNotice('')} aria-label="Dismiss" style={{ background: 'transparent', border: 'none', color: '#ffffff', fontWeight: 900, cursor: 'pointer', fontSize: 16 }}>✕</button>
         </div>
       )}
 

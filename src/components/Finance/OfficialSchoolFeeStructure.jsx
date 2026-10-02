@@ -910,7 +910,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
     const optionalItemsToPost = optionalBillItems
       .filter((o) => o.enabled)
-      .map((o) => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true }));
+      .map((o) => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true, serviceId: o.id || o.serviceId || '' }));
     const allItemsToPost = [...baseBillItems, ...optionalItemsToPost];
     const totalToPost = allItemsToPost.reduce((acc, i) => acc + Number(i.amount || 0), 0);
 
@@ -923,6 +923,14 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
         totalAmount: totalToPost,
         term: 'Term 1 · 2026'
       }) || persist;
+    }
+
+    if ((persist.failed && persist.posted === 0 && !persist.skipped)) {
+      setPostBillSuccessData(null);
+      setSuccessMsg(`Could not save the ${selectedSubLevel} bills to the database: ${persist.errors[0] || 'request failed'}`);
+      alert(`Could not save bills to the database.\n\n${persist.errors[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
+      setTimeout(() => setSuccessMsg(''), 7000);
+      return;
     }
 
     setPostBillSuccessData({
@@ -939,13 +947,6 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       databaseFailed: Number(persist.failed) || 0,
       databaseError: persist.errors?.[0] || '',
     });
-
-    if ((persist.failed && persist.posted === 0 && !persist.skipped)) {
-      setSuccessMsg(`Could not save the ${selectedSubLevel} bills to the database: ${persist.errors[0] || 'request failed'}`);
-      alert(`Could not save bills to the database.\n\n${persist.errors[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
-      setTimeout(() => setSuccessMsg(''), 7000);
-      return;
-    }
     setSuccessMsg(`⚡ Bulk Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${studentsToBill.length} students in ${selectedSubLevel}${persist.posted ? ' and saved to the database' : ''}${persist.skipped ? ` (${persist.skipped} already billed for this term)` : ''}.`);
     setTimeout(() => setSuccessMsg(''), 7000);
   };
@@ -959,7 +960,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
     const optionalItemsToPost = optionalBillItems
       .filter((o) => o.enabled)
-      .map((o) => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true }));
+      .map((o) => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true, serviceId: o.id || o.serviceId || '' }));
     const allItemsToPost = [...baseBillItems, ...optionalItemsToPost];
     const totalToPost = allItemsToPost.reduce((acc, i) => acc + Number(i.amount || 0), 0);
 
@@ -978,6 +979,14 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       }) || persist;
     }
 
+    if ((persist.failed && persist.posted === 0 && !persist.skipped)) {
+      setPostBillSuccessData(null);
+      setSuccessMsg(`Could not save ${sFullName}'s bill to the database: ${persist.errors[0] || 'request failed'}`);
+      alert(`Could not save this bill to the database.\n\n${persist.errors[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
+      setTimeout(() => setSuccessMsg(''), 7000);
+      return;
+    }
+
     setPostBillSuccessData({
       totalAmount: totalToPost,
       compulsoryCount: baseBillItems.length,
@@ -993,13 +1002,6 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       databaseFailed: Number(persist.failed) || 0,
       databaseError: persist.errors?.[0] || '',
     });
-
-    if ((persist.failed && persist.posted === 0 && !persist.skipped)) {
-      setSuccessMsg(`Could not save ${sFullName}'s bill to the database: ${persist.errors[0] || 'request failed'}`);
-      alert(`Could not save this bill to the database.\n\n${persist.errors[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
-      setTimeout(() => setSuccessMsg(''), 7000);
-      return;
-    }
     setSuccessMsg(`⚡ Single Posted Academic Bill of GHS ${totalToPost.toFixed(2)} to ${sFullName}${persist.posted ? ' and saved to the database' : ''}${persist.skipped ? ' (already billed for this term)' : ''}.`);
     setTimeout(() => setSuccessMsg(''), 7000);
   };
@@ -1278,7 +1280,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     // Compute active items
     const optionalItemsToPost = optionalBillItems
       .filter((o) => o.enabled)
-      .map((o) => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true }));
+      .map((o) => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true, serviceId: o.id || o.serviceId || '' }));
 
     const allItemsToPost = [...baseBillItems, ...optionalItemsToPost];
     const totalToPost = allItemsToPost.reduce((acc, i) => acc + Number(i.amount || 0), 0);
@@ -1300,6 +1302,15 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     const finalScopeText = scopeLabel || (studentToUse ? getStudentFullName(studentToUse) : 'All Students');
 
     // Trigger Foremost Layer Success Banner/Dialog Box (Requirement 2)
+    if ((persist.failed && persist.posted === 0 && !persist.skipped)) {
+      setPostBillSuccessData(null);
+      setSuccessMsg(`Could not save bills to the database: ${persist.errors[0] || 'request failed'}`);
+      alert(`Could not save bills to the database.\n\n${persist.errors[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
+      setIsPostingModalOpen(false);
+      setTimeout(() => setSuccessMsg(''), 7000);
+      return;
+    }
+
     setPostBillSuccessData({
       totalAmount: totalToPost,
       compulsoryCount: baseBillItems.length,
@@ -1315,14 +1326,6 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       databaseFailed: Number(persist.failed) || 0,
       databaseError: persist.errors?.[0] || '',
     });
-
-    if ((persist.failed && persist.posted === 0 && !persist.skipped)) {
-      setSuccessMsg(`Could not save bills to the database: ${persist.errors[0] || 'request failed'}`);
-      alert(`Could not save bills to the database.\n\n${persist.errors[0] || 'Sign in with a live Head Admin or Accounts session and try again.'}`);
-      setIsPostingModalOpen(false);
-      setTimeout(() => setSuccessMsg(''), 7000);
-      return;
-    }
     setSuccessMsg(`⚡ Successfully posted Academic Bill of GHS ${totalToPost.toFixed(2)} (${baseBillItems.length} compulsory + ${optionalItemsToPost.length} optional) to ${finalScopeText} (${affectedCount} student accounts)${persist.posted ? ' and saved to the database' : ''}.`);
     setIsPostingModalOpen(false);
     setPreparingStudentBill(null); // Close child modal so the foremost success dialog box is unobstructed
@@ -3410,7 +3413,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                   <p style={{ margin: '3px 0 0', fontSize: 12, color: '#bbf7d0', fontWeight: 600 }}>
                     {postBillSuccessData.databasePosted > 0
                       ? `Saved in the finance database · ${postBillSuccessData.timestamp}`
-                      : `Ledger updated locally · ${postBillSuccessData.timestamp}`}
+                      : `Posted · ${postBillSuccessData.timestamp}`}
                   </p>
                 </div>
               </div>
@@ -3496,7 +3499,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                 <span>
                   {postBillSuccessData.databasePosted > 0
                     ? 'Saved to the finance database. The accountant portal, parent fees, and student ledgers will show this bill.'
-                    : `Student ledger is updated on this device. Database save failed${postBillSuccessData.databaseError ? `: ${postBillSuccessData.databaseError}` : ''}. Sign in with a live Head Admin or Accounts session and post again so the accountant can see it.`}
+                    : `This bill was not saved in the database${postBillSuccessData.databaseError ? `: ${postBillSuccessData.databaseError}` : ''}.`}
                 </span>
               </div>
 

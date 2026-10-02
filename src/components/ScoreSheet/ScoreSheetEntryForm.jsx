@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { usePortalData, scoreSheetEntryKey } from '../../data/PortalStore';
 import { getUserFullName } from '../../services/api';
-import { getMappedSubClasses } from '../../data/classStructure';
+import { getMappedSubClasses, isLegacySectionLabel, normalizeSubClass } from '../../data/classStructure';
 
 // Each of the four class tests is marked over 100, so the class test total is out of 400
 const CLASS_TEST_MAX = 100;
@@ -35,6 +35,52 @@ function detectStudentClassAndSub(student) {
   return { classLevel: level, subClassLevel: sub };
 }
 
+function compactLabel(value) {
+  return String(value || '').replace(/\s+/g, '').toLowerCase();
+}
+
+function canonicalClassLevel(value) {
+  const lower = String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (lower === 'kg 1' || lower === 'kindergarten 1') return 'kg 1';
+  if (lower === 'kg 2' || lower === 'kindergarten 2') return 'kg 2';
+  if (lower === 'jhs 1') return 'basic 7';
+  if (lower === 'jhs 2') return 'basic 8';
+  if (lower === 'jhs 3') return 'basic 9';
+  return lower;
+}
+
+function splitEmbeddedClass(value) {
+  const raw = String(value || '').trim();
+  const match = raw.match(/^(Creche|Nursery \d|Kindergarten \d|KG \d|Basic \d|JHS \d)\s*([A-Z])$/i);
+  if (!match) return { level: raw, section: '' };
+  return { level: match[1], section: match[2] };
+}
+
+function subclassKey(classLevel, section) {
+  const raw = String(section || '').trim();
+  if (!raw) return '';
+  const squeezed = raw.replace(/\s+([A-Za-z])$/g, '$1');
+  const mapped = getMappedSubClasses(classLevel);
+  const exact = mapped.find((item) => compactLabel(item) === compactLabel(squeezed) || compactLabel(item) === compactLabel(raw));
+  if (exact) return compactLabel(exact);
+  if (/^[ab]$/i.test(raw) || isLegacySectionLabel(raw)) return compactLabel(normalizeSubClass(classLevel, raw));
+  return compactLabel(squeezed);
+}
+
+function studentMatchesSelectedClass(student, classLevel, subClassLevel) {
+  const rawLevel = String(student?.level || student?.classLevel || student?.class || '').trim();
+  const rawSection = String(student?.classSection || student?.subClass || student?.stream || student?.section || '').trim();
+  if (!rawLevel && !rawSection) return false;
+
+  const levelSource = splitEmbeddedClass(rawLevel);
+  const sectionSource = levelSource.section ? levelSource : splitEmbeddedClass(rawSection);
+  const level = levelSource.level || sectionSource.level;
+  const section = rawSection || levelSource.section;
+  if (!level || canonicalClassLevel(level) !== canonicalClassLevel(classLevel)) return false;
+  if (!subClassLevel) return true;
+  return subclassKey(classLevel, section || level) === subclassKey(classLevel, subClassLevel);
+}
+
 function persistStudentScores(saveScoreSheetEntry, payload) {
   if (typeof saveScoreSheetEntry !== 'function') return;
   saveScoreSheetEntry(payload);
@@ -54,7 +100,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
 
   const [selectedStudent, setSelectedStudent] = useState(initialStudent);
   const [cls, setCls] = useState(initialDetected.classLevel || 'Basic 1');
-  const [subClass, setSubClass] = useState(initialDetected.subClassLevel || 'Basic 1A');
+  const [subClass, setSubClass] = useState(normalizeSubClass(initialDetected.classLevel || 'Basic 1', initialDetected.subClassLevel || 'A'));
   const [customSubClasses, setCustomSubClasses] = useState([]);
 
   // Sync when initialTarget is passed (e.g. from Grades view "Edit in Score Sheet")
@@ -127,16 +173,8 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
     }
   };
 
-  const handleStudentSelect = (studentObj) => {
-    if (!studentObj) return;
-    setSelectedStudent(studentObj);
-    const { classLevel, subClassLevel } = detectStudentClassAndSub(studentObj);
-    if (classLevel) setCls(classLevel);
-    if (subClassLevel) setSubClass(subClassLevel);
-  };
-
   const filteredStudents = useMemo(() => {
-    let list = [...(students || [])];
+    let list = (students || []).filter((student) => studentMatchesSelectedClass(student, cls, subClass));
     if (studentSearch.trim()) {
       const q = studentSearch.toLowerCase();
       list = list.filter(s =>
@@ -152,7 +190,18 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
       return (a.fullName || a.name || '').localeCompare(b.fullName || b.name || '');
     });
     return list;
-  }, [students, studentSearch, studentSort]);
+  }, [students, cls, subClass, studentSearch, studentSort]);
+
+  useEffect(() => {
+    const currentKey = selectedStudent?.studentId || selectedStudent?.id || '';
+    const stillVisible = filteredStudents.some((student) => (student.studentId || student.id) === currentKey);
+    if (stillVisible) return;
+    if (filteredStudents[0]) {
+      setSelectedStudent(filteredStudents[0]);
+      return;
+    }
+    if (currentKey) setSelectedStudent({ fullName: '', name: '', studentId: '' });
+  }, [filteredStudents, selectedStudent]);
 
   const studentKey = selectedStudent.studentId || selectedStudent.id;
 
@@ -172,12 +221,6 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
     setSavedAt(savedEntry?.updatedAt || '');
     setSaveNotice('');
     setSaveError('');
-    if (savedEntry?.classLevel) {
-      setCls(savedEntry.classLevel);
-    }
-    if (savedEntry?.subClass || savedEntry?.subClassLevel || savedEntry?.classSection) {
-      setSubClass(savedEntry.subClass || savedEntry.subClassLevel || savedEntry.classSection);
-    }
   }, [savedEntry]);
 
   const clampTest = (value) => {
@@ -380,13 +423,14 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
                 style={{ width: '100%', padding: '3px 6px', border: '1px solid #0f3a4b', borderRadius: 4, fontSize: 11, marginBottom: 4, background: '#f8fafc' }}
               />
               <select
-                value={selectedStudent.fullName || selectedStudent.name}
+                value={filteredStudents.some((student) => (student.fullName || student.name) === (selectedStudent.fullName || selectedStudent.name)) ? (selectedStudent.fullName || selectedStudent.name) : ''}
                 onChange={(e) => {
-                  const s = students.find(x => (x.fullName || x.name) === e.target.value);
-                  if (s) handleStudentSelect(s);
+                  const s = filteredStudents.find(x => (x.fullName || x.name) === e.target.value);
+                  if (s) setSelectedStudent(s);
                 }}
                 style={{ width: '100%', minWidth: 220, padding: '5px 8px', border: '1px solid #0f3a4b', borderRadius: 4, fontWeight: 800, fontSize: 12, background: '#ffffff', color: '#0f3a4b' }}
               >
+                {filteredStudents.length === 0 && <option value="">No students in {cls} · {subClass}</option>}
                 {filteredStudents.map(s => {
                   const subTag = s.classSection || s.subClass ? ` · ${s.classSection || s.subClass}` : (s.level ? ` · ${s.level}` : '');
                   return (
@@ -552,9 +596,9 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
             <button
               type="button"
               onClick={() => {
-                const idx = students.findIndex(s => (s.fullName || s.name) === (selectedStudent.fullName || selectedStudent.name));
-                if (idx < students.length - 1) {
-                  handleStudentSelect(students[idx + 1]);
+                const idx = filteredStudents.findIndex(s => (s.fullName || s.name) === (selectedStudent.fullName || selectedStudent.name));
+                if (idx >= 0 && idx < filteredStudents.length - 1) {
+                  setSelectedStudent(filteredStudents[idx + 1]);
                 }
               }}
               style={{ padding: '10px 24px', background: '#e2e8f0', border: '1px solid #94a3b8', borderRadius: 4, fontWeight: 900, fontSize: 13, cursor: 'pointer' }}

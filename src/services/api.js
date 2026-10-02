@@ -161,6 +161,7 @@ export function sanitizePostedBillItems(items = []) {
     .map((item) => ({
       details: String(item?.details || item?.description || item?.name || 'Fee item').trim().slice(0, 100) || 'Fee item',
       amount: Number(item?.amount ?? item?.fee ?? 0) || 0,
+      serviceId: String(item?.serviceId || item?.service_id || item?.id || '').trim(),
     }))
     .filter((item) => item.details);
 }
@@ -256,6 +257,18 @@ function studentNamesMatch(a, b) {
   return Boolean(n(a) && n(a) === n(b));
 }
 
+function optionalServiceId(item, name) {
+  const explicit = String(item?.serviceId || item?.service_id || item?.id || '').trim();
+  if (explicit && !/^optional:/i.test(explicit)) return explicit.slice(0, 100);
+  const slug = String(name || '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 100);
+  return slug || 'optional-service';
+}
+
 function splitBillItemsForStudentLedger(items = []) {
   const list = sanitizePostedBillItems(items);
   let tuitionFee = 0;
@@ -267,6 +280,7 @@ function splitBillItemsForStudentLedger(items = []) {
     const lower = item.details.toLowerCase();
     if (/^optional:/.test(lower) || /motivation levy|bus transport|feeding|pick up card|lunch|canteen/.test(lower)) {
       optionalServices.push({
+        service_id: optionalServiceId(item, details),
         name: details.slice(0, 255) || 'Optional service',
         amount: item.amount,
       });
@@ -275,10 +289,8 @@ function splitBillItemsForStudentLedger(items = []) {
     if (/stationer|textbook|exercise book/.test(lower)) {
       stationeryFee += item.amount;
       stationeryBreakdown.push({
-        item_name: details.slice(0, 255) || 'Stationery',
-        quantity: 1,
-        unit_price: item.amount,
-        total: item.amount,
+        name: details.slice(0, 255) || 'Stationery',
+        cost: item.amount,
       });
       return;
     }
@@ -1995,22 +2007,69 @@ export const api = {
   },
 
   saveTeachingAssignment: async (assignment = {}) => {
-    const classes = Array.isArray(assignment.classes) ? assignment.classes.filter(Boolean) : [];
-    const subjects = Array.isArray(assignment.subjects) ? assignment.subjects.filter(Boolean) : [];
-    return await request('/academic/teaching-assignments', {
-      method: 'PUT',
-      body: JSON.stringify({
-        staff_id: assignment.staffId || assignment.staff_id || undefined,
-        user_id: assignment.userId || assignment.user_id || undefined,
-        teacher_name: assignment.teacherName || assignment.teacher_name || assignment.name || undefined,
-        role: assignment.role || undefined,
-        email: assignment.email || undefined,
-        classes,
-        subjects,
-        assigned_classes: classes,
-        assigned_subjects: subjects,
-      }),
-    });
+    const classes = Array.isArray(assignment.classes) ? assignment.classes.map((value) => String(value || '').trim()).filter(Boolean) : [];
+    const subjects = Array.isArray(assignment.subjects) ? assignment.subjects.map((value) => String(value || '').trim()).filter(Boolean) : [];
+    const classAssigned = classes.join(', ');
+    const subject = subjects.join(', ');
+    const userId = String(assignment.userId || assignment.user_id || '').trim();
+    const staffRecordId = String(assignment.staffRecordId || '').trim();
+    const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
+    if (!isUuid(userId) && !isUuid(staffRecordId)) {
+      throw new Error('This teacher is not linked to a database record, so the assignment cannot be saved.');
+    }
+
+    let savedUser = null;
+    let savedStaff = null;
+    let lastError = null;
+
+    if (isUuid(userId)) {
+      try {
+        savedUser = await request(`/users/${userId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            subject: subject || null,
+            class_assigned: classAssigned || null,
+            assigned_class: classAssigned || null,
+          }),
+        });
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    if (isUuid(staffRecordId) && staffRecordId !== userId) {
+      const staffBody = {};
+      if (classAssigned.length <= 100) staffBody.class_assigned = classAssigned || null;
+      if (subject && subject.length <= 100) staffBody.department = subject;
+      if (Object.keys(staffBody).length > 0) {
+        try {
+          savedStaff = await request(`/staff/${staffRecordId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(staffBody),
+          });
+        } catch (err) {
+          if (!savedUser) lastError = err;
+        }
+      }
+    }
+
+    if (!savedUser && !savedStaff) {
+      throw lastError || new Error('The database did not save this teaching assignment.');
+    }
+
+    return {
+      id: userId || staffRecordId,
+      staffId: assignment.staffId || assignment.staff_id || '',
+      userId,
+      teacherName: assignment.teacherName || assignment.teacher_name || assignment.name || '',
+      role: assignment.role || '',
+      email: assignment.email || '',
+      classes,
+      subjects,
+      class_assigned: classAssigned,
+      subject,
+    };
   },
 
   createCatalogEntry: async (collection, name) => {

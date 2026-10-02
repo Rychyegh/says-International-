@@ -1911,7 +1911,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       await submitApplication(newForm);
                       setIsCreatingApp(false);
                       setActiveNav('Student Roster');
-                      setSuccessMsg('Application saved to the database and synced to Student Roster.');
+                      setSuccessMsg('You successfully submitted the application form.');
                       setTimeout(() => setSuccessMsg(''), 5000);
                     }}
                   />
@@ -3002,7 +3002,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                           if (!saveTeachingAssignment) throw new Error('The database did not save this teaching assignment.');
                           await saveTeachingAssignment({
                             staffId: teacher.staffId || '',
-                            userId: teacher.userId || '',
+                            staffRecordId: teacher.staffRecordId || '',
+                            userId: teacher.userId || (teacher.staffRecordId ? '' : teacher.id) || '',
                             teacherName: teacher.name,
                             role: teacher.role,
                             email: teacher.email || '',
@@ -3028,9 +3029,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                             const teacher = assignableTeachers.find((person) => (person.staffId || person.id || person.email) === key);
                             const existing = teacher ? findTeachingAssignment(teachingAssignments, teacher) : null;
                             setAssignmentTeacherKey(key);
-                            setAssignmentClasses(existing?.classes || []);
-                            setAssignmentSubjects(existing?.subjects || []);
                             setAssignmentError('');
+                            if (!existing) return;
+                            setAssignmentClasses((current) => Array.from(new Set([...(current || []), ...(existing.classes || [])])));
+                            setAssignmentSubjects((current) => Array.from(new Set([...(current || []), ...(existing.subjects || [])])));
                           }}
                           style={{ width: '100%', marginTop: 4, padding: '9px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontWeight: 700 }}
                         >

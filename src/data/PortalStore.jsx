@@ -30,22 +30,30 @@ export function teachersForClass(assignments = [], classLabel = '') {
   return (assignments || []).filter((item) => (item.classes || []).some((name) => classLabelsMatch(name, classLabel)));
 }
 
+function splitStoredList(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
+  return String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+}
+
 function mapTeachingAssignment(item) {
   if (!item || typeof item !== 'object') return null;
-  const classes = item.classes || item.assigned_classes || item.assignedClasses || [];
-  const subjects = item.subjects || item.assigned_subjects || item.assignedSubjects || [];
+  const classes = splitStoredList(
+    item.classes || item.assigned_classes || item.assignedClasses || item.class_assigned || item.classAssigned || item.assigned_class || item.assignedClass
+  );
+  const subjects = splitStoredList(item.subjects || item.assigned_subjects || item.assignedSubjects || item.subject);
   const staffId = String(item.staffId || item.staff_id || item.staff_code || '').trim();
-  const teacherName = String(item.teacherName || item.teacher_name || item.name || '').trim();
-  if (!staffId && !teacherName) return null;
+  const teacherName = String(item.teacherName || item.teacher_name || item.full_name || item.fullName || item.name || '').trim();
+  const userId = String(item.userId || item.user_id || '').trim();
+  if (!staffId && !teacherName && !userId) return null;
   return {
-    id: item.id || staffId || teacherName,
+    id: item.id || userId || staffId || teacherName,
     staffId,
-    userId: item.userId || item.user_id || '',
+    userId,
     teacherName,
     role: item.role || '',
     email: item.email || '',
-    classes: Array.isArray(classes) ? classes.map((value) => String(value)).filter(Boolean) : [],
-    subjects: Array.isArray(subjects) ? subjects.map((value) => String(value)).filter(Boolean) : [],
+    classes,
+    subjects,
   };
 }
 
@@ -1811,7 +1819,7 @@ export function PortalDataProvider({ children }) {
 
         if (teachingAssignmentsRes.status === 'fulfilled') {
           const mapped = extractTeachingAssignments(teachingAssignmentsRes.value);
-          if (!isDeepEqual(current.teachingAssignments, mapped)) {
+          if (mapped.length > 0 && !isDeepEqual(current.teachingAssignments, mapped)) {
             updates.teachingAssignments = mapped;
             hasChanges = true;
           }
@@ -2092,6 +2100,60 @@ export function PortalDataProvider({ children }) {
             extractAccountList(usersRes.value).forEach((account) => {
               mergeDirectoryAccount(mapped, directoryProfileFromUser(account));
             });
+          }
+          const derivedAssignments = [];
+          const rememberAssignment = (item) => {
+            if (!item) return;
+            const subjects = (item.subjects || []).filter((name) => !/^(class teacher|subject teacher|administration|academics|general|transport)$/i.test(name));
+            const classes = item.classes || [];
+            if (!classes.length && !subjects.length) return;
+            if (item.role && !/teacher|tutor/i.test(item.role)) return;
+            const next = { ...item, subjects };
+            const index = derivedAssignments.findIndex((row) => findTeachingAssignment([row], next));
+            if (index >= 0) {
+              derivedAssignments[index] = {
+                ...derivedAssignments[index],
+                ...next,
+                classes: next.classes.length ? next.classes : derivedAssignments[index].classes,
+                subjects: next.subjects.length ? next.subjects : derivedAssignments[index].subjects,
+              };
+              return;
+            }
+            derivedAssignments.push(next);
+          };
+          staff.forEach((member) => {
+            const role = member.role || member.designation || '';
+            rememberAssignment(mapTeachingAssignment({
+              ...member,
+              role,
+              teacherName: member.name || member.full_name || member.fullName,
+              userId: member.userId || member.user_id || '',
+              staffId: member.staffId || member.staff_id || member.staff_code || '',
+              classes: member.class_assigned || member.classAssigned,
+              subjects: member.subject || member.department,
+            }));
+          });
+          if (usersRes.status === 'fulfilled') {
+            extractAccountList(usersRes.value).forEach((account) => {
+              const profile = directoryProfileFromUser(account);
+              if (!profile) return;
+              rememberAssignment(mapTeachingAssignment({
+                ...account,
+                role: profile.role,
+                teacherName: profile.name,
+                userId: profile.userId,
+                staffId: profile.staffId,
+                email: profile.email,
+                classes: account.class_assigned || account.classAssigned || account.assigned_class || account.assignedClass,
+                subjects: account.subject,
+              }));
+            });
+          }
+          if (derivedAssignments.length > 0 && !updates.teachingAssignments) {
+            if (!isDeepEqual(current.teachingAssignments, derivedAssignments)) {
+              updates.teachingAssignments = derivedAssignments;
+              hasChanges = true;
+            }
           }
           if (!isDeepEqual(current.teacherDirectory, mapped)) {
             updates.teacherDirectory = mapped;
@@ -4295,7 +4357,17 @@ export function PortalDataProvider({ children }) {
     },
     saveTeachingAssignment: async (assignment) => {
       const saved = await api.saveTeachingAssignment(assignment);
-      const mapped = mapTeachingAssignment(saved) || mapTeachingAssignment(assignment);
+      const mapped = mapTeachingAssignment({
+        ...assignment,
+        ...(saved && typeof saved === 'object' ? saved : {}),
+        classes: assignment.classes,
+        subjects: assignment.subjects,
+        teacherName: assignment.teacherName,
+        staffId: assignment.staffId,
+        userId: assignment.userId,
+        role: assignment.role,
+        email: assignment.email,
+      });
       if (!mapped) throw new Error('The database did not save this teaching assignment.');
       setData((current) => {
         const list = current.teachingAssignments || [];

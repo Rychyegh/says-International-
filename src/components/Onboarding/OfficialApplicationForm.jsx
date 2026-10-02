@@ -347,7 +347,7 @@ export default function OfficialApplicationForm({
       if (onSubmit) {
         await onSubmit(normalized);
       }
-      setSuccessNotice('Official Application Form successfully submitted online!');
+      setSuccessNotice('You successfully submitted the application form.');
       setFormData(getDefaultForm());
       setActiveTab('page1');
       setTimeout(() => setSuccessNotice(''), 6000);
@@ -489,18 +489,39 @@ export default function OfficialApplicationForm({
       </div>
 
       {successNotice && (
-        <div style={{
-          padding: '12px 20px',
-          background: /failed/i.test(successNotice) ? '#fee2e2' : '#dcfce7',
-          color: /failed/i.test(successNotice) ? '#991b1b' : '#166534',
-          fontWeight: 'bold',
-          fontSize: 13,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8
-        }}>
-          {/failed/i.test(successNotice) ? <ShieldAlert size={16} /> : <CheckCircle2 size={16} />}
-          {successNotice}
+        <div
+          role="status"
+          className="no-print"
+          style={{
+            position: 'fixed',
+            left: '50%',
+            bottom: 24,
+            transform: 'translateX(-50%)',
+            zIndex: 10050,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            minWidth: 280,
+            maxWidth: 'min(520px, calc(100vw - 32px))',
+            padding: '14px 16px',
+            borderRadius: 12,
+            background: /failed/i.test(successNotice) ? '#991b1b' : '#166534',
+            color: '#ffffff',
+            fontWeight: 800,
+            fontSize: 14,
+            boxShadow: '0 14px 32px rgba(0,0,0,0.28)',
+          }}
+        >
+          {/failed/i.test(successNotice) ? <ShieldAlert size={18} /> : <CheckCircle2 size={18} />}
+          <span style={{ flex: 1 }}>{successNotice}</span>
+          <button
+            type="button"
+            onClick={() => setSuccessNotice('')}
+            aria-label="Dismiss"
+            style={{ background: 'transparent', border: 'none', color: '#ffffff', fontWeight: 900, cursor: 'pointer', fontSize: 16 }}
+          >
+            ✕
+          </button>
         </div>
       )}
 
