@@ -1,3 +1,4 @@
+import SchoolPrintHeader from '../School/SchoolPrintHeader';
 import SchoolContactDetails from '../School/SchoolContactDetails';
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -569,14 +570,7 @@ export default function OfficialApplicationForm({
           <div className="official-document-page">
             {/* Header Box */}
             <div className="school-header-box">
-              <div className="school-header-logo">
-                <SchoolLogoSVG size={100} />
-              </div>
-              <div className="school-header-text">
-                <div className="school-header-title">REMALJ</div>
-                <div className="school-header-sub">Carewell Inspirational School · Bogoso</div>
-                <div className="school-header-email"><SchoolContactDetails /></div>
-              </div>
+              <SchoolPrintHeader />
               <div className="photo-box">
                 {formData.passportPhoto ? (
                   <img src={formData.passportPhoto} alt="Student Passport" />
@@ -911,7 +905,7 @@ export default function OfficialApplicationForm({
         {(activeTab === 'page2' || activeTab === 'all') && (
           <div className="official-document-page">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <SchoolLogoSVG size={50} />
+              <SchoolPrintHeader />
               <div className="form-section-header" style={{ margin: 0 }}>PREVIOUS SCHOOLS ATTENDED</div>
             </div>
 
@@ -1080,7 +1074,7 @@ export default function OfficialApplicationForm({
         {(activeTab === 'page3' || activeTab === 'all') && (
           <div className="official-document-page">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <SchoolLogoSVG size={50} />
+              <SchoolPrintHeader />
               <div style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase', textDecoration: 'underline' }}>STUDENT SPECIAL NEEDS & MEDICAL EMERGENCY</div>
             </div>
 
@@ -1181,7 +1175,7 @@ export default function OfficialApplicationForm({
         {(activeTab === 'page4' || activeTab === 'all') && (
           <div className="official-document-page">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <SchoolLogoSVG size={50} />
+              <SchoolPrintHeader />
               <div className="form-section-header" style={{ margin: 0 }}>DECLARATION & OFFICE USE</div>
             </div>
 

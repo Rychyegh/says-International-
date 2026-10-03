@@ -1,3 +1,4 @@
+import SchoolPrintHeader from '../School/SchoolPrintHeader';
 import SchoolContactDetails from '../School/SchoolContactDetails';
 import { SCHOOL_PL_ACCOUNTS } from '../../data/chartOfAccounts';
 import { usePortalData } from '../../data/PortalStore';
@@ -154,7 +155,7 @@ export default function ItemDisbursementModal({voucher:initialVoucher,onClose}) 
       {voucher.items.map((item,index)=><ItemInstructions key={item.id || index} item={item} index={index} voucher={voucher} onPaid={onPaid} accounts={accounts} onReceipt={loadReceipt} />)}
       {receiptError && <p role="alert">{receiptError}</p>}
       {receipt && <><article className="student-receipt-paper">
-        <header className="student-receipt-letterhead"><img src="/remalj-carewell-logo.jpg" alt="School logo" width="80" height="80" /><div><h2>REMALJ Carewell Inspirational School</h2><SchoolContactDetails /></div></header>
+        <SchoolPrintHeader />
         <h3>Confirmed item payment · {receipt.receipt_number}</h3>
         <dl>{[['Beneficiary',receipt.beneficiary],['Amount (GHS)',receipt.amount],['Date',receipt.payment_date],['Reference',receipt.reference],['Method',receipt.payment_method],['Source account',receipt.source_account_id],['Expense account',receipt.expense_account_id],['Destination',receipt.destination_account]].map(([label,value])=><React.Fragment key={label}><dt>{label}</dt><dd>{value}</dd></React.Fragment>)}</dl>
       </article><button className="btn" type="button" onClick={printReceipt}>Print confirmed receipt</button></>}

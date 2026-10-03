@@ -418,3 +418,7 @@
     border: 1px solid #9ca3af !important;
   }
 }
+
+.school-header-box:has(> .school-print-header){grid-template-columns:minmax(0,1fr) 140px;align-items:start;}
+.school-header-box > .school-print-header{margin-bottom:0;}
+.official-document-page > div:has(> .school-print-header){flex-wrap:wrap;}

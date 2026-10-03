@@ -1,3 +1,4 @@
+import SchoolPrintHeader from '../components/School/SchoolPrintHeader';
 import { SCHOOL_CONTACT_TEXT } from '../data/schoolContact';
 import SchoolContactDetails from '../components/School/SchoolContactDetails';
 import ReceiveStudentPayment from '../components/Finance/ReceiveStudentPayment';
@@ -2466,10 +2467,10 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
                 }}>
                   <div style={{ borderBottom: '2px solid #0f3a4b', paddingBottom: 12, marginBottom: 16 }} className="receipt-header-box">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }} className="receipt-header-inline">
-                      <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 48, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
+
                       <div style={{ textAlign: 'left' }} className="receipt-school-text">
-                        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f3a4b', lineHeight: 1.2 }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h3>
-                        <p style={{ margin: '3px 0 0 0', fontSize: 11.5, color: '#475569', fontWeight: 700 }}><SchoolContactDetails /></p>
+                        <SchoolPrintHeader />
+
                       </div>
                     </div>
                     <div style={{ textAlign: 'center', marginTop: 8 }}>
@@ -3419,7 +3420,7 @@ function ReceivePaymentsForm({ setM, students = [], recordFeePayment }) {
 
       {/* ── MAIN TAB CONTENT PANEL ── */}
       <div style={{ background: '#ffffff', padding: 14, border: '1px solid #cbd5e1', borderTop: 'none', minHeight: 280 }}>
-        
+
         {/* TAB 1: ADD OPTIONAL & OTHER BILLS TO ACCOUNTS */}
         {activeTab === 'Add Optional & Other Bills to Accounts' && (
           <div>
@@ -5832,14 +5833,10 @@ function ReprintCommercialReceiptForm({ setM }) {
 
           <div style={{ borderBottom: '3px double #0f3a4b', paddingBottom: 16, marginBottom: 20 }} className="receipt-header-box">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }} className="receipt-header-inline">
-              <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 55, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
+
               <div style={{ textAlign: 'left' }} className="receipt-school-text">
-                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: '#0f3a4b', letterSpacing: '0.03em', lineHeight: 1.2 }}>
-                  REMALJ CAREWELL INSPIRATIONAL SCHOOL
-                </h2>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginTop: 4 }}>
-                  <SchoolContactDetails />
-                </div>
+                <SchoolPrintHeader />
+
               </div>
             </div>
             <div style={{ textAlign: 'center', marginTop: 10 }}>
@@ -6569,14 +6566,10 @@ function PrintIndividualStudentBillForm({ setM, students = [] }) {
                   {/* Header */}
                   <div style={{ borderBottom: '3px double #0f3a4b', paddingBottom: 14, marginBottom: 16 }} className="receipt-header-box">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }} className="receipt-header-inline">
-                      <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 52, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
+
                       <div style={{ textAlign: 'left' }} className="receipt-school-text">
-                        <h2 style={{ margin: 0, fontSize: 19, fontWeight: 900, color: '#0f3a4b', letterSpacing: '0.03em', lineHeight: 1.2 }}>
-                          REMALJ CAREWELL INSPIRATIONAL SCHOOL
-                        </h2>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginTop: 3 }}>
-                          <SchoolContactDetails />
-                        </div>
+                        <SchoolPrintHeader />
+
                       </div>
                     </div>
                     <div style={{ textAlign: 'center', marginTop: 8 }}>
@@ -8750,12 +8743,10 @@ function PrintPVForm({ setM }) {
             {/* ── SCHOOL LETTERHEAD ── */}
             <div style={{ borderBottom: '1.5px solid #0f3a4b', paddingBottom: 8, marginBottom: 10 }} className="receipt-header-box">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }} className="receipt-header-inline">
-                <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 36, width: 'auto', borderRadius: 4, flexShrink: 0 }} className="receipt-logo" />
+
                 <div style={{ textAlign: 'left' }} className="receipt-school-text">
-                  <h2 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: '#0f3a4b', letterSpacing: '0.02em', lineHeight: 1.15 }}>
-                    REMALJ CAREWELL INSPIRATIONAL SCHOOL
-                  </h2>
-              <SchoolContactDetails />
+                  <SchoolPrintHeader />
+
                   <div style={{ fontSize: 10, fontWeight: 700, color: '#0284c7' }}>
                     Bogoso · Official Payment Voucher
                   </div>
@@ -10185,7 +10176,7 @@ function TrialBalanceAccountsForm({ setM, initialMode = 'accounts' }) {
       <div style={{ display: 'flex', minHeight: 580 }}>
         {/* LEFT CONTROL PANEL (Parameter Boxes) */}
         <div className="no-print" style={{ width: 310, background: '#d9e2ec', borderRight: '1px solid #94a3b8', padding: 10, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
-          
+
           {reportMode === 'accounts' && (
             <>
               {/* Box 1: Preview per month */}
@@ -10390,11 +10381,9 @@ function TrialBalanceAccountsForm({ setM, initialMode = 'accounts' }) {
                     </div>
 
                     {/* CENTERED HEADER TEXT */}
-                    <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 45, width: 'auto', borderRadius: 4, marginBottom: 4 }} />
-                    <h2 style={{ fontSize: 14, color: '#0f172a', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                      REMALJ CAREWELL INSPIRATIONAL SCHOOL
-                    </h2>
-              <SchoolContactDetails />
+
+                    <SchoolPrintHeader />
+
                     <p style={{ fontSize: 11, color: '#0f172a', margin: '2px 0 8px 0', fontWeight: 700 }}>
                       Loc: Ntriakwakrom , Bogoso, Ghana, WP-0023-6662
                     </p>
@@ -10431,9 +10420,9 @@ function TrialBalanceAccountsForm({ setM, initialMode = 'accounts' }) {
                 /* ── GENERAL LEDGER ACCOUNTS TRIAL BALANCE CANVAS ── */
                 <div>
                   <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 14 }}>
-                    <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 45, width: 'auto', borderRadius: 4, marginBottom: 4 }} />
-                    <h2 style={{ fontSize: 18, color: '#0f3a4b', fontWeight: 900, margin: 0, letterSpacing: '0.03em' }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h2>
-              <SchoolContactDetails />
+
+                    <SchoolPrintHeader />
+
                     <p style={{ fontSize: 11, color: '#0284c7', margin: '2px 0 6px 0', fontWeight: 700 }}>Finance & Accounts Department · Bogoso, Ghana</p>
                     <h3 style={{ fontSize: 14, color: '#b91c1c', fontWeight: 900, margin: '6px 0 2px 0', textTransform: 'uppercase' }}>General Ledger Trial Balance (Accounts)</h3>
                     <p style={{ fontSize: 11, color: '#475569', margin: 0, fontStyle: 'italic' }}>{reportTitleSub}</p>
@@ -10515,7 +10504,7 @@ function TrialBalanceAccountsForm({ setM, initialMode = 'accounts' }) {
 function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
   const portalData = usePortalData() || {};
   const [statementMode, setStatementMode] = useState(initialMode); // 'student' or 'general'
-  
+
   // Student Statement State
   const [enrollmentNo, setEnrollmentNo] = useState('421215');
   const [studentName, setStudentName] = useState('ADAN ALHAJ HAFSAT');
@@ -10523,7 +10512,7 @@ function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
   const [liveBalance, setLiveBalance] = useState(null);
   const [ledgerStatus, setLedgerStatus] = useState('');
   const [ledgerLoaded, setLedgerLoaded] = useState(false);
-  
+
   // General Ledger Statement State
   const [accountName, setAccountName] = useState('Admin fees');
   const [accountNo, setAccountNo] = useState('10081');
@@ -10701,7 +10690,7 @@ function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
           <fieldset style={{ border: '1px solid #94a3b8', borderRadius: 4, padding: 10, background: '#e2e8f0', margin: 0 }}>
             <legend style={{ fontSize: 10.5, fontWeight: 800, color: '#1e293b', padding: '0 4px' }}>Customer Details</legend>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              
+
               {statementMode === 'student' ? (
                 /* STUDENT STATEMENT PARAMETERS */
                 <>
@@ -10879,14 +10868,12 @@ function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
                   }}>
                     {/* EMBLEM ON LEFT */}
                     <div style={{ position: 'absolute', left: 12, display: 'flex', alignItems: 'center' }}>
-                      <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 48, width: 48, borderRadius: '50%', objectFit: 'cover' }} />
+
                     </div>
 
                     <div style={{ textAlign: 'center' }}>
-                      <h2 style={{ fontSize: 13, color: '#0f172a', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                        REMALJ CAREWELL INSPIRATIONAL SCHOOL
-                      </h2>
-              <SchoolContactDetails />
+                      <SchoolPrintHeader />
+
                       <p style={{ fontSize: 10.5, color: '#0f172a', margin: '2px 0 0 0', fontWeight: 700 }}>
                         Loc: Ntriakwakrom , Bogoso, Ghana, WP-0023-6662
                       </p>
@@ -10964,9 +10951,9 @@ function PrintAccountStatementForm({ setM, initialMode = 'student' }) {
                 /* ── GENERAL LEDGER ACCOUNT STATEMENT CANVAS ── */
                 <div>
                   <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 14 }}>
-                    <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 45, width: 'auto', borderRadius: 4, marginBottom: 4 }} />
-                    <h2 style={{ fontSize: 18, color: '#0f3a4b', fontWeight: 900, margin: 0, letterSpacing: '0.03em' }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h2>
-              <SchoolContactDetails />
+
+                    <SchoolPrintHeader />
+
                     <p style={{ fontSize: 11, color: '#0284c7', margin: '2px 0 6px 0', fontWeight: 700 }}>Finance & Accounts Department · Bogoso, Ghana</p>
                     <h3 style={{ fontSize: 14, color: '#b91c1c', fontWeight: 900, margin: '6px 0 2px 0', textTransform: 'uppercase' }}>Official Account Statement</h3>
                     <p style={{ fontSize: 11, color: '#475569', margin: 0, fontStyle: 'italic' }}>{reportPeriodSub}</p>
@@ -11155,7 +11142,7 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
       <div style={{ display: 'flex', minHeight: 560 }}>
         {/* LEFT CONTROL PANEL */}
         <div className="no-print" style={{ width: 310, background: '#d9e2ec', borderRight: '1px solid #94a3b8', padding: 10, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
-          
+
           {/* Current Academic Period */}
           <fieldset style={{ border: '1px solid #94a3b8', borderRadius: 4, padding: 8, background: '#e2e8f0', margin: 0 }}>
             <legend style={{ fontSize: 10.5, fontWeight: 800, color: '#1e293b', padding: '0 4px' }}>Current Academic Period</legend>
@@ -11276,9 +11263,9 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
           <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
             <div className="printable-area accountant-printable" style={{ background: '#ffffff', width: 740, minHeight: 520, padding: 24, borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid #cbd5e1' }}>
               <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 14 }}>
-                <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 45, width: 'auto', borderRadius: 4, marginBottom: 4, display: 'inline-block' }} />
-                <h2 style={{ fontSize: 17, color: '#0f3a4b', fontWeight: 900, margin: 0 }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h2>
-              <SchoolContactDetails />
+
+                <SchoolPrintHeader />
+
                 <p style={{ fontSize: 11, color: '#0284c7', margin: '2px 0 6px 0', fontWeight: 700 }}>Bogoso, Western Region, Ghana</p>
                 <h3 style={{ fontSize: 14, color: '#b91c1c', fontWeight: 900, margin: '4px 0 0 0' }}>POST CLASS CONSOLIDATED STUDENT BILLS REGISTER</h3>
                 <p style={{ fontSize: 11, color: '#475569', margin: '2px 0 0 0', fontStyle: 'italic' }}>{subTitleText}</p>
@@ -11419,9 +11406,9 @@ function BalanceSheetForm({ setM }) {
           <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
             <div style={{ background: '#ffffff', width: 740, minHeight: 540, padding: 24, borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid #cbd5e1' }}>
               <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 16 }}>
-                <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 45, width: 'auto', borderRadius: 4, marginBottom: 4 }} />
-                <h2 style={{ fontSize: 18, color: '#0f3a4b', fontWeight: 900, margin: 0 }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h2>
-              <SchoolContactDetails />
+
+                <SchoolPrintHeader />
+
                 <p style={{ fontSize: 11, color: '#0284c7', margin: '2px 0 6px 0', fontWeight: 700 }}>Bogoso, Western Region, Ghana</p>
                 <h3 style={{ fontSize: 15, color: '#b91c1c', fontWeight: 900, margin: '4px 0 0 0' }}>STATEMENT OF FINANCIAL POSITION (BALANCE SHEET)</h3>
                 <p style={{ fontSize: 11, color: '#475569', margin: '2px 0 0 0', fontStyle: 'italic' }}>As at {asAtDate}</p>
@@ -11555,8 +11542,8 @@ function MonthlyPayrollReportForm({ setM }) {
       <div style={{ padding: 16, overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
         <div style={{ background: '#ffffff', width: 740, minHeight: 520, padding: 24, borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid #cbd5e1' }}>
           <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 14 }}>
-            <h2 style={{ fontSize: 17, color: '#0f3a4b', fontWeight: 900, margin: 0 }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h2>
-              <SchoolContactDetails />
+            <SchoolPrintHeader />
+
             <p style={{ fontSize: 11, color: '#0284c7', margin: '2px 0 6px 0', fontWeight: 700 }}>Bogoso, Ghana</p>
             <h3 style={{ fontSize: 14, color: '#b91c1c', fontWeight: 900, margin: '4px 0 0 0' }}>MONTHLY PAYROLL REGISTER {banksCopy ? "(BANK'S SCHEDULE COPY)" : ''}</h3>
             <p style={{ fontSize: 11, color: '#475569', margin: '2px 0 0 0', fontStyle: 'italic' }}>Period: {reportMonth} {reportYear}</p>
@@ -11701,7 +11688,7 @@ function EmployeePayslipForm({ setM }) {
           <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
             {/* PAYSLIP SHEET (Matching photo media_1788935336602.jpg exactly) */}
             <div style={{ background: '#ffffff', width: 720, minHeight: 520, padding: 24, borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid #94a3b8', color: '#000' }}>
-              
+
               {/* HEADER WITH LOGO */}
               <div style={{ position: 'relative', textAlign: 'center', marginBottom: 16 }}>
                 {/* EMBLEM LOGO ON LEFT */}
@@ -11721,10 +11708,8 @@ function EmployeePayslipForm({ setM }) {
                   </div>
                 </div>
 
-                <h2 style={{ fontSize: 14, color: '#000', fontWeight: 900, margin: 0, letterSpacing: '0.02em' }}>
-                  REMALJ CAREWELL INSPIRATIONAL SCHOOL
-                </h2>
-              <SchoolContactDetails />
+                <SchoolPrintHeader />
+
                 <h3 style={{ fontSize: 12, color: '#000', fontWeight: 800, margin: '2px 0 6px 0' }}>
                   STAFF PAY SLIP
                 </h3>
@@ -12303,9 +12288,9 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
       <div>
         <div className="printable-area accountant-printable" style={{ padding: 20, background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
           <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 12 }}>
-            <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 44, width: 'auto', borderRadius: 4, marginBottom: 4, display: 'inline-block' }} />
-            <h3 style={{ fontSize: 18, color: '#0f3a4b', fontWeight: 900, margin: 0, letterSpacing: '0.02em' }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h3>
-              <SchoolContactDetails />
+
+            <SchoolPrintHeader />
+
             <p style={{ fontSize: 12, color: '#4b5563', margin: '2px 0 6px 0', fontWeight: 700 }}>Carewell Inspirational School · Bogoso</p>
             <p style={{ fontSize: 11, color: '#6b7280', margin: '2px 0' }}>OFFICIAL STUDENT PROGRESSIVE TERMINAL REPORT</p>
             <small style={{ color: '#9ca3af' }}>Term 1 · Academic Year 2026/2027</small>
@@ -12352,9 +12337,9 @@ function renderSpecificContent(link, m, setM, students, portalStore = {}) {
       <div>
         <div className="printable-area accountant-printable" style={{ padding: 20, background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
           <div style={{ textAlign: 'center', borderBottom: '2px solid #881337', paddingBottom: 10, marginBottom: 12 }}>
-            <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 44, width: 'auto', borderRadius: 4, marginBottom: 4, display: 'inline-block' }} />
-            <h3 style={{ fontSize: 18, color: '#881337', fontWeight: 900, margin: 0, letterSpacing: '0.02em' }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h3>
-              <SchoolContactDetails />
+
+            <SchoolPrintHeader />
+
             <p style={{ fontSize: 12, color: '#4b5563', margin: '2px 0 6px 0', fontWeight: 700 }}>Carewell Inspirational School · Bogoso</p>
             <p style={{ fontSize: 11, color: '#6b7280', margin: '2px 0' }}>CLASS BROADSHEET ASSESSMENT SUMMARY · JHS 2</p>
           </div>
@@ -14673,10 +14658,10 @@ function PrintIndividualTerminalReportForm({ setM, students = [] }) {
         <div style={{ background: '#fff', padding: 24, border: '1px solid #cbd5e1', borderRadius: 4 }}>
           <div style={{ borderBottom: '2px solid #0f3a4b', paddingBottom: 12, marginBottom: 16 }} className="receipt-header-box">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }} className="receipt-header-inline">
-              <img src="/remalj-carewell-logo.jpg" alt="Logo" style={{ height: 52, width: 'auto', borderRadius: 6, flexShrink: 0 }} className="receipt-logo" />
+
               <div style={{ textAlign: 'left' }} className="receipt-school-text">
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f3a4b', lineHeight: 1.2 }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h2>
-              <SchoolContactDetails />
+                <SchoolPrintHeader />
+
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#0284c7', marginTop: 2 }}>OFFICIAL STUDENT INDIVIDUAL TERMINAL REPORT · {term} ({year})</div>
               </div>
             </div>
@@ -14907,8 +14892,8 @@ function PreviewSubjectBasedAssessmentForm({ setM, students }) {
 
         <div style={{ background: '#fff', padding: 24, border: '1px solid #cbd5e1', borderRadius: 4 }}>
           <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 12, marginBottom: 16 }}>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f3a4b' }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h2>
-              <SchoolContactDetails />
+            <SchoolPrintHeader />
+
             <div style={{ fontSize: 12, fontWeight: 800, color: '#0284c7', marginTop: 2 }}>
               Subject Based Assessment Sheet · {subject} ({cls}) — {term} ({year})
             </div>
@@ -14997,8 +14982,8 @@ function ConsolidatedSubjectBasedAssessmentForm({ setM, students }) {
 
         <div style={{ background: '#fff', padding: 24, border: '1px solid #cbd5e1', borderRadius: 4 }}>
           <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 12, marginBottom: 16 }}>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f3a4b' }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</h2>
-              <SchoolContactDetails />
+            <SchoolPrintHeader />
+
             <div style={{ fontSize: 12, fontWeight: 800, color: '#b91c1c', marginTop: 2 }}>
               CONSOLIDATED SUBJECT BASED ASSESSMENT SHEET · {cls} — {term} ({year})
             </div>
@@ -15520,15 +15505,13 @@ function SimsAuthTerminalView({ onOpenSimsModal, students = [], recordFeePayment
       {/* Top Header Card */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #334155', paddingBottom: 20, marginBottom: 20, flexWrap: 'wrap', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 64, width: 'auto', borderRadius: 8, border: '2px solid #38bdf8', boxShadow: '0 0 15px rgba(56,189,248,0.3)' }} />
+
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
               SIMS ENTERPRISE COMMAND HUB
             </div>
-            <h2 style={{ fontSize: 20, fontWeight: 900, color: '#ffffff', margin: '2px 0 0 0', letterSpacing: '0.02em' }}>
-              REMALJ CAREWELL INSPIRATIONAL SCHOOL
-            </h2>
-              <SchoolContactDetails />
+            <SchoolPrintHeader />
+
             <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
               Enterprise Financial Action Tools & Billing Hub · Build v2025.4
             </div>

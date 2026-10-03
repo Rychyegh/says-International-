@@ -1,3 +1,4 @@
+import SchoolPrintHeader from '../School/SchoolPrintHeader';
 import SchoolContactDetails from '../School/SchoolContactDetails';
 import ViewportModal from '../Modal/ViewportModal';
 import React, { useState } from 'react';
@@ -1352,16 +1353,14 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2.5px solid #0284c7', paddingBottom: 14, marginBottom: 16 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                        <img src="/remalj-carewell-logo.jpg" alt="Logo" style={{ height: 58, borderRadius: 6, border: '1px solid #cbd5e1' }} />
+
                         <div>
-                          <h1 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0369a1', letterSpacing: '0.02em', textTransform: 'uppercase' }}>
-                            REMALJ CAREWELL INSPIRATIONAL SCHOOL
-                          </h1>
+                          <SchoolPrintHeader />
                           <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginTop: 2, letterSpacing: '0.01em' }}>
                             OFFICIAL CANDIDATE EXAMINATION DOSSIER & INDIVIDUAL ROSTER
                           </div>
                           <div style={{ fontSize: 11, color: '#475569', marginTop: 1 }}>
-                            <SchoolContactDetails />Academic Session {r.academicYear || academicSettings?.academicYear || '2025/2026'} · {r.term || academicSettings?.academicTerm || 'Term 1'}
+                            Academic Session {r.academicYear || academicSettings?.academicYear || '2025/2026'} · {r.term || academicSettings?.academicTerm || 'Term 1'}
                           </div>
                         </div>
                       </div>

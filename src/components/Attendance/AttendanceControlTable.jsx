@@ -8,6 +8,7 @@ import {
 import { usePortalData, findStudentByCardUid, mapStudentFromApi, rfidUidsMatch, resolveGuardianPhone } from '../../data/PortalStore';
 import { api } from '../../services/api';
 import './AttendanceControlTable.css';
+import { attendanceRows, attendanceDate } from '../../lib/attendanceRecords';
 
 const INITIAL_ATTENDANCE_LOGS = [];
 
@@ -65,18 +66,49 @@ export default function AttendanceControlTable() {
   const [attendanceLogs, setAttendanceLogs] = useState(INITIAL_ATTENDANCE_LOGS);
 
   // Live Roll Call Attendance & SMS state per student ID
-  const [attendanceState, setAttendanceState] = useState({
-    'REMALJ-2026-001': { status: 'Check In', scanType: 'Check In', cardScanned: true, smsSent: true, lastSentAt: '08:15 AM' },
-    'REMALJ-2026-002': { status: 'Present', cardScanned: false, smsSent: true, lastSentAt: '08:30 AM' },
-  });
-
+  const [attendanceState, setAttendanceState] = useState({});
   const [notification, setNotification] = useState('');
+  const [historyError, setHistoryError] = useState('');
+  const scanLock = useRef(false);
+  const historySequence = useRef(0);
+  const historyResponse = useRef(null);
+  const studentsRef = useRef(onboardedStudents);
+  studentsRef.current = onboardedStudents;
+  const loadAttendance = async () => {
+    const sequence = ++historySequence.current;
+    try {
+      const response = await api.getAttendanceLogs();
+      const rows = attendanceRows(response, studentsRef.current || []);
+      if (sequence === historySequence.current) {
+        historyResponse.current = response;
+        setAttendanceLogs(rows);
+        setHistoryError('');
+      }
+      return rows;
+    } catch (error) {
+      if (sequence === historySequence.current) setHistoryError(`Attendance history could not be loaded: ${error.message}`);
+      throw error;
+    }
+  };
+  useEffect(() => {
+    loadAttendance().catch(() => {});
+    return () => { historySequence.current++; };
+  }, []);
+  useEffect(() => {
+    if (historyResponse.current) setAttendanceLogs(attendanceRows(historyResponse.current, onboardedStudents || []));
+  }, [onboardedStudents]);
+  useEffect(() => {
+    const state = {};
+    for (const row of attendanceLogs) {
+      if (row.date !== attendanceDate()) continue;
+      const student = (onboardedStudents || []).find(s => [s.id, s.studentUuid, s.studentId].includes(row.studentId));
+      const key = student?.studentId || row.studentId;
+      if (!state[key]) state[key] = {status: row.status, scanType: row.status, cardScanned: row.method === 'RFID Card Reader', smsSent: ['Sent', 'Delivered'].includes(row.smsStatus), lastSentAt: row.time};
+    }
+    setAttendanceState(state);
+  }, [attendanceLogs, onboardedStudents]);
 
-  // SMS Integration & Gateway state
-  const [smsBalance, setSmsBalance] = useState(null);
-  const [isBalanceLoading, setIsBalanceLoading] = useState(false);
   const [gateSmsEnabled, setGateSmsEnabled] = useState(true);
-  const [rollCallSmsEnabled, setRollCallSmsEnabled] = useState(true);
   const [isNotifyingAbsent, setIsNotifyingAbsent] = useState(false);
   const [directSmsModalStudent, setDirectSmsModalStudent] = useState(null);
   const [directSmsText, setDirectSmsText] = useState('');
@@ -99,25 +131,6 @@ export default function AttendanceControlTable() {
     }
   };
 
-  const fetchSmsBalance = async () => {
-    setIsBalanceLoading(true);
-    try {
-      const res = await api.getSmsBalance();
-      if (res && res.amount !== undefined) {
-        setSmsBalance(res);
-      }
-    } catch (e) {
-      setSmsBalance(null);
-      setNotification(`SMS balance unavailable: ${e.message}`);
-    } finally {
-      setIsBalanceLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchSmsBalance();
-  }, []);
-
   const handleNotifyAbsentGuardians = async () => {
     setIsNotifyingAbsent(true);
     const dateToday = new Date().toISOString().split('T')[0];
@@ -126,7 +139,7 @@ export default function AttendanceControlTable() {
       setNotification(`✅ Dispatched bulk SMS absence notifications to guardians for level '${selectedLevel}' (${res?.notifiedCount || 'all'} notified)!`);
       setTimeout(() => setNotification(''), 7000);
     } catch (e) {
-      setNotification(`✅ Bulk SMS absence alerts dispatched to guardians for level '${selectedLevel}'.`);
+      setNotification(`Absence notifications failed: ${e.message}`);
       setTimeout(() => setNotification(''), 6000);
     } finally {
       setIsNotifyingAbsent(false);
@@ -151,36 +164,17 @@ export default function AttendanceControlTable() {
     const statusToApply = directSmsAttendanceStatus; // 'Present', 'Absent', or null
 
     try {
-      // 1. Dispatch SMS via SMSOnlineGH Gateway
-      const smsPromise = api.sendDirectSms({
-        recipientPhone: phone,
-        messageText: directSmsText,
-        senderId: 'RCIS'
-      });
-
-      // 2. If triggered via "Mark Present / Absent & Send SMS", log record & sync backend attendance
-      let backendPromise = Promise.resolve();
       if (statusToApply) {
-        logNewAttendanceRecord(directSmsModalStudent, statusToApply, 'Manual Roll Call (SMS Verified)', timeStr, phone, guardianName);
-        backendPromise = api.recordAttendanceScan({
-          identifier: sId,
-          scanType: statusToApply === 'Present' ? 'Check-in' : 'Absence',
-          sendSms: false
+        await api.submitRollCall({
+          class_level: directSmsModalStudent.level || directSmsModalStudent.classLevel,
+          records: [{student_id: directSmsModalStudent.studentUuid || directSmsModalStudent.id, status: statusToApply}],
+          sendSmsForAbsence: false
         });
-
-        setAttendanceState(prev => ({
-          ...prev,
-          [sId]: {
-            status: statusToApply,
-            cardScanned: false,
-            smsSent: true,
-            lastSentAt: timeStr,
-            sending: false
-          }
-        }));
+        // Attendance is saved independently of SMS delivery; retrying SMS must not save it again.
+        setDirectSmsAttendanceStatus(null);
+        await loadAttendance();
       }
-
-      const [smsRes] = await Promise.all([smsPromise, backendPromise]);
+      const smsRes = await api.sendDirectSms({recipientPhone: phone, messageText: directSmsText, senderId: 'RCIS'});
       const deliveryStatus = smsRes?.data?.destinations?.[0]?.status?.label;
 
       if (deliveryStatus === 'DS_REJECTED_SENDER_UNREGISTERED') {
@@ -255,82 +249,27 @@ export default function AttendanceControlTable() {
 
   const studentsList = onboardedStudents || [];
 
-  // Helper to append a new attendance record entry to the Historical Register Logs
-  const logNewAttendanceRecord = (student, status, method, timeStr, phone, guardianName) => {
-    const sId = student.studentId || student.id;
-    const dateStr = new Date().toISOString().split('T')[0];
-
-    const newEntry = {
-      id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      date: dateStr,
-      time: timeStr,
-      studentId: sId,
-      studentName: student.fullName,
-      level: student.level || 'Class Level',
-      method: method, // 'RFID Card Reader' | 'Manual Roll Call'
-      status: status, // 'CardScanned' | 'Present' | 'Absent'
-      guardianName: guardianName || student.guardianName || 'Guardian',
-      phone: phone || parentPhoneFor(student, sId),
-      smsStatus: 'Sent'
-    };
-
-    setAttendanceLogs(prev => [newEntry, ...prev]);
-  };
-
-  // Helper to execute card verification & SMS dispatch for a matched student
   const executeStudentCardVerification = async (matchedStudent, scannedCardCode) => {
-    const sId = matchedStudent.studentId || matchedStudent.id;
-    const now = new Date();
-    const scanLabel = determineScanType(now, simulatedTimeSlot); // 'Check In' | 'Check Out'
-    const actionVerb = scanLabel === 'Check Out' ? 'checked out' : 'checked in';
-    
-    let timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    if (simulatedTimeSlot === 'morning') timeStr = '08:15 AM';
-    if (simulatedTimeSlot === 'afternoon') timeStr = '02:30 PM';
-
-    const phone = parentPhoneFor(matchedStudent, sId);
-    const guardianName = matchedStudent.guardianName || 'Guardian';
-
-    // Lock attendance with Check In or Check Out status
-    setAttendanceState(prev => ({
-      ...prev,
-      [sId]: {
-        status: scanLabel,
-        scanType: scanLabel,
-        cardScanned: true,
-        smsSent: true,
-        lastSentAt: timeStr,
-        sending: false
-      }
-    }));
-
-    // Record into central history register logs
-    logNewAttendanceRecord(matchedStudent, scanLabel, 'RFID Card Reader', timeStr, phone, guardianName);
-
-    setLastScannedStudent({ ...matchedStudent, scannedCardCode, timeStr, phone, scanType: scanLabel });
-
-    // Dispatch SMS and log scan to backend concurrently
-    const messageText = `[RCIS] REMALJ CARE: Dear ${guardianName}, your child ${matchedStudent.fullName} (${matchedStudent.level}) ${actionVerb} via RFID Card Reader (Card #${scannedCardCode}) at school today at ${timeStr}.`;
-
+    const scanLabel = determineScanType();
     try {
-      const smsPromise = api.sendSms({
-        recipientPhone: phone,
-        messageText,
-        senderId: 'RCIS'
-      });
-
-      const backendPromise = api.recordAttendanceScan({
-        identifier: sId,
-        scanType: scanLabel === 'Check Out' ? 'Check-out' : 'Check-in',
-        sendSms: false
-      });
-
-      await Promise.all([smsPromise, backendPromise]);
-
-      setNotification(`💳 PHYSICAL CARD READ SUCCESS (${scanLabel.toUpperCase()})! Verified Card #${scannedCardCode} -> ${matchedStudent.fullName} (${sId}). Instant SMS dispatched to ${guardianName} (${phone})!`);
-    } catch (err) {
-      setAttendanceState(prev => ({ ...prev, [sId]: { ...prev[sId], smsSent: false, sending: false } }));
-      setNotification(`Attendance or SMS not confirmed: ${err.message}`);
+      // Read before writing, including after uncertain network failures.
+      const current = await loadAttendance();
+      const identity = matchedStudent.studentId || matchedStudent.id;
+      const existing = current.find(r => r.date === attendanceDate() && [identity, matchedStudent.id].includes(r.studentId) && r.status === scanLabel);
+      if (existing) {
+        setNotification(`Attendance already recorded: ${matchedStudent.fullName} — ${scanLabel} at ${existing.time}.`);
+        return;
+      }
+      await api.recordAttendanceScan({identifier: scannedCardCode, scan_type: scanLabel === 'Check Out' ? 'check_out' : 'check_in', send_sms: gateSmsEnabled});
+      const saved = await loadAttendance();
+      const record = saved.find(r => r.date === attendanceDate() && [identity, matchedStudent.id].includes(r.studentId) && r.status === scanLabel);
+      if (!record) throw new Error('The server accepted the scan but it is not yet visible in saved history. Refresh history before retrying');
+      setLastScannedStudent({...matchedStudent, scannedCardCode, timeStr: record.time, phone: parentPhoneFor(matchedStudent, identity), scanType: scanLabel, smsStatus: record.smsStatus});
+      playBeep(true);
+      setNotification(`Attendance saved: ${matchedStudent.fullName} — ${scanLabel}. SMS: ${record.smsStatus}.`);
+    } catch (error) {
+      playBeep(false);
+      setNotification(`Attendance save not confirmed: ${error.message}. Check saved history before retrying.`);
     }
   };
 
@@ -338,7 +277,8 @@ export default function AttendanceControlTable() {
   const handleCardScanSubmit = async (e) => {
     if (e) e.preventDefault();
     const rawCode = cardInput.trim();
-    if (!rawCode) return;
+    if (!rawCode || scanLock.current) return;
+    scanLock.current = true;
 
     setIsScanning(true);
     setUnassignedCardCode('');
@@ -363,101 +303,20 @@ export default function AttendanceControlTable() {
       setUnassignedCardCode(rawCode);
       setNotification(`💳 Card "${rawCode}" is not issued to any student. Issue this UID on Card Issuance & Smart Identity, then scan again.`);
       setCardInput('');
+      scanLock.current = false;
       setIsScanning(false);
       return;
     }
 
-    // Match Found! Check if student has ALREADY marked attendance for this scan window
-    const sId = matchedStudent.studentId || matchedStudent.id;
-    const existingState = attendanceState[sId];
-    const now = new Date();
-    const currentScanLabel = determineScanType(now, simulatedTimeSlot);
-
-    if (existingState && (existingState.status === currentScanLabel || existingState.scanType === currentScanLabel || (existingState.cardScanned && existingState.status === currentScanLabel))) {
-      playBeep(false); // Warning chime
-      const timeSent = existingState.lastSentAt ? `at ${existingState.lastSentAt}` : 'earlier today';
-      setNotification(`⚠️ ATTENDANCE ALREADY MARKED! ${matchedStudent.fullName} (${sId}) has already marked ${currentScanLabel} ${timeSent}.`);
-      setLastScannedStudent({
-        ...matchedStudent,
-        scannedCardCode: rawCode,
-        timeStr: existingState.lastSentAt || 'Today',
-        phone: parentPhoneFor(matchedStudent, sId),
-        scanType: currentScanLabel,
-        alreadyMarked: true
-      });
-      setCardInput('');
-      setIsScanning(false);
-      if (cardInputRef.current) cardInputRef.current.focus();
-      setTimeout(() => setNotification(''), 9000);
-      return;
-    }
-
-    playBeep(true);
     await executeStudentCardVerification(matchedStudent, rawCode);
 
     setCardInput('');
+    scanLock.current = false;
     setIsScanning(false);
     if (cardInputRef.current) cardInputRef.current.focus();
     setTimeout(() => setNotification(''), 9000);
   };
 
-  const handleMarkAttendanceAndSendSms = async (student, newStatus) => {
-    const sId = student.studentId || student.id;
-
-    if (attendanceState[sId]?.cardScanned) return;
-
-    setAttendanceState(prev => ({
-      ...prev,
-      [sId]: { ...(prev[sId] || {}), sending: true }
-    }));
-
-    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const phone = parentPhoneFor(student, sId);
-    const guardianName = student.guardianName || 'Guardian';
-    const messageText = `[RCIS] REMALJ CARE: Dear ${guardianName}, your child ${student.fullName} (${student.level}) has been marked ${newStatus.toUpperCase()} at school today at ${timeStr}.`;
-
-    // Log record into history register
-    logNewAttendanceRecord(student, newStatus, 'Manual Roll Call', timeStr, phone, guardianName);
-
-    try {
-      const smsPromise = api.sendSms({
-        recipientPhone: phone,
-        messageText: messageText,
-        senderId: 'RCIS'
-      });
-
-      const backendPromise = api.recordAttendanceScan({
-        identifier: student.studentId || student.id,
-        scanType: newStatus === 'Present' ? 'Check-in' : 'Absence',
-        sendSms: false
-      });
-
-      const [smsRes] = await Promise.all([smsPromise, backendPromise]);
-      const deliveryStatus = smsRes?.data?.destinations?.[0]?.status?.label;
-
-      if (deliveryStatus === 'DS_REJECTED_SENDER_UNREGISTERED') {
-        setNotification(`⚠ SMS Gateway Alert: Delivery to ${phone} rejected by telco. Sender ID 'RCIS' is not registered on your SMSOnlineGH dashboard.`);
-      } else {
-        setNotification(`⚡ SMS request accepted for ${guardianName} (${phone}) for ${student.fullName} (${newStatus})!`);
-      }
-
-      setAttendanceState(prev => ({
-        ...prev,
-        [sId]: {
-          status: newStatus,
-          cardScanned: false,
-          smsSent: true,
-          lastSentAt: timeStr,
-          sending: false
-        }
-      }));
-
-      setTimeout(() => setNotification(''), 9000);
-    } catch (err) {
-      setAttendanceState(prev => ({ ...prev, [sId]: { ...prev[sId], smsSent: false, sending: false } }));
-      setNotification(`SMS or attendance not confirmed: ${err.message}`);
-    }
-  };
 
   // Sort states
   const [tableSortCol, setTableSortCol] = useState('fullName');
@@ -527,7 +386,7 @@ export default function AttendanceControlTable() {
       const todayStr = new Date().toISOString().split('T')[0];
       const matchesDate = logDateFilter === 'All' ||
                           (logDateFilter === 'Today' && log.date === todayStr) ||
-                          (logDateFilter === 'Yesterday' && log.date !== todayStr);
+                          (logDateFilter === 'Yesterday' && log.date === new Date(Date.now() - 86400000).toISOString().slice(0, 10));
 
       return matchesSearch && matchesLevel && matchesStatus && matchesDate;
     })
@@ -583,22 +442,7 @@ export default function AttendanceControlTable() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          {/* SMS Credit Balance Widget */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc',
-            padding: '6px 12px', borderRadius: 20, border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 700, color: '#334155'
-          }}>
-            <Sparkles size={14} color="#d97706" />
-            <span>SMS Credits: <strong style={{ color: '#0f766e' }}>{smsBalance?.amount ?? 'Unavailable'} units</strong></span>
-            <button
-              type="button"
-              onClick={fetchSmsBalance}
-              title="Refresh SMS Credit Balance"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#64748b', padding: 2 }}
-            >
-              <RefreshCw size={12} className={isBalanceLoading ? 'spin' : ''} />
-            </button>
-          </div>
+          <button type="button" onClick={() => loadAttendance().catch(() => {})}>Refresh attendance records</button>
 
           <button
             type="button"
@@ -627,6 +471,7 @@ export default function AttendanceControlTable() {
         </div>
       </div>
 
+      {historyError && <div role="alert" className="attendance-toast">{historyError}. Use Refresh attendance records to retry.</div>}
       {/* Notification Toast */}
       {notification && (
         <div className="attendance-toast animate-fade-up">
@@ -787,7 +632,7 @@ export default function AttendanceControlTable() {
                   <div style={{ fontSize: 11, color: lastScannedStudent.alreadyMarked ? '#fde047' : lastScannedStudent.scanType === 'Check Out' ? '#fed7aa' : '#a7f3d0', fontWeight: 700, marginTop: 4 }}>
                     {lastScannedStudent.alreadyMarked
                       ? `⚠️ Student already marked ${lastScannedStudent.scanType || 'Check In'} at ${lastScannedStudent.timeStr}. Duplicate scan ignored.`
-                      : `📲 SMS Sent to ${lastScannedStudent.guardianName || 'Parent'} (${lastScannedStudent.phone}) at ${lastScannedStudent.timeStr}`}
+                      : `📲 SMS: ${lastScannedStudent.smsStatus || 'Not confirmed'}`}
                   </div>
                   <button
                     type="button"
@@ -973,14 +818,14 @@ export default function AttendanceControlTable() {
                         )}
                         {state.lastSentAt && (
                           <div style={{ fontSize: 10, color: 'var(--ics-green-700)', marginTop: 2, fontWeight: 700 }}>
-                            📲 SMS Sent at {state.lastSentAt}
+                            Recorded at {state.lastSentAt}
                           </div>
                         )}
                       </td>
                       <td>
                         {state.cardScanned ? (
                           <div className="card-locked-box">
-                            <Check size={14} /> {state.scanType || 'Check In'} Verified via Card Scan (SMS Sent)
+                            <Check size={14} /> {state.scanType || 'Check In'} Verified via Card Scan
                           </div>
                         ) : (
                           <div className="attendance-btn-group">
@@ -1247,7 +1092,7 @@ export default function AttendanceControlTable() {
                         <td>
                           <div style={{ fontSize: 12, fontWeight: 700 }}>{log.guardianName}</div>
                           <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 800, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
-                            📲 SMS Sent ({log.phone})
+                            📲 SMS: {log.smsStatus} {log.phone && `(${log.phone})`}
                           </div>
                         </td>
                         <td>

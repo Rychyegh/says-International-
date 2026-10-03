@@ -1,3 +1,4 @@
+import SchoolPrintHeader from '../School/SchoolPrintHeader';
 import SchoolContactDetails from '../School/SchoolContactDetails';
 import { disbursementItems, requiresItemDisbursement } from '../../lib/pvDisbursementItems.js';
 import ItemDisbursementModal from './ItemDisbursementModal';
@@ -241,7 +242,7 @@ export default function PayPVForm({ onCompleted } = {}) {
       void loadDisbursementHistory();
 
       setPaymentNotice(`💸 ✅ Successfully disbursed GHS ${voucherPayableAmount(payingVoucher).toLocaleString(undefined, { minimumFractionDigits: 2 })} for PV #${targetPvNo}. Payment reference: ${referenceNumber}`);
-      
+
       const paidSnapshot = mapApiPaymentVoucher(confirmedVoucher);
       setPayingVoucher(null);
       if (onCompleted) onCompleted(paidSnapshot);
@@ -421,7 +422,7 @@ export default function PayPVForm({ onCompleted } = {}) {
 
       {/* Main Body Station */}
       <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderTop: 'none', padding: 20 }}>
-        
+
         {/* Navigation Tabs & Search Row */}
         <div style={{
           display: 'flex',
@@ -1193,13 +1194,9 @@ export default function PayPVForm({ onCompleted } = {}) {
             <div className="pv-print-page" style={{ padding: 16, background: '#fff' }}>
               {/* School Header */}
               <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 16, marginBottom: 20 }}>
-                <div style={{ display: 'inline-flex', justifyContent: 'center', marginBottom: 8 }}>
-                  <SchoolLogoSVG size={50} />
-                </div>
-                <h2 style={{ margin: '4px 0 2px', fontSize: 18, fontWeight: 900, color: '#0f3a4b' }}>
-                  REMALJ CAREWELL INSPIRATIONAL SCHOOL
-                </h2>
-              <SchoolContactDetails />
+
+                <SchoolPrintHeader />
+
                 <div style={{ fontSize: 11, color: '#475569', fontWeight: 700 }}>
                   OFFICIAL PAYMENT VOUCHER DISBURSEMENT ADVICE
                 </div>

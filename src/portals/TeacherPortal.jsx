@@ -1,3 +1,4 @@
+import SchoolPrintHeader from '../components/School/SchoolPrintHeader';
 import ViewportModal from '../components/Modal/ViewportModal';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
@@ -863,17 +864,7 @@ export default function TeacherPortal() {
                     <div className="printable-area" style={{ background: '#fff', padding: '16px', border: '1px solid #e5e7eb', borderRadius: 8 }}>
                       {/* School Crest & Header */}
                       <div style={{ textAlign: 'center', marginBottom: 14 }}>
-                        <img
-                          src="/remalj-carewell-logo.jpg"
-                          alt="REMALJ Carewell Logo"
-                          style={{ height: 46, width: 'auto', display: 'inline-block', marginBottom: 4 }}
-                        />
-                        <h2 style={{ fontSize: 19, fontWeight: 900, color: '#0f3a4b', margin: 0, letterSpacing: '0.02em' }}>
-                          REMALJ CAREWELL INSPIRATIONAL SCHOOL
-                        </h2>
-                        <p style={{ fontSize: 12, fontWeight: 700, color: '#4b5563', margin: '2px 0 0' }}>
-                          Carewell Inspirational School · Bogoso
-                        </p>
+                        <SchoolPrintHeader />
                         <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', margin: '2px 0' }}>
                           OFFICIAL STUDENT PROGRESSIVE TERMINAL REPORT
                         </p>

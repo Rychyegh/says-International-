@@ -1,0 +1,82 @@
+ATTENDANCE PERSISTENCE — BACKEND HANDOFF
+3 October 2026
+
+Scope and findings
+The frontend previously kept history only in React memory, never fetched saved
+attendance on mount, and added local records before POST completed. Refresh
+therefore lost the displayed records even when a request had succeeded. Its
+scanType/sendSms fields also did not match the published snake_case scan schema.
+This does not establish whether any specific production scan reached the DB.
+No backend source is included in this repository. Backend deployment/database
+persistence remains to be verified by the backend developer.
+
+Frontend integration now implemented
+- GET /api/v1/attendance/logs on mount, manual refresh, before scanning and after
+  saving. Successful saves are displayed only after read-back from this endpoint.
+- POST /api/v1/attendance/scan with the physical UID as identifier:
+  {"identifier":"CARD-123","scan_type":"check_in","send_sms":true}
+  scan_type can be check_in or check_out. send_sms follows the screen checkbox.
+  The frontend no longer sends a separate duplicate SMS for a card scan.
+- Manual Present/Absent uses POST /api/v1/attendance/roll-call:
+  {"class_level":"Basic 1","records":[{"student_id":"<student UUID>",
+   "status":"Present"}],"sendSmsForAbsence":false}
+  The custom SMS is submitted only after attendance saves; an SMS failure does
+  not erase the confirmed attendance. Existing /attendance/send-sms is used.
+- SMS credit balance widget and automatic balance request have been removed.
+- Existing authenticated request client supplies authentication to these routes.
+
+Required GET response (recommended explicit contract)
+{"logs":[{
+  "id":"<persisted attendance event UUID>",
+  "student_id":"<student UUID>",
+  "student_code":"REMALJ-2026-...",
+  "student_name":"Student Name",
+  "class_level":"Basic 1",
+  "date":"2026-10-03",
+  "time":"08:20",
+  "scan_type":"check_in",
+  "method":"RFID Card Reader",
+  "guardian_name":"Guardian Name",
+  "guardian_phone":"<guardian phone>",
+  "sms_status":"Queued"
+}]}
+An empty history is {"logs":[]}. A raw array, records/items/data array envelopes
+and data.logs/data.records are also accepted. Each record requires id,
+student_id (or studentId), and date (or scanned_at/timestamp/created_at).
+Return actual SMS state; never report Sent before gateway acknowledgement.
+Use Africa/Accra date/time and an explicit offset for timestamps. Return manual
+roll-call events here as well, with status Present/Absent/Late/Excused.
+The current frontend requests history without pagination. Do not silently return
+only today's entries or a truncated subset. If paging is necessary, agree a
+cursor contract and implement client paging before enabling truncation.
+
+Backend implementation and verification requirements
+1. Resolve UID to an active issued student card, authorize the caller and school,
+   validate scan_type, and COMMIT the event before returning a successful POST.
+2. GET must read the same persistent database and school scope, including events
+   after server restart and in another authenticated browser session. Ensure
+   immediate read-after-write visibility; no stale attendance cache.
+3. Enforce atomic duplicate protection for school/student/date/scan_type (or
+   documented attendance sessions). Return the existing event on repeated taps.
+   Frontend read-before-write and click locking cannot prevent concurrent devices
+   or uncertain-response duplicates by themselves. Do not resend SMS on replay.
+4. Queue SMS after the attendance transaction commits, ideally via an outbox.
+   Gateway failure must not roll back the saved attendance. Report queued/sent/
+   failed/not_requested independently. Respect send_sms:false.
+5. Return useful 401/403/404/422 errors. Do not return success for unsaved events.
+   Keep roll-call corrections auditable and idempotent per student/date.
+6. Update OpenAPI with typed responses for scan, history, and roll-call. The
+   previously downloaded public schema declares roll-call date as null-only;
+   fix it to accept an optional ISO date if historical roll call is supported.
+   The frontend currently omits this field and uses the backend's school date.
+7. Confirm a scan with SMS disabled appears in GET and survives refresh/restart;
+   repeated/concurrent taps create one event; check-out is distinct; failed
+   writes create no rows; SMS failure preserves attendance; tenant access is
+   restricted; manual Present and Absent survive refresh.
+
+Evidence and limitations
+Routes/request names were checked against the public OpenAPI snapshot downloaded
+2 October 2026. No real production scan, database mutation, or SMS was performed.
+Local browser tests use a synthetic persistent API stub to check wire fields,
+refresh restoration, duplicate handling and no phantom records on a failed POST.
+Frontend changes require deployment; backend acceptance must be tested separately.

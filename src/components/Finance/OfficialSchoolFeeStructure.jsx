@@ -1,3 +1,4 @@
+import SchoolPrintHeader from '../School/SchoolPrintHeader';
 import SchoolContactDetails from '../School/SchoolContactDetails';
 import ViewportModal from '../Modal/ViewportModal';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -714,7 +715,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
   // Two-tiered Class Level Selection State
   const [selectedGradeCategory, setSelectedGradeCategory] = useState('nursery_creche'); // 'nursery_creche' | 'kindergarten' | 'basic_school'
   const [selectedSubLevel, setSelectedSubLevel] = useState('Creche');
-  
+
   const [successMsg, setSuccessMsg] = useState('');
   const [cancellation, setCancellation] = useState(null);
   const [cancelBusy, setCancelBusy] = useState(false);
@@ -791,7 +792,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     || feeSchedule['Creche'] 
     || { baseBill: [], optionalBills: [] };
 
-  
+
   const liveClassStudents = useMemo(() => {
     const fromRoster = (onboardedStudents || []).map((s) => ({ ...s, _source: 'roster' }));
     const fromFees = (studentFees || []).map((f) => ({
@@ -1471,7 +1472,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     const grandTotal = money(totalBase + optionalTotal);
 
     const feeAccount = studentFees.find(f => f.studentId === student.studentId) || { billedAmount: grandTotal, paidAmount: grandTotal, balance: 0, status: 'Paid' };
-    
+
     let csv = `REMALJ CAREWELL INSPIRATIONAL SCHOOL - OFFICIAL STUDENT BILL & STATEMENT\n`;
     csv += `Student Name,${getStudentFullName(student)}\n`;
     csv += `Student ID,${student.studentId}\n`;
@@ -1613,10 +1614,10 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       {/* Header Banner */}
       <div className="fee-header-card no-print">
         <div className="fee-header-brand">
-          <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 68, width: 'auto', borderRadius: 8, border: '2px solid #0284c7', boxShadow: '0 4px 10px rgba(2,132,199,0.2)' }} />
+
           <div>
-            <h1 className="fee-header-title">REMALJ CAREWELL INSPIRATIONAL SCHOOL</h1>
-            <p className="fee-header-sub"><SchoolContactDetails /></p>
+            <SchoolPrintHeader />
+
             <div className="fee-header-badge">OFFICIAL SCHOOL FEES & BILL SCHEDULE (ADMIN & ACCOUNTS CONTROL)</div>
           </div>
         </div>

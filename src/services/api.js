@@ -1185,7 +1185,7 @@ export const api = {
 
   // --- Attendance & SMS Alerts ---
   recordAttendanceScan: async (scanData) => {
-    // scanData: { identifier, scanType, busRouteId, sendSms }
+    // Backend wire contract: { identifier, scan_type: check_in|check_out, send_sms }
     return await request('/attendance/scan', {
       method: 'POST',
       body: JSON.stringify(scanData),
@@ -1195,6 +1195,11 @@ export const api = {
   getAttendance: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return await request(`/attendance${query ? `?${query}` : ''}`);
+  },
+
+  getAttendanceLogs: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/attendance/logs${query ? `?${query}` : ''}`);
   },
 
   submitRollCall: async (rollCallData) => {

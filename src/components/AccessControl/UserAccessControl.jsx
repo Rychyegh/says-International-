@@ -1,3 +1,4 @@
+import SchoolPrintHeader from '../School/SchoolPrintHeader';
 import ViewportModal from '../Modal/ViewportModal';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -1554,7 +1555,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
 
             <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ textAlign: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: 16 }}>
-                <div style={{ fontWeight: 900, fontSize: 15, color: '#4a1d6e' }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</div>
+                <SchoolPrintHeader />
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Bogoso Main Campus • Official User Access Credentials</div>
               </div>
 

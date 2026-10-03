@@ -1,3 +1,4 @@
+import SchoolPrintHeader from '../components/School/SchoolPrintHeader';
 import SchoolContactDetails from '../components/School/SchoolContactDetails';
 import { isPendingVoucher } from '../lib/pvNotifications.js';
 import ViewportModal from '../components/Modal/ViewportModal';
@@ -4269,14 +4270,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   {/* School Header Box */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #1e1b4b', paddingBottom: 6, marginBottom: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 40, width: 'auto', borderRadius: 4 }} />
+
                       <div>
-                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 900, color: '#1e1b4b', margin: 0, letterSpacing: '0.02em' }}>
-                          REMALJ CAREWELL INSPIRATIONAL SCHOOL
-                        </h2>
-                        <div style={{ fontSize: 9.5, fontWeight: 700, color: '#475569', marginTop: 1 }}>
-                          <SchoolContactDetails />
-                        </div>
+                        <SchoolPrintHeader />
+
                       </div>
                     </div>
 
@@ -4462,7 +4459,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
                       <div style={{ background: '#f3e8ff', border: '1px solid #d8b4fe', borderRadius: 10, padding: 16 }}>
                         <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#6b21a8', letterSpacing: '0.05em', marginBottom: 8 }}>Portal Login Credentials</div>
-                        
+
                         <div style={{ marginBottom: 10 }}>
                           <div style={{ fontSize: 11, color: '#7e22ce', fontWeight: 700 }}>Official Student Email</div>
                           <div style={{ fontSize: 14, fontWeight: 900, color: '#4a1d6e', fontFamily: 'monospace' }}>{s.studentEmail}</div>

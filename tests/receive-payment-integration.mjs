@@ -49,7 +49,7 @@ try {
  await receipt.getByRole('img',{name:'REMALJ Carewell Inspirational School Logo'}).evaluate(img=>img.decode());
  await page.evaluate(()=>document.body.classList.add('print-student-receipt'));
  await page.emulateMedia({media:'print'});
- assert.equal(await page.locator('.student-receipt-letterhead').evaluate(el=>getComputedStyle(el).visibility),'visible');
+ assert.equal(await page.locator('.school-print-header').evaluate(el=>getComputedStyle(el).visibility),'visible');
  await page.locator('.student-receipt-paper').screenshot({path:'/private/tmp/student-receipt-letterhead.png'});
  await page.emulateMedia({media:'screen'});
  await page.evaluate(()=>document.body.classList.remove('print-student-receipt'));

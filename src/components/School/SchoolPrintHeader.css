@@ -1,0 +1,8 @@
+.school-print-header{display:flex!important;align-items:flex-start!important;justify-content:flex-start!important;gap:18px;width:100%;min-width:0;text-align:left!important;color:#123b4a;break-inside:avoid;page-break-inside:avoid;margin:0 0 12px;font-family:Arial,sans-serif;}
+.school-print-header .school-print-header__logo{display:block!important;flex:0 0 76px;width:76px!important;height:88px!important;object-fit:contain!important;object-position:top;border:0!important;border-radius:0!important;box-shadow:none!important;margin:0!important;}
+.school-print-header__details{flex:1;min-width:0;}
+.school-print-header .school-print-header__details h2{margin:0 0 7px!important;font-family:Arial,sans-serif!important;font-size:18px!important;line-height:1.25!important;font-weight:800!important;letter-spacing:0!important;text-align:left!important;text-transform:uppercase;color:#123b4a!important;}
+.school-print-header .school-contact-details{font-style:normal!important;text-align:left!important;color:#334155;overflow-wrap:anywhere;}
+@media print{.school-print-header{flex-direction:row!important;gap:16px!important;}.school-print-header__logo{print-color-adjust:exact;-webkit-print-color-adjust:exact;}}
+.receipt-header-inline:has(.school-print-header){justify-content:flex-start!important;}
+.receipt-school-text:has(.school-print-header){width:100%;min-width:0;}

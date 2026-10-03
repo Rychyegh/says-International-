@@ -1,3 +1,4 @@
+import SchoolPrintHeader from '../School/SchoolPrintHeader';
 import SchoolContactDetails from '../School/SchoolContactDetails';
 import { voucherProviders } from '../../lib/pvProviders.js';
 import ViewportModal from '../Modal/ViewportModal';
@@ -497,7 +498,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
 
       {/* Main Form Layout with Side Window */}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: 20, alignItems: 'start' }}>
-        
+
         {/* Left Column: PV Form & Line Items Table */}
         <div>
           {/* Top Form Header Inputs (PV #, Search, Requisition #, Reset) */}
@@ -1575,12 +1576,10 @@ export default function SubmitPVRequest({ setM = () => {} }) {
           <div className="pv-print-page" style={{ maxWidth: 720, width: '100%', background: '#fff', borderRadius: 12, padding: 18, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #0f172a', paddingBottom: 10, marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <SchoolLogoSVG size={36} />
+
                 <div>
-                  <h2 style={{ fontSize: 14, fontWeight: 900, color: '#0f172a', margin: 0 }}>
-                    REMALJ CAREWELL INSPIRATIONAL SCHOOL
-                  </h2>
-              <SchoolContactDetails />
+                  <SchoolPrintHeader />
+
                   <div style={{ fontSize: 10, fontWeight: 700, color: '#475569' }}>
                     PAYMENT VOUCHER
                   </div>
