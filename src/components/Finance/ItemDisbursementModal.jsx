@@ -1,3 +1,4 @@
+import { SCHOOL_PL_ACCOUNTS } from '../../data/chartOfAccounts';
 import { usePortalData } from '../../data/PortalStore';
 import { identityRetry, listRetryOperations, recoveryPayload } from '../../lib/identityRetry';
 import React, { useEffect, useRef, useState } from 'react';
@@ -16,7 +17,7 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, onReceipt })
   const lock = useRef(false);
   const [busy,setBusy] = useState(false), [pending,setPending] = useState(null), [ready,setReady] = useState(false);
   const storageKey = `pv-item-instructions:${getAuthUser()?.id}:${voucher.id}:${item.id}`;
-  const defaults = {source_account_id:'',destination_account:'',beneficiary:item.provider || '',payment_method:'Bank Transfer',reference:'',payment_date:new Date().toISOString().slice(0,10),expense_account_id:'',notes:''};
+  const defaults = {source_account_id:'',destination_account:'',beneficiary:item.provider || '',payment_method:'Bank Transfer',reference:'',payment_date:new Date().toISOString().slice(0,10),expense_account_id:'',expense_account_draft:'',notes:''};
   const [fields, setFields] = useState(() => {
     try { return {...defaults,...JSON.parse(sessionStorage.getItem(storageKey) || '{}')}; }
     catch { return defaults; }
@@ -77,7 +78,7 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, onReceipt })
     try {sessionStorage.setItem(storageKey,JSON.stringify(fields));setNotice('Instructions saved in this tab. No payment has been made.');}
     catch {setNotice('Could not save instructions in this tab. Keep this dialog open to retain your entries.');}
   };
-  return <form className="item-payment-card" aria-label={`Item ${index+1} payment instructions`} onSubmit={save}>
+  return <form className="item-payment-card" aria-label={`Item ${index+1} payment instructions`} onSubmit={save} noValidate>
     <div className="item-payment-heading"><div><small>ITEM {index+1} · {paid ? 'Paid' : eligible ? 'Approved' : 'Awaiting approval'}</small><h3>{item.description || `Item ${index+1}`}</h3></div><strong>GHS {Number(item.totalAmount ?? item.total ?? 0).toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div>
     <fieldset disabled={paid || busy || Boolean(pending) || !ready}>
       <div className="item-payment-fields">
@@ -85,14 +86,21 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, onReceipt })
         <label>Destination account<input required value={fields.destination_account} onChange={e=>field('destination_account',e.target.value)} placeholder="Recipient bank account or MoMo number" /></label>
         <label>Beneficiary<input readOnly required value={item.provider || ''} /></label>
         <label>Payment method<select aria-label="Payment method" value={fields.payment_method} onChange={e=>field('payment_method',e.target.value)}>{['Bank Transfer','Mobile Money','Cheque','Cash'].map(method=><option key={method}>{method}</option>)}</select></label>
-        <label>Expense account<select aria-label="Expense account" required value={fields.expense_account_id} onChange={e=>field('expense_account_id',e.target.value)}><option value="">Select an account</option>{accounts.expenses.map(account=><option key={account.id} value={account.id}>{account.name || account.account_name} · {account.code || account.account_code}</option>)}</select></label>
+        <label>Expense account<select aria-label="Expense account" required value={fields.expense_account_id || fields.expense_account_draft || ''} onChange={e=>{
+          const value=e.target.value;
+          setFields(current=>({...current,expense_account_id:value.startsWith('draft:')?'':value,expense_account_draft:value.startsWith('draft:')?value:''}));
+          setNotice('Unsaved changes');
+        }}><option value="">Select an account</option>
+          {accounts.expenses.length>0 && <optgroup label="Configured expense accounts">{accounts.expenses.map(account=><option key={account.id} value={account.id}>{account.name || account.account_name} · {account.code || account.account_code}</option>)}</optgroup>}
+          <optgroup label="School account list — draft instructions only">{SCHOOL_PL_ACCOUNTS.map(account=><option key={account.code+account.name} value={`draft:${account.code}:${account.name}`}>{account.name} · {account.code}</option>)}</optgroup>
+        </select>{fields.expense_account_draft && <small>This selection is saved with your draft. Select a configured expense account before recording payment.</small>}</label>
         <label>Payment reference<input required value={fields.reference} onChange={e=>field('reference',e.target.value)} /></label>
         <label>Payment date<input type="date" required value={fields.payment_date} onChange={e=>field('payment_date',e.target.value)} /></label>
       </div>
       <label>Notes<textarea rows={2} value={fields.notes} onChange={e=>field('notes',e.target.value)} /></label>
       <div className="item-payment-actions"><button className="btn btn-outline-green" type="submit">Save item instructions</button></div>
     </fieldset>
-    <button className="btn btn-green" type="button" onClick={disburse} disabled={!canDisburse || busy || !ready || !isItemUuid(item.backendItemId) || item.recoveredFromDescription || (pending ? !pending.input : !eligible || paid)}>{busy ? 'Processing…' : pending ? `Retry item ${index+1} payment` : `Record confirmed payment for item ${index+1}`}</button>
+    <button className="btn btn-green" type="button" onClick={disburse} disabled={!canDisburse || busy || !ready || !isItemUuid(item.backendItemId) || item.recoveredFromDescription || (pending ? !pending.input : !eligible || paid || !accounts.expenses.some(account=>account.id===fields.expense_account_id))}>{busy ? 'Processing…' : pending ? `Retry item ${index+1} payment` : `Record confirmed payment for item ${index+1}`}</button>
     {!canDisburse && <p>Payment recording is unavailable until rollout is verified, payment accounts are configured, and reconciliation is clear.</p>}
     {pending && <button type="button" className="btn" disabled={busy || !pending.input} onClick={reconcile}>Check saved payment</button>}
     {(item.payments || []).filter(payment=>isItemUuid(payment.id)).map(payment=><button type="button" className="btn" key={payment.id} onClick={()=>onReceipt(item,payment.id)}>View receipt {payment.receipt_number || payment.reference || payment.id}</button>)}
