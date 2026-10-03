@@ -149,8 +149,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
   const [selectedItemIds, setSelectedItemIds] = useState(() => currentItems.map(i => i.id));
   const [activeItemIndex, setActiveItemIndex] = useState(0);
   const reviewLock = useRef(false);
-  const [rejection,setRejection] = useState(null);
-  const [rejectionReason,setRejectionReason] = useState('');
+  const remarksRef = useRef(null);
   const reviewComplete = currentItems.length > 0 && currentItems.every(itemDecided);
 
   // Recently Actioned PVs Filters at bottom of page
@@ -184,7 +183,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
     setProviderId(v.providerId || '');
     setDatePrepared(v.datePrepared || v.tDate || new Date().toISOString().split('T')[0]);
     setValuedDate(v.valuedDate || v.vDate || new Date().toISOString().split('T')[0]);
-    setAuditRemarks(v.auditRemarks || 'Pre-audited & verified by Headmaster.');
+    setAuditRemarks('');
 
     // Process line items for multi-item support
     const parsedItems = parsePvItems(v);
@@ -451,7 +450,10 @@ export default function ApprovePVForm({ setM = () => {} }) {
     if (!targets.length) return;
     if (!['Validated','Declined'].includes(decision)) {setBannerNotice('Choose Approve or Reject for item authorization.');return;}
     if (decision === 'Declined' && !notes.trim()) {
-      setRejection({voucher,ids,decision});setRejectionReason('');return;
+      populateFormWithVoucher(voucher,parsePvItems(voucher).findIndex(item=>item.id===targets[0].id));
+      setAuditRemarks('');
+      setBannerNotice('Enter the rejection reason in Pre Audit Remarks & Comments, then click Reject.');
+      setTimeout(()=>remarksRef.current?.focus(),0);return;
     }
     reviewLock.current=true;setIsActioning(true);
     const acceptSaved = raw => {
@@ -465,7 +467,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
     try {
       const items=parsePvItems(voucher).map(item=>targets.some(target=>target.id===item.id)?{...item,status:decision,auditRemarks:notes}:item);
       const saved=await approvePaymentVoucher(voucher.id || voucher.pvNo,summarizePvStatusFromItems(items),notes,{items});
-      acceptSaved(saved);setRejection(null);
+      acceptSaved(saved);
       setBannerNotice(`✅ ${decision==='Validated'?'Approved':'Rejected'} ${targets.length} item(s). Decisions confirmed by the server.`);
       return true;
     } catch(error) {
@@ -476,9 +478,13 @@ export default function ApprovePVForm({ setM = () => {} }) {
     } finally {reviewLock.current=false;setIsActioning(false);}
   };
   const activeVoucher = () => pvQueue.find(v=>v.id===selectedPvId || pvNosMatch(v.pvNo,pvNo));
-  const handleActionItemDirect = (id,decision,voucher=null) => applyItemDecisions(voucher || activeVoucher(),[id],decision,decision==='Declined'?'':auditRemarks);
+  const handleActionItemDirect = (id,decision,voucher=null) => {
+    const target=voucher || activeVoucher();
+    const notes=target && (target.id===selectedPvId || pvNosMatch(target.pvNo,pvNo)) ? auditRemarks : '';
+    return applyItemDecisions(target,[id],decision,notes);
+  };
   const handleActionSingleItem = () => handleActionItemDirect(currentItems[activeItemIndex]?.id,actionChoice==='Pre-audit Approve PV'?'Validated':actionChoice);
-  const handleBulkActionSelectedItems = () => applyItemDecisions(activeVoucher(),selectedItemIds,actionChoice==='Pre-audit Approve PV'?'Validated':actionChoice,actionChoice==='Declined'?'':auditRemarks);
+  const handleBulkActionSelectedItems = () => applyItemDecisions(activeVoucher(),selectedItemIds,actionChoice==='Pre-audit Approve PV'?'Validated':actionChoice,auditRemarks);
 
   // Action Next PV / Action All PV Items in Queue
   const handleActionNextOrAll = async () => {
@@ -558,12 +564,6 @@ export default function ApprovePVForm({ setM = () => {} }) {
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a', paddingBottom: 40 }}>
       
-      {rejection && <div role="dialog" aria-label="Reject voucher items" style={{padding:20,background:'#fff1f2',border:'1px solid #fda4af'}}>
-        <h3>Reason for rejecting {rejection.ids.length} item(s)</h3>
-        <label>Rejection reason<textarea aria-label="Rejection reason" value={rejectionReason} onChange={event=>setRejectionReason(event.target.value)} /></label>
-        <button type="button" disabled={isActioning || !rejectionReason.trim()} onClick={()=>applyItemDecisions(rejection.voucher,rejection.ids,'Declined',rejectionReason)}>Confirm rejection</button>
-        <button type="button" disabled={isActioning} onClick={()=>setRejection(null)}>Cancel</button>
-      </div>}
       {/* Top Banner Header - Click to Toggle Voucher Particulars & Calculations */}
       <div 
         onClick={() => (isParticularsOpen ? setIsParticularsOpen(false) : openParticularsStation())}
@@ -1403,6 +1403,8 @@ export default function ApprovePVForm({ setM = () => {} }) {
             <input
               type="text"
               placeholder="Enter audit verification comments or correction rationale..."
+              ref={remarksRef}
+              aria-label="Pre Audit Remarks & Comments"
               value={auditRemarks}
               onChange={(e) => setAuditRemarks(e.target.value)}
               style={{ width: '100%', padding: '7px 10px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}

@@ -17,3 +17,5 @@ VITE_ENABLE_ITEM_PAYMENTS=false by default. Keep disabled until the backend migr
 
 Remaining backend/operator work:
 Apply and verify the migrations in the supplied contract; configure genuine accounts; reconcile flagged historical vouchers through an audited process; publish actual response schemas including payment-accounts and payment identity fields; run authorized live validation. The frontend cannot clear reconciliation flags, invent account IDs, or mark a draft paid.
+
+Source/beneficiary display update (3 October): Source account is fixed to "REMALJ Carewell Inspirational School" in the form. The API still receives a real source_account_id: an existing saved draft's valid account ID, otherwise a unique is_default=true asset account, otherwise the sole configured active asset account. Multiple accounts without a unique default require backend configuration; the client does not choose one arbitrarily. Original pending requests retain their original ID. Beneficiary is read-only from the PV item, preserving different payees on different lines.

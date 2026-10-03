@@ -24,14 +24,14 @@ try {
   await page.waitForFunction(()=>window.testStore.paymentVouchers[0]?.items[0]?.status==='Validated');
   assert.equal(await page.getByTitle('Approve KIK',{exact:true}).count(),0);
   await page.getByTitle(mixed?'Decline / Reject BOOT':'Approve BOOT',{exact:true}).click();
-  if(mixed){await page.getByLabel('Rejection reason',{exact:true}).fill('Not required this term');await page.getByRole('button',{name:'Confirm rejection',exact:true}).click();}
+  if(mixed){assert.equal(await page.getByRole('dialog',{name:'Reject voucher items'}).count(),0);await page.getByLabel('Pre Audit Remarks & Comments',{exact:true}).fill('Not required this term');await page.getByTitle('Decline / Reject BOOT',{exact:true}).click();}
   await page.waitForFunction(()=>window.testStore.paymentVouchers[0]?.items.every(item=>['Validated','Declined'].includes(item.status)));
   assert.equal(calls.length,2);assert.equal(calls[0].target,a);assert.equal(calls[1].target,b);
   assert.equal(calls[1].body.decision,mixed?'decline':'approve');
   assert.equal(voucher.total_amount,1200);
   assert.equal(await page.getByTitle('Approve BOOT',{exact:true}).count(),0);
   // Recall the completed voucher to verify the editing-station controls disappear too.
-  await page.getByRole('button',{name:'Open Voucher Particulars ▼',exact:true}).click();
+  if(await page.getByRole('button',{name:'Open Voucher Particulars ▼',exact:true}).count()) await page.getByRole('button',{name:'Open Voucher Particulars ▼',exact:true}).click();
   await page.getByPlaceholder('Enter PV N/o (e.g. PV-2026-088, 51250897)...').fill('PV-TEST');
   await page.getByRole('button',{name:'Recall PV Details',exact:true}).click();
   await page.getByText(/Voucher #PV-TEST Contains 2 Itemized Lines/).waitFor();

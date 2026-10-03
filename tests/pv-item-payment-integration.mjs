@@ -10,7 +10,7 @@ try {
  const page=await browser.newPage();
  await page.route('**/api/**',async route=>{
   const req=route.request(),path=new URL(req.url()).pathname;let data=[];
-  if(path.endsWith('/finance/payment-accounts')) data={source_accounts:[{id:source1,name:'Source 1',is_active:true},{id:source2,name:'Source 2',is_active:true}],expense_accounts:[{id:expense,name:'Diesel',code:'10093',is_active:true}]};
+  if(path.endsWith('/finance/payment-accounts')) data={source_accounts:[{id:source1,name:'Source 1',is_active:true,is_default:true},{id:source2,name:'Source 2',is_active:true}],expense_accounts:[{id:expense,name:'Diesel',code:'10093',is_active:true}]};
   if(path.endsWith('/finance/vouchers')) data=[voucher];
   if(path.endsWith(`/finance/vouchers/${voucher.id}`)) data=voucher;
   if(path.endsWith('/payments/by-idempotency-key')) data={payment:responses.get(new URL(req.url()).searchParams.get('idempotency_key'))?.payment};
@@ -32,7 +32,6 @@ try {
  const dialog=page.getByRole('dialog',{name:'Item authorization and disbursement'});
  for(const number of [1,2]) {
   const form=dialog.getByRole('form',{name:`Item ${number} payment instructions`});
-  await form.getByLabel('Source account',{exact:true}).selectOption(number===1?source1:source2);
   await form.getByLabel('Destination account',{exact:true}).fill(`Destination ${number}`);
   await form.getByLabel('Expense account',{exact:true}).selectOption(expense);
   await form.getByLabel('Payment reference',{exact:true}).fill(`REF-${number}`);
@@ -52,7 +51,7 @@ try {
  await dialog.getByRole('button',{name:'Check saved payment',exact:true}).click();
  await dialog.waitFor({state:'detached'});
  assert.equal(responses.size,2);assert.notEqual(calls[2].key,calls[1].key);
- assert.equal(calls[2].body.source_account_id,source2);assert.equal(calls[2].body.destination_account,'Destination 2');
+ assert.equal(calls[2].body.source_account_id,source1);assert.equal(calls[2].body.destination_account,'Destination 2');
  assert.equal(voucher.status,'DISBURSED');
  assert.equal(original.body.version,4);assert.equal(calls[2].body.version,5);
  assert.equal(original.body.payment_method,'Bank Transfer');assert.equal(original.body.beneficiary,'Books supplier');

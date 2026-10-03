@@ -22,6 +22,9 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, onReceipt })
     try { return {...defaults,...JSON.parse(sessionStorage.getItem(storageKey) || '{}')}; }
     catch { return defaults; }
   });
+  const defaultSources = accounts.sources.filter(account=>account.is_default === true);
+  const sourceAccountId = accounts.sources.find(account=>account.id===fields.source_account_id)?.id
+    || (defaultSources.length===1 ? defaultSources[0].id : accounts.sources.length===1 ? accounts.sources[0].id : '');
   const [notice, setNotice] = useState('');
   const eligible = isApprovedItem(item.status);
   const paid = ['paid','disbursed','settled'].includes(String(item.status).toLowerCase());
@@ -44,11 +47,11 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, onReceipt })
   const disburse = async event => {
     if (lock.current || !canDisburse || !ready || (!pending && (!eligible || paid))) return;
     if (!pending && !event.currentTarget.form.reportValidity()) return;
-    if (!pending && (!accounts.sources.some(account=>account.id===fields.source_account_id) || !accounts.expenses.some(account=>account.id===fields.expense_account_id) || !Number.isInteger(voucher.version))) {setNotice('Select saved payment accounts and refresh the voucher version before recording payment.');return;}
+    if (!pending && (!accounts.sources.some(account=>account.id===sourceAccountId) || !accounts.expenses.some(account=>account.id===fields.expense_account_id) || !Number.isInteger(voucher.version))) {setNotice('Select saved payment accounts and refresh the voucher version before recording payment.');return;}
     if (pending?.input && !pending.input.source_account_id) {setNotice('This request uses an older contract. Reconcile its original key before recording another payment.');return;}
     lock.current=true;setBusy(true);setNotice('');
     let retry;
-    const input = pending?.input || {source_account_id:fields.source_account_id,expense_account_id:fields.expense_account_id,destination_account:fields.destination_account,beneficiary:item.provider,payment_method:fields.payment_method,reference:fields.reference,payment_date:fields.payment_date,notes:fields.notes,version:voucher.version};
+    const input = pending?.input || {source_account_id:sourceAccountId,expense_account_id:fields.expense_account_id,destination_account:fields.destination_account,beneficiary:item.provider,payment_method:fields.payment_method,reference:fields.reference,payment_date:fields.payment_date,notes:fields.notes,version:voucher.version};
     try {
       retry = await identityRetry(endpoint,actor,input);
       setPending({key:retry.key,input});retry.dispatched();
@@ -75,14 +78,14 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, onReceipt })
   const field = (name, value) => {setFields(current=>({...current,[name]:value}));setNotice('Unsaved changes');};
   const save = event => {
     event.preventDefault();
-    try {sessionStorage.setItem(storageKey,JSON.stringify(fields));setNotice('Instructions saved in this tab. No payment has been made.');}
+    try {sessionStorage.setItem(storageKey,JSON.stringify({...fields,source_account_id:sourceAccountId}));setNotice('Instructions saved in this tab. No payment has been made.');}
     catch {setNotice('Could not save instructions in this tab. Keep this dialog open to retain your entries.');}
   };
   return <form className="item-payment-card" aria-label={`Item ${index+1} payment instructions`} onSubmit={save} noValidate>
     <div className="item-payment-heading"><div><small>ITEM {index+1} · {paid ? 'Paid' : eligible ? 'Approved' : 'Awaiting approval'}</small><h3>{item.description || `Item ${index+1}`}</h3></div><strong>GHS {Number(item.totalAmount ?? item.total ?? 0).toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div>
     <fieldset disabled={paid || busy || Boolean(pending) || !ready}>
       <div className="item-payment-fields">
-        <label>Source account<select aria-label="Source account" required value={fields.source_account_id} onChange={e=>field('source_account_id',e.target.value)}><option value="">Select a saved asset account</option>{accounts.sources.map(account=><option key={account.id} value={account.id}>{account.name || account.account_name} · {account.code || account.account_code}</option>)}</select></label>
+        <label>Source account<input readOnly value="REMALJ Carewell Inspirational School" /></label>
         <label>Destination account<input required value={fields.destination_account} onChange={e=>field('destination_account',e.target.value)} placeholder="Recipient bank account or MoMo number" /></label>
         <label>Beneficiary<input readOnly required value={item.provider || ''} /></label>
         <label>Payment method<select aria-label="Payment method" value={fields.payment_method} onChange={e=>field('payment_method',e.target.value)}>{['Bank Transfer','Mobile Money','Cheque','Cash'].map(method=><option key={method}>{method}</option>)}</select></label>
@@ -100,7 +103,7 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, onReceipt })
       <label>Notes<textarea rows={2} value={fields.notes} onChange={e=>field('notes',e.target.value)} /></label>
       <div className="item-payment-actions"><button className="btn btn-outline-green" type="submit">Save item instructions</button></div>
     </fieldset>
-    <button className="btn btn-green" type="button" onClick={disburse} disabled={!canDisburse || busy || !ready || !isItemUuid(item.backendItemId) || item.recoveredFromDescription || (pending ? !pending.input : !eligible || paid || !accounts.expenses.some(account=>account.id===fields.expense_account_id))}>{busy ? 'Processing…' : pending ? `Retry item ${index+1} payment` : `Record confirmed payment for item ${index+1}`}</button>
+    <button className="btn btn-green" type="button" onClick={disburse} disabled={!canDisburse || busy || !ready || !isItemUuid(item.backendItemId) || item.recoveredFromDescription || (pending ? !pending.input : !eligible || paid || !sourceAccountId || !accounts.expenses.some(account=>account.id===fields.expense_account_id))}>{busy ? 'Processing…' : pending ? `Retry item ${index+1} payment` : `Record confirmed payment for item ${index+1}`}</button>
     {!canDisburse && <p>Payment recording is unavailable until rollout is verified, payment accounts are configured, and reconciliation is clear.</p>}
     {pending && <button type="button" className="btn" disabled={busy || !pending.input} onClick={reconcile}>Check saved payment</button>}
     {(item.payments || []).filter(payment=>isItemUuid(payment.id)).map(payment=><button type="button" className="btn" key={payment.id} onClick={()=>onReceipt(item,payment.id)}>View receipt {payment.receipt_number || payment.reference || payment.id}</button>)}
@@ -138,7 +141,7 @@ export default function ItemDisbursementModal({voucher:initialVoucher,onClose}) 
   return <ViewportModal className="item-payment-overlay" aria-label="Item authorization and disbursement" onClose={onClose}>
     <section className="item-payment-dialog">
       <header><div><h2>Record item payments</h2><p>PV #{voucher.pvNo} · {voucher.items.length} items</p></div><button type="button" className="btn btn-outline-green" onClick={onClose}>Close</button></header>
-      <p>Prepare each item separately, with its own source account, destination account and payment reference.</p>
+      <p>Prepare each item separately with its PV beneficiary, destination account and payment reference.</p>
       <p className="item-payment-availability" id="item-payment-availability">Record an external payment only after verifying its settlement and reference. This records the payment in the school ledger; it does not send money through a bank or mobile-money service.</p>
       {!ITEM_PAYMENTS_ENABLED && <p className="item-payment-availability">Item payment recording is awaiting backend rollout verification.</p>}
       {voucher.itemReconciliationRequired && <p role="alert">This historical voucher requires audited reconciliation. Do not issue a second payment.</p>}

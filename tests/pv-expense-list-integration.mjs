@@ -5,13 +5,18 @@ try {
  const page=await browser.newPage();let writes=0;
  await page.route('**/api/**',async route=>{
   if(route.request().method()==='POST')writes++;
-  const voucher={id:'11111111-1111-4111-8111-111111111111',pv_number:'PV-LIST',status:'APPROVED',total_amount:75,items:[{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',description:'Books',status:'APPROVED',total_amount:25},{id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',description:'Meals',status:'APPROVED',total_amount:50}]};
+  const voucher={id:'11111111-1111-4111-8111-111111111111',pv_number:'PV-LIST',status:'APPROVED',total_amount:75,items:[{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',description:'Books',payee_name:'Books Supplier',status:'APPROVED',total_amount:25},{id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',description:'Meals',status:'APPROVED',total_amount:50}]};
   await route.fulfill({contentType:'application/json',body:JSON.stringify(new URL(route.request().url()).pathname.endsWith('/finance/vouchers')?[voucher]:[])});
  });
  await page.goto('http://127.0.0.1:5179/tests/store-harness.html?enabled=1&view=pay-pv');
  await page.getByRole('button',{name:'Disburse & Pay',exact:true}).click();
  const dialog=page.getByRole('dialog',{name:'Item authorization and disbursement'});
  const form=dialog.getByRole('form',{name:'Item 1 payment instructions'});
+ assert.equal(await form.getByLabel('Source account',{exact:true}).inputValue(),'REMALJ Carewell Inspirational School');
+ assert.equal(await form.getByLabel('Source account',{exact:true}).getAttribute('readonly'),'');
+ assert.equal(await form.getByLabel('Beneficiary',{exact:true}).inputValue(),'Books Supplier');
+ assert.equal(await form.getByLabel('Beneficiary',{exact:true}).getAttribute('readonly'),'');
+ assert.equal(await form.getByRole('combobox',{name:'Source account',exact:true}).count(),0);
  const expense=form.getByLabel('Expense account',{exact:true});
  assert.ok(await expense.locator('option').count()>20);
  await expense.selectOption({label:'Diesel · 10093'});
