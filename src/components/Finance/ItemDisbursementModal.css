@@ -12,3 +12,7 @@
 .item-payment-dialog {font-family:var(--font-sans,system-ui,sans-serif);}.item-payment-dialog * {box-sizing:border-box;}
 .item-payment-dialog .btn {padding:9px 14px;border-radius:6px;border:1px solid #1b4d3e;font:600 12px var(--font-sans,system-ui,sans-serif);cursor:pointer;background:#fff;color:#1b4d3e;}
 .item-payment-dialog .btn-green {background:#1b4d3e;color:#fff;}
+
+.item-payment-actions{align-items:stretch;gap:12px;margin-top:18px;}
+.item-payment-actions .btn{display:inline-flex;align-items:center;justify-content:center;min-height:42px;margin:0;padding:11px 16px;line-height:1.4;text-align:center;}
+@media(max-width:480px){.item-payment-actions .btn{flex:1 1 100%;}}

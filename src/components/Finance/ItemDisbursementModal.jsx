@@ -101,9 +101,11 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, onReceipt })
         <label>Payment date<input type="date" required value={fields.payment_date} onChange={e=>field('payment_date',e.target.value)} /></label>
       </div>
       <label>Notes<textarea rows={2} value={fields.notes} onChange={e=>field('notes',e.target.value)} /></label>
-      <div className="item-payment-actions"><button className="btn btn-outline-green" type="submit">Save item instructions</button></div>
     </fieldset>
+    <div className="item-payment-actions">
+      <button className="btn btn-outline-green" type="submit" disabled={paid || busy || Boolean(pending) || !ready}>Save item instructions</button>
     <button className="btn btn-green" type="button" onClick={disburse} disabled={!canDisburse || busy || !ready || !isItemUuid(item.backendItemId) || item.recoveredFromDescription || (pending ? !pending.input : !eligible || paid || !sourceAccountId || !accounts.expenses.some(account=>account.id===fields.expense_account_id))}>{busy ? 'Processing…' : pending ? `Retry item ${index+1} payment` : `Record confirmed payment for item ${index+1}`}</button>
+    </div>
     {!canDisburse && <p>Payment recording is unavailable until rollout is verified, payment accounts are configured, and reconciliation is clear.</p>}
     {pending && <button type="button" className="btn" disabled={busy || !pending.input} onClick={reconcile}>Check saved payment</button>}
     {(item.payments || []).filter(payment=>isItemUuid(payment.id)).map(payment=><button type="button" className="btn" key={payment.id} onClick={()=>onReceipt(item,payment.id)}>View receipt {payment.receipt_number || payment.reference || payment.id}</button>)}
