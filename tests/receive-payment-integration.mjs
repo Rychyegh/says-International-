@@ -45,7 +45,7 @@ try {
  await page.getByRole('button',{name:'Retry original payment'}).click();
  const receipt=page.getByRole('dialog',{name:'Print student receipt'});
  await receipt.getByText('RCPT-SAVED-001',{exact:true}).waitFor();
- await receipt.getByText('P.O. Box 139, Bogoso',{exact:true}).waitFor();
+ await receipt.getByText('P. O. Box 139, Bogoso',{exact:true}).waitFor();
  await receipt.getByRole('img',{name:'REMALJ Carewell Inspirational School Logo'}).evaluate(img=>img.decode());
  await page.evaluate(()=>document.body.classList.add('print-student-receipt'));
  await page.emulateMedia({media:'print'});

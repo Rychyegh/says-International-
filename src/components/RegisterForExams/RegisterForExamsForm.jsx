@@ -1,3 +1,4 @@
+import SchoolContactDetails from '../School/SchoolContactDetails';
 import ViewportModal from '../Modal/ViewportModal';
 import React, { useState } from 'react';
 import { usePortalData } from '../../data/PortalStore';
@@ -1360,7 +1361,7 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
                             OFFICIAL CANDIDATE EXAMINATION DOSSIER & INDIVIDUAL ROSTER
                           </div>
                           <div style={{ fontSize: 11, color: '#475569', marginTop: 1 }}>
-                            Bogoso Main Campus · P.O. Box 112, Western Region · Academic Session {r.academicYear || academicSettings?.academicYear || '2025/2026'} · {r.term || academicSettings?.academicTerm || 'Term 1'}
+                            <SchoolContactDetails />Academic Session {r.academicYear || academicSettings?.academicYear || '2025/2026'} · {r.term || academicSettings?.academicTerm || 'Term 1'}
                           </div>
                         </div>
                       </div>

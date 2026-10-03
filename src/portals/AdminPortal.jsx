@@ -1,3 +1,4 @@
+import SchoolContactDetails from '../components/School/SchoolContactDetails';
 import { isPendingVoucher } from '../lib/pvNotifications.js';
 import ViewportModal from '../components/Modal/ViewportModal';
 import { TimetableManager } from '../components/Academic/Timetable';
@@ -4274,10 +4275,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                           REMALJ CAREWELL INSPIRATIONAL SCHOOL
                         </h2>
                         <div style={{ fontSize: 9.5, fontWeight: 700, color: '#475569', marginTop: 1 }}>
-                          P.O. Box 144, Anikoko Junction, Bogoso · Western Region, Ghana
-                        </div>
-                        <div style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>
-                          Tel: +233 24 111 2222 | Email: info@remaljcarewell.edu.gh | Web: www.remaljcarewell.edu.gh
+                          <SchoolContactDetails />
                         </div>
                       </div>
                     </div>

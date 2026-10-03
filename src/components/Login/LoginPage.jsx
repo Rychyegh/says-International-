@@ -1,3 +1,4 @@
+import SchoolContactDetails from '../School/SchoolContactDetails';
 import React, { useEffect, useRef, useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, Phone, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
 import { api, setAuthToken, setAuthUser, getAuthUser, isClassTeacherAccount, extractAuthToken } from '../../services/api';
@@ -1003,12 +1004,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
               <div className="login-footer" style={{ marginTop: 24 }}>
                 <strong style={{ fontSize: 14, color: 'var(--gray-900)' }}>REMALJ</strong><br />
                 Carewell Inspirational School · Bogoso<br />
-                P.O. Box 139, Bogoso
-                <br />
-                <span style={{ marginTop: 8, display: 'block' }}>
-                  Prestea Huni-Valley Municipality, Bogoso – Anikoko<br />
-                  Opposite Shining Star Hotel
-                </span>
+                <SchoolContactDetails />
               </div>
             </>
           )}

@@ -150,6 +150,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
   const [activeItemIndex, setActiveItemIndex] = useState(0);
   const reviewLock = useRef(false);
   const remarksRef = useRef(null);
+  const reviewNoticeRef = useRef(null);
   const reviewComplete = currentItems.length > 0 && currentItems.every(itemDecided);
 
   // Recently Actioned PVs Filters at bottom of page
@@ -452,7 +453,9 @@ export default function ApprovePVForm({ setM = () => {} }) {
     if (decision === 'Declined' && !notes.trim()) {
       populateFormWithVoucher(voucher,parsePvItems(voucher).findIndex(item=>item.id===targets[0].id));
       setAuditRemarks('');
-      setBannerNotice('Enter the rejection reason in Pre Audit Remarks & Comments, then click Reject.');
+      setActionChoice('Declined');
+      setSelectedItemIds(targets.map(item=>item.id));
+      setBannerNotice('Enter the rejection reason in Pre Audit Remarks & Comments, then click Reject or Action.');
       setTimeout(()=>remarksRef.current?.focus(),0);return;
     }
     reviewLock.current=true;setIsActioning(true);
@@ -475,11 +478,13 @@ export default function ApprovePVForm({ setM = () => {} }) {
       // restoring an old snapshot that could invite duplicate authorization.
       try {const raw=await api.getPaymentVoucherById(voucher.id);acceptSaved(raw.voucher || raw.data?.voucher || raw.data || raw);} catch {}
       setBannerNotice(error.message || 'The server did not confirm the decision. Retry the original action.');
+      setTimeout(()=>reviewNoticeRef.current?.scrollIntoView({block:'center',behavior:'smooth'}),0);
     } finally {reviewLock.current=false;setIsActioning(false);}
   };
   const activeVoucher = () => pvQueue.find(v=>v.id===selectedPvId || pvNosMatch(v.pvNo,pvNo));
   const handleActionItemDirect = (id,decision,voucher=null) => {
     const target=voucher || activeVoucher();
+    setActionChoice(decision);
     const notes=target && (target.id===selectedPvId || pvNosMatch(target.pvNo,pvNo)) ? auditRemarks : '';
     return applyItemDecisions(target,[id],decision,notes);
   };
@@ -1026,7 +1031,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
 
       {/* Banner Notification Bar */}
       {bannerNotice && (
-        <div style={{
+        <div ref={reviewNoticeRef} role="status" aria-live="polite" style={{
           background: bannerNotice.includes('✅') ? '#dcfce7' : '#e0f2fe',
           color: bannerNotice.includes('✅') ? '#166534' : '#0369a1',
           padding: '8px 16px',

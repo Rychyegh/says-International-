@@ -1,3 +1,4 @@
+import SchoolContactDetails from '../School/SchoolContactDetails';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   FileText, Download, Printer, CheckCircle2, Save, Edit3,
@@ -449,7 +450,7 @@ export default function OfficialApplicationForm({
             </div>
           </div>
           <div className="official-form-subtitle">
-            P.O. BOX 139, BOGOSO • info@remaljschools.com • Online Submission & PDF Export
+            <SchoolContactDetails />
           </div>
         </div>
 
@@ -574,7 +575,7 @@ export default function OfficialApplicationForm({
               <div className="school-header-text">
                 <div className="school-header-title">REMALJ</div>
                 <div className="school-header-sub">Carewell Inspirational School · Bogoso</div>
-                <div className="school-header-email">P. O. BOX 139, BOGOSO • Email: info@remaljschools.com</div>
+                <div className="school-header-email"><SchoolContactDetails /></div>
               </div>
               <div className="photo-box">
                 {formData.passportPhoto ? (

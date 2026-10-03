@@ -1,3 +1,4 @@
+import SchoolContactDetails from '../School/SchoolContactDetails';
 import React, {useEffect,useState} from 'react';
 import ViewportModal from '../Modal/ViewportModal';
 import {api} from '../../services/api';
@@ -36,7 +37,7 @@ export default function StudentReceiptModal({fee,onClose,confirmedReceipt}) {
    {receipt && <article className="student-receipt-paper">
     <header className="student-receipt-letterhead">
      <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Inspirational School Logo" width="80" height="80" />
-     <div><h2>REMALJ Carewell Inspirational School</h2><p>P.O. Box 139, Bogoso</p><p>Prestea Huni-Valley Municipality, Ghana</p></div>
+     <div><h2>REMALJ Carewell Inspirational School</h2><SchoolContactDetails /></div>
     </header>
     <h3>Student Payment Receipt</h3>
     <dl><dt>Receipt / payment reference</dt><dd>{receipt.reference}</dd><dt>Student</dt><dd>{fee.studentName}</dd><dt>Student ID</dt><dd>{fee.studentId}</dd><dt>Payment date</dt><dd>{receipt.date || 'Not provided'}</dd>{receipt.paymentMethod && <><dt>Payment method</dt><dd>{receipt.paymentMethod}</dd></>}<dt>Description</dt><dd>{receipt.description}</dd><dt>Amount received</dt><dd><strong>GHS {Number(receipt.credit || receipt.amount).toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></dd></dl>

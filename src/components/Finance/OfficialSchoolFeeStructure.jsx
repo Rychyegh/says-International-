@@ -1,3 +1,4 @@
+import SchoolContactDetails from '../School/SchoolContactDetails';
 import ViewportModal from '../Modal/ViewportModal';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Printer, CheckCircle2, DollarSign, BookOpen, Layers, Plus, Trash2, FileText, Send, X, UserCheck, Upload, Camera, User, Bus, Utensils, Award, CreditCard, Sparkles, ChevronRight, GraduationCap, Edit3, Save, Check, Users, CheckSquare, Square, RefreshCw, Search, ArrowRight } from 'lucide-react';
@@ -1615,7 +1616,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
           <img src="/remalj-carewell-logo.jpg" alt="REMALJ Carewell Logo" style={{ height: 68, width: 'auto', borderRadius: 8, border: '2px solid #0284c7', boxShadow: '0 4px 10px rgba(2,132,199,0.2)' }} />
           <div>
             <h1 className="fee-header-title">REMALJ CAREWELL INSPIRATIONAL SCHOOL</h1>
-            <p className="fee-header-sub">P. O. BOX 139, BOGOSO • Email: info@remaljschools.com • Phone: 024 111 2222</p>
+            <p className="fee-header-sub"><SchoolContactDetails /></p>
             <div className="fee-header-badge">OFFICIAL SCHOOL FEES & BILL SCHEDULE (ADMIN & ACCOUNTS CONTROL)</div>
           </div>
         </div>
@@ -2344,7 +2345,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                         REMALJ CAREWELL INSPIRATIONAL SCHOOL
                       </div>
                       <div style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', marginTop: 2 }}>
-                        P.O. BOX 139, BOGOSO · PRESTEA HUNI-VALLEY MUNICIPALITY · GHANA · PHONE: 024 111 2222
+                        <SchoolContactDetails />
                       </div>
                     </div>
                   </div>
@@ -3651,7 +3652,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                               REMALJ CAREWELL INSPIRATIONAL SCHOOL
                             </div>
                             <div style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', marginTop: 2 }}>
-                              P.O. BOX 139, BOGOSO · PRESTEA HUNI-VALLEY MUNICIPALITY · GHANA · PHONE: 024 111 2222
+                              <SchoolContactDetails />
                             </div>
                           </div>
                         </div>

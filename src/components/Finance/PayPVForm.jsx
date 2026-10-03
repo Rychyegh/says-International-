@@ -1,3 +1,4 @@
+import SchoolContactDetails from '../School/SchoolContactDetails';
 import { disbursementItems, requiresItemDisbursement } from '../../lib/pvDisbursementItems.js';
 import ItemDisbursementModal from './ItemDisbursementModal';
 import ViewportModal from '../Modal/ViewportModal';
@@ -1198,6 +1199,7 @@ export default function PayPVForm({ onCompleted } = {}) {
                 <h2 style={{ margin: '4px 0 2px', fontSize: 18, fontWeight: 900, color: '#0f3a4b' }}>
                   REMALJ CAREWELL INSPIRATIONAL SCHOOL
                 </h2>
+              <SchoolContactDetails />
                 <div style={{ fontSize: 11, color: '#475569', fontWeight: 700 }}>
                   OFFICIAL PAYMENT VOUCHER DISBURSEMENT ADVICE
                 </div>

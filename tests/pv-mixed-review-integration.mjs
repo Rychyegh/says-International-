@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_EXECUTABLE});
 try {
- for(const mixed of [true,false]) {
+ for(const mixed of ['single','bulk',false]) {
   const page=await browser.newPage();
   const id='11111111-1111-4111-8111-111111111111',a='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',b='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   let voucher={id,pv_number:'PV-TEST',status:'PRE_AUDITED',version:1,total_amount:1200,items:[{id:a,description:'KIK',quantity:2,unit_cost:50,total_amount:100,status:'PENDING'},{id:b,description:'BOOT',quantity:2,unit_cost:550,total_amount:1100,status:'PENDING'}]},calls=[];
@@ -24,7 +24,7 @@ try {
   await page.waitForFunction(()=>window.testStore.paymentVouchers[0]?.items[0]?.status==='Validated');
   assert.equal(await page.getByTitle('Approve KIK',{exact:true}).count(),0);
   await page.getByTitle(mixed?'Decline / Reject BOOT':'Approve BOOT',{exact:true}).click();
-  if(mixed){assert.equal(await page.getByRole('dialog',{name:'Reject voucher items'}).count(),0);await page.getByLabel('Pre Audit Remarks & Comments',{exact:true}).fill('Not required this term');await page.getByTitle('Decline / Reject BOOT',{exact:true}).click();}
+  if(mixed){assert.equal(await page.getByRole('dialog',{name:'Reject voucher items'}).count(),0);await page.getByLabel('Pre Audit Remarks & Comments',{exact:true}).fill('Not required this term');assert.equal(await page.locator('select').filter({has:page.locator('option[value="Declined"]')}).inputValue(),'Declined');await page.getByRole('button',{name:mixed==='bulk'?/Bulk Action Selected Items \(1\)/:/Action Active Item \(BOOT/}).click();}
   await page.waitForFunction(()=>window.testStore.paymentVouchers[0]?.items.every(item=>['Validated','Declined'].includes(item.status)));
   assert.equal(calls.length,2);assert.equal(calls[0].target,a);assert.equal(calls[1].target,b);
   assert.equal(calls[1].body.decision,mixed?'decline':'approve');

@@ -1,3 +1,4 @@
+import SchoolContactDetails from '../School/SchoolContactDetails';
 import { voucherProviders } from '../../lib/pvProviders.js';
 import ViewportModal from '../Modal/ViewportModal';
 import RetryRecovery from './RetryRecovery';
@@ -1579,6 +1580,7 @@ export default function SubmitPVRequest({ setM = () => {} }) {
                   <h2 style={{ fontSize: 14, fontWeight: 900, color: '#0f172a', margin: 0 }}>
                     REMALJ CAREWELL INSPIRATIONAL SCHOOL
                   </h2>
+              <SchoolContactDetails />
                   <div style={{ fontSize: 10, fontWeight: 700, color: '#475569' }}>
                     PAYMENT VOUCHER
                   </div>
