@@ -1,3 +1,4 @@
+import { ITEM_PAYMENTS_ENABLED, isItemUuid } from '../lib/itemPaymentContract.js';
 import { requiresItemDisbursement } from '../lib/pvDisbursementItems.js';
 import { voucherNotifications } from '../lib/pvNotifications.js';
 import { sameStudentIdentity, studentDisplayCode } from '../lib/studentIdentity.js';
@@ -593,6 +594,8 @@ function pvMatchesRef(voucher, ref) {
 function mapApiPvStatus(status) {
   const value = String(status || '').trim().toUpperCase();
   if (['DISBURSED', 'PAID', 'SETTLED'].includes(value)) return 'DISBURSED';
+  if (['PARTIALLY_PAID', 'PARTIALLY_DISBURSED', 'PARTIALLY PAID'].includes(value)) return 'Partially Paid';
+  if (value === 'PRE_AUDITED') return 'Pre-audited';
   if (value === 'PARTIALLY APPROVED' || value === 'PARTIALLY_APPROVED') return 'Partially Approved';
   const normalized = normalizePvItemStatus(status);
   return normalized === 'Pending approval' ? 'Pending Audit' : normalized;
@@ -612,6 +615,13 @@ function pvStatusRank(status) {
 export function mapApiPaymentVoucher(p = {}) {
   let items = Array.isArray(p.items) ? p.items.map((it, idx) => ({
     id: it.id || `it-${p.id || p.pv_number}-${idx}`,
+    backendItemId: it.backendItemId === null ? null : (it.id || null),
+    version: it.version,
+    payment: it.payment || null,
+    payments: it.payments || [],
+    approvedAmount: it.approved_amount,
+    paidAmount: it.paid_amount,
+    unpaidAmount: it.unpaid_amount,
     description: it.description || it.particulars,
     provider: it.payee_name || it.provider || p.payee_name,
     providerId: it.payee_id || it.providerId,
@@ -643,6 +653,9 @@ export function mapApiPaymentVoucher(p = {}) {
   }
   return {
     version: p.version,
+    itemReconciliationRequired: p.item_reconciliation_required === true || p.itemReconciliationRequired === true,
+    paidTotal: p.paid_total ?? p.paidTotal,
+    unpaidTotal: p.unpaid_total ?? p.unpaidTotal,
     payableTotal: p.payable_total ?? p.payableTotal,
     id: p.id,
     pvNo: p.pv_number || p.pvNo || (p.id ? `PV-${p.id}` : ''),
@@ -4070,10 +4083,40 @@ export function PortalDataProvider({ children, enabled = false }) {
       mutationEpochRef.current += 1;
       const saved = unwrapApiPaymentVoucher(raw);
       if (String(saved?.id) !== String(voucher.id)) throw new Error('The database did not return the reviewed voucher. Refresh before retrying.');
-      if (!['APPROVED', 'REJECTED'].includes(String(saved.status).toUpperCase())) throw new Error('The database did not confirm approval or rejection. Refresh the voucher before retrying.');
+      if (!['APPROVED', 'REJECTED', 'PRE_AUDITED'].includes(String(saved.status).toUpperCase())) throw new Error('The database did not confirm approval or rejection. Refresh the voucher before retrying.');
       setData(current => ({ ...current, paymentVouchers: current.paymentVouchers.map(v => String(v.id) === String(saved.id) ? mapApiPaymentVoucher(saved) : v) }));
       return saved;
       } finally { writeLocksRef.current.delete(reviewKey); }
+    },
+    disbursePaymentVoucherItem: async (voucherId, itemId, details, idempotencyKey, reconcile = false) => {
+      requireLiveDatabase('Disbursing this item');
+      if (!reconcile && !ITEM_PAYMENTS_ENABLED) throw new Error('Item payments are awaiting verified backend rollout.');
+      const voucher = dataRef.current.paymentVouchers.find(v => String(v.id) === String(voucherId));
+      const item = voucher?.items?.find(line => String(line.id) === String(itemId));
+      if (voucher?.itemReconciliationRequired) throw new Error('Audited reconciliation is required. Do not issue another payment.');
+      if (!isItemUuid(item?.backendItemId) || item.recoveredFromDescription) throw new Error('The server must return a saved item ID before this item can be paid.');
+      // A retry may reconcile an item already paid on the server.
+      if (!isApprovedItem(item.status) && !['DISBURSED','PAID','SETTLED'].includes(String(item.status).toUpperCase())) throw new Error('This item is awaiting approval.');
+      const lock = `item-disbursement:${voucherId}:${itemId}`;
+      if (writeLocksRef.current.has(lock)) throw new Error('This item payment is already processing.');
+      writeLocksRef.current.add(lock);
+      try {
+        let raw;
+        if (reconcile) {
+          const result = await api.getItemPaymentByKey(voucherId,itemId,idempotencyKey);
+          const current = await api.getPaymentVoucherById(voucherId);
+          raw = {payment:result.payment || result.data?.payment || result.data || result,voucher:unwrapApiPaymentVoucher(current)};
+        } else raw = await api.disbursePaymentVoucherItem(voucherId, itemId, details, idempotencyKey);
+        const saved = raw.voucher || raw.data?.voucher;
+        const paid = saved?.items?.find(line => String(line.id) === String(itemId));
+        const payment = raw.payment || raw.data?.payment;
+        const sameItems = saved?.items?.length === voucher.items.length && voucher.items.every(existing => saved.items.some(line => String(line.id) === String(existing.id)));
+        if (!sameItems) throw new Error('The server did not return all voucher items. Reconcile this payment before continuing.');
+        if (String(saved?.id) !== String(voucherId) || !['PAID','DISBURSED','SETTLED'].includes(String(paid?.status).toUpperCase()) || !payment?.id || String(payment.item_id) !== String(itemId) || String(payment.voucher_id) !== String(voucherId)) throw new Error('The server did not confirm this item payment. Retry the original request or reconcile it before making another payment.');
+        const canonical = mapApiPaymentVoucher(saved);
+        setData(current => ({...current, paymentVouchers: current.paymentVouchers.map(v => String(v.id) === String(voucherId) ? canonical : v)}));
+        return canonical;
+      } finally { writeLocksRef.current.delete(lock); }
     },
     disbursePaymentVoucher: async (reference, paymentDetails = {}) => {
       requireLiveDatabase('Disbursing this voucher');

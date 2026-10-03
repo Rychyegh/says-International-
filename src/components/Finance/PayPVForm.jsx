@@ -15,6 +15,7 @@ import { SCHOOL_PL_ACCOUNTS, getPlAccountCode, printPvPage } from '../../data/ch
 
 function isPvDisbursed(v) {
   const s = String(v?.status || '').toLowerCase().trim();
+  if (s.includes('partial')) return false;
   if (s === 'disbursed' || s === 'paid' || s.includes('disburs') || s.includes('settled')) return true;
   if (v?.disbursedAt || v?.disbursed_at || v?.disbursedBy || v?.disbursed_by) return true;
   return false;
@@ -81,6 +82,7 @@ export default function PayPVForm({ onCompleted } = {}) {
         s === 'validated' ||
         s === 'approved' ||
         s === 'partially approved' ||
+        s === 'partially paid' ||
         s === 'pre-audited & approved' ||
         s === 'pre-audited' ||
         s === 'pre_audited'
@@ -129,7 +131,7 @@ export default function PayPVForm({ onCompleted } = {}) {
   }, [readyVouchers]);
 
   const disbursedTotalGHS = useMemo(() => {
-    return disbursedVouchers.reduce((acc, v) => acc + (parseFloat(v.total || v.cost || v.amount) || 0), 0);
+    return disbursedVouchers.reduce((acc, v) => acc + (parseFloat(v.paidTotal ?? v.total ?? v.cost ?? v.amount) || 0), 0);
   }, [disbursedVouchers]);
 
   // Filtered lists based on search
@@ -583,7 +585,7 @@ export default function PayPVForm({ onCompleted } = {}) {
                   </thead>
                   <tbody>
                     {filteredReady.map((v, idx) => {
-                      const amount = parseFloat(v.total || v.cost || v.amount) || 0;
+                      const amount = Number(v.unpaidTotal ?? voucherPayableAmount(v)) || 0;
                       const hasMultiItems = Array.isArray(v.items) && v.items.length > 1;
                       return (
                         <tr
@@ -760,7 +762,7 @@ export default function PayPVForm({ onCompleted } = {}) {
                   </thead>
                   <tbody>
                     {filteredDisbursed.map((v, idx) => {
-                      const amount = parseFloat(v.total || v.cost || v.amount) || 0;
+                      const amount = Number(v.paidTotal ?? v.total ?? v.cost ?? v.amount) || 0;
                       return (
                         <tr
                           key={v.id || v.pvNo || idx}
@@ -841,7 +843,7 @@ export default function PayPVForm({ onCompleted } = {}) {
                           <td style={{ padding: '10px 12px', textAlign: 'center', verticalAlign: 'top' }}>
                             <button
                               type="button"
-                              onClick={() => setReceiptVoucher(v)}
+                              onClick={() => requiresItemDisbursement(v) ? handleOpenPayModal(v) : setReceiptVoucher(v)}
                               style={{
                                 padding: '6px 12px',
                                 background: '#f1f5f9',

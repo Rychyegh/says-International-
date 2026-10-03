@@ -103,6 +103,12 @@ async function createOnce(endpoint, payload, { multipart = false, cacheSuccess =
       const record = body.provider || body.voucher || body.payment_voucher || body.paymentVoucher || body;
       if (!isUuid(record?.id)) throw new Error('The server response did not confirm a saved database record. Reconcile or retry the original request with its original key.');
     }
+    if (/\/items\/[^/]+\/authorize$/.test(endpoint)) {
+      const voucher = saved.voucher || saved.data?.voucher;
+      const item = voucher?.items?.find(item => String(item.id) === decodeURIComponent(endpoint.split('/').at(-2)));
+      const expected = payload.decision === 'approve' ? ['APPROVED','VALIDATED'] : ['DECLINED','REJECTED'];
+      if (String(voucher?.id) !== decodeURIComponent(endpoint.split('/').at(-4)) || !expected.includes(String(item?.status).toUpperCase())) throw new Error('The server did not confirm this item decision. Retry the original request.');
+    }
     return saved;
   });
   pendingCreates.set(scope, operation);
@@ -1797,6 +1803,28 @@ export const api = {
   },
 
   reviewPaymentVoucher: async (id, data) => {
+    if (data.items?.length > 1) {
+      let raw = await api.getPaymentVoucherById(id);
+      let voucher = raw.voucher || raw.data?.voucher || raw.data || raw;
+      if (voucher.item_reconciliation_required) throw new Error('This voucher requires audited reconciliation before item authorization.');
+      if (!['PRE_AUDITED','APPROVED'].includes(String(voucher.status).toUpperCase())) {
+        raw = await api.preAuditPaymentVoucher(id,{decision:'approve',audit_notes:data.remarks || ''});
+        voucher = raw.voucher || raw.data?.voucher || raw.data || raw;
+      }
+      for (const item of data.items) {
+        const status = String(item.status).toLowerCase();
+        const decision = ['validated','approved'].includes(status) ? 'approve' : ['declined','rejected'].includes(status) ? 'decline' : null;
+        if (!decision) continue;
+        const current = voucher.items?.find(row => String(row.id) === String(item.id));
+        if (!isUuid(current?.id)) throw new Error('Saved item UUIDs are required for authorization.');
+        if ((decision==='approve' && ['APPROVED','VALIDATED'].includes(String(current.status).toUpperCase())) || (decision==='decline' && ['DECLINED','REJECTED'].includes(String(current.status).toUpperCase()))) continue;
+        const notes = item.auditRemarks || data.remarks || '';
+        if (decision==='decline' && !notes.trim()) throw new Error('Declining an item requires notes.');
+        raw = await api.authorizePaymentVoucherItem(id,current.id,{decision,version:voucher.version,notes});
+        voucher = raw.voucher || raw.data?.voucher;
+      }
+      return {voucher};
+    }
     const action = String(data.action || '').toLowerCase();
     const approve = ['validated', 'approved', 'pre-audited & approved', 'pre-audit approve pv'].includes(action);
     const reject = ['declined', 'rejected'].includes(action);
@@ -1815,6 +1843,28 @@ export const api = {
       if (reject) return audited;
     }
     return api.approvePaymentVoucher(id, { approval_notes: data.remarks || '' });
+  },
+
+  getPaymentAccounts: () => request('/finance/payment-accounts'),
+  getItemPaymentByKey: (pvId, itemId, key) => request(`/finance/vouchers/${encodeURIComponent(pvId)}/items/${encodeURIComponent(itemId)}/payments/by-idempotency-key?idempotency_key=${encodeURIComponent(key)}`),
+  getItemPayment: (pvId, itemId, paymentId) => request(`/finance/vouchers/${encodeURIComponent(pvId)}/items/${encodeURIComponent(itemId)}/payments/${encodeURIComponent(paymentId)}`),
+  authorizePaymentVoucherItem: async (pvId, itemId, input) => {
+    const endpoint = `/finance/vouchers/${encodeURIComponent(pvId)}/items/${encodeURIComponent(itemId)}/authorize`;
+    const actor = getAuthUser()?.id || getAuthToken();
+    const unresolved = (await listRetryOperations(endpoint,actor)).find(row => row.state === 'pending');
+    if (unresolved) {
+      const original = await recoveryPayload(unresolved);
+      if (original.decision !== input.decision || original.notes !== input.notes) throw new Error('Retry the original item decision and notes before changing them.');
+      input = original;
+    }
+    return createOnce(endpoint,input,{durableIdentity:true,cacheSuccess:false});
+  },
+  disbursePaymentVoucherItem: async (pvId, itemId, details, idempotencyKey) => {
+    if (!idempotencyKey) throw new Error('A saved retry key is required for this item payment.');
+    if (getAuthUser()?.requiresSecondFactor === true) throw new Error('Complete PIN verification before disbursement.');
+    return request(`/finance/vouchers/${encodeURIComponent(pvId)}/items/${encodeURIComponent(itemId)}/disburse`, {
+      method: 'POST', headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(details),
+    });
   },
 
   disbursePaymentVoucher: async (pvId, disburseData = {}) => {

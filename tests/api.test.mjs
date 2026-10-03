@@ -288,3 +288,20 @@ test('multi-provider vouchers preserve item payees and require a declared server
  await api.createPaymentVoucher(pv);
  assert.equal(writes,1);
 });
+
+test('multi-item approval uses separate authorization with latest voucher version and no aggregate approve',async()=>{
+ setAuthToken('opaque');setAuthUser({id:'reviewer'});
+ const id='11111111-1111-4111-8111-111111111111',a='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',b='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+ let voucher={id,status:'PRE_AUDITED',version:2,items:[{id:a,status:'PENDING'},{id:b,status:'PENDING'}]},posts=[];
+ globalThis.fetch=async(url,options)=>{
+  if(options.method!=='POST') return json(voucher);
+  assert.ok(url.endsWith('/authorize'));assert.ok(options.headers['Idempotency-Key']);
+  const body=JSON.parse(options.body);posts.push(body);
+  assert.equal(body.version,voucher.version);
+  const target=url.split('/').at(-2);
+  voucher={...voucher,version:voucher.version+1,status:target===b?'APPROVED':'PRE_AUDITED',items:voucher.items.map(item=>item.id===target?{...item,status:body.decision==='approve'?'APPROVED':'DECLINED'}:item)};
+  return json({voucher});
+ };
+ await api.reviewPaymentVoucher(id,{action:'Partially Approved',remarks:'Review',items:[{id:a,status:'Validated'},{id:b,status:'Declined',auditRemarks:'Not required'}]});
+ assert.deepEqual(posts,[{decision:'approve',version:2,notes:'Review'},{decision:'decline',version:3,notes:'Not required'}]);
+});

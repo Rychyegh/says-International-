@@ -1,0 +1,123 @@
+# Independent PV items — backend contract (2 October 2026)
+
+This contract adds database-issued item UUIDs. Recovered description-line IDs from
+the browser are **not** valid API targets. A draft form or sessionStorage value is
+never authorization or payment.
+
+## Creation and reads
+
+`POST /api/v1/finance/vouchers` accepts the existing aggregate fields and an
+optional `items` array. Each item has `description`, positive integer `quantity`,
+positive two-decimal `unit_cost`, and exact `total_amount = quantity × unit_cost`.
+The published create schema names the input `amount`; `total_amount` and
+`totalAmount` remain accepted input aliases, while reads return `total_amount`.
+The item also accepts `payee_id` (a saved, active Service Provider UUID) and
+`payee_name` (a display hint). The server resolves each UUID, replaces the hint
+with the canonical provider name, and stores both the provider link and name
+snapshot on that item. For multi-provider vouchers every item needs its own
+`payee_id`; the header `payee_id`/`provider_id` must be null and the header
+`payee_name` is the non-provider label `Multiple providers`. For one provider,
+the header retains the canonical provider ID and name. Legacy single-provider
+requests without item payees inherit the valid header provider.
+Item totals must equal the voucher `amount`; no client-supplied item IDs are used.
+An exact historical description summary may also be split into canonical items.
+Ambiguous multi-item summaries are rejected on new creates.
+
+`GET /api/v1/finance/vouchers` and `GET /api/v1/finance/vouchers/{pv_id}` return
+`version`, `item_reconciliation_required`, and `items`. Each item includes a
+database UUID, position, total/approved/paid/unpaid amounts, status, authorization
+actor/time/notes, `payee_id`, `provider_id`, canonical saved `payee_name`, and
+individual payment records. These item identities persist through pre-audit,
+authorization, partial payment and complete payment. Provider deletion is
+rejected while any voucher item references it. Aggregate voucher amount is
+still the original requested amount; it is **not** the payable total after item
+declines. Voucher `payable_total`, `paid_total`, and `unpaid_total` sum the
+persisted item amounts.
+
+## Separate item authorization
+
+First use existing `POST /vouchers/{pv_id}/pre-audit` to record whole-voucher
+pre-audit. Then `POST /vouchers/{pv_id}/items/{item_id}/authorize` with a stable
+`Idempotency-Key` header and body `{ "decision": "approve" | "decline",
+"version": <current voucher version>, "notes": "..." }`. Decline needs notes.
+Approval records the persisted item amount; there is no client amount field.
+The voucher remains `PRE_AUDITED` while decisions are pending. When all decisions
+are resolved it becomes `APPROVED` if any item was approved, otherwise `REJECTED`.
+Item approval does not post a ledger entry. Existing aggregate `/approve` rejects
+multi-item vouchers (409).
+
+## Separate item disbursement
+
+`POST /vouchers/{pv_id}/items/{item_id}/disburse` requires a stable
+`Idempotency-Key` header and body:
+
+```json
+{
+  "source_account_id": "school-asset-account-uuid",
+  "expense_account_id": "school-expense-account-uuid",
+  "destination_account": "payee account details",
+  "beneficiary": "exact saved voucher item payee name",
+  "payment_method": "Bank Transfer",
+  "reference": "BANK-123",
+  "payment_date": "2026-10-02",
+  "notes": "optional",
+  "version": 4
+}
+```
+
+Methods: `Cash`, `Mobile Money`, `Bank Transfer`, `Cheque`. The server resolves
+both SchoolAccount UUIDs and verifies active asset/expense types.
+`GET /finance/payment-accounts` lists active source asset and expense account
+UUIDs for the payment form; the legacy chart-of-accounts feed is display-only.
+The beneficiary must match the saved item payee, never the multi-provider header
+label. The endpoint pays the persisted approved unpaid amount
+once, under a voucher row lock and expected-version check, with one balanced
+two-entry journal and an audit event in the same transaction. Other items are not
+modified. The result includes the canonical `payment` (UUID, receipt number,
+amount, reference, account IDs), voucher with updated items/status/version, and
+ledger IDs. Status is `PARTIALLY_DISBURSED` until all approved items are paid;
+declined items do not hold it open. Existing aggregate `/disburse` and status
+`DISBURSED` reject multi-item vouchers (409).
+For supported one-item vouchers, aggregate `/disburse` also returns a canonical
+`voucher` with its saved item identity alongside the existing PDF fields.
+
+This endpoint records a school-confirmed external payment in the ledger; it does
+not initiate a bank or mobile-money transfer or independently verify ownership
+of the destination details. The operator must verify the external settlement and
+reference before recording it. Do not label a draft instruction as paid.
+
+Same-key/same-body replay returns the first committed response; a changed body
+returns 409. Do not create a new key after a timeout. Reconcile with
+`GET /vouchers/{pv_id}/items/{item_id}/payments/by-idempotency-key?idempotency_key=...`
+(the original actor only), or
+`GET /vouchers/{pv_id}/items/{item_id}/payments/{payment_id}`. The latter returns
+the stored date, amount, reference, beneficiary, destination, method, account IDs,
+posting time and receipt identity. There is no PDF item receipt yet; the frontend
+can print only this confirmed record. Aggregate PV PDF is rejected for multi-item
+vouchers because it would misleadingly imply one combined payment.
+
+## Roles, migration and rollout
+
+Pre-audit and authorization use the configured pre-auditor/approver roles;
+disbursement uses finance roles. Those are distinct actions even where an
+administrator currently has both permissions. The server derives the actor from
+the complete session. There is no client role override.
+
+Migration `f15d4e6f7081` preserves historical vouchers. Exact multi-item
+summaries on drafts/pre-audited vouchers become separately actionable item rows.
+Already-approved/disbursed multi-item vouchers and ambiguous histories are
+marked `item_reconciliation_required=true` and **cannot** be item-paid until an
+audited manual reconciliation is designed. Historical aggregate status, amounts,
+payee and ledger remain unchanged. One-item historical vouchers retain the
+existing route. Do not issue a second payment to clear reconciliation.
+Migration `f26e5f708192` adds item-level provider IDs and payee snapshots.
+Existing linked items inherit their actual header provider; historical unlinked
+items keep a null provider ID and only their existing header payee text. The
+migration does not invent provider relationships or clear reconciliation flags.
+
+Production preflight on 2 October found 12 vouchers, including five exact
+multi-item summaries, four requiring reconciliation, and zero SchoolAccount
+records. Configure genuine active source asset and expense accounts before
+enabling frontend item payment. Never manufacture account UUIDs or infer them
+from names. Frontend item payment buttons should remain disabled until an
+authorized live test verifies these endpoints and configured accounts.

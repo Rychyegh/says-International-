@@ -1,8 +1,10 @@
 import { normalizePvItemStatus, voucherIdentityKey } from '../../lib/recordRules.js';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { CheckCircle2, Edit3, Save, Search, AlertCircle, FileCheck, RefreshCw, Filter, ArrowRight, ShieldCheck, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
-import { usePortalData, pvNosMatch } from '../../data/PortalStore';
+import { usePortalData, pvNosMatch, mapApiPaymentVoucher } from '../../data/PortalStore';
 import { api } from '../../services/api';
+
+const itemDecided = item => ['Validated','Declined','Cancel PV','Non-accrual'].includes(normalizePvItemStatus(item?.status)) || ['paid','disbursed','settled'].includes(String(item?.status).toLowerCase());
 
 function summarizePvStatusFromItems(items, fallback = 'Pending approval') {
   if (!Array.isArray(items) || items.length === 0) return fallback;
@@ -146,6 +148,10 @@ export default function ApprovePVForm({ setM = () => {} }) {
   const [currentItems, setCurrentItems] = useState([]);
   const [selectedItemIds, setSelectedItemIds] = useState(() => currentItems.map(i => i.id));
   const [activeItemIndex, setActiveItemIndex] = useState(0);
+  const reviewLock = useRef(false);
+  const [rejection,setRejection] = useState(null);
+  const [rejectionReason,setRejectionReason] = useState('');
+  const reviewComplete = currentItems.length > 0 && currentItems.every(itemDecided);
 
   // Recently Actioned PVs Filters at bottom of page
   const [actionedStatusFilter, setActionedStatusFilter] = useState('ALL');
@@ -183,7 +189,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
     // Process line items for multi-item support
     const parsedItems = parsePvItems(v);
     setCurrentItems(parsedItems);
-    setSelectedItemIds(parsedItems.map(it => it.id));
+    setSelectedItemIds(parsedItems.filter(it=>!itemDecided(it)).map(it => it.id));
 
     const itemIdx = (targetItemIndex != null && targetItemIndex >= 0 && targetItemIndex < parsedItems.length)
       ? targetItemIndex
@@ -249,7 +255,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
     if (selectedItemIds.length === currentItems.length) {
       setSelectedItemIds([]);
     } else {
-      setSelectedItemIds(currentItems.map(i => i.id));
+      setSelectedItemIds(currentItems.filter(i=>!itemDecided(i)).map(i => i.id));
     }
   };
 
@@ -439,186 +445,39 @@ export default function ApprovePVForm({ setM = () => {} }) {
     }
   };
 
-  // Action Single PV Item (or active item in multi-item request)
-  const handleActionSingleItem = async () => {
-    if (!pvNo.trim()) {
-      alert('Please select or enter a valid PV Number.');
-      return;
+  const applyItemDecisions = async (voucher, ids, decision, notes = '') => {
+    if (reviewLock.current || !voucher) return;
+    const targets = parsePvItems(voucher).filter(item => ids.includes(item.id) && !itemDecided(item));
+    if (!targets.length) return;
+    if (!['Validated','Declined'].includes(decision)) {setBannerNotice('Choose Approve or Reject for item authorization.');return;}
+    if (decision === 'Declined' && !notes.trim()) {
+      setRejection({voucher,ids,decision});setRejectionReason('');return;
     }
-
-    setIsActioning(true);
-    const normalizedDecision = actionChoice === 'Pre-audit Approve PV' || actionChoice === 'Validated' ? 'Validated' : actionChoice;
-    setBannerNotice(`⏳ Submitting executive action "${actionChoice}" for PV #${pvNo}...`);
-    const previousItems = currentItems;
-    const previousQueue = pvQueue;
-
-    let updatedItems = [...currentItems];
-    let overallStatus = normalizedDecision;
-
-    if (updatedItems.length >= 1 && activeItemIndex < updatedItems.length) {
-      updatedItems[activeItemIndex] = {
-        ...updatedItems[activeItemIndex],
-        description,
-        qty: Number(qty) || 1,
-        cost: Number(costPerItem) || 0,
-        costPerItem: Number(costPerItem) || 0,
-        total: (Number(qty) || 1) * (Number(costPerItem) || 0),
-        totalAmount: (Number(qty) || 1) * (Number(costPerItem) || 0),
-        status: normalizedDecision,
-        auditRemarks
-      };
-      setCurrentItems(updatedItems);
-      overallStatus = summarizePvStatusFromItems(updatedItems, normalizedDecision);
-    }
-
-    const newCalculatedTotal = payableTotalFromItems(updatedItems, calculatedTotalAmount);
-
-    const updatedFields = {
-      pvNo,
-      requisitionNo: itemRequisitionNo,
-      provider: clientProvider,
-      providerId,
-      description,
-      items: updatedItems,
-      qty: Number(qty) || 1,
-      cost: Number(costPerItem) || 0,
-      total: newCalculatedTotal,
-      datePrepared,
-      valuedDate,
-      auditRemarks,
-      status: overallStatus,
-      editedByHeadmaster: true
+    reviewLock.current=true;setIsActioning(true);
+    const acceptSaved = raw => {
+      const saved=mapApiPaymentVoucher(raw);
+      setPvQueue(rows=>rows.map(row=>row.id===saved.id || pvNosMatch(row.pvNo,saved.pvNo)?saved:row));
+      if(voucher.id===selectedPvId || pvNosMatch(voucher.pvNo,pvNo)) {
+        const items=parsePvItems(saved);setCurrentItems(items);
+        setSelectedItemIds(items.filter(item=>!itemDecided(item)).map(item=>item.id));
+      }
     };
-
-    const updatedQueue = pvQueue.map(p =>
-      (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
-    );
-    setCurrentItems(updatedItems);
-    setPvQueue(updatedQueue);
     try {
-      if (approvePaymentVoucher) {
-        await approvePaymentVoucher(pvNo, overallStatus, auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
-      }
-      setBannerNotice(`✅ Applied executive decision "${actionChoice}" for PV #${pvNo} (Item: ${updatedItems[activeItemIndex]?.description || 'Single Item'}).`);
-    } catch (err) {
-      setCurrentItems(previousItems);
-      setPvQueue(previousQueue);
-      setBannerNotice(err?.message || 'Pre-auditing this payment voucher failed.');
-    } finally {
-      setIsActioning(false);
-      setTimeout(() => setBannerNotice(''), 5000);
-    }
+      const items=parsePvItems(voucher).map(item=>targets.some(target=>target.id===item.id)?{...item,status:decision,auditRemarks:notes}:item);
+      const saved=await approvePaymentVoucher(voucher.id || voucher.pvNo,summarizePvStatusFromItems(items),notes,{items});
+      acceptSaved(saved);setRejection(null);
+      setBannerNotice(`✅ ${decision==='Validated'?'Approved':'Rejected'} ${targets.length} item(s). Decisions confirmed by the server.`);
+    } catch(error) {
+      // A bulk operation may have committed earlier decisions. Refresh rather than
+      // restoring an old snapshot that could invite duplicate authorization.
+      try {const raw=await api.getPaymentVoucherById(voucher.id);acceptSaved(raw.voucher || raw.data?.voucher || raw.data || raw);} catch {}
+      setBannerNotice(error.message || 'The server did not confirm the decision. Retry the original action.');
+    } finally {reviewLock.current=false;setIsActioning(false);}
   };
-
-  const handleActionItemDirect = async (itemId, decision, voucherContext = null) => {
-    const v = voucherContext || pvQueue.find(p => pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId);
-    if (!v) return;
-    setIsActioning(true);
-
-    const baseItems = parsePvItems(v);
-    const updatedItems = baseItems.map((item) => (
-      item.id === itemId ? { ...item, status: decision, auditRemarks } : item
-    ));
-
-    const overallStatus = summarizePvStatusFromItems(updatedItems, decision);
-    const newCalculatedTotal = payableTotalFromItems(updatedItems, v.total || calculatedTotalAmount);
-    const updatedFields = {
-      ...v,
-      items: updatedItems,
-      total: newCalculatedTotal,
-      status: overallStatus,
-      auditRemarks: auditRemarks || v.auditRemarks,
-      editedByHeadmaster: true
-    };
-
-    const previousQueue = pvQueue;
-    const updatedQueue = pvQueue.map(p =>
-      (pvNosMatch(p.pvNo, v.pvNo) || p.id === v.id) ? { ...p, ...updatedFields } : p
-    );
-    if (v.pvNo === pvNo || v.id === selectedPvId) {
-      setCurrentItems(updatedItems);
-    }
-    setPvQueue(updatedQueue);
-    try {
-      if (approvePaymentVoucher) {
-        await approvePaymentVoucher(v.pvNo, overallStatus, auditRemarks || v.auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
-      }
-      const acted = updatedItems.find((i) => i.id === itemId);
-      setBannerNotice(`✅ ${decision === 'Validated' ? 'Approved' : (decision === 'Declined' ? 'Rejected' : decision)} "${acted?.description || 'item'}" in PV #${v.pvNo}. Other lines in this voucher remain unchanged.`);
-    } catch (err) {
-      if (v.pvNo === pvNo || v.id === selectedPvId) setCurrentItems(baseItems);
-      setPvQueue(previousQueue);
-      setBannerNotice(err?.message || 'Pre-auditing this payment voucher failed.');
-    } finally {
-      setIsActioning(false);
-      setTimeout(() => setBannerNotice(''), 5000);
-    }
-  };
-
-  // Bulk Action Selected Items in Multi-Item Request
-  const handleBulkActionSelectedItems = async () => {
-    if (!pvNo.trim()) {
-      alert('Please select or enter a valid PV Number.');
-      return;
-    }
-    if (selectedItemIds.length === 0) {
-      alert('Please select at least one item from the itemized breakdown.');
-      return;
-    }
-
-    setIsActioning(true);
-    const normalizedDecision = actionChoice === 'Pre-audit Approve PV' || actionChoice === 'Validated' ? 'Validated' : actionChoice;
-    setBannerNotice(`⏳ Applying bulk action "${actionChoice}" to ${selectedItemIds.length} item(s)...`);
-
-    const updatedItems = currentItems.map(item => {
-      if (selectedItemIds.includes(item.id)) {
-        return {
-          ...item,
-          status: normalizedDecision,
-          auditRemarks
-        };
-      }
-      return item;
-    });
-
-    const overallStatus = summarizePvStatusFromItems(updatedItems, normalizedDecision);
-    const newCalculatedTotal = payableTotalFromItems(updatedItems, calculatedTotalAmount);
-
-    const updatedFields = {
-      pvNo,
-      requisitionNo: itemRequisitionNo,
-      provider: clientProvider,
-      providerId,
-      items: updatedItems,
-      total: newCalculatedTotal,
-      datePrepared,
-      valuedDate,
-      auditRemarks,
-      status: overallStatus,
-      editedByHeadmaster: true
-    };
-
-    const previousQueue = pvQueue;
-    const previousItems = currentItems;
-    const updatedQueue = pvQueue.map(p =>
-      (pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId) ? { ...p, ...updatedFields } : p
-    );
-    setCurrentItems(updatedItems);
-    setPvQueue(updatedQueue);
-    try {
-      if (approvePaymentVoucher) {
-        await approvePaymentVoucher(pvNo, overallStatus, auditRemarks, updatedFields, 'Headmaster / Pre-Auditor');
-      }
-      setBannerNotice(`✅ Applied bulk action "${actionChoice}" to ${selectedItemIds.length} item(s) in PV #${pvNo}.`);
-    } catch (err) {
-      setCurrentItems(previousItems);
-      setPvQueue(previousQueue);
-      setBannerNotice(err?.message || 'Pre-auditing this payment voucher failed.');
-    } finally {
-      setIsActioning(false);
-      setTimeout(() => setBannerNotice(''), 5000);
-    }
-  };
+  const activeVoucher = () => pvQueue.find(v=>v.id===selectedPvId || pvNosMatch(v.pvNo,pvNo));
+  const handleActionItemDirect = (id,decision,voucher=null) => applyItemDecisions(voucher || activeVoucher(),[id],decision,decision==='Declined'?'':auditRemarks);
+  const handleActionSingleItem = () => handleActionItemDirect(currentItems[activeItemIndex]?.id,actionChoice==='Pre-audit Approve PV'?'Validated':actionChoice);
+  const handleBulkActionSelectedItems = () => applyItemDecisions(activeVoucher(),selectedItemIds,actionChoice==='Pre-audit Approve PV'?'Validated':actionChoice,actionChoice==='Declined'?'':auditRemarks);
 
   // Action Next PV / Action All PV Items in Queue
   const handleActionNextOrAll = async () => {
@@ -985,7 +844,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
                               {subItem.status || 'Pending'}
                             </span>
                             <span style={{ marginLeft: 6, display: 'inline-flex', gap: 3 }}>
-                              <button
+                              {!itemDecided(subItem) && (<button
                                 type="button"
                                 title={`Approve ${subItem.description}`}
                                 onClick={(e) => {
@@ -1004,8 +863,8 @@ export default function ApprovePVForm({ setM = () => {} }) {
                                 }}
                               >
                                 ✓
-                              </button>
-                              <button
+                              </button>)}
+                              {!itemDecided(subItem) && (<button
                                 type="button"
                                 title={`Decline / Reject ${subItem.description}`}
                                 onClick={(e) => {
@@ -1024,7 +883,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
                                 }}
                               >
                                 ✗
-                              </button>
+                              </button>)}
                             </span>
                           </td>
                           <td style={{ padding: '4px 8px', color: '#64748b' }}>{item.company || 'Remalj Carewell'}</td>
@@ -1169,6 +1028,12 @@ export default function ApprovePVForm({ setM = () => {} }) {
             </div>
           </div>
 
+      {rejection && <div role="dialog" aria-label="Reject voucher items" style={{padding:20,background:'#fff1f2',border:'1px solid #fda4af'}}>
+        <h3>Reason for rejecting {rejection.ids.length} item(s)</h3>
+        <label>Rejection reason<textarea aria-label="Rejection reason" value={rejectionReason} onChange={event=>setRejectionReason(event.target.value)} /></label>
+        <button type="button" disabled={isActioning || !rejectionReason.trim()} onClick={()=>applyItemDecisions(rejection.voucher,rejection.ids,'Declined',rejectionReason)}>Confirm rejection</button>
+        <button type="button" disabled={isActioning} onClick={()=>setRejection(null)}>Cancel</button>
+      </div>}
       {/* Banner Notification Bar */}
       {bannerNotice && (
         <div style={{
@@ -1304,7 +1169,8 @@ export default function ApprovePVForm({ setM = () => {} }) {
                         <td style={{ padding: '6px 8px', textAlign: 'center' }}>
                           <input
                             type="checkbox"
-                            checked={isSelected}
+                            disabled={itemDecided(item) || isActioning}
+                            checked={isSelected && !itemDecided(item)}
                             onChange={() => handleToggleItemSelect(item.id)}
                           />
                         </td>
@@ -1344,7 +1210,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'center' }}>
                           <div style={{ display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap' }}>
-                            <button
+                            {!itemDecided(item) && (<button
                               type="button"
                               disabled={isActioning}
                               onClick={() => handleActionItemDirect(item.id, 'Validated')}
@@ -1354,8 +1220,8 @@ export default function ApprovePVForm({ setM = () => {} }) {
                               }}
                             >
                               Approve
-                            </button>
-                            <button
+                            </button>)}
+                            {!itemDecided(item) && (<button
                               type="button"
                               disabled={isActioning}
                               onClick={() => handleActionItemDirect(item.id, 'Declined')}
@@ -1365,7 +1231,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
                               }}
                             >
                               Reject
-                            </button>
+                            </button>)}
                             <button
                               type="button"
                               onClick={() => handleSelectItemForEdit(item, idx)}
@@ -1397,7 +1263,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
                 💡 Approve or reject each line on its own. One item can be approved while another in the same PV is rejected.
               </span>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button
+                {!reviewComplete && !itemDecided(currentItems[activeItemIndex]) && (<button
                   type="button"
                   onClick={handleActionSingleItem}
                   disabled={isActioning}
@@ -1413,8 +1279,8 @@ export default function ApprovePVForm({ setM = () => {} }) {
                   }}
                 >
                   Action Single Item (#{currentItems[activeItemIndex]?.description?.substring(0, 16) || 'Item'}...)
-                </button>
-                <button
+                </button>)}
+                {!reviewComplete && (<button
                   type="button"
                   onClick={handleBulkActionSelectedItems}
                   disabled={isActioning || selectedItemIds.length === 0}
@@ -1430,7 +1296,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
                   }}
                 >
                   Bulk Action Selected Items ({selectedItemIds.length}) &gt;&gt;
-                </button>
+                </button>)}
               </div>
             </div>
           </div>
@@ -1582,7 +1448,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: currentItems.length > 1 ? '1fr 1fr 1fr' : '1fr 1fr', gap: 10 }}>
-            <button
+            {!reviewComplete && !itemDecided(currentItems[activeItemIndex]) && (<button
               type="button"
               onClick={handleActionSingleItem}
               disabled={isActioning}
@@ -1597,9 +1463,9 @@ export default function ApprovePVForm({ setM = () => {} }) {
               {currentItems.length > 1
                 ? `Action Active Item (${currentItems[activeItemIndex]?.description?.substring(0, 14) || 'Item'}...)`
                 : `Action Single PV Item (#${pvNo})`}
-            </button>
+            </button>)}
 
-            {currentItems.length > 1 && (
+            {currentItems.length > 1 && !reviewComplete && (
               <button
                 type="button"
                 onClick={handleBulkActionSelectedItems}
@@ -1625,7 +1491,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
               </button>
             )}
 
-            <button
+            {!reviewComplete && (<button
               type="button"
               onClick={handleActionNextOrAll}
               disabled={isActioning}
@@ -1638,7 +1504,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
             >
               {isActioning ? <Loader2 size={14} className="animate-spin" /> : null}
               Action Next PV / All Items
-            </button>
+            </button>)}
           </div>
         </div>
 
