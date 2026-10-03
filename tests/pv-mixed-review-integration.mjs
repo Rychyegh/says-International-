@@ -31,6 +31,7 @@ try {
   assert.equal(voucher.total_amount,1200);
   assert.equal(await page.getByTitle('Approve BOOT',{exact:true}).count(),0);
   // Recall the completed voucher to verify the editing-station controls disappear too.
+  await page.getByRole('button',{name:'Open Voucher Particulars ▼',exact:true}).click();
   await page.getByPlaceholder('Enter PV N/o (e.g. PV-2026-088, 51250897)...').fill('PV-TEST');
   await page.getByRole('button',{name:'Recall PV Details',exact:true}).click();
   await page.getByText(/Voucher #PV-TEST Contains 2 Itemized Lines/).waitFor();

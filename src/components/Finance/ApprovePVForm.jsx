@@ -252,7 +252,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
 
   // Select all or deselect all items
   const handleToggleSelectAllItems = () => {
-    if (selectedItemIds.length === currentItems.length) {
+    if (selectedItemIds.length === currentItems.filter(item=>!itemDecided(item)).length) {
       setSelectedItemIds([]);
     } else {
       setSelectedItemIds(currentItems.filter(i=>!itemDecided(i)).map(i => i.id));
@@ -467,6 +467,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
       const saved=await approvePaymentVoucher(voucher.id || voucher.pvNo,summarizePvStatusFromItems(items),notes,{items});
       acceptSaved(saved);setRejection(null);
       setBannerNotice(`✅ ${decision==='Validated'?'Approved':'Rejected'} ${targets.length} item(s). Decisions confirmed by the server.`);
+      return true;
     } catch(error) {
       // A bulk operation may have committed earlier decisions. Refresh rather than
       // restoring an old snapshot that could invite duplicate authorization.
@@ -481,22 +482,11 @@ export default function ApprovePVForm({ setM = () => {} }) {
 
   // Action Next PV / Action All PV Items in Queue
   const handleActionNextOrAll = async () => {
-    setIsActioning(true);
-    if (currentItems.length > 1 && selectedItemIds.length > 0) {
-      await handleBulkActionSelectedItems();
-    } else {
-      await handleActionSingleItem();
-    }
-    const currentIndex = pvQueue.findIndex(p => pvNosMatch(p.pvNo, pvNo) || p.id === selectedPvId);
-    if (currentIndex >= 0 && currentIndex < pvQueue.length - 1) {
-      const nextV = pvQueue[currentIndex + 1];
-      populateFormWithVoucher(nextV);
-      setBannerNotice(`➡️ Applied action "${actionChoice}" for #${pvNo}. Advanced to next PV #${nextV.pvNo}.`);
-    } else {
-      setBannerNotice(`✅ Applied action "${actionChoice}" for all selected items in queue.`);
-    }
-    setIsActioning(false);
-    setTimeout(() => setBannerNotice(''), 5000);
+    const confirmed = currentItems.length > 1 && selectedItemIds.length > 0
+      ? await handleBulkActionSelectedItems() : await handleActionSingleItem();
+    if (!confirmed) return;
+    const currentIndex = pvQueue.findIndex(p => pvNosMatch(p.pvNo,pvNo) || p.id===selectedPvId);
+    if(currentIndex>=0 && currentIndex<pvQueue.length-1) populateFormWithVoucher(pvQueue[currentIndex+1]);
   };
 
   // Recently Actioned PVs & Executive Audit Trail calculations
@@ -568,6 +558,12 @@ export default function ApprovePVForm({ setM = () => {} }) {
   return (
     <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', color: '#0f172a', paddingBottom: 40 }}>
       
+      {rejection && <div role="dialog" aria-label="Reject voucher items" style={{padding:20,background:'#fff1f2',border:'1px solid #fda4af'}}>
+        <h3>Reason for rejecting {rejection.ids.length} item(s)</h3>
+        <label>Rejection reason<textarea aria-label="Rejection reason" value={rejectionReason} onChange={event=>setRejectionReason(event.target.value)} /></label>
+        <button type="button" disabled={isActioning || !rejectionReason.trim()} onClick={()=>applyItemDecisions(rejection.voucher,rejection.ids,'Declined',rejectionReason)}>Confirm rejection</button>
+        <button type="button" disabled={isActioning} onClick={()=>setRejection(null)}>Cancel</button>
+      </div>}
       {/* Top Banner Header - Click to Toggle Voucher Particulars & Calculations */}
       <div 
         onClick={() => (isParticularsOpen ? setIsParticularsOpen(false) : openParticularsStation())}
@@ -1028,12 +1024,6 @@ export default function ApprovePVForm({ setM = () => {} }) {
             </div>
           </div>
 
-      {rejection && <div role="dialog" aria-label="Reject voucher items" style={{padding:20,background:'#fff1f2',border:'1px solid #fda4af'}}>
-        <h3>Reason for rejecting {rejection.ids.length} item(s)</h3>
-        <label>Rejection reason<textarea aria-label="Rejection reason" value={rejectionReason} onChange={event=>setRejectionReason(event.target.value)} /></label>
-        <button type="button" disabled={isActioning || !rejectionReason.trim()} onClick={()=>applyItemDecisions(rejection.voucher,rejection.ids,'Declined',rejectionReason)}>Confirm rejection</button>
-        <button type="button" disabled={isActioning} onClick={()=>setRejection(null)}>Cancel</button>
-      </div>}
       {/* Banner Notification Bar */}
       {bannerNotice && (
         <div style={{
@@ -1126,7 +1116,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
                   onClick={handleToggleSelectAllItems}
                   style={{ fontSize: 11, padding: '4px 10px', background: '#fff', border: '1px solid #0284c7', color: '#0284c7', borderRadius: 4, fontWeight: 800, cursor: 'pointer' }}
                 >
-                  {selectedItemIds.length === currentItems.length ? 'Deselect All' : 'Select All Items'}
+                  {selectedItemIds.length === currentItems.filter(item=>!itemDecided(item)).length ? 'Deselect All' : 'Select All Items'}
                 </button>
               </div>
             </div>
@@ -1138,7 +1128,7 @@ export default function ApprovePVForm({ setM = () => {} }) {
                     <th style={{ padding: '6px 8px', width: 30, textAlign: 'center' }}>
                       <input
                         type="checkbox"
-                        checked={selectedItemIds.length === currentItems.length && currentItems.length > 0}
+                        checked={selectedItemIds.length === currentItems.filter(item=>!itemDecided(item)).length && currentItems.length > 0}
                         onChange={handleToggleSelectAllItems}
                         title="Select / Deselect all items"
                       />
