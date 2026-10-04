@@ -14,6 +14,12 @@ export function supportsVoucherItemProviders(document) {
   const body = resolve(route?.post?.requestBody);
   const schema = resolve(body?.content?.['application/json']?.schema);
   const items = resolve(schema?.properties?.items);
-  const item = resolve(items?.items);
-  return items?.type === 'array' && Boolean(item?.properties?.payee_id && item?.properties?.payee_name);
+  // Optional lists may be expressed as anyOf: [array, null]. Keep checking
+  // the array's item contract before allowing multiple payees.
+  const variants = [items, ...(Array.isArray(items?.anyOf) ? items.anyOf : [])];
+  return variants.some(variant => {
+    const array = resolve(variant);
+    const item = resolve(array?.items);
+    return array?.type === 'array' && Boolean(item?.properties?.payee_id && item?.properties?.payee_name);
+  });
 }

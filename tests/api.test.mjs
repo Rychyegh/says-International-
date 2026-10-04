@@ -287,6 +287,18 @@ test('multi-provider vouchers preserve item payees and require a declared server
  };
  await api.createPaymentVoucher(pv);
  assert.equal(writes,1);
+ const arraySchema=schema.components.schemas.Create.properties.items;
+ schema.components.schemas.Create.properties.items={anyOf:[arraySchema,{type:'null'}]};
+ await api.createPaymentVoucher(pv);
+ assert.equal(writes,2, 'nullable item arrays permit a single voucher write with both payees');
+ delete schema.components.schemas.Item.properties.payee_id;
+ await assert.rejects(api.createPaymentVoucher(pv),/nothing was submitted/);
+ assert.equal(writes,2, 'nullable arrays without item-level provider IDs must not write');
+ globalThis.fetch=async(url)=>{
+  assert.ok(url.endsWith('/openapi.json'), 'unavailable contracts must not trigger a write');
+  return json({detail:'Unavailable'},503);
+ };
+ await assert.rejects(api.createPaymentVoucher(pv),/nothing was submitted/);
 });
 
 test('multi-item approval uses separate authorization with latest voucher version and no aggregate approve',async()=>{
