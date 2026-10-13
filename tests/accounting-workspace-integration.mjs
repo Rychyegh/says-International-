@@ -48,7 +48,7 @@ try{
  assert.equal(await page.getByRole('button',{name:'Submit for approval'}).isDisabled(),false);
  await page.getByRole('button',{name:'Tax & SSNIT Settings',exact:true}).click();
  await page.getByLabel('Category',{exact:true}).selectOption('SSNIT_EMPLOYER');
- await page.getByLabel('Rate (%)').fill('13');
+ await page.getByLabel('Rate (%)',{exact:true}).fill('13');
  await page.getByLabel('Name',{exact:true}).fill('Employer contribution');
  await page.getByLabel('Applies to').selectOption('payroll');
  await page.getByLabel('Effective from').fill('2026-10-01');
@@ -64,7 +64,7 @@ try{
  await page.screenshot({path:'/tmp/says-accounting-receipts.png',fullPage:true});
  await page.route('**/accounting/audit-events',route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({detail:'Service unavailable'})}));
  await page.getByRole('button',{name:'Audit Trail',exact:true}).click();
- await page.getByRole('alert').filter({hasText:'Records could not be loaded'}).waitFor();
+ await page.getByRole('alert').filter({hasText:'Audit events could not be loaded'}).waitFor();
  assert.equal(await page.getByText('No records match this view.').count(),0);
  await page.goto('http://127.0.0.1:5179/tests/store-harness.html?enabled=1&view=accounts');
  await page.getByRole('button',{name:'Student Billing & Printing',exact:false}).click();

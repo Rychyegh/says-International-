@@ -2,10 +2,11 @@ import { request, getAuthUser } from './api.js';
 
 export const FINANCE_SECTIONS = ['Student Billing & Printing', 'Account Records', 'Bank Reconciliation', 'Balance Sheet', 'Tax & SSNIT Settings', 'PV Receipts', 'Audit Trail', 'Account Setup', 'Period Closing'];
 const root = '/finance/accounting';
-export async function accountingList(resource) {
+export async function accountingList(resource, filters = {}) {
   let cursor = '', rows = [], seen = new Set();
   do {
-    const result = await request(`${root}/${resource}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
+    const query = new URLSearchParams(Object.entries({ ...filters, ...(cursor ? { cursor } : {}) }).filter(([, value]) => value !== '' && value != null));
+    const result = await request(`${root}/${resource}${query.size ? `?${query}` : ''}`);
     if (!Array.isArray(result.items)) throw new Error('The accounting service returned an invalid list. Expected items and next_cursor.');
     rows.push(...result.items);
     cursor = result.next_cursor || '';
@@ -22,4 +23,11 @@ export async function accountingWrite(resource, payload) {
   const result = await request(`${root}/${resource}`, { method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify(payload) });
   if (!result.record?.id) throw new Error('The server did not return a saved record. Refresh before retrying.');
   return result.record;
+}
+
+export async function accountingReport(resource, filters = {}) {
+  const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== '' && value != null));
+  const result = await request(`${root}/${resource}${query.size ? `?${query}` : ''}`);
+  if (!result.report || typeof result.report !== 'object' || Array.isArray(result.report)) throw new Error('The accounting service did not return a report.');
+  return result.report;
 }

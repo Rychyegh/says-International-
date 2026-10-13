@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "School Account Portal Integration",
-    "version": "1.0.0",
-    "description": "Required backend contract for the implemented accounting workspace. See accounting-portal-backend-handoff.txt for roles, transitions, ledger rules and existing billing/PV integration. Proposed endpoints; not a claim of live backend availability."
+    "version": "2.0.0",
+    "description": "Backend contract for eight distinct accounting workspaces: journals/general ledger/trial balance, bank-statement matching, balance sheets, tax and SSNIT rates, released PV receipts, audit diffs, account setup, and checked period closing. See accounting-portal-backend-handoff.txt for permission, state and financial rules. Required integration, not a claim of live service availability."
   },
   "servers": [
     {
@@ -1233,7 +1233,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Create proposal, not an active statutory rate. Validate category/scope/account compatibility; approvals preserve historical rate versions."
       }
     },
     "/finance/accounting/tax-settings/{id}/actions": {
@@ -1599,7 +1600,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Read-only projection of approved, paid and released PV receipts. Exclude private voucher fields. Voided receipts remain visible with receipt_status=voided."
       }
     },
     "/finance/accounting/audit-events": {
@@ -1911,7 +1913,7 @@
     },
     "/finance/accounting/periods/{id}/actions": {
       "post": {
-        "summary": "Transition period with role and version checks",
+        "summary": "Request closure, lock after fresh checks, or reopen with a reason",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -1951,11 +1953,46 @@
                   "expected_version": {
                     "type": "integer",
                     "minimum": 1
+                  },
+                  "check_token": {
+                    "type": "string",
+                    "description": "Required for request_close and close. Reopen instead requires a non-empty reason."
                   }
                 },
                 "required": [
                   "action",
                   "expected_version"
+                ],
+                "oneOf": [
+                  {
+                    "properties": {
+                      "action": {
+                        "enum": [
+                          "request_close",
+                          "close"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "check_token"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "action": {
+                        "enum": [
+                          "reopen"
+                        ]
+                      },
+                      "reason": {
+                        "type": "string",
+                        "minLength": 5
+                      }
+                    },
+                    "required": [
+                      "reason"
+                    ]
+                  }
                 ]
               }
             }
@@ -1981,7 +2018,7 @@
             }
           },
           "400": {
-            "description": "Invalid input",
+            "description": "Invalid request",
             "content": {
               "application/json": {
                 "schema": {
@@ -2021,7 +2058,7 @@
             }
           },
           "409": {
-            "description": "Version, state or idempotency conflict",
+            "description": "Stale version, state, snapshot or idempotency conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -2245,7 +2282,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Validate statement lines, equal signed one-to-one matches, scoped transaction IDs and ledger snapshot. Compute balances on server. Saving a draft does not post or mark ledger items reconciled."
       }
     },
     "/finance/accounting/reconciliations/{id}/actions": {
@@ -2382,6 +2420,687 @@
           }
         }
       }
+    },
+    "/finance/accounting/accounts/{id}/revisions": {
+      "post": {
+        "summary": "Update account configuration; Head Admin only, protect posted account identity",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/AccountInput"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "expected_version": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "required": [
+                      "expected_version"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Confirmed result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "record": {
+                      "$ref": "#/components/schemas/Account"
+                    }
+                  },
+                  "required": [
+                    "record"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale version, state, snapshot or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation or closing checks failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/accounting/accounts/{id}/actions": {
+      "post": {
+        "summary": "Archive or reactivate an account after dependency checks; Head Admin only",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "archive",
+                      "activate"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "expected_version": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "expected_version"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Confirmed result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "record": {
+                      "$ref": "#/components/schemas/Account"
+                    }
+                  },
+                  "required": [
+                    "record"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale version, state, snapshot or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation or closing checks failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/accounting/accounts/{id}/ledger": {
+      "get": {
+        "summary": "General ledger with opening, closing and running balances",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Confirmed result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "report": {
+                      "$ref": "#/components/schemas/LedgerReport"
+                    }
+                  },
+                  "required": [
+                    "report"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale version, state, snapshot or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation or closing checks failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/accounting/reports/trial-balance": {
+      "get": {
+        "summary": "Trial balance from posted accounts",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Confirmed result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "report": {
+                      "$ref": "#/components/schemas/TrialBalanceReport"
+                    }
+                  },
+                  "required": [
+                    "report"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale version, state, snapshot or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation or closing checks failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/accounting/accounts/{id}/transactions": {
+      "get": {
+        "summary": "Signed bank/mobile-money/cash transactions with reconciliation snapshot",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Confirmed result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "report": {
+                      "$ref": "#/components/schemas/BankLedgerReport"
+                    }
+                  },
+                  "required": [
+                    "report"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale version, state, snapshot or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation or closing checks failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/accounting/periods/{id}/checks": {
+      "get": {
+        "summary": "Evaluate current period closing checks without changing period status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Confirmed result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "report": {
+                      "$ref": "#/components/schemas/ClosingCheckReport"
+                    }
+                  },
+                  "required": [
+                    "report"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale version, state, snapshot or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation or closing checks failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2420,12 +3139,38 @@
               "other",
               ""
             ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "current",
+              "non_current",
+              "capital",
+              "retained_earnings",
+              "operating",
+              "other"
+            ]
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "bank_name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "payment_reference": {
+            "type": "string",
+            "description": "Write-only full account or merchant reference; omit on revision to retain existing value."
           }
         },
         "required": [
           "code",
           "name",
-          "type"
+          "type",
+          "classification"
         ]
       },
       "JournalInput": {
@@ -2509,6 +3254,8 @@
             "type": "string",
             "enum": [
               "VAT",
+              "NHIL",
+              "GETFUND",
               "SSNIT_EMPLOYEE",
               "SSNIT_EMPLOYER",
               "OTHER"
@@ -2579,6 +3326,28 @@
           },
           "notes": {
             "type": "string"
+          },
+          "from_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "ledger_snapshot_id": {
+            "type": "string"
+          },
+          "statement_lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BankStatementLine"
+            },
+            "minItems": 1,
+            "maxItems": 5000
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReconciliationMatch"
+            },
+            "maxItems": 5000
           }
         },
         "required": [
@@ -2588,7 +3357,11 @@
           "outstanding_deposits",
           "outstanding_payments",
           "supporting_reference",
-          "notes"
+          "notes",
+          "from_date",
+          "ledger_snapshot_id",
+          "statement_lines",
+          "matches"
         ]
       },
       "PeriodInput": {
@@ -2689,12 +3462,40 @@
               "other",
               ""
             ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "current",
+              "non_current",
+              "capital",
+              "retained_earnings",
+              "operating",
+              "other"
+            ]
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "bank_name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "masked_payment_reference": {
+            "type": "string"
           }
         },
         "required": [
           "id",
           "version",
-          "status"
+          "status",
+          "code",
+          "name",
+          "type",
+          "classification"
         ]
       },
       "Journal": {
@@ -2808,6 +3609,9 @@
                 },
                 "amount": {
                   "type": "number"
+                },
+                "classification": {
+                  "type": "string"
                 }
               },
               "required": [
@@ -2817,6 +3621,16 @@
                 "amount"
               ]
             }
+          },
+          "prepared_by": {
+            "type": "string"
+          },
+          "approved_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "ledger_snapshot_id": {
+            "type": "string"
           }
         },
         "required": [
@@ -2824,7 +3638,8 @@
           "version",
           "status",
           "lines",
-          "as_of"
+          "as_of",
+          "ledger_snapshot_id"
         ]
       },
       "Tax": {
@@ -2850,6 +3665,8 @@
             "type": "string",
             "enum": [
               "VAT",
+              "NHIL",
+              "GETFUND",
               "SSNIT_EMPLOYEE",
               "SSNIT_EMPLOYER",
               "OTHER"
@@ -2944,12 +3761,38 @@
           },
           "difference": {
             "type": "number"
+          },
+          "from_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "ledger_snapshot_id": {
+            "type": "string"
+          },
+          "statement_lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BankStatementLine"
+            },
+            "minItems": 1,
+            "maxItems": 5000
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReconciliationMatch"
+            },
+            "maxItems": 5000
           }
         },
         "required": [
           "id",
           "version",
-          "status"
+          "status",
+          "from_date",
+          "ledger_snapshot_id",
+          "statement_lines",
+          "matches"
         ]
       },
       "Period": {
@@ -2978,6 +3821,23 @@
           "end_date": {
             "type": "string",
             "format": "date"
+          },
+          "closed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "closed_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "carry_forward_reference": {
+            "type": "string",
+            "nullable": true
+          },
+          "statement_reference": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -3028,6 +3888,20 @@
           },
           "supporting_reference": {
             "type": "string"
+          },
+          "payment_reference": {
+            "type": "string"
+          },
+          "receipt_status": {
+            "type": "string",
+            "enum": [
+              "issued",
+              "voided"
+            ]
+          },
+          "void_reason": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -3081,6 +3955,304 @@
           "action",
           "resource",
           "reference"
+        ]
+      },
+      "BankStatementLine": {
+        "type": "object",
+        "properties": {
+          "line_id": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "line_id",
+          "date",
+          "reference",
+          "description",
+          "amount"
+        ]
+      },
+      "ReconciliationMatch": {
+        "type": "object",
+        "properties": {
+          "statement_line_id": {
+            "type": "string"
+          },
+          "ledger_transaction_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "statement_line_id",
+          "ledger_transaction_id"
+        ]
+      },
+      "LedgerLine": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "debit": {
+            "type": "number"
+          },
+          "credit": {
+            "type": "number"
+          },
+          "running_balance": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "reference",
+          "description",
+          "debit",
+          "credit",
+          "running_balance"
+        ]
+      },
+      "LedgerReport": {
+        "type": "object",
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "opening_balance": {
+            "type": "number"
+          },
+          "closing_balance": {
+            "type": "number"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LedgerLine"
+            }
+          }
+        },
+        "required": [
+          "account_id",
+          "to",
+          "opening_balance",
+          "closing_balance",
+          "lines"
+        ]
+      },
+      "TrialBalanceLine": {
+        "type": "object",
+        "properties": {
+          "account_code": {
+            "type": "string"
+          },
+          "account_name": {
+            "type": "string"
+          },
+          "debit": {
+            "type": "number"
+          },
+          "credit": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "account_code",
+          "account_name",
+          "debit",
+          "credit"
+        ]
+      },
+      "TrialBalanceReport": {
+        "type": "object",
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date"
+          },
+          "total_debit": {
+            "type": "number"
+          },
+          "total_credit": {
+            "type": "number"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrialBalanceLine"
+            }
+          }
+        },
+        "required": [
+          "as_of",
+          "total_debit",
+          "total_credit",
+          "lines"
+        ]
+      },
+      "BankLedgerLine": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "reconciled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "reference",
+          "description",
+          "amount",
+          "reconciled"
+        ]
+      },
+      "BankLedgerReport": {
+        "type": "object",
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "snapshot_id": {
+            "type": "string"
+          },
+          "closing_balance": {
+            "type": "number"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BankLedgerLine"
+            }
+          }
+        },
+        "required": [
+          "account_id",
+          "from",
+          "to",
+          "snapshot_id",
+          "closing_balance",
+          "lines"
+        ]
+      },
+      "ClosingCheck": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Required keys: student_balances, reconciliations, journals, receipts, taxes, statements. Additional keys allowed."
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "not_checked"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "status",
+          "message"
+        ]
+      },
+      "ClosingCheckReport": {
+        "type": "object",
+        "properties": {
+          "period_id": {
+            "type": "string"
+          },
+          "period_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "check_token": {
+            "type": "string",
+            "description": "Expiring server token bound to institution, period, version and ledger snapshot."
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ready_to_close": {
+            "type": "boolean"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClosingCheck"
+            },
+            "minItems": 6
+          }
+        },
+        "required": [
+          "period_id",
+          "period_version",
+          "check_token",
+          "checked_at",
+          "ready_to_close",
+          "checks"
         ]
       }
     }
