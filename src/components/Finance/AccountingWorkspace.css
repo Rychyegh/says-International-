@@ -1,0 +1,28 @@
+.accounting-workspace { color:#163346; }
+.accounting-workspace h1 {font-size:26px;margin:0 0 8px}
+.accounting-workspace h2 {font-size:18px;margin:0 0 14px}
+.accounting-workspace p {line-height:1.6}
+.accounting-toolbar,.accounting-grid {display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:18px 0}
+.accounting-grid>* {flex:1 1 180px}
+.accounting-workspace label {display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:600}
+.accounting-workspace input,.accounting-workspace select,.accounting-workspace textarea {padding:10px;border:1px solid #cbd5e1;border-radius:7px;min-width:0;background:white;color:#163346;font:inherit}
+.accounting-workspace button {padding:10px 14px;border:1px solid #cbd5e1;border-radius:7px;background:white;color:#163346;cursor:pointer;font-weight:600}
+.accounting-workspace button.primary {background:#0f3a4b;color:white;border-color:#0f3a4b}
+.accounting-workspace button:disabled {opacity:.5;cursor:not-allowed}
+.accounting-card {background:white;border:1px solid #dbe5ec;border-radius:12px;padding:22px;margin:18px 0;overflow:auto}
+.accounting-workspace table,.accounting-print table {border-collapse:collapse;width:100%;font-size:13px}
+.accounting-workspace th,.accounting-workspace td,.accounting-print td,.accounting-print th {padding:12px;text-align:left;border-bottom:1px solid #e2e8f0}
+.accounting-workspace th {background:#f1f7fa;white-space:nowrap}
+.accounting-error {padding:14px;background:#fff1f2;color:#9f1239;border-radius:8px}
+.accounting-notice {padding:14px;background:#ecfdf5;color:#166534;border-radius:8px}
+.accounting-workspace pre {white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;max-width:500px}
+.accounting-print {display:none}
+@media print {
+ body.accounting-printing > * {display:none!important}
+ body.accounting-printing > .accounting-print {display:block!important;color:#000;background:#fff;font:12px Arial}
+ .accounting-print article {break-after:page;padding:16px}
+ .accounting-print article:last-child {break-after:auto}
+ .accounting-print tr {break-inside:avoid}
+}
+
+.accounting-field {display:flex;flex-direction:column;gap:7px}

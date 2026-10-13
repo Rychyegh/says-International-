@@ -1,6 +1,5 @@
 import SchoolPrintHeader from '../School/SchoolPrintHeader';
 import SchoolContactDetails from '../School/SchoolContactDetails';
-import { SCHOOL_PL_ACCOUNTS } from '../../data/chartOfAccounts';
 import { usePortalData } from '../../data/PortalStore';
 import { identityRetry, listRetryOperations, recoveryPayload } from '../../lib/identityRetry';
 import React, { useEffect, useRef, useState } from 'react';
@@ -11,10 +10,10 @@ import { ITEM_PAYMENTS_ENABLED, isItemUuid, paymentAccountOptions } from '../../
 import './ItemDisbursementModal.css';
 import './StudentReceiptModal.css';
 
-function ItemInstructions({ item, index, voucher, onPaid, accounts, onReceipt }) {
+function ItemInstructions({ item, index, voucher, onPaid, accounts, accountsReady, onReceipt }) {
   const {disbursePaymentVoucherItem} = usePortalData();
   const actor = getAuthUser()?.id;
-  const canDisburse = ITEM_PAYMENTS_ENABLED && !voucher.itemReconciliationRequired && accounts.sources.length > 0 && accounts.expenses.length > 0;
+  const canDisburse = ITEM_PAYMENTS_ENABLED && accountsReady && !voucher.itemReconciliationRequired && accounts.sources.length > 0 && accounts.expenses.length > 0;
   const endpoint = `/finance/vouchers/${encodeURIComponent(voucher.id)}/items/${encodeURIComponent(item.id)}/disburse`;
   const lock = useRef(false);
   const [busy,setBusy] = useState(false), [pending,setPending] = useState(null), [ready,setReady] = useState(false);
@@ -87,18 +86,20 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, onReceipt })
     <div className="item-payment-heading"><div><small>ITEM {index+1} · {paid ? 'Paid' : eligible ? 'Approved' : 'Awaiting approval'}</small><h3>{item.description || `Item ${index+1}`}</h3></div><strong>GHS {Number(item.totalAmount ?? item.total ?? 0).toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div>
     <fieldset disabled={paid || busy || Boolean(pending) || !ready}>
       <div className="item-payment-fields">
-        <label>Source account<input readOnly value="REMALJ Carewell Inspirational School" /></label>
+        <label>Source account<select aria-label="Source account" required value={sourceAccountId} onChange={e=>field('source_account_id',e.target.value)}>
+          <option value="">Select a configured source account</option>
+          {accounts.sources.map(account=><option key={account.id} value={account.id}>{account.name || account.account_name} · {account.code || account.account_code || 'Asset'}</option>)}
+        </select><small>REMALJ Carewell Inspirational School</small></label>
         <label>Destination account<input required value={fields.destination_account} onChange={e=>field('destination_account',e.target.value)} placeholder="Recipient bank account or MoMo number" /></label>
         <label>Beneficiary<input readOnly required value={item.provider || ''} /></label>
         <label>Payment method<select aria-label="Payment method" value={fields.payment_method} onChange={e=>field('payment_method',e.target.value)}>{['Bank Transfer','Mobile Money','Cheque','Cash'].map(method=><option key={method}>{method}</option>)}</select></label>
-        <label>Expense account<select aria-label="Expense account" required value={fields.expense_account_id || fields.expense_account_draft || ''} onChange={e=>{
+        <label>Expense account<select aria-label="Expense account" required value={accounts.expenses.some(account=>account.id===fields.expense_account_id) ? fields.expense_account_id : ''} onChange={e=>{
           const value=e.target.value;
-          setFields(current=>({...current,expense_account_id:value.startsWith('draft:')?'':value,expense_account_draft:value.startsWith('draft:')?value:''}));
+          setFields(current=>({...current,expense_account_id:value,expense_account_draft:''}));
           setNotice('Unsaved changes');
         }}><option value="">Select an account</option>
           {accounts.expenses.length>0 && <optgroup label="Configured expense accounts">{accounts.expenses.map(account=><option key={account.id} value={account.id}>{account.name || account.account_name} · {account.code || account.account_code}</option>)}</optgroup>}
-          <optgroup label="School account list — draft instructions only">{SCHOOL_PL_ACCOUNTS.map(account=><option key={account.code+account.name} value={`draft:${account.code}:${account.name}`}>{account.name} · {account.code}</option>)}</optgroup>
-        </select>{fields.expense_account_draft && <small>This selection is saved with your draft. Select a configured expense account before recording payment.</small>}</label>
+        </select>{fields.expense_account_draft && <small>Previous draft choice: {fields.expense_account_draft.replace(/^draft:/,'')}. Select a configured expense account to use for payment.</small>}</label>
         <label>Payment reference<input required value={fields.reference} onChange={e=>field('reference',e.target.value)} /></label>
         <label>Payment date<input type="date" required value={fields.payment_date} onChange={e=>field('payment_date',e.target.value)} /></label>
       </div>
@@ -106,9 +107,14 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, onReceipt })
     </fieldset>
     <div className="item-payment-actions">
       <button className="btn btn-outline-green" type="submit" disabled={paid || busy || Boolean(pending) || !ready}>Save item instructions</button>
-    <button className="btn btn-green" type="button" onClick={disburse} disabled={!canDisburse || busy || !ready || !isItemUuid(item.backendItemId) || item.recoveredFromDescription || (pending ? !pending.input : !eligible || paid || !sourceAccountId || !accounts.expenses.some(account=>account.id===fields.expense_account_id))}>{busy ? 'Processing…' : pending ? `Retry item ${index+1} payment` : `Record confirmed payment for item ${index+1}`}</button>
+    <button className="btn btn-green" type="button" onClick={disburse} disabled={!canDisburse || busy || !ready || !isItemUuid(item.backendItemId) || item.recoveredFromDescription || (pending ? !pending.input : !eligible || paid || !sourceAccountId || !accounts.expenses.some(account=>account.id===fields.expense_account_id) || !Number.isInteger(voucher.version))}>{busy ? 'Processing…' : pending ? `Retry item ${index+1} payment` : `Record confirmed payment for item ${index+1}`}</button>
     </div>
-    {!canDisburse && <p>Payment recording is unavailable until rollout is verified, payment accounts are configured, and reconciliation is clear.</p>}
+    {!pending && eligible && !paid && accountsReady && <p>{[
+      !sourceAccountId && 'Select a configured source account.',
+      !accounts.expenses.some(account=>account.id===fields.expense_account_id) && 'Select a configured expense account.',
+      !Number.isInteger(voucher.version) && 'Refresh the voucher to load its current version.',
+      !isItemUuid(item.backendItemId) && 'The backend must return a saved item ID before payment can be recorded.',
+    ].filter(Boolean).join(' ')}</p>}
     {pending && <button type="button" className="btn" disabled={busy || !pending.input} onClick={reconcile}>Check saved payment</button>}
     {(item.payments || []).filter(payment=>isItemUuid(payment.id)).map(payment=><button type="button" className="btn" key={payment.id} onClick={()=>onReceipt(item,payment.id)}>View receipt {payment.receipt_number || payment.reference || payment.id}</button>)}
     {pending && <p role="status">Payment confirmation pending. Original inputs are locked. Request reference: {pending.key}</p>}
@@ -136,7 +142,15 @@ export default function ItemDisbursementModal({voucher:initialVoucher,onClose}) 
     try {window.print();} catch(error){window.removeEventListener('afterprint',done);document.body.classList.remove('print-student-receipt');setReceiptError(error.message);}
   };
   const [accounts,setAccounts] = useState({sources:[],expenses:[]}), [accountError,setAccountError] = useState('');
-  useEffect(()=>{let active=true;api.getPaymentAccounts().then(raw=>{if(active)setAccounts(paymentAccountOptions(raw));}).catch(error=>{if(active)setAccountError(error.message);});return()=>{active=false;};},[]);
+  const [accountsLoading,setAccountsLoading] = useState(true), [accountReload,setAccountReload] = useState(0);
+  useEffect(()=>{
+    let active=true;
+    setAccountsLoading(true);setAccountError('');
+    api.getPaymentAccounts().then(raw=>{if(active)setAccounts(paymentAccountOptions(raw));})
+      .catch(error=>{if(active){setAccounts({sources:[],expenses:[]});setAccountError(error.message);}})
+      .finally(()=>{if(active)setAccountsLoading(false);});
+    return()=>{active=false;};
+  },[accountReload]);
   const {paymentVouchers=[]} = usePortalData();
   const voucher = paymentVouchers.find(row=>row.id===initialVoucher.id && row.items?.length > 1) || initialVoucher;
   const onPaid = saved => {
@@ -147,12 +161,16 @@ export default function ItemDisbursementModal({voucher:initialVoucher,onClose}) 
       <header><div><h2>Record item payments</h2><p>PV #{voucher.pvNo} · {voucher.items.length} items</p></div><button type="button" className="btn btn-outline-green" onClick={onClose}>Close</button></header>
       <p>Prepare each item separately with its PV beneficiary, destination account and payment reference.</p>
       <p className="item-payment-availability" id="item-payment-availability">Record an external payment only after verifying its settlement and reference. This records the payment in the school ledger; it does not send money through a bank or mobile-money service.</p>
-      {!ITEM_PAYMENTS_ENABLED && <p className="item-payment-availability">Item payment recording is awaiting backend rollout verification.</p>}
+      {!ITEM_PAYMENTS_ENABLED && <p className="item-payment-availability">Item payment recording is disabled in this frontend release. The administrator must enable it after verifying backend payment setup.</p>}
       {voucher.itemReconciliationRequired && <p role="alert">This historical voucher requires audited reconciliation. Do not issue a second payment.</p>}
       {accountError && <p role="alert">Payment accounts could not be loaded: {accountError}</p>}
-      {(!accounts.sources.length || !accounts.expenses.length) && <p>Active source asset and expense accounts must be configured before recording payments.</p>}
+      {accountsLoading ? <p role="status">Loading configured payment accounts…</p> : !accountError && <>
+        {!accounts.sources.length && <p>No active source asset accounts are available. An administrator must configure them in the backend.</p>}
+        {!accounts.expenses.length && <p>No active expense accounts are available. An administrator must configure them in the backend.</p>}
+      </>}
+      <button type="button" className="btn" disabled={accountsLoading} onClick={()=>{setAccountsLoading(true);setAccountReload(value=>value+1);}}>Refresh payment accounts</button>
       {voucher.items.some(item => item.recoveredFromDescription) && <p className="item-payment-availability">These item details were recovered from the voucher description. The payment service must return saved item records before they can be paid separately.</p>}
-      {voucher.items.map((item,index)=><ItemInstructions key={item.id || index} item={item} index={index} voucher={voucher} onPaid={onPaid} accounts={accounts} onReceipt={loadReceipt} />)}
+      {voucher.items.map((item,index)=><ItemInstructions key={item.id || index} item={item} index={index} voucher={voucher} onPaid={onPaid} accounts={accounts} accountsReady={!accountsLoading && !accountError} onReceipt={loadReceipt} />)}
       {receiptError && <p role="alert">{receiptError}</p>}
       {receipt && <><article className="student-receipt-paper">
         <SchoolPrintHeader />

@@ -1,0 +1,78 @@
+ACCOUNT PORTAL — BACKEND INTEGRATION
+
+Frontend implementation: src/components/Finance/AccountingWorkspace.jsx
+HTTP client: src/services/accounting.js (uses the existing authenticated request client).
+Machine-readable contract: docs/accounting-portal.openapi.json
+
+STATUS
+The frontend is implemented. This repository does not contain the backend server implementation. The new routes below must be implemented on the backend before the accounting screens can load or persist records. An unavailable endpoint produces an explicit error, not a sample ledger or a false successful save. Existing student billing and PV endpoints are reused.
+
+CONNECTION
+Base URL: VITE_API_BASE_URL, currently defaulting to https://rcis-backend.onrender.com/api/v1.
+Authorization: Bearer token from the existing login session. Resolve user, role, and institution on the server. Never trust a submitted role or actor name.
+All new routes start with /finance/accounting.
+GET responses: {"items": [...], "next_cursor": null}. Use an opaque next_cursor when more pages exist; frontend follows it. Return a consistent snapshot across pages.
+POST responses: {"record": {"id": "...", "version": 1, ...}}. Return the full record, including status and details. Lists must also include complete details (lines for statements/journals and before/after for audit).
+Amounts: GHS, exact decimal arithmetic on the server, maximum two decimal places. Tax rates support four decimal places. Dates: YYYY-MM-DD; audit timestamps: ISO 8601 UTC.
+Errors: {"detail":"Actionable explanation"}; 400 invalid payload, 401 unauthenticated, 403 forbidden, 404 missing, 409 version/state/idempotency conflict, 422 validation or closing checks failed. Do not respond with 200 on an unsuccessful write.
+
+ROLE MATRIX
+Accountant: read accounts/periods, create and revise journals and tax proposals, generate statements, prepare reconciliations, submit drafts, request period closure, read audit, read released PV receipts. No PV creation, approval, payment, or access to raw PV approval notes through this module.
+Head Admin: read all accounting records; create accounts/periods; approve or return/reject submitted records; post journals through approval; reverse posted journals; close/reopen periods with reasons. Existing PV approval/payment responsibilities remain.
+Sub Admin: existing PV preparation/submission routes only; reject access to new accounting-management routes.
+Auditor (if provisioned by your identity system): read-only accounting records and audit. This change does not provision a separate auditor login.
+Enforce every permission in the backend; frontend visibility is not authorization. Apply institution scoping to every lookup, including cursor pagination and record action IDs.
+
+ROUTES
+GET /accounts; POST /accounts
+Create body: {code,name,type,channel}. type: asset|liability|equity|income|expense. channel: bank|mobile_money|cash|other or empty. Return status active; enforce unique account code per institution. Opening balances are balanced journals, not mutable account totals. Use the same canonical payment-account IDs as the existing /finance/payment-accounts endpoint, so new bank/mobile money/cash accounts reflect in disbursement and receipt workflows.
+
+GET /journals; POST /journals
+Body: {date,description,kind,supporting_reference,lines:[{account_id,debit,credit}]}
+kind: adjustment|opening_balance|income|expense.
+Draft -> submitted -> posted (Head Admin approve); submitted -> returned/rejected; returned -> draft via revisions. POST /journals/{id}/revisions accepts the same draft payload plus expected_version. Permit revisions only in draft/returned status.
+POST /journals/{id}/actions: {action,reason,expected_version}. Actions: submit,approve,return,reject,reverse. Return/reject/reverse require a reason. Reversal creates an opposite, linked posted journal and marks the original reversed atomically. Never delete posted entries. Posting validates active accounts, balanced positive single-sided lines, dates in an open period, and support references. No ledger effect until posting; approval and ledger posting must be one transaction. Preserve both sides of a reversal in report calculations.
+
+GET /statements; POST /statements
+Body: {as_of,notes}. Generate a persisted draft snapshot from the authoritative posted ledger, including opening balances and retained earnings/current net income. Return {id,reference,as_of,status,version,lines:[{account_code,account_name,type,amount}]}. type: asset|liability|equity. Use signed normal balances. Include snapshot/ledger revision metadata. Do not construct this from student fee collections alone.
+POST /statements/{id}/actions: submit,approve,return,reject. Require the accounting equation to balance. Reject approval if the ledger changed since preparation. Returned statements can be regenerated from the ledger; preserve previous snapshots. Approved snapshots are immutable and printable with their status.
+
+GET /tax-settings; POST /tax-settings
+Body: {name,category,rate,applies_to,effective_from,effective_to,account_id,reason}.
+category: VAT|SSNIT_EMPLOYEE|SSNIT_EMPLOYER|OTHER. applies_to: payroll|taxable_purchases|taxable_sales. effective_to may be null.
+POST /tax-settings/{id}/revisions: draft fields plus expected_version, draft/returned only.
+POST /tax-settings/{id}/actions: submit,approve,return,reject.
+Approve -> active. Preserve prior approved versions. Validate dates, rate range, applicability, account type, and prevent overlapping active settings for the same category/scope. Do not rewrite historical transactions. Snapshot the applied setting ID, rate, taxable base, and calculated amount on each applicable payroll/sale/purchase posting. Employee and employer contributions must use separate settings. No statutory rate is pre-filled by the frontend; enter verified applicable rates.
+
+GET /reconciliations; POST /reconciliations
+Body: {account_id,as_of,statement_balance,outstanding_deposits,outstanding_payments,supporting_reference,notes}.
+Compute ledger_balance from the selected posted payment account at as_of. adjusted_statement_balance = statement_balance + outstanding_deposits - outstanding_payments; difference = ledger_balance - adjusted_statement_balance. Return these fields and reference/status/version. POST /reconciliations/{id}/actions: submit,approve,return,reject. Approval requires difference zero, verified supporting statement, and unchanged ledger snapshot. A returned reconciliation can be prepared again; retain previous records.
+
+GET /receipts (READ ONLY)
+Return only approved and actually paid PV receipt records released to Accounts, including partial item payments as distinct receipts. Approval alone must not create a payment receipt. Whitelist fields: id,receipt_number,voucher_reference,payee,payment_date,amount,payment_method,items,supporting_reference. Do not include pending PVs, private approval notes, bank credentials, or controls for editing/approving/disbursing vouchers. Link the authoritative receipt to the existing voucher/item/payment ID internally and deduplicate it. Reverse/void receipts via controlled ledger correction, never silently remove them.
+
+GET /audit-events (READ ONLY)
+Fields: id,occurred_at,actor_name,action,resource,reference,reason,before,after.
+Append immutable events for create, revise, submit, approve, reject, return, post, reverse, setting activation, closing and reopening. Actor comes from the session. Before/after must omit secrets and unnecessary personal data. No update/delete routes. UI supports text and date-range filtering.
+
+GET /periods; POST /periods
+Body: {name,start_date,end_date}. Head Admin creates non-overlapping periods, status open.
+POST /periods/{id}/actions: request_close (Accountant/Head Admin), close (Head Admin), reopen (Head Admin, reason required).
+open -> pending_close -> closed; reopen -> open. Reject reversed dates and overlapping periods. Closing must check reconciliation, unresolved journals, supporting receipts, tax liabilities, and approved statements. Return outstanding_checks with actionable explanations on 422; do not mark closed. Lock all posting/adjustment endpoints for closed periods, including existing fee/PV endpoints, and carry forward balances transactionally without double-counting. Reopening records the actor and reason; repeat closing must not duplicate carry-forward entries.
+
+CONCURRENCY AND RETRIES
+All POST calls send Idempotency-Key. Scope keys by institution, principal, method, and path; save the payload hash and response transactionally. Same key + same payload returns the original result; different payload with the same key returns 409. The client hashes actor/path/payload so retrying a timeout or refreshing does not create duplicate entries. Use distinct support references for genuinely distinct otherwise identical transactions. Every state-changing action or revision includes expected_version; require exact match and increment version. Reject stale actions with 409. Require approval separation according to school policy and prohibit self-approval where applicable.
+
+EXISTING BILLING AND PV INTEGRATIONS
+Student bill preparation opens the existing individual/class billing form and uses existing billing APIs. Refer to docs/backend-live-student-billing.openapi.json and docs/student-identity-and-billing-handoff.txt.
+GET /finance/fees must return the complete authorised invoice ledger including id/bill_id, student_id, student_name, class_level, academic_year, term, billed_amount, paid_amount, balance, due_date, items [{description,amount}], arrears_brought_forward, and scholarship_discount. Preserve stable invoice IDs. Missing class/year is displayed as not supplied rather than invented. Printing filters by student, class, academic year, term, payment status, and balance range; it prints selected invoices in name/balance order, individually or as a summary. Refresh the ledger after any posted/adjusted bill or payment.
+The existing Sub Admin Submit PV Request, Head Admin Pre-Audit & Approve PV, and Pay PV screens remain in place. Approved receipt projection should be generated from those transactions, not a separate manual receipt store. Consult existing independent-PV, provider-PV, and item-disbursement handoffs for the original endpoints. The Head Admin now also has Accounting Management for finance review and configuration.
+
+DEPLOYMENT CHECKLIST
+1. Implement schemas, constraints, permissions, migrations, and routes.
+2. Migrate opening balances through balanced, approved journals with a documented cutover; do not infer balances from partial fee data.
+3. Connect existing billing/PV posting to the same ledger and tax versions; ensure posting is exactly once.
+4. Verify denied access for Sub Admin, accountant PV actions, and cross-institution IDs.
+5. Verify timeouts/retries, stale-version rejection, reversal, invalid journals, backdated tax settings, and closed-period posting rejection.
+6. Reconcile a known account; generate and approve a balanced statement; close and reopen a test period.
+7. Test with a staging backend before production. Frontend browser tests use mocked responses and do not confirm live backend availability.

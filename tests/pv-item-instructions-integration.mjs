@@ -29,7 +29,7 @@ try {
  assert.equal(await dialog.getByRole('button',{name:/Confirm & Disburse/}).count(),0);
  await dialog.getByRole('button',{name:'Close',exact:true}).click();
  await page.getByRole('button',{name:'Disburse & Pay',exact:true}).click();
- assert.equal(await dialog.getByRole('form',{name:'Item 1 payment instructions'}).getByLabel('Source account',{exact:true}).inputValue(),'REMALJ Carewell Inspirational School');
+ assert.equal(await dialog.getByRole('form',{name:'Item 1 payment instructions'}).getByLabel('Source account',{exact:true}).inputValue(),'11111111-1111-4111-8111-111111111112');
  assert.equal(await dialog.getByRole('form',{name:'Item 2 payment instructions'}).getByLabel('Destination account',{exact:true}).inputValue(),'Destination 2');
  await page.screenshot({path:'/private/tmp/pv-item-modal.png'});
  await page.setViewportSize({width:390,height:844});

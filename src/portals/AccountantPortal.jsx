@@ -1,3 +1,5 @@
+import AccountingWorkspace from '../components/Finance/AccountingWorkspace';
+import { FINANCE_SECTIONS } from '../services/accounting';
 import SchoolPrintHeader from '../components/School/SchoolPrintHeader';
 import { SCHOOL_CONTACT_TEXT } from '../data/schoolContact';
 import SchoolContactDetails from '../components/School/SchoolContactDetails';
@@ -27,6 +29,7 @@ const ACCOUNT_LIGHT = '#e0f2fe';
 const ACCOUNT_ACCENT = '#0284c7';
 
 const NAV = [
+  ...FINANCE_SECTIONS.map(label => ({ icon: <FileText size={15} />, label, badge: null })),
   { icon: <Layers size={15} />, label: 'SIMS Financial Hub & Tools', badge: 'Unavailable', disabled: true },
   { icon: <LayoutDashboard size={15} />, label: 'Financial Overview', badge: null },
   { icon: <CreditCard size={15} />, label: 'Fee Ledgers & Payments', badge: null },
@@ -390,6 +393,7 @@ export default function AccountantPortal({ onSignOut }) {
 
         {/* Main Content */}
         <main className="portal__content">
+          {FINANCE_SECTIONS.includes(activeNav) && <AccountingWorkspace key={activeNav} section={activeNav} role="accountant" onPrepareBill={() => setActiveSimsModal({category: 'Accounts', link: 'Prepare Student academic Bill'})} />}
           <section style={{ padding: 14, marginBottom: 16, borderRadius: 10, background: accountError || refreshError ? '#fff1f2' : '#f0f9ff' }}>
             {(accountError || refreshError) && <p role="alert">Accounts records could not be loaded: {accountError || refreshError}. This does not mean the ledger is empty.</p>}
             <button className="academic-button" disabled={accountsLoading} onClick={reloadAccounts}>{accountsLoading ? 'Loading accounts…' : 'Refresh Accounts from database'}</button>

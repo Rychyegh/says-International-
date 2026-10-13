@@ -1,3 +1,4 @@
+import AccountingWorkspace from '../components/Finance/AccountingWorkspace';
 import SchoolPrintHeader from '../components/School/SchoolPrintHeader';
 import SchoolContactDetails from '../components/School/SchoolContactDetails';
 import { isPendingVoucher } from '../lib/pvNotifications.js';
@@ -33,6 +34,7 @@ const ADMIN_LIGHT = '#f3e8ff';
 const ADMIN_ACCENT = '#7c3ac8';
 
 const NAV = [
+  { icon: <FileText size={15} />, label: 'Accounting Management', badge: null },
   { icon: <LayoutDashboard size={15} />, label: 'Dashboard', badge: null },
   { icon: <FileText size={15} />, label: 'Applications & Forms', badge: null },
   { icon: <Users size={15} />, label: 'Student Roster', badge: null },
@@ -961,6 +963,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
             }
             if (adminRole === 'sub_admin') {
               const restrictedForSubAdmin = [
+                'Accounting Management',
                 'Pre-Audit & Approve PV',
                 'Pay PV',
                 'Pay PV (Disbursement)',
@@ -1025,6 +1028,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
         {/* Main Content */}
         <main className="portal__content">
+          {activeNav === 'Accounting Management' && adminRole === 'head_admin' && <AccountingWorkspace role={adminRole} />}
           {coreErrors.length > 0 && <section role="alert" style={{ background: '#fff1f2', border: '1px solid #fecaca', color: '#7f1d1d', padding: 16, borderRadius: 10, marginBottom: 16 }}>
             <strong>Some school records could not be loaded.</strong>
             <p>These errors do not mean your records have been deleted.</p>
@@ -2992,7 +2996,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           )}
 
           {/* ── PRE-AUDIT & APPROVE PV (HEADMASTER VOUCHER EDITING & APPROVAL STATION) ── */}
-          {(activeNav === 'Pre-Audit & Approve PV' || activeNav === 'Approve Payment Voucher (PV)') && (
+          {adminRole === 'head_admin' && (activeNav === 'Pre-Audit & Approve PV' || activeNav === 'Approve Payment Voucher (PV)') && (
             <div className="animate-fade-up">
               <ApprovePVForm setM={() => {}} />
             </div>

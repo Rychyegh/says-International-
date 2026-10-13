@@ -19,3 +19,36 @@ Remaining backend/operator work:
 Apply and verify the migrations in the supplied contract; configure genuine accounts; reconcile flagged historical vouchers through an audited process; publish actual response schemas including payment-accounts and payment identity fields; run authorized live validation. The frontend cannot clear reconciliation flags, invent account IDs, or mark a draft paid.
 
 Source/beneficiary display update (3 October): Source account is fixed to "REMALJ Carewell Inspirational School" in the form. The API still receives a real source_account_id: an existing saved draft's valid account ID, otherwise a unique is_default=true asset account, otherwise the sole configured active asset account. Multiple accounts without a unique default require backend configuration; the client does not choose one arbitrarily. Original pending requests retain their original ID. Beneficiary is read-only from the PV item, preserving different payees on different lines.
+
+Account selection correction (4 October, supersedes the source display above):
+The source account is now a selector of configured active asset accounts. Saved
+choices, a unique default, and a sole available account still preselect normally;
+with multiple sources the operator can explicitly choose one. The school name
+remains a label, not an account identity. Expense choices now contain only active
+configured backend accounts. Existing draft-only choices remain visible as draft
+text until replaced; they are never submitted as account IDs. Refresh payment
+accounts reloads backend configuration without losing the item instructions.
+
+Live contract read on 4 October:
+GET https://rcis-backend.onrender.com/api/v1/openapi.json returned HTTP 200.
+It declares payment-accounts, item disbursement, payment lookup by idempotency
+key, and receipt detail endpoints. VoucherPaymentAccountsOut is an object with
+an accounts array; each account has id (UUID), code, name, account_type (asset or
+expense), and is_active (boolean). The existing frontend adapter accepts this
+format. The schema does not declare is_default, so explicit source selection is
+needed when the response contains several assets without that optional field.
+
+Required backend/operator completion:
+1. Verify genuine SchoolAccount records and the migrations against the deployed
+   database. Publish active source assets and expenses through payment-accounts.
+   Do not turn a display-only income code into an expense account automatically.
+2. Verify an authenticated account-list read and the item-payment transaction,
+   same-key retry, receipt, and reconciliation behavior with authorized test data.
+3. After verification, set VITE_ENABLE_ITEM_PAYMENTS=true in the FRONTEND build
+   environment and rebuild/redeploy. Changing a backend variable alone has no
+   effect on Vite's compiled frontend flag.
+4. Select the real accounts and enter the verified external payment reference.
+
+This read proves schema publication only. It does not prove account records,
+migrations, finance permissions, or live posting behavior. No financial write or
+production flag change was performed during this correction.
