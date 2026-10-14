@@ -1,5 +1,5 @@
 ACCOUNT PORTAL — BACKEND INTEGRATION, VERSION 2
-Updated: 2026-10-13
+Updated: 2026-10-14
 
 DELIVERY STATUS
 The frontend now has eight distinct accounting workspaces. Each section's tools remain visible if its API fails, rather than disappearing behind a common search/refresh screen. Local calculators and CSV preparation work without accounting data. Saving, posting, matching against a ledger, statement generation, and closing require the backend described here. No success or balance is invented when a request fails.
@@ -35,6 +35,16 @@ POST: {"record":{"id":"...","version":1,...}}. Include the complete updated reco
 Dates: YYYY-MM-DD. Timestamps: ISO 8601 UTC. IDs: strings. Currency: GHS.
 Use exact decimal arithmetic and two decimal places for money on the server. Rates allow four decimal places. Validate finite amounts and ranges independently of the browser.
 Errors: {"detail":"Actionable explanation"}, optionally outstanding_checks. 400 invalid input; 401 unauthenticated; 403 permission denied; 404 missing; 409 stale version/state/idempotency conflict; 422 failed validation, reconciliation or closing checks.
+
+SESSION VERIFICATION — 2026-10-14 CORRECTION
+The observed HTTP 403 "Complete session verification before accessing this resource" is an authentication-state rejection, not a missing accounting endpoint or an empty ledger.
+The frontend now gates both Admin and Accountant routes with GET /auth/me on fresh login and restoration before mounting finance data providers. It accepts only the role returned by the server and requires requiresSecondFactor:false. Local portal flags do not establish a verified session.
+GET /auth/me must remain accessible to a valid provisional token and return {user:{id,role,...},requiresSecondFactor:boolean,pinSetupRequired:boolean}. If the accountant must verify a PIN, return requiresSecondFactor:true. Do not return false while the same token is rejected by finance middleware as unverified.
+The shared verification UI uses the existing POST /auth/verify-admin-pin {pin} and enrollment POST /auth/admin-pin {pin,password}. Despite their legacy names, these routes must support the authenticated accountant identity when accountant verification is required by server policy. Never convert an accountant to an administrator. Return a replacement fully verified token, the same user ID/role, and requiresSecondFactor:false after successful verification; apply the verified state consistently to /finance/fees and /finance/accounting/*.
+If accountant accounts should use password-only login, issue an appropriately verified accountant token during password login and have /auth/me report false. Do not remove finance middleware or let the browser mark a token verified itself.
+For protected-resource rejections, prefer HTTP 403 {code:"SESSION_VERIFICATION_REQUIRED",detail:"Complete session verification before accessing this resource"}. SECOND_FACTOR_REQUIRED is also recognized. The frontend routes these errors back to verification and restores the selected section for the same user afterward. It does not automatically replay financial writes. Ordinary 403 permission denials must use a different code and remain access errors.
+PIN errors: 401 invalid PIN; 409 enrollment needed; 429 lockout with Retry-After. Keep provisional /auth/me and PIN routes reachable without requiring the very verification they perform. Do not expose PINs/passwords or put them into local storage/audit snapshots.
+Backend deployment is not available in this repository. If the legacy PIN endpoints reject accountant roles, backend support above is required; frontend tests cannot establish live endpoint compatibility.
 
 ROLE ENFORCEMENT
 Accountant: read chart/periods; create/revise/submit journals and tax proposals; prepare reconciliations and statements; request period closure; read reports, audit and released PV receipts.
@@ -180,3 +190,6 @@ ACCEPTANCE CHECKS
 - Audit differences show only changed fields; exported text cannot execute as a spreadsheet formula.
 - Closing is blocked for failed/missing/stale checks and all existing backdated posting endpoints respect period locks.
 - Run staging integration before production. Frontend browser tests use mocked APIs and do not confirm a deployed backend.
+
+PRODUCTION FRONTEND BUILD — 2026-10-14
+Run npm run build and deploy the generated dist/index.html and matching dist/assets together. The previous dist bundle did not include the Accountant verification correction. A source-only update or a temporary test build does not update the production deployment package. This workspace now rebuilds dist with the correction. Publish through the normal hosting workflow; no hosted deployment is performed by a local build. After deployment, reload the portal and complete any server-required verification. Remaining 403 responses require the session consistency checks described above, not removal of financial access controls.

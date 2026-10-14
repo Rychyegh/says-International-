@@ -4,12 +4,12 @@ const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const browser=await chromium.launch({headless:true,...(process.env.CHROME_EXECUTABLE ? {executablePath:process.env.CHROME_EXECUTABLE} : {})});
 try{
 for(const [pin,role] of [['2468','head_admin'],['2468','sub_admin']]){
- const page=await browser.newPage();let pinCalls=0,sessionChecks=0,verified=false,protectedBeforeVerified=0,delaySession=false;
+ const page=await browser.newPage();let pinCalls=0,sessionChecks=0,verified=false,protectedBeforeVerified=0,delaySession=false,sessionGate=null,releaseSession=null;
  const user={id:'admin-uuid',email:'admin@test.com',role,portalRole:'admin',fullName:'Test Admin'};
  await page.route('**/api/**',async route=>{
   const req=route.request(),path=new URL(req.url()).pathname;let data=[],status=200;
   if(path.endsWith('/auth/login')) data={token:'opaque-provisional',requiresSecondFactor:true,user};
-  else if(path.endsWith('/auth/me')) {if(delaySession) await new Promise(resolve=>setTimeout(resolve,350));sessionChecks++;if(!req.headers().authorization){status=401;data={detail:'Sign in required'};}else data={user,requiresSecondFactor:verified?false:true,pinSetupRequired:false};}
+  else if(path.endsWith('/auth/me')) {if(delaySession) await sessionGate;sessionChecks++;if(!req.headers().authorization){status=401;data={detail:'Sign in required'};}else data={user,requiresSecondFactor:verified?false:true,pinSetupRequired:false};}
   else if(path.endsWith('/verify-admin-pin')) {
    pinCalls++;
    assert.equal(req.headers().authorization,'Bearer opaque-provisional');
@@ -46,11 +46,12 @@ for(const [pin,role] of [['2468','head_admin'],['2468','sub_admin']]){
    const user = JSON.parse(localStorage.getItem('auth_user'));
    localStorage.setItem('auth_user', JSON.stringify({...user, role:'head_admin', adminRole:'head_admin'}));
   }, cachedRole);
-  delaySession=true;
+  delaySession=true;sessionGate=new Promise(resolve=>{releaseSession=resolve;});
   await page.reload();
   await page.getByRole('status').filter({hasText:'Checking your database session'}).waitFor();
   assert.equal(await page.getByText('Head Administrator',{exact:true}).count(),0);
   assert.equal(await page.getByText('👑 HEAD ADMIN',{exact:true}).count(),0);
+  delaySession=false;releaseSession();
   await page.getByRole('button',{name:'Sign Out',exact:true}).waitFor();
   await page.getByText(role==='sub_admin' ? '🛡️ SUB ADMIN' : '👑 HEAD ADMIN',{exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>localStorage.getItem('says_admin_active_nav')),'Student Roster');
@@ -94,7 +95,7 @@ for (const portal of ['accountant','teacher','parent','student']) {
    if(path.endsWith('/auth/me')||path.endsWith('/verify-admin-pin'))sessionChecks++;
    let data=[];
    if(path.endsWith('/auth/login'))data={token:'eyJ-test-token',user:{id:'user-'+portal,email:'test@example.com',role:portal,fullName:'Test User'}};
-   if(portal==='teacher' && path.endsWith('/auth/me')) data={user:{id:'user-teacher',email:'test@example.com',role:'teacher'},requiresSecondFactor:false};
+   if(['teacher','accountant'].includes(portal) && path.endsWith('/auth/me')) data={user:{id:'user-'+portal,email:'test@example.com',role:portal},requiresSecondFactor:false};
    if(path.endsWith('/students/me/dashboard'))data={stats:[],schedule:[],assignments:[],deadlines:[]};
    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
  });
@@ -106,7 +107,7 @@ for (const portal of ['accountant','teacher','parent','student']) {
  assert.equal(await page.evaluate(p=>JSON.parse(localStorage.getItem('says_authed_portals'))?.[p],portal),true);
  await page.reload();
  await page.getByRole('button',{name:'Sign Out',exact:true}).waitFor();
- assert.equal(sessionChecks,portal==='teacher'?1:0);
+ if(portal==='accountant') assert.ok(sessionChecks>=2); else assert.equal(sessionChecks,portal==='teacher'?1:0);
  await page.getByRole('button',{name:'Sign Out',exact:true}).click();
  await page.locator(`#${portal}-email`).waitFor();
  await page.close();

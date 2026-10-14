@@ -1,3 +1,4 @@
+import { sessionRoleAllowed } from '../../lib/sessionVerification.js';
 import SchoolContactDetails from '../School/SchoolContactDetails';
 import React, { useEffect, useRef, useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn, CreditCard, ScanLine, ShieldCheck, Camera, X, User, Phone, ArrowLeft, CheckCircle2, MessageSquareCode } from 'lucide-react';
@@ -96,11 +97,11 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   const [pinRetryAt, setPinRetryAt] = useState(0);
   const pinLock = useRef(false);
   useEffect(() => {
-    if (portal !== 'admin') return;
+    if (!['admin', 'accountant'].includes(portal)) return;
     let active = true;
     api.getVerifiedSession().then(session => {
       if (!active) return;
-      if (session.requiresSecondFactor) {
+      if (sessionRoleAllowed(portal, session.user.role || session.user.portalRole) && (session.requiresSecondFactor || session.user.requiresSecondFactor === true)) {
         setPinStep(true); setPinSetupRequired(Boolean(session.pinSetupRequired));
         setAuthUser({ ...session.user, requiresSecondFactor: true });
       }
@@ -252,12 +253,12 @@ export default function LoginPage({ portal, onLoginSuccess }) {
       }
       setLoading(false);
 
-      if (portal === 'admin') {
+      if (['admin', 'accountant'].includes(portal)) {
         const session = await api.getVerifiedSession();
         setAuthUser({ ...session.user, requiresSecondFactor: session.requiresSecondFactor });
-        if (!session.requiresSecondFactor) {
+        if (!sessionRoleAllowed(portal, session.user.role || session.user.portalRole)) throw new Error('This account does not have access to the selected portal.');
+        if (!session.requiresSecondFactor && session.user.requiresSecondFactor !== true) {
           const role = session.user.role || session.user.portalRole;
-          if (!['head_admin', 'sub_admin'].includes(role)) throw new Error('This account does not have administrator portal access.');
           setSuccess(true); onLoginSuccess(role); return;
         }
         setPinSetupRequired(Boolean(session.pinSetupRequired));
@@ -319,7 +320,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     if (pinSetupRequired && (!pinPassword || adminPin !== pinConfirm)) { setError('Enter your account password and matching new PINs.'); return; }
     pinLock.current = true; setLoading(true);
     try {
-      const result = await api.verifyAdminPin(adminPin, pinSetupRequired ? pinPassword : undefined);
+      const result = await api.verifySessionPin(adminPin, pinSetupRequired ? pinPassword : undefined, portal);
       setAdminPin(''); setPinPassword(''); setPassword(''); setPinConfirm('');
       setSuccess(true); onLoginSuccess(result.role);
     } catch (err) {
@@ -517,7 +518,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
                 <span>🛡️</span> 2-Factor Security Authorization
               </div>
 
-              <h2 className="login-form__title">Admin Security PIN</h2>
+              <h2 className="login-form__title">{portal === 'accountant' ? 'Accountant Security PIN' : 'Admin Security PIN'}</h2>
               <p className="login-form__subtitle">
                 {pinSetupRequired ? 'Create your own 4-digit PIN. Confirm your account password to enrol it securely.' : 'Enter your account’s 4-digit PIN to complete server verification.'}
               </p>

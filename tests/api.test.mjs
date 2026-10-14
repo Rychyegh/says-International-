@@ -317,3 +317,20 @@ test('multi-item approval uses separate authorization with latest voucher versio
  await api.reviewPaymentVoucher(id,{action:'Partially Approved',remarks:'Review',items:[{id:a,status:'Validated'},{id:b,status:'Declined',auditRemarks:'Not required'}]});
  assert.deepEqual(posts,[{decision:'approve',version:2,notes:'Review'},{decision:'decline',version:3,notes:'Not required'}]);
 });
+
+test('accountant verification accepts only the accountant role and rotates the token',async()=>{
+ setAuthToken('account-primary');setAuthUser({id:'accountant-1',role:'accountant',requiresSecondFactor:true});
+ globalThis.fetch=async()=>json({token:'account-complete',requiresSecondFactor:false,user:{id:'accountant-1',role:'accountant'}});
+ const result=await api.verifySessionPin('2468',undefined,'accountant');assert.equal(result.role,'accountant');assert.equal(getAuthToken(),'account-complete');
+ globalThis.fetch=async()=>json({token:'wrong-role',requiresSecondFactor:false,user:{id:'admin-1',role:'head_admin'}});
+ await assert.rejects(api.verifySessionPin('2468',undefined,'accountant'),/selected portal/);assert.equal(getAuthToken(),'account-complete');
+});
+test('verification-required 403 requests reauthentication but ordinary forbidden responses do not',async()=>{
+ let count=0;window.addEventListener('says_reauthenticate',()=>count++);
+ globalThis.fetch=async()=>json({detail:'Complete session verification before accessing this resource'},403);
+ await assert.rejects(request('/finance/accounting/journals'),e=>e.status===403);assert.equal(count,1);
+ globalThis.fetch=async()=>json({code:'SESSION_VERIFICATION_REQUIRED',detail:'Verify your session'},403);
+ await assert.rejects(request('/finance/fees'),e=>e.status===403);assert.equal(count,2);
+ globalThis.fetch=async()=>json({detail:'Accountants cannot approve vouchers'},403);
+ await assert.rejects(request('/finance/vouchers/1/approve',{method:'POST',body:'{}'}),e=>e.status===403);assert.equal(count,2);
+});

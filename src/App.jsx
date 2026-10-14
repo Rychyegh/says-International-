@@ -1,3 +1,4 @@
+import { sessionRoleAllowed } from './lib/sessionVerification.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Topbar from './components/Topbar/Topbar';
@@ -83,7 +84,7 @@ function AppRoutes() {
     };
   });
 
-  const resumeAdminUser = useRef(authed.admin ? getAuthUser()?.id : null);
+  const resumeAdminUser = useRef(authed.admin || authed.accountant ? getAuthUser()?.id : null);
 
   // Browser preferences never establish administrator privileges.
   const [adminRole, setAdminRole] = useState(null);
@@ -113,36 +114,37 @@ function AppRoutes() {
   const activePortal = getPortalFromPath(location.pathname);
   const [adminSession, setAdminSession] = useState('checking');
   const [verifiedAdminToken, setVerifiedAdminToken] = useState(null);
+  const [verifiedSessionPortal, setVerifiedSessionPortal] = useState(null);
   const [sessionError, setSessionError] = useState('');
   const [sessionRetry, setSessionRetry] = useState(0);
   useEffect(() => {
-    if (activePortal !== 'admin' || !authed.admin) return;
+    if (!['admin', 'accountant'].includes(activePortal) || !authed[activePortal]) return;
     let active = true;
     const token = getAuthToken();
     setAdminRole(null); setAdminSession('checking'); setSessionError('');
     api.getVerifiedSession().then(session => {
       if (!active || token !== getAuthToken()) return;
       const role = session.user.role || session.user.portalRole;
-      if (session.requiresSecondFactor || session.user.requiresSecondFactor === true || !['head_admin', 'sub_admin'].includes(role)) {
-        setAuthed(current => ({ ...current, admin: false })); setAdminSession('login'); return;
+      if (session.requiresSecondFactor || session.user.requiresSecondFactor === true || !sessionRoleAllowed(activePortal, role)) {
+        setAuthed(current => ({ ...current, [activePortal]: false })); setAdminSession('login'); return;
       }
-      setAuthUser({ ...session.user, role, adminRole: role, requiresSecondFactor: false });
-      setAdminRole(role); setVerifiedAdminToken(token); setAdminSession('ready');
+      setAuthUser({ ...session.user, role, ...(activePortal === 'admin' ? { adminRole: role } : {}), requiresSecondFactor: false });
+      setAdminRole(activePortal === 'admin' ? role : null); setVerifiedSessionPortal(activePortal); setVerifiedAdminToken(token); setAdminSession('ready');
     }).catch(error => {
       if (!active) return;
-      if ([401, 403].includes(error.status)) { setAuthed(current => ({ ...current, admin: false })); setAdminSession('login'); }
+      if ([401, 403].includes(error.status)) { setAuthed(current => ({ ...current, [activePortal]: false })); setAdminSession('login'); }
       else { setSessionError(error.message); setAdminSession('error'); }
     });
     return () => { active = false; };
-  }, [activePortal, authed.admin, sessionRetry]);
+  }, [activePortal, authed.admin, authed.accountant, sessionRetry]);
   useEffect(() => {
-    const reauthenticate = () => { resumeAdminUser.current = getAuthUser()?.id; setAdminSession('login'); setAuthed(current => ({ ...current, admin: false })); };
+    const reauthenticate = () => { resumeAdminUser.current = getAuthUser()?.id; setAdminSession('login'); setAuthed(current => ({ ...current, [activePortal]: false })); };
     const verified = () => { setAdminSession('checking'); setSessionRetry(value => value + 1); };
     window.addEventListener('says_reauthenticate', reauthenticate);
     window.addEventListener('says_session_verified', verified);
     return () => { window.removeEventListener('says_reauthenticate', reauthenticate); window.removeEventListener('says_session_verified', verified); };
-  }, []);
-  const isAuthed = authed[activePortal] && (activePortal !== 'admin' || (adminSession === 'ready' && verifiedAdminToken === getAuthToken()));
+  }, [activePortal]);
+  const isAuthed = authed[activePortal] && (!['admin', 'accountant'].includes(activePortal) || (adminSession === 'ready' && verifiedSessionPortal === activePortal && verifiedAdminToken === getAuthToken()));
 
   const handleSignOut = () => {
     resumeAdminUser.current = null;
@@ -201,16 +203,16 @@ function AppRoutes() {
   }, [isAuthed, activePortal]);
 
   const renderPortalView = (portalKey, Component) => {
-    if (portalKey === 'admin' && authed.admin && (adminSession !== 'ready' || verifiedAdminToken !== getAuthToken())) return <div style={{ padding: '120px 32px' }} role="status">{sessionError || 'Checking your database session…'}{sessionError && <button onClick={() => setSessionRetry(value => value + 1)}>Retry session check</button>}</div>;
+    if (['admin', 'accountant'].includes(portalKey) && authed[portalKey] && (adminSession !== 'ready' || verifiedSessionPortal !== portalKey || verifiedAdminToken !== getAuthToken())) return <div style={{ padding: '120px 32px' }} role="status">{sessionError || 'Checking your database session…'}{sessionError && <button onClick={() => setSessionRetry(value => value + 1)}>Retry session check</button>}</div>;
     if (!authed[portalKey]) {
       return (
         <LoginPage
           portal={portalKey}
           onLoginSuccess={(role) => {
-            const resumePage = portalKey === 'admin' && resumeAdminUser.current && resumeAdminUser.current === getAuthUser()?.id;
+            const resumePage = ['admin', 'accountant'].includes(portalKey) && resumeAdminUser.current && resumeAdminUser.current === getAuthUser()?.id;
             if (!resumePage) openPortalOnDashboard(portalKey);
             resumeAdminUser.current = null;
-            if (role) {
+            if (role && portalKey === 'admin') {
               setAdminRole(role);
               localStorage.setItem('says_admin_role', role);
               window.dispatchEvent(new Event('says_admin_role_changed'));

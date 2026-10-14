@@ -1,3 +1,4 @@
+import { isSessionVerificationError, sessionRoleAllowed } from '../lib/sessionVerification.js';
 import { voucherProviders, supportsVoucherItemProviders } from '../lib/pvProviders.js';
 import { identityRetry, recoveryPayload, listRetryOperations } from '../lib/identityRetry.js';
 import { validateTimetableWorkspace, validatePublishedTimetable } from '../lib/timetableRules.js';
@@ -184,6 +185,7 @@ async function originalAuthRequest(endpoint, options = {}) {
         lastError.status = response.status;
         lastError.payload = data;
         lastError.retryAfter = response.headers.get('Retry-After');
+        if (token === getAuthToken() && isSessionVerificationError(lastError) && !endpoint.startsWith('/auth/')) window.dispatchEvent(new Event('says_reauthenticate'));
         if (response.status >= 400 && response.status < 500) throw lastError;
         continue;
       }
@@ -220,6 +222,7 @@ export async function request(endpoint, options = {}) {
       const error = new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
       error.status = response.status;
       error.payload = data;
+      if (isSessionVerificationError(error)) window.dispatchEvent(new Event('says_reauthenticate'));
       throw error;
     }
     if (response.status === 204) return { success: true, status: 204 };
@@ -822,7 +825,8 @@ export const api = {
     if (!result?.user?.id || typeof result.requiresSecondFactor !== 'boolean') throw new Error('The backend did not return a valid session verification response.');
     return result;
   },
-  verifyAdminPin: async (pin, setupPassword) => {
+  verifyAdminPin: (pin, setupPassword) => api.verifySessionPin(pin, setupPassword, 'admin'),
+  verifySessionPin: async (pin, setupPassword, portal = 'admin') => {
     const primaryToken = getAuthToken();
     const result = await request(setupPassword === undefined ? '/auth/verify-admin-pin' : '/auth/admin-pin', {
       method: 'POST', body: JSON.stringify(setupPassword === undefined ? { pin } : { pin, password: setupPassword }),
@@ -831,9 +835,9 @@ export const api = {
     const token = extractAuthToken(result);
     if (!token || !result.user?.id || result.requiresSecondFactor !== false || result.user.requiresSecondFactor === true) throw new Error('The server did not confirm a fully verified session.');
     const role = result.user.role || result.user.portalRole;
-    if (!['head_admin', 'sub_admin'].includes(role)) throw new Error('This account does not have administrator portal access.');
+    if (!sessionRoleAllowed(portal, role)) throw new Error('This account does not have access to the selected portal.');
     setAuthToken(token);
-    setAuthUser({ ...result.user, role, adminRole: role, requiresSecondFactor: false });
+    setAuthUser({ ...result.user, role, ...(portal === 'admin' ? { adminRole: role } : {}), requiresSecondFactor: false });
     window.dispatchEvent(new Event('says_session_verified'));
     return { ...result, role };
   },

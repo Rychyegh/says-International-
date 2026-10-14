@@ -1,3 +1,4 @@
+import { isSessionVerificationError } from '../../lib/sessionVerification.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { accountingList, accountingReport, accountingWrite } from '../../services/accounting';
@@ -24,19 +25,21 @@ export function Table({ columns, rows, empty = 'No records match this view.', on
   return <div className="accounting-table-scroll"><table><thead><tr>{columns.map(c => <th key={c.key}>{c.label || title(c.key)}</th>)}{onSelect && <th>Open</th>}</tr></thead><tbody>{rows.map((row, i) => <tr key={row.id ?? i} className={selectedId != null && selectedId === row.id ? 'is-selected' : ''}>{columns.map(c => <td key={c.key}>{c.render ? c.render(row) : c.key === 'status' ? <Status value={row[c.key]} /> : String(row[c.key] ?? '—')}</td>)}{onSelect && <td><button onClick={() => onSelect(row)}>{selectLabel}</button></td>}</tr>)}</tbody></table>{!rows.length && <p className="accounting-empty">{empty}</p>}</div>;
 }
 export function LoadState({ state, label = 'Records' }) {
-  return <>{state.loading && <p role="status" className="accounting-muted">Loading {label.toLowerCase()}…</p>}{state.error && <div className="accounting-error" role="alert"><strong>{label} could not be loaded.</strong> {state.error}<p>Your tools remain available below. Saved records will appear after the connection is restored.</p><button onClick={state.reload}>Retry {label.toLowerCase()}</button></div>}</>;
+  const verificationRequired = isSessionVerificationError({ status: state.errorStatus, message: state.error, payload: state.errorPayload });
+  return <>{state.loading && <p role="status" className="accounting-muted">Loading {label.toLowerCase()}…</p>}{state.error && <div className="accounting-error" role="alert"><strong>{verificationRequired ? 'Session verification required.' : `${label} could not be loaded.`}</strong> {state.error}<p>{verificationRequired ? 'Complete your account verification before loading or saving financial records.' : 'Your tools remain available below. Saved records will appear after the connection is restored.'}</p><button onClick={verificationRequired ? () => window.dispatchEvent(new Event('says_reauthenticate')) : state.reload}>{verificationRequired ? 'Complete session verification' : `Retry ${label.toLowerCase()}`}</button></div>}</>;
 }
 export function useList(resource, filters = {}, enabled = true) {
   const [rows, setRows] = useState([]), [loading, setLoading] = useState(false), [error, setError] = useState(''), [loaded, setLoaded] = useState(false), [revision, setRevision] = useState(0);
+  const [errorStatus, setErrorStatus] = useState(null), [errorPayload, setErrorPayload] = useState(null);
   const filterKey = JSON.stringify(filters);
   useEffect(() => {
-    let live = true; setRows([]); setError(''); setLoaded(false);
+    let live = true; setRows([]); setError(''); setErrorStatus(null); setErrorPayload(null); setLoaded(false);
     if (!enabled) { setLoading(false); return; }
     setLoading(true);
-    accountingList(resource, JSON.parse(filterKey)).then(data => { if (live) { setRows(data); setLoaded(true); } }).catch(e => { if (live) setError(e.message); }).finally(() => { if (live) setLoading(false); });
+    accountingList(resource, JSON.parse(filterKey)).then(data => { if (live) { setRows(data); setLoaded(true); } }).catch(e => { if (live) { setError(e.message); setErrorStatus(e.status); setErrorPayload(e.payload); } }).finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
   }, [resource, filterKey, enabled, revision]);
-  return { rows, setRows, loading, error, loaded, reload: () => setRevision(n => n + 1) };
+  return { rows, setRows, loading, error, errorStatus, errorPayload, loaded, reload: () => setRevision(n => n + 1) };
 }
 export function useMutation(onSaved) {
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
