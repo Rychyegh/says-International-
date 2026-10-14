@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "School Account Portal Integration",
-    "version": "2.0.1",
-    "description": "Backend contract for eight distinct accounting workspaces: journals/general ledger/trial balance, bank-statement matching, balance sheets, tax and SSNIT rates, released PV receipts, audit diffs, account setup, and checked period closing. See accounting-portal-backend-handoff.txt for permission, state and financial rules. Required integration, not a claim of live service availability. Admin and Accountant entry is gated by /auth/me; legacy PIN verification/enrollment routes must accept the authenticated accountant when its session requires verification. See the handoff session section."
+    "version": "2.0.2",
+    "description": "Backend contract for eight distinct accounting workspaces: journals/general ledger/trial balance, bank-statement matching, balance sheets, tax and SSNIT rates, released PV receipts, audit diffs, account setup, and checked period closing. See accounting-portal-backend-handoff.txt for permission, state and financial rules. Required integration, not a claim of live service availability. Admin and Accountant entry is gated by /auth/me; legacy PIN verification/enrollment routes must accept the authenticated accountant when its session requires verification. See the handoff session section. Accountant portal entry permits verified accountant and head_admin identities while retaining the original server role; no credential-specific login exceptions."
   },
   "servers": [
     {

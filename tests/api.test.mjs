@@ -322,7 +322,7 @@ test('accountant verification accepts only the accountant role and rotates the t
  setAuthToken('account-primary');setAuthUser({id:'accountant-1',role:'accountant',requiresSecondFactor:true});
  globalThis.fetch=async()=>json({token:'account-complete',requiresSecondFactor:false,user:{id:'accountant-1',role:'accountant'}});
  const result=await api.verifySessionPin('2468',undefined,'accountant');assert.equal(result.role,'accountant');assert.equal(getAuthToken(),'account-complete');
- globalThis.fetch=async()=>json({token:'wrong-role',requiresSecondFactor:false,user:{id:'admin-1',role:'head_admin'}});
+ globalThis.fetch=async()=>json({token:'wrong-role',requiresSecondFactor:false,user:{id:'admin-1',role:'sub_admin'}});
  await assert.rejects(api.verifySessionPin('2468',undefined,'accountant'),/selected portal/);assert.equal(getAuthToken(),'account-complete');
 });
 test('verification-required 403 requests reauthentication but ordinary forbidden responses do not',async()=>{
@@ -333,4 +333,15 @@ test('verification-required 403 requests reauthentication but ordinary forbidden
  await assert.rejects(request('/finance/fees'),e=>e.status===403);assert.equal(count,2);
  globalThis.fetch=async()=>json({detail:'Accountants cannot approve vouchers'},403);
  await assert.rejects(request('/finance/vouchers/1/approve',{method:'POST',body:'{}'}),e=>e.status===403);assert.equal(count,2);
+});
+
+
+test('verified Head Admin can enter Accountant portal without changing identity or role',async()=>{
+ setAuthToken('head-primary');setAuthUser({id:'head-1',role:'head_admin',requiresSecondFactor:true});
+ globalThis.fetch=async()=>json({token:'head-complete',requiresSecondFactor:false,user:{id:'head-1',role:'head_admin'}});
+ const result=await api.verifySessionPin('2468',undefined,'accountant');assert.equal(result.role,'head_admin');assert.equal(getAuthToken(),'head-complete');
+ const {sessionRoleAllowed}=await import('../src/lib/sessionVerification.js');
+ assert.equal(sessionRoleAllowed('accountant','head_admin'),true);
+ assert.equal(sessionRoleAllowed('accountant','accountant'),true);
+ for(const role of ['admin','sub_admin','teacher','student','parent'])assert.equal(sessionRoleAllowed('accountant',role),false);
 });

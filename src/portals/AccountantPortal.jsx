@@ -393,7 +393,7 @@ export default function AccountantPortal({ onSignOut }) {
 
         {/* Main Content */}
         <main className="portal__content">
-          {FINANCE_SECTIONS.includes(activeNav) && <AccountingWorkspace key={activeNav} section={activeNav} role="accountant" onPrepareBill={() => setActiveSimsModal({category: 'Accounts', link: 'Prepare Student academic Bill'})} />}
+          {FINANCE_SECTIONS.includes(activeNav) && <AccountingWorkspace key={activeNav} section={activeNav} role={getAuthUser()?.role === 'head_admin' ? 'head_admin' : 'accountant'} onNavigate={setActiveNav} onPrepareBill={() => setActiveSimsModal({category: 'Accounts', link: 'Prepare Student academic Bill'})} />}
           <section style={{ padding: 14, marginBottom: 16, borderRadius: 10, background: accountError || refreshError ? '#fff1f2' : '#f0f9ff' }}>
             {(accountError || refreshError) && <p role="alert">Accounts records could not be loaded: {accountError || refreshError}. This does not mean the ledger is empty.</p>}
             <button className="academic-button" disabled={accountsLoading} onClick={reloadAccounts}>{accountsLoading ? 'Loading accounts…' : 'Refresh Accounts from database'}</button>

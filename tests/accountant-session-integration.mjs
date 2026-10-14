@@ -3,8 +3,9 @@ const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_EXECUTABLE});
 try {
  const page=await browser.newPage();let verified=false,protectedBeforeVerified=0,denyNext=false,pinCalls=0;
- const user={id:'accounts-1',role:'accountant',fullName:'Accounts Test',email:'accounts@test.com'};
- await page.addInitScript(()=>{localStorage.setItem('auth_token','primary');localStorage.setItem('auth_user',JSON.stringify({id:'accounts-1',role:'accountant'}));localStorage.setItem('says_authed_portals',JSON.stringify({accountant:true}));localStorage.setItem('says_accountant_active_nav','Account Records');});
+ const testRole=process.env.SESSION_TEST_ROLE||'accountant';
+ const user={id:'accounts-1',role:testRole,fullName:'Accounts Test',email:'accounts@test.com'};
+ await page.addInitScript(role=>{localStorage.setItem('auth_token','primary');localStorage.setItem('auth_user',JSON.stringify({id:'accounts-1',role}));localStorage.setItem('says_authed_portals',JSON.stringify({accountant:true}));localStorage.setItem('says_accountant_active_nav','Account Records');},testRole);
  await page.route('**/api/**',async route=>{
   const req=route.request(),path=new URL(req.url()).pathname;let status=200,data=[];
   if(path.endsWith('/auth/me'))data={user,requiresSecondFactor:!verified,pinSetupRequired:false};
@@ -22,7 +23,7 @@ try {
  await page.locator('#admin-pin-input').fill('0000');await page.getByRole('button',{name:'Verify PIN & Complete Sign In'}).click();await page.getByText('Invalid PIN',{exact:false}).waitFor();assert.equal(protectedBeforeVerified,0);
  await page.locator('#admin-pin-input').fill('2468');await page.getByRole('button',{name:'Verify PIN & Complete Sign In'}).click();
  await page.locator('.sidebar-item').filter({hasText:'Account Records'}).click();await page.getByRole('heading',{name:'Prepare journal / opening balances'}).waitFor();
- assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('auth_user')).role),'accountant');
+ assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('auth_user')).role),testRole);
  denyNext=true;await page.getByRole('button',{name:'Refresh journals',exact:true}).click();await page.getByRole('heading',{name:'Accountant Security PIN'}).waitFor();
  await page.locator('#admin-pin-input').fill('2468');await page.getByRole('button',{name:'Verify PIN & Complete Sign In'}).click();await page.getByRole('heading',{name:'Prepare journal / opening balances'}).waitFor();
  assert.equal(protectedBeforeVerified,0);assert.equal(await page.evaluate(()=>localStorage.getItem('says_accountant_active_nav')),'Account Records');
