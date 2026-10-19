@@ -384,12 +384,15 @@ test('split-account fee payment uses one request with the original total and key
   calls++;
   assert.ok(url.endsWith('/finance/fees/invoice-1/pay'));
   const body=JSON.parse(options.body);
-  assert.deepEqual(body.allocations,allocations);
+  assert.equal('allocations' in body,false);
+  assert.equal('receivingAccount' in body,false);
+  assert.match(body.notes,/Tuition \[10012\]: GHS 75.00/);
+  assert.match(body.notes,/PTA \[10124\]: GHS 25.00/);
   assert.equal(body.paidAmount,100);
   assert.equal(options.headers['Idempotency-Key'],'split-payment-key');
   return json({updatedFee:{id:'invoice-1'},receipt_number:'ONE-RECEIPT'});
  };
- const response=await api.recordFeePayment('invoice-1',{paidAmount:100,allocations,idempotencyKey:'split-payment-key'});
+ const response=await api.recordFeePayment('invoice-1',{paidAmount:100,allocations,receivingAccount:'Tuition / PTA',idempotencyKey:'split-payment-key'});
  assert.equal(calls,1);assert.equal(response.receipt_number,'ONE-RECEIPT');
 });
 

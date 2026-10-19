@@ -4,6 +4,7 @@ import { identityRetry, recoveryPayload, listRetryOperations } from '../lib/iden
 import { validateTimetableWorkspace, validatePublishedTimetable } from '../lib/timetableRules.js';
 import { rawAssessment, normalizeAssessment } from '../lib/assessmentRules.js';
 import { stripCredentials } from '../lib/recordRules.js';
+import { allocationNotes } from '../lib/paymentAllocations.js';
 /**
  * REMALJ Carewell Inspirational School - Backend & SMS Gateway API Service Client
  * Backend Base URL: https://rcis-backend.onrender.com/api/v1
@@ -1264,11 +1265,18 @@ export const api = {
   },
 
   recordFeePayment: async (feeId, paymentData) => {
+    const { paidAmount, paymentMethod, paymentDate, transactionRef, idempotencyKey } = paymentData;
+    const notes = String(paymentData.notes || '').includes('Payment account breakdown:')
+      ? paymentData.notes
+      : allocationNotes(paymentData.notes, paymentData.allocations);
+    // FeePaymentRequest rejects additional properties. Preserve the account
+    // breakdown in supported notes until structured allocations are supported.
+    const payload = { paidAmount, paymentMethod, paymentDate, transactionRef, notes, idempotencyKey };
     // A stable idempotency key prevents duplicate ledger entries on retry.
     return await request(`/finance/fees/${encodeURIComponent(feeId)}/pay`, {
       method: 'POST',
       headers: { 'Idempotency-Key': paymentData.idempotencyKey },
-      body: JSON.stringify(paymentData),
+      body: JSON.stringify(payload),
     });
   },
 
