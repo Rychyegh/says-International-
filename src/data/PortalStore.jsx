@@ -1,3 +1,5 @@
+import { resolveGuardianPhone } from '../lib/guardianPhone.js';
+export { resolveGuardianPhone, isPlaceholderGuardianPhone } from '../lib/guardianPhone.js';
 import { billingPeriod } from '../lib/billingPeriod.js';
 import { isConfirmedReviewStatus, notifyVoucherChange, PV_CHANGED_KEY } from '../lib/pvReviewSync.js';
 import { ITEM_PAYMENTS_ENABLED, isItemUuid } from '../lib/itemPaymentContract.js';
@@ -286,47 +288,6 @@ export function rfidUidsMatch(a, b) {
   const left = normalizeRfidUid(a);
   const right = normalizeRfidUid(b);
   return Boolean(left && right && left === right);
-}
-
-const PLACEHOLDER_GUARDIAN_PHONES = new Set([
-  '0541769621',
-  '0241112222',
-  '0240000000',
-  '233241112222',
-  '2332411122222',
-]);
-
-export function isPlaceholderGuardianPhone(value) {
-  const digits = String(value || '').replace(/\D/g, '');
-  return !digits || PLACEHOLDER_GUARDIAN_PHONES.has(digits);
-}
-
-export function resolveGuardianPhone(...sources) {
-  for (const source of sources) {
-    if (source == null || source === false) continue;
-    if (typeof source !== 'object') {
-      const text = String(source || '').trim();
-      if (text && !isPlaceholderGuardianPhone(text)) return text;
-      continue;
-    }
-    const candidates = [
-      source.custom,
-      source.guardianPhone,
-      source.guardian_phone,
-      source.fatherPhone,
-      source.father_phone,
-      source.motherPhone,
-      source.mother_phone,
-      source.phone,
-      source.contactPhone,
-      source.payerPhone,
-    ];
-    for (const value of candidates) {
-      const text = String(value || '').trim();
-      if (text && !isPlaceholderGuardianPhone(text)) return text;
-    }
-  }
-  return '';
 }
 
 function isPlaceholderRfid(value) {
@@ -3182,8 +3143,8 @@ export function PortalDataProvider({ children, enabled = false }) {
         guardian_name: updates.guardianName || existing?.guardianName,
         guardianEmail: updates.guardianEmail || existing?.guardianEmail,
         guardian_email: updates.guardianEmail || existing?.guardianEmail,
-        guardianPhone: updates.guardianPhone || existing?.guardianPhone,
-        guardian_phone: updates.guardianPhone || existing?.guardianPhone,
+        guardianPhone: updates.guardianPhone !== undefined ? resolveGuardianPhone(updates.guardianPhone) : resolveGuardianPhone(existing),
+        guardian_phone: updates.guardianPhone !== undefined ? resolveGuardianPhone(updates.guardianPhone) : resolveGuardianPhone(existing),
         fatherName: updates.fatherName || existing?.fatherName,
         father_name: updates.fatherName || existing?.fatherName,
         fatherPhone: updates.fatherPhone || existing?.fatherPhone,
