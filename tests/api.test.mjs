@@ -4,6 +4,14 @@ import { api, request, getAuthToken, setAuthToken, setAuthUser, hasLiveDatabaseS
 function storage(){ const items=new Map(); return {getItem:k=>items.get(k)||null,setItem:(k,v)=>items.set(k,String(v)),removeItem:k=>items.delete(k)}; }
 beforeEach(()=>{globalThis.localStorage=storage();globalThis.sessionStorage=storage();globalThis.window=new EventTarget();});
 const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});
+test('unreadable network responses preserve uncertainty and never replay a payment', async () => {
+  let calls = 0;
+  globalThis.fetch = async () => { calls += 1; throw new TypeError('Load failed'); };
+  await assert.rejects(request('/finance/vouchers/test/items/test/disburse', {
+    method: 'POST', headers: { 'Idempotency-Key': 'original-key' }, body: '{}',
+  }), error => error.code === 'NETWORK_RESPONSE_UNAVAILABLE' && /outcome is unknown/.test(error.message));
+  assert.equal(calls, 1);
+});
 test('session checks send opaque bearer tokens and still reject server-denied sessions', async () => {
   assert.equal(hasLiveDatabaseSession(), false);
   setAuthToken('   ');

@@ -230,6 +230,12 @@ export async function request(endpoint, options = {}) {
     return includeResponseMetadata ? { data, totalCount: response.headers.get('X-Total-Count') } : data;
   } catch (error) {
     if (error.name === 'AbortError') throw new Error('The server timed out. Check the record before retrying.');
+    if (error instanceof TypeError && /load failed|failed to fetch|networkerror|network request failed/i.test(error.message)) {
+      const connectionError = new Error('The connection to the payment/data server failed before a response could be read. The save outcome is unknown. Check the saved record before retrying; keep the original payment request key.');
+      connectionError.code = 'NETWORK_RESPONSE_UNAVAILABLE';
+      connectionError.cause = error;
+      throw connectionError;
+    }
     throw error;
   } finally { clearTimeout(timer); }
 }
