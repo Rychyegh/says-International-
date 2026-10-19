@@ -58,6 +58,10 @@ try {
  await dialog.getByRole('button',{name:'Record confirmed payment for item 2',exact:true}).click();
  await dialog.getByRole('button',{name:'Check saved payment',exact:true}).click();
  await dialog.waitFor({state:'detached'});
+ const historyTab=page.getByRole('button',{name:/Payment & Disbursement History/});
+ assert.equal(await historyTab.evaluate(button=>button.style.background),'rgb(15, 58, 75)');
+ await page.getByRole('button',{name:'Receipt',exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Disburse & Pay',exact:true}).count(),0);
  assert.equal(responses.size,2);assert.notEqual(calls[2].key,calls[1].key);
  assert.equal(calls[2].body.source_account_id,source2);assert.equal(calls[2].body.destination_account,'Destination 2');
  assert.equal(voucher.status,'DISBURSED');

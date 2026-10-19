@@ -123,7 +123,7 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, accountsRead
   </form>;
 }
 
-export default function ItemDisbursementModal({voucher:initialVoucher,onClose}) {
+export default function ItemDisbursementModal({voucher:initialVoucher,onClose,onCompleted}) {
   const [receipt,setReceipt] = useState(null), [receiptError,setReceiptError] = useState('');
   useEffect(()=>()=>document.body.classList.remove('print-student-receipt'),[]);
   const loadReceipt = async (item,id) => {
@@ -154,7 +154,10 @@ export default function ItemDisbursementModal({voucher:initialVoucher,onClose}) 
   const {paymentVouchers=[]} = usePortalData();
   const voucher = paymentVouchers.find(row=>row.id===initialVoucher.id && row.items?.length > 1) || initialVoucher;
   const onPaid = saved => {
-    if (saved.items.every(item => ['paid','disbursed','settled','declined','cancel pv','non-accrual'].includes(String(item.status).toLowerCase()))) onClose();
+    if (saved.items.every(item => ['paid','disbursed','settled','declined','cancel pv','non-accrual'].includes(String(item.status).toLowerCase()))) {
+      onCompleted?.(saved);
+      onClose();
+    }
   };
   return <ViewportModal className="item-payment-overlay" aria-label="Item authorization and disbursement" onClose={onClose}>
     <section className="item-payment-dialog">

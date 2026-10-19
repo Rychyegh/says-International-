@@ -4101,7 +4101,11 @@ export function PortalDataProvider({ children, enabled = false }) {
           const result = await api.getItemPaymentByKey(voucherId,itemId,idempotencyKey);
           const current = await api.getPaymentVoucherById(voucherId);
           raw = {payment:result.payment || result.data?.payment || result.data || result,voucher:unwrapApiPaymentVoucher(current)};
-        } else raw = await api.disbursePaymentVoucherItem(voucherId, itemId, details, idempotencyKey);
+        } else {
+          mutationEpochRef.current += 1;
+          raw = await api.disbursePaymentVoucherItem(voucherId, itemId, details, idempotencyKey);
+        }
+        mutationEpochRef.current += 1;
         const saved = raw.voucher || raw.data?.voucher;
         const paid = saved?.items?.find(line => String(line.id) === String(itemId));
         const payment = raw.payment || raw.data?.payment;
@@ -4125,7 +4129,9 @@ export function PortalDataProvider({ children, enabled = false }) {
       paymentKeysRef.current.set(key, idempotencyKey);
       writeLocksRef.current.add(key);
       try {
+        mutationEpochRef.current += 1;
         const raw = await api.disbursePaymentVoucher(voucher.id, { ...paymentDetails, idempotencyKey, version: voucher.version });
+        mutationEpochRef.current += 1;
         const saved = unwrapApiPaymentVoucher(raw);
         if (String(saved?.id) !== String(voucher.id) || !['DISBURSED', 'PAID'].includes(String(saved.status).toUpperCase())) throw new Error('The database did not confirm disbursement. Refresh before retrying.');
         setData(current => ({ ...current, paymentVouchers: current.paymentVouchers.map(v => String(v.id) === String(saved.id) ? mapApiPaymentVoucher(saved) : v) }));

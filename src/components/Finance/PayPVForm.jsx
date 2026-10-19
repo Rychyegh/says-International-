@@ -60,6 +60,7 @@ export default function PayPVForm({ onCompleted } = {}) {
   // Receipt / Advice Print Modal State
   const [receiptVoucher, setReceiptVoucher] = useState(null);
   const [dbDisbursed, setDbDisbursed] = useState([]);
+  const [confirmedDisbursed, setConfirmedDisbursed] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
   const [historySourceCount, setHistorySourceCount] = useState(0);
@@ -97,7 +98,7 @@ export default function PayPVForm({ onCompleted } = {}) {
   const readyVouchers = useMemo(() => {
     return (paymentVouchers || []).filter((v) => {
       const s = String(v.status || '').toLowerCase().trim();
-      return (
+      return !confirmedDisbursed.some(paid => paid.id === v.id || pvNosMatch(paid.pvNo, v.pvNo)) && (
         s === 'validated' ||
         s === 'approved' ||
         s === 'partially approved' ||
@@ -107,12 +108,12 @@ export default function PayPVForm({ onCompleted } = {}) {
         s === 'pre_audited'
       );
     });
-  }, [paymentVouchers]);
+  }, [paymentVouchers, confirmedDisbursed]);
 
   // All DISBURSED vouchers from the live database, merged with local store copies
   const disbursedVouchers = useMemo(() => {
     const merged = new Map();
-    [...(paymentVouchers || []), ...dbDisbursed].forEach((v) => {
+    [...(paymentVouchers || []), ...dbDisbursed, ...confirmedDisbursed].forEach((v) => {
       if (!v || !isPvDisbursed(v)) return;
       let key = disbursementIdentityKey(v);
       const existingKey = [...merged.keys()].find((k) => {
@@ -142,7 +143,16 @@ export default function PayPVForm({ onCompleted } = {}) {
       const right = new Date(a.disbursedAt || a.updatedAt || a.paymentDate || 0).getTime();
       return left - right;
     });
-  }, [paymentVouchers, dbDisbursed]);
+  }, [paymentVouchers, dbDisbursed, confirmedDisbursed]);
+
+  const showConfirmedPayment = (saved) => {
+    const paid = mapApiPaymentVoucher(saved);
+    if (!isPvDisbursed(paid)) return;
+    setConfirmedDisbursed(current => [...current.filter(row => row.id !== paid.id), paid]);
+    setSearchQuery('');
+    setActiveTab('history');
+    void loadDisbursementHistory();
+  };
 
   // Financial Summary Totals
   const readyTotalGHS = useMemo(() => {
@@ -256,11 +266,10 @@ export default function PayPVForm({ onCompleted } = {}) {
         }, 'Head Admin / Headmaster');
       }
 
-      void loadDisbursementHistory();
-
       setPaymentNotice(`💸 ✅ Successfully disbursed GHS ${voucherPayableAmount(payingVoucher).toLocaleString(undefined, { minimumFractionDigits: 2 })} for PV #${targetPvNo}. Payment reference: ${referenceNumber}`);
 
       const paidSnapshot = mapApiPaymentVoucher(confirmedVoucher);
+      showConfirmedPayment(confirmedVoucher);
       setPayingVoucher(null);
       if (onCompleted) onCompleted(paidSnapshot);
       else setReceiptVoucher(paidSnapshot);
@@ -894,7 +903,7 @@ export default function PayPVForm({ onCompleted } = {}) {
       </div>
 
       {/* DISBURSEMENT PAYMENT MODAL */}
-      {payingVoucher?.items?.length > 1 && <ItemDisbursementModal voucher={payingVoucher} onClose={() => setPayingVoucher(null)} />}
+      {payingVoucher?.items?.length > 1 && <ItemDisbursementModal voucher={payingVoucher} onCompleted={showConfirmedPayment} onClose={() => setPayingVoucher(null)} />}
       {payingVoucher && !(payingVoucher.items?.length > 1) && (
         <ViewportModal onClose={() => setPayingVoucher(null)} style={{
           position: 'fixed',
