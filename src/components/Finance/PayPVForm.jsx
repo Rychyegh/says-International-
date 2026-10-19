@@ -1,3 +1,4 @@
+import { useList, LoadState } from './AccountingUI';
 import SchoolPrintHeader from '../School/SchoolPrintHeader';
 import SchoolContactDetails from '../School/SchoolContactDetails';
 import { disbursementItems, requiresItemDisbursement } from '../../lib/pvDisbursementItems.js';
@@ -13,7 +14,7 @@ import {
 import { usePortalData, pvNosMatch, mapApiPaymentVoucher } from '../../data/PortalStore';
 import { api } from '../../services/api';
 import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
-import { SCHOOL_PL_ACCOUNTS, getPlAccountCode, printPvPage } from '../../data/chartOfAccounts';
+import { SCHOOL_PL_ACCOUNTS, BANK_RECEIVING_ACCOUNTS, getPlAccountCode, printPvPage } from '../../data/chartOfAccounts';
 
 function isPvDisbursed(v) {
   const s = String(v?.status || '').toLowerCase().trim();
@@ -24,7 +25,16 @@ function isPvDisbursed(v) {
 }
 
 export default function PayPVForm({ onCompleted } = {}) {
-  const { paymentVouchers = [], disbursePaymentVoucher } = usePortalData();
+  const { paymentVouchers = [], disbursePaymentVoucher, invalidateQueries, syncErrors = {} } = usePortalData();
+
+  const accountDirectory = useList('accounts');
+  const availableAccounts = useMemo(() => {
+    const accounts = new Map();
+    for (const account of [...SCHOOL_PL_ACCOUNTS, ...BANK_RECEIVING_ACCOUNTS, ...accountDirectory.rows]) {
+      if (account.name) accounts.set(account.name, account);
+    }
+    return [...accounts.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [accountDirectory.rows]);
 
   const voucherPayableAmount = payableAmount;
 
@@ -42,6 +52,7 @@ export default function PayPVForm({ onCompleted } = {}) {
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer (Instant EFT)');
   const [sourceAccount, setSourceAccount] = useState('Stanbic Bank - Operations Account (Acc: 90400031892)');
   const [plAccountName, setPlAccountName] = useState('Diesel');
+  const selectedAccountCode = availableAccounts.find(account => account.name === plAccountName)?.code || getPlAccountCode(plAccountName);
   const [referenceNumber, setReferenceNumber] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [disbursementNotes, setDisbursementNotes] = useState('');
@@ -75,6 +86,12 @@ export default function PayPVForm({ onCompleted } = {}) {
   useEffect(() => {
     if (activeTab === 'history') loadDisbursementHistory();
   }, [activeTab, loadDisbursementHistory]);
+
+  const refreshReadyVouchers = useCallback(() => invalidateQueries?.(['payment-vouchers']), [invalidateQueries]);
+  useEffect(() => {
+    void refreshReadyVouchers();
+  }, [refreshReadyVouchers]);
+  const refreshPayments = () => Promise.all([refreshReadyVouchers(), loadDisbursementHistory()]);
 
   // Filter vouchers that are approved / validated (Ready for Payment)
   const readyVouchers = useMemo(() => {
@@ -232,7 +249,7 @@ export default function PayPVForm({ onCompleted } = {}) {
           paymentMethod,
           sourceAccount,
           plAccountName,
-          plAccountCode: getPlAccountCode(plAccountName),
+          plAccountCode: selectedAccountCode,
           referenceNumber: referenceNumber.trim() || `TXN-${Date.now()}`,
           paymentDate,
           notes: disbursementNotes
@@ -402,6 +419,7 @@ export default function PayPVForm({ onCompleted } = {}) {
       </div>
 
       {/* Banner Notice Alert */}
+      {syncErrors.paymentVouchersRes && <div role="alert" style={{ padding: 12, background: '#fef2f2', color: '#991b1b', marginBottom: 12 }}>{syncErrors.paymentVouchersRes} <button type="button" onClick={refreshReadyVouchers}>Retry ready vouchers</button></div>}
       {paymentNotice && (
         <div style={{
           background: paymentNotice.includes('✅') ? '#dcfce7' : '#fef3c7',
@@ -499,7 +517,7 @@ export default function PayPVForm({ onCompleted } = {}) {
             </button>
             <button
               type="button"
-              onClick={loadDisbursementHistory}
+              onClick={refreshPayments}
               disabled={historyLoading}
               title="Reload disbursed vouchers from the database"
               style={{
@@ -995,9 +1013,14 @@ export default function PayPVForm({ onCompleted } = {}) {
                       <option value="Stanbic Bank - Operations Account (Acc: 90400031892)">Stanbic Bank - Operations (Acc: 90400031892)</option>
                       <option value="Ecobank Ghana - Tuition & Payables (Acc: 14410029310)">Ecobank Ghana - Payables (Acc: 14410029310)</option>
                       <option value="School Central Cash Vault">School Central Cash Vault</option>
+                      {availableAccounts.map(account => (
+                        <option key={account.name} value={account.name}>{account.code ? `${account.code} · ` : ''}{account.name}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
+
+                <LoadState state={accountDirectory} label="Account directory" />
 
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 4 }}>
@@ -1008,12 +1031,12 @@ export default function PayPVForm({ onCompleted } = {}) {
                     onChange={(e) => setPlAccountName(e.target.value)}
                     style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11.5, background: '#fff', fontWeight: 700 }}
                   >
-                    {SCHOOL_PL_ACCOUNTS.map((account) => (
-                      <option key={account.code + account.name} value={account.name}>{account.name}</option>
+                    {availableAccounts.map((account) => (
+                      <option key={account.code + account.name} value={account.name}>{account.code ? `${account.code} · ` : ''}{account.name}</option>
                     ))}
                   </select>
                   <div style={{ fontSize: 10, color: '#0284c7', fontWeight: 700, marginTop: 3 }}>
-                    Account N/o: {getPlAccountCode(plAccountName) || '—'}
+                    Account N/o: {selectedAccountCode || '—'}
                   </div>
                 </div>
 

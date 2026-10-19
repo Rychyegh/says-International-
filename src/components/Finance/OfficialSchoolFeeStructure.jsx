@@ -1,3 +1,4 @@
+import { billingPeriod, billingPeriodLabel } from '../../lib/billingPeriod.js';
 import SchoolPrintHeader from '../School/SchoolPrintHeader';
 import SchoolContactDetails from '../School/SchoolContactDetails';
 import ViewportModal from '../Modal/ViewportModal';
@@ -675,6 +676,8 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
   const portalData = usePortalData();
   const onboardedStudents = portalData?.onboardedStudents || [];
   const studentFees = portalData?.studentFees || [];
+  const periodForStudent = student => billingPeriod(student || {}, portalData?.semesterRegistrations || [], portalData?.applications || [], portalData?.academicSettings || {});
+  const periodLabel = student => billingPeriodLabel(periodForStudent(student));
   const resolvedAdminRole = adminRole || (typeof window !== 'undefined' ? localStorage.getItem('says_admin_role') : '') || '';
   const canCancelPostedBill = resolvedAdminRole === 'head_admin' || resolvedAdminRole === 'sub_admin' || Boolean(onOpenSimsModal);
 
@@ -850,6 +853,9 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     );
   }, [studentsForWholeClassPrint, excludedStudentIds]);
 
+  const classBillingPeriods = [...new Set(includedWholeClassForPrint.map(student => periodLabel(student)))];
+  const classBillingPeriodLabel = classBillingPeriods.length ? classBillingPeriods.join(' / ') : periodLabel();
+
   const openWholeClassPrint = () => {
     setActiveBillingView('entire_class');
     const pages = includedWholeClassForPrint.length > 0 ? includedWholeClassForPrint : includedStudentsForClass;
@@ -927,7 +933,6 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
         classLevel: selectedSubLevel,
         items: allItemsToPost,
         totalAmount: totalToPost,
-        term: 'Term 1 · 2026'
       }) || persist;
     }
 
@@ -948,7 +953,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       targetStudentName: '',
       targetClass: selectedSubLevel,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      term: 'Term 1 · 2026',
+      term: classBillingPeriodLabel,
       databasePosted: Number(persist.posted) || 0,
       databaseFailed: Number(persist.failed) || 0,
       databaseError: persist.errors?.[0] || '',
@@ -981,7 +986,6 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
         classLevel: studentToUse.level || selectedSubLevel,
         items: allItemsToPost,
         totalAmount: totalToPost,
-        term: 'Term 1 · 2026'
       }) || persist;
     }
 
@@ -1003,7 +1007,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       targetStudentId: studentToUse.studentId || studentToUse.id,
       targetClass: studentToUse.level || selectedSubLevel,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      term: 'Term 1 · 2026',
+      term: periodLabel(studentToUse),
       databasePosted: Number(persist.posted) || 0,
       databaseFailed: Number(persist.failed) || 0,
       databaseError: persist.errors?.[0] || '',
@@ -1298,7 +1302,6 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
         classLevel: selectedPostingClass || selectedSubLevel || `${activeCategoryObj.name} · ${selectedSubLevel}`,
         items: allItemsToPost,
         totalAmount: totalToPost,
-        term: 'Term 1 · 2026'
       }) || persist;
     }
 
@@ -1324,7 +1327,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       targetStudentId: studentToUse?.studentId || studentToUse?.id,
       targetClass: selectedPostingClass || `${activeCategoryObj.name} · ${selectedSubLevel}`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      term: 'Term 1 · 2026',
+      term: studentToUse ? periodLabel(studentToUse) : classBillingPeriodLabel,
       databasePosted: Number(persist.posted) || 0,
       databaseFailed: Number(persist.failed) || 0,
       databaseError: persist.errors?.[0] || '',
@@ -1478,7 +1481,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     csv += `Student ID,${student.studentId}\n`;
     csv += `Class Level,${activeCategoryObj.name} - ${selectedSubLevel}\n`;
     csv += `Guardian Name,${student.guardianName}\n`;
-    csv += `Billing Term,Term 1 · 2026 Academic Year\n\n`;
+    csv += `Billing Term,${periodLabel(student)}\n\n`;
     csv += `Section 1: Compulsory Fee Components,Amount (GHS)\n`;
     baseBillItems.forEach(item => {
       csv += `"${item.details}",${item.amount.toFixed(2)}\n`;
@@ -1865,7 +1868,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                     Entire Class Bill: {selectedSubLevel}
                   </h2>
                   <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 10px', borderRadius: 12, fontWeight: 800, fontSize: 12 }}>
-                    Term 1 · 2025/2026
+                    {classBillingPeriodLabel}
                   </span>
                 </div>
                 <p style={{ margin: '4px 0 0 0', fontSize: 12.5, color: '#64748b' }}>
@@ -2352,7 +2355,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                   </div>
                   <div style={{ textAlign: 'center', marginTop: 10 }}>
                     <div style={{ display: 'inline-block', background: '#0f172a', color: '#fff', padding: '3px 18px', borderRadius: 20, fontSize: 11, fontWeight: 900, letterSpacing: '0.05em' }}>
-                      OFFICIAL STUDENT FEE BILL STATEMENT · TERM 1 (2025/2026)
+                      OFFICIAL STUDENT FEE BILL STATEMENT · {periodLabel(preparingStudentBill)}
                     </div>
                   </div>
                 </div>
@@ -2477,18 +2480,8 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                   <div>• MTN Mobile Money: 298410 (REMALJ Carewell School) · Ref: <code>{preparingStudentBill.studentId || preparingStudentBill.id}</code></div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 8 }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ borderBottom: '1px solid #0f172a', width: 170, marginBottom: 4 }}></div>
-                    <div style={{ fontWeight: 800, fontSize: 10.5, color: '#0f172a' }}>Headmaster / Principal</div>
-                  </div>
-                  <div style={{ textAlign: 'center', fontSize: 10, color: '#64748b' }}>
-                    Addressed to {getStudentFullName(preparingStudentBill)} · 1 of 1
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ borderBottom: '1px solid #0f172a', width: 170, marginBottom: 4 }}></div>
-                    <div style={{ fontWeight: 800, fontSize: 10.5, color: '#0f172a' }}>Bursar / Accountant Signature</div>
-                  </div>
+                <div style={{ textAlign: 'center', fontSize: 10, color: '#64748b', paddingTop: 8 }}>
+                  Addressed to {getStudentFullName(preparingStudentBill)} · 1 of 1
                 </div>
               </div>
             </div>
@@ -3176,7 +3169,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
             </div>
 
             <p style={{ fontSize: 13, color: 'var(--gray-600)', marginBottom: 16, lineHeight: 1.5 }}>
-              This action will debit and post the academic bill for <strong>{activeCategoryObj.name} · {selectedSubLevel} (Term 1 · 2026)</strong> directly into student financial records.
+              This action will debit and post the academic bill for <strong>{activeCategoryObj.name} · {selectedSubLevel} ({classBillingPeriodLabel})</strong> directly into student financial records.
             </p>
 
             <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 16 }}>
@@ -3659,7 +3652,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                         </div>
                         <div style={{ textAlign: 'center', marginTop: 10 }}>
                           <div style={{ display: 'inline-block', background: '#0f172a', color: '#fff', padding: '3px 18px', borderRadius: 20, fontSize: 11, fontWeight: 900, letterSpacing: '0.05em' }}>
-                            OFFICIAL STUDENT FEE BILL STATEMENT · TERM 1 (2025/2026)
+                            OFFICIAL STUDENT FEE BILL STATEMENT · {periodLabel(s)}
                           </div>
                         </div>
                       </div>
@@ -3791,19 +3784,8 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                         <div>• MTN Mobile Money: 298410 (REMALJ Carewell School) · Ref: <code>{s.studentId || s.id}</code></div>
                       </div>
 
-                      {/* Signatures */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 8 }}>
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ borderBottom: '1px solid #0f172a', width: 170, marginBottom: 4 }}></div>
-                          <div style={{ fontWeight: 800, fontSize: 10.5, color: '#0f172a' }}>Headmaster / Principal</div>
-                        </div>
-                        <div style={{ textAlign: 'center', fontSize: 10, color: '#64748b' }}>
-                          Addressed to {sFullName} · Page {idx + 1} of {printPages.length}
-                        </div>
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ borderBottom: '1px solid #0f172a', width: 170, marginBottom: 4 }}></div>
-                          <div style={{ fontWeight: 800, fontSize: 10.5, color: '#0f172a' }}>Bursar / Accountant Signature</div>
-                        </div>
+                      <div style={{ textAlign: 'center', fontSize: 10, color: '#64748b', paddingTop: 8 }}>
+                        Addressed to {sFullName} · Page {idx + 1} of {printPages.length}
                       </div>
                     </div>
                   );

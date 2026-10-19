@@ -2,14 +2,21 @@ import React, {useEffect,useRef,useState} from 'react';
 import {usePortalData} from '../../data/PortalStore';
 import {getAuthUser} from '../../services/api';
 import {identityRetry,listRetryOperations,recoveryPayload} from '../../lib/identityRetry';
+import { SCHOOL_PL_ACCOUNTS } from '../../data/chartOfAccounts';
+import { useList, LoadState } from './AccountingUI';
+import { paymentAllocations, allocationNotes } from '../../lib/paymentAllocations';
 import StudentReceiptModal from './StudentReceiptModal';
 import './ReceiveStudentPayment.css';
 
 const OPERATION='/finance/receive-payment';
-const empty=()=>({id:'',paidAmount:'',paymentMethod:'Cash',paymentDate:new Date().toISOString().slice(0,10),transactionRef:'',notes:''});
+const empty=()=>({id:'',paidAmount:'',paymentMethod:'Cash',paymentDate:new Date().toISOString().slice(0,10),transactionRef:'',notes:'',allocations:[{accountName:'',accountCode:'',amount:''}]});
 export default function ReceiveStudentPayment() {
  const {studentFees=[],recordFeePayment}=usePortalData();
  const [form,setForm]=useState(empty),[search,setSearch]=useState(''),[pending,setPending]=useState(null),[ready,setReady]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[confirmation,setConfirmation]=useState(null),[showReceipt,setShowReceipt]=useState(false);
+ const accountDirectory=useList('accounts');
+ const accounts=[...new Map([...SCHOOL_PL_ACCOUNTS,...accountDirectory.rows].filter(account=>account.name).map(account=>[account.name,account])).values()].sort((a,b)=>a.name.localeCompare(b.name));
+ const lines=form.allocations || [];
+ const editLine=(index,patch)=>change('allocations',lines.map((line,i)=>i===index?{...line,...patch}:line));
  const lock=useRef(false);
  const actor=getAuthUser()?.id;
  useEffect(()=>{
@@ -42,7 +49,9 @@ export default function ReceiveStudentPayment() {
    if(!fee){setError('Select an invoice for this payment.');return;}
    if(!Number.isFinite(amount)||amount<=0||amount>Number(fee.balance)||Math.abs(amount*100-Math.round(amount*100))>0.000001){setError('Enter an amount with up to two decimal places, no greater than the outstanding balance.');return;}
    if(!form.paymentDate){setError('Choose the payment date.');return;}
-   input={fee:{id:fee.id,studentId:fee.studentId,studentName:fee.studentName},payment:{...form,paidAmount:amount,paymentDate:`${form.paymentDate}T00:00:00Z`}};
+   let allocations;
+   try { allocations=paymentAllocations(lines,amount); } catch(err) { setError(err.message);return; }
+   input={fee:{id:fee.id,studentId:fee.studentId,studentName:fee.studentName},payment:{...form,allocations,receivingAccount:allocations.map(line=>line.accountName).join(' / '),notes:allocationNotes(form.notes,allocations),paidAmount:amount,paymentDate:`${form.paymentDate}T00:00:00Z`}};
   }
   lock.current=true;setBusy(true);
   let retry;
@@ -52,7 +61,7 @@ export default function ReceiveStudentPayment() {
    retry.dispatched();
    const raw=await recordFeePayment({...input.payment,idempotencyKey:retry.key});
    const number=raw.receipt_number || raw.receipt?.receipt_number || raw.data?.receipt_number;
-   const receipt=number ? {id:number,reference:number,type:'PAYMENT',amount:input.payment.paidAmount,credit:input.payment.paidAmount,date:input.payment.paymentDate.slice(0,10),description:input.payment.notes || 'Student fee payment',paymentMethod:input.payment.paymentMethod} : null;
+   const receipt=number ? {id:number,reference:number,type:'PAYMENT',amount:input.payment.paidAmount,credit:input.payment.paidAmount,date:input.payment.paymentDate.slice(0,10),description:input.payment.notes || 'Student fee payment',paymentMethod:input.payment.paymentMethod,allocations:input.payment.allocations} : null;
    // The store confirms the matching updated invoice before returning.
    // A missing receipt must never cause a second payment submission.
    setConfirmation({fee:input.fee,receipt});setShowReceipt(Boolean(receipt));
@@ -86,6 +95,16 @@ export default function ReceiveStudentPayment() {
      <label>Payment date<input type="date" required value={form.paymentDate} onChange={e=>change('paymentDate',e.target.value)} /></label>
      <label>Transaction reference<input value={form.transactionRef} onChange={e=>change('transactionRef',e.target.value)} /></label>
     </div>
+    <LoadState state={accountDirectory} label="Saved accounts" />
+    <h2>Payment accounts</h2>
+    <p>Split the amount received across accounts. All rows appear on one receipt.</p>
+    {lines.map((line,index)=><div key={index} className="receive-payment-fields">
+     <label>Account {index+1}<select aria-label={`Account ${index+1}`} required value={line.accountName} onChange={e=>{const account=accounts.find(a=>a.name===e.target.value);editLine(index,{accountName:account?.name || '',accountCode:account?.code || ''});}}><option value="">Select an account</option>{accounts.map(account=><option key={account.name} value={account.name}>{account.code} · {account.name}</option>)}</select></label>
+     <label>Account amount (GHS)<input aria-label={`Account amount ${index+1}`} required type="number" min="0.01" step="0.01" value={line.amount} onChange={e=>editLine(index,{amount:e.target.value})}/></label>
+     <button type="button" disabled={lines.length===1} onClick={()=>change('allocations',lines.filter((_,i)=>i!==index))}>Remove account</button>
+    </div>)}
+    <button type="button" onClick={()=>change('allocations',[...lines,{accountName:'',accountCode:'',amount:''}])}>Add another account</button>
+    <p>Allocated: GHS {lines.reduce((sum,line)=>sum+(Number(line.amount)||0),0).toFixed(2)} / GHS {Number(form.paidAmount || 0).toFixed(2)}</p>
     <label>Notes<textarea rows={3} value={form.notes} onChange={e=>change('notes',e.target.value)} /></label>
    </fieldset>
    <button className="btn btn-green" type="submit" disabled={busy || !ready || (Boolean(pending)&&!pending.input)}>{busy?'Saving payment…':pending?'Retry original payment':'Receive Payment & Print Receipt'}</button>

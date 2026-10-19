@@ -1,3 +1,4 @@
+import { csvExport } from '../lib/accountingRules.js';
 import AccountingWorkspace from '../components/Finance/AccountingWorkspace';
 import SchoolPrintHeader from '../components/School/SchoolPrintHeader';
 import SchoolContactDetails from '../components/School/SchoolContactDetails';
@@ -714,6 +715,21 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     setTimeout(() => setSuccessMsg(''), 5000);
   };
 
+  const [rosterClass, setRosterClass] = useState('');
+  const [rosterSubClass, setRosterSubClass] = useState('');
+  const rosterStudents = useMemo(() => (onboardedStudents || [])
+    .filter(s => isBackendUuid(s?.id) && s?.status === 'Active' && s?.is_active !== false)
+    .map(s => {
+      const level = formatClassToBasic(s.level || s.classLevel || s.applyingClass || '');
+      return { ...s, level, rosterSubClass: formatDetailedClass(level, s.classSection || s.subClass || s.subClassLevel || s.section || '') };
+    }), [onboardedStudents]);
+  const rosterClasses = useMemo(() => [...new Set(rosterStudents.map(s => s.level).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [rosterStudents]);
+  const rosterSubClasses = useMemo(() => [...new Set(rosterStudents
+    .filter(s => !rosterClass || s.level === rosterClass)
+    .map(s => s.rosterSubClass).filter(s => s && s !== '—'))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [rosterStudents, rosterClass]);
+
   const [studentSortCol, setStudentSortCol] = useState('fullName');
   const [studentSortDir, setStudentSortDir] = useState('asc');
 
@@ -733,12 +749,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
   const filteredStudents = useMemo(() => {
     const q = String(searchQuery || '').toLowerCase();
-    return (onboardedStudents || [])
-      .filter((s) => isBackendUuid(s?.id) && s?.status === 'Active' && s?.is_active !== false)
-      .map((s) => ({
-        ...s,
-        level: formatClassToBasic(s.level)
-      }))
+    return rosterStudents
+      .filter(s => (!rosterClass || s.level === rosterClass) && (!rosterSubClass || s.rosterSubClass === rosterSubClass))
       .filter((s) => {
         if (!q) return true;
         return [
@@ -757,7 +769,26 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
         if (valA > valB) return studentSortDir === 'asc' ? 1 : -1;
         return 0;
       });
-  }, [onboardedStudents, searchQuery, studentSortCol, studentSortDir]);
+  }, [rosterStudents, rosterClass, rosterSubClass, searchQuery, studentSortCol, studentSortDir]);
+
+  const handleExportStudentRoster = () => {
+    if (!filteredStudents.length) return;
+    const csv = csvExport([
+      { key: 'studentId', label: 'Student ID' },
+      { key: 'fullName', label: 'Full Name' },
+      { key: 'level', label: 'Class' },
+      { key: 'rosterSubClass', label: 'Sub-class' },
+    ], filteredStudents);
+    const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    const scope = [rosterClass, rosterSubClass].filter(Boolean).join('_') || 'All_Classes';
+    link.download = `Student_List_${scope.replace(/[^a-z0-9_-]+/gi, '_')}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   const appUniqueClasses = useMemo(() => {
     const defaultClasses = [
@@ -783,11 +814,12 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
         ? `${a.firstName || ''} ${a.otherNames ? a.otherNames + ' ' : ''}${a.surname || ''}`.replace(/\s+/g, ' ').trim()
         : (a.learner || a.learner_name || a.fullName || '');
       const gName = a.guardian || a.fatherName || a.motherName || '';
-      const q = (appSearchQuery || searchQuery || '').toLowerCase();
+      const q = appSearchQuery.trim().toLowerCase();
       const matchesSearch = !q ||
         name.toLowerCase().includes(q) ||
         gName.toLowerCase().includes(q) ||
-        (a.level || a.applyingClass || '').toLowerCase().includes(q);
+        (a.level || a.applyingClass || '').toLowerCase().includes(q) ||
+        [a.studentId, a.student_id, a.student_code, a.id].some(value => String(value || '').toLowerCase().includes(q));
 
       const appClass = formatClassToBasic(a.level || a.applyingClass || '');
       const matchesClass = appClassFilter === 'All' || appClass.toLowerCase() === appClassFilter.toLowerCase();
@@ -796,7 +828,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
       return matchesSearch && matchesClass && matchesYear && matchesTerm;
     });
-  }, [applications, appSearchQuery, searchQuery, appClassFilter, appYearFilter, appTermFilter]);
+  }, [applications, appSearchQuery, appClassFilter, appYearFilter, appTermFilter]);
 
   const activeStudents = (onboardedStudents || []).filter((s) => isBackendUuid(s?.id) && s?.status === 'Active' && s?.is_active !== false).length;
   const totalStudents = activeStudents;
@@ -1793,6 +1825,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 >
                   <Printer size={15} /> Print Name & Class List ({filteredStudents.length})
                 </button>
+                <button type="button" onClick={handleExportStudentRoster} disabled={!filteredStudents.length}
+                  style={{ padding: '10px 16px', borderRadius: 8, background: '#fff', color: ADMIN_BG, border: `1px solid ${ADMIN_BG}`, fontWeight: 800, fontSize: 13, cursor: filteredStudents.length ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Download size={15} /> Export Student List (CSV) ({filteredStudents.length})
+                </button>
                 </div>
               </div>
 
@@ -1807,10 +1843,26 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 />
               </div>
 
+              <div className="no-print" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+                <label>Class{' '}
+                  <select value={rosterClass} onChange={e => { setRosterClass(e.target.value); setRosterSubClass(''); }} style={{ padding: 8, borderRadius: 6 }}>
+                    <option value="">All classes</option>
+                    {rosterClasses.map(level => <option key={level} value={level}>{level}</option>)}
+                  </select>
+                </label>
+                <label>Sub-class{' '}
+                  <select value={rosterSubClass} onChange={e => setRosterSubClass(e.target.value)} style={{ padding: 8, borderRadius: 6 }}>
+                    <option value="">All sub-classes</option>
+                    {rosterSubClasses.map(section => <option key={section} value={section}>{section}</option>)}
+                  </select>
+                </label>
+                <span>{filteredStudents.length} matching students · Export follows these filters and search.</span>
+              </div>
+
               <div className="student-roster-print official-document-printable">
                 <div style={{ textAlign: 'center', marginBottom: 16, borderBottom: '2px solid #0f172a', paddingBottom: 12 }}>
                   <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '0.03em' }}>REMALJ CAREWELL INSPIRATIONAL SCHOOL</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginTop: 4 }}>Student Roster · Full Name &amp; Level / Section</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginTop: 4 }}>Student Roster · {rosterSubClass || rosterClass || 'All classes'} · Full Name &amp; Level / Section</div>
                   <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
                     Printed {new Date().toLocaleDateString('en-GB')} · {filteredStudents.length} student{filteredStudents.length === 1 ? '' : 's'} from live database
                   </div>
@@ -2027,7 +2079,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--gray-400)' }} />
                       <input
                         type="text"
-                        placeholder="Search applications..."
+                        placeholder="Search applications by name, student ID, class or guardian..."
                         value={appSearchQuery}
                         onChange={(e) => setAppSearchQuery(e.target.value)}
                         style={{ width: '100%', padding: '7px 10px 7px 32px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13 }}

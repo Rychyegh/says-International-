@@ -4,10 +4,12 @@ export function paymentAccountOptions(raw) {
   // No names/codes are converted into account identities.
   const data = raw?.data || raw;
   const rows = Array.isArray(data) ? data : data?.accounts;
-  const usable = rows => (Array.isArray(rows) ? rows : []).filter(row => isItemUuid(row.id) && row.is_active === true);
-  if (Array.isArray(rows)) return {
-    sources: usable(rows).filter(row => String(row.account_type || row.type).toLowerCase() === 'asset'),
-    expenses: usable(rows).filter(row => String(row.account_type || row.type).toLowerCase() === 'expense'),
-  };
-  return {sources:usable(data?.source_accounts),expenses:usable(data?.expense_accounts)};
+  const usable = rows => (Array.isArray(rows) ? rows : []).filter(row =>
+    isItemUuid(row.id) && row.is_active !== false && row.status !== 'archived'
+    && (row.is_active === true || row.status === 'active'));
+  const configured = usable(Array.isArray(rows) ? rows : [
+    ...(data?.source_accounts || []), ...(data?.expense_accounts || []),
+  ]);
+  const accounts = [...new Map(configured.map(account => [account.id, account])).values()];
+  return { sources: accounts, expenses: accounts };
 }

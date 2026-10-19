@@ -78,3 +78,24 @@ Frontend validation / release checks
 
 Deployment
 Deploy the frontend build and confirm the sidebar tab on the hosted Accountant portal. Verify the backend idempotency guarantees above before treating lost-response retries as safe in production. No backend implementation or live financial transaction was performed in this task.
+
+19 October 2026 — fee account splits on one receipt
+Receive Payments now has account/amount rows using the school PL list plus saved
+Account Setup accounts. Row amounts must sum exactly to the payment total. One
+invoice payment request and one returned receipt number cover the entire split;
+no separate payment POST is sent for each row. Existing retry keys include the
+original split and remain locked while the result is uncertain.
+
+The request additionally sends:
+  receivingAccount: a readable list of selected account names
+  allocations: [{accountName, accountCode, amount}, ...]
+The same breakdown is included in the existing notes field so it is retained as
+payment metadata even on older servers. Receipt printing shows every split row;
+ledger reprints can reconstruct the rows when notes are returned as description.
+
+Backend action: publish/accept allocations, resolve account codes to canonical
+school-scoped identities, validate the sum against paidAmount, and post every
+line plus the invoice payment and ONE receipt in the same transaction. Return
+canonical allocations in receipt and ledger responses. Notes alone do not post
+accounting allocations. The live OpenAPI could not be reached during this change;
+backend ledger allocation support and live persistence remain unverified.

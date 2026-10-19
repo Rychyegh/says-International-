@@ -80,3 +80,13 @@ Routes/request names were checked against the public OpenAPI snapshot downloaded
 Local browser tests use a synthetic persistent API stub to check wire fields,
 refresh restoration, duplicate handling and no phantom records on a failed POST.
 Frontend changes require deployment; backend acceptance must be tested separately.
+
+19 October 2026 — manual attendance correction
+Manual attendance no longer requires a guardian phone or SMS delivery. The
+confirmation dialog offers Save attendance only; the combined action also saves
+without SMS when no phone is available. After POST roll-call succeeds, the
+frontend checks GET logs for the same student, current school date and status.
+Missing read-back is shown as an unconfirmed save, never a successful save.
+The date field remains omitted to preserve the published backend contract above.
+Local regression tests cover phone-free saves, failed POSTs, and missing history.
+Live database persistence still requires backend/deployment verification.

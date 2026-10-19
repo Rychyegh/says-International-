@@ -345,3 +345,57 @@ test('verified Head Admin can enter Accountant portal without changing identity 
  assert.equal(sessionRoleAllowed('accountant','accountant'),true);
  for(const role of ['admin','sub_admin','teacher','student','parent'])assert.equal(sessionRoleAllowed('accountant',role),false);
 });
+
+test('complete applications read fetches later pages using server total', async () => {
+ const pages = [];
+ globalThis.fetch = async url => {
+  const query = new URL(url, 'https://test.invalid').searchParams;
+  const page = Number(query.get('page')); pages.push(page);
+  assert.equal(query.get('limit'), '500');
+  const records = page === 1 ? [{id:'app-1'}, {id:'app-2'}] : [{id:'app-3'}];
+  return new Response(JSON.stringify(records), {headers:{'X-Total-Count':'3'}});
+ };
+ assert.deepEqual(await api.getAllApplications(), {data:[{id:'app-1'},{id:'app-2'},{id:'app-3'}], total:3});
+ assert.deepEqual(pages,[1,2]);
+});
+test('complete applications read supports envelopes and fails on repeated or incomplete pages', async () => {
+ globalThis.fetch = async () => json({items:[{id:'app-1'}],total:1});
+ assert.deepEqual((await api.getAllApplications()).data,[{id:'app-1'}]);
+ globalThis.fetch = async () => json({items:[{id:'app-1'}],total:2});
+ await assert.rejects(api.getAllApplications(), /repeated a page/);
+ let calls = 0;
+ globalThis.fetch = async () => json({items: calls++ === 0 ? [{id:'app-1'}] : [],total:2});
+ await assert.rejects(api.getAllApplications(), /incomplete/);
+});
+
+test('split-account fee payment uses one request with the original total and key', async () => {
+ setAuthToken('opaque-token');
+ const allocations=[{accountName:'Tuition',accountCode:'10012',amount:75},{accountName:'PTA',accountCode:'10124',amount:25}];
+ let calls=0;
+ globalThis.fetch=async(url,options)=>{
+  calls++;
+  assert.ok(url.endsWith('/finance/fees/invoice-1/pay'));
+  const body=JSON.parse(options.body);
+  assert.deepEqual(body.allocations,allocations);
+  assert.equal(body.paidAmount,100);
+  assert.equal(options.headers['Idempotency-Key'],'split-payment-key');
+  return json({updatedFee:{id:'invoice-1'},receipt_number:'ONE-RECEIPT'});
+ };
+ const response=await api.recordFeePayment('invoice-1',{paidAmount:100,allocations,idempotencyKey:'split-payment-key'});
+ assert.equal(calls,1);assert.equal(response.receipt_number,'ONE-RECEIPT');
+});
+
+test('bill posts use each learner period instead of an old shared year', async () => {
+ setAuthToken('opaque-token');
+ const students=[{id:'11111111-1111-4111-8111-111111111111',level:'Basic 1',billingAcademicYear:'2026/2027',billingTerm:'Term 1'},{id:'22222222-2222-4222-8222-222222222222',level:'Basic 1',billingAcademicYear:'2025/2026',billingTerm:'Term 2'}];
+ const posted=[];
+ globalThis.fetch=async(url,opts)=>{
+  if(url.includes('/students'))return json(students);
+  const body=JSON.parse(opts.body);posted.push(body);
+  return json({bill_id:body.student_id,total_payable:100});
+ };
+ const result=await api.persistPostedAcademicBills({students,items:[{details:'Tuition',amount:100}],totalAmount:100,academicYear:'2025/2026',term:'Term 3'});
+ assert.equal(result.posted,2);
+ assert.deepEqual(posted.map(row=>[row.academic_year,row.term]),[['2026/2027','Term 1'],['2025/2026','Term 2']]);
+ await assert.rejects(api.postStudentAcademicBill({studentId:students[0].id,items:[{details:'Tuition',amount:100}],totalAmount:100}),/registered academic year/);
+});

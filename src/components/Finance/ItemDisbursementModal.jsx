@@ -93,13 +93,13 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, accountsRead
         <label>Destination account<input required value={fields.destination_account} onChange={e=>field('destination_account',e.target.value)} placeholder="Recipient bank account or MoMo number" /></label>
         <label>Beneficiary<input readOnly required value={item.provider || ''} /></label>
         <label>Payment method<select aria-label="Payment method" value={fields.payment_method} onChange={e=>field('payment_method',e.target.value)}>{['Bank Transfer','Mobile Money','Cheque','Cash'].map(method=><option key={method}>{method}</option>)}</select></label>
-        <label>Expense account<select aria-label="Expense account" required value={accounts.expenses.some(account=>account.id===fields.expense_account_id) ? fields.expense_account_id : ''} onChange={e=>{
+        <label>PL / Account<select aria-label="Expense account" required value={accounts.expenses.some(account=>account.id===fields.expense_account_id) ? fields.expense_account_id : ''} onChange={e=>{
           const value=e.target.value;
           setFields(current=>({...current,expense_account_id:value,expense_account_draft:''}));
           setNotice('Unsaved changes');
         }}><option value="">Select an account</option>
-          {accounts.expenses.length>0 && <optgroup label="Configured expense accounts">{accounts.expenses.map(account=><option key={account.id} value={account.id}>{account.name || account.account_name} · {account.code || account.account_code}</option>)}</optgroup>}
-        </select>{fields.expense_account_draft && <small>Previous draft choice: {fields.expense_account_draft.replace(/^draft:/,'')}. Select a configured expense account to use for payment.</small>}</label>
+          {accounts.expenses.length>0 && <optgroup label="Configured accounts">{accounts.expenses.map(account=><option key={account.id} value={account.id}>{account.name || account.account_name} · {account.code || account.account_code}</option>)}</optgroup>}
+        </select>{fields.expense_account_draft && <small>Previous draft choice: {fields.expense_account_draft.replace(/^draft:/,'')}. Select a configured account to use for payment.</small>}</label>
         <label>Payment reference<input required value={fields.reference} onChange={e=>field('reference',e.target.value)} /></label>
         <label>Payment date<input type="date" required value={fields.payment_date} onChange={e=>field('payment_date',e.target.value)} /></label>
       </div>

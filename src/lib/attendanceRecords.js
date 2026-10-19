@@ -21,3 +21,17 @@ export function attendanceRows(response, students = []) {
     };
   }).sort((a,b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`));
 }
+
+export async function saveManualAttendance({ student, status, submit, load, onSubmitted = () => {} }) {
+  await submit({
+    class_level: student.level || student.classLevel,
+    records: [{ student_id: student.studentUuid || student.id, status }],
+    sendSmsForAbsence: false,
+  });
+  onSubmitted();
+  const saved = await load();
+  const identities = [student.studentUuid, student.id, student.studentId].filter(Boolean);
+  const record = saved.find(row => row.date === attendanceDate() && identities.includes(row.studentId) && row.status === status);
+  if (!record) throw new Error('The server accepted the attendance request but the record is not visible in database history. Refresh history before retrying');
+  return record;
+}

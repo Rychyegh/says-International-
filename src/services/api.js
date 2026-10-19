@@ -468,7 +468,9 @@ export function mapStudentLedgerFromApi(raw = {}) {
         id: entry.id || entry.reference || `led-${idx}`,
         date: entry.date || entry.posted_at || entry.created_at || '',
         reference: entry.reference || entry.ref || entry.receipt_number || entry.invoice_number || '',
-        description: entry.description || entry.narration || type || 'Ledger entry',
+        description: entry.description || entry.narration || entry.notes || type || 'Ledger entry',
+        notes: entry.notes || '',
+        allocations: entry.allocations,
         type: type || (isDebit ? 'DEBIT' : isCredit ? 'CREDIT' : ''),
         debit: explicitDebit || (isDebit ? amount : 0),
         credit: explicitCredit || (isCredit && !isDebit ? amount : 0),
@@ -1309,6 +1311,38 @@ export const api = {
     const rawTotal = totalCount ?? data?.total;
     const total = rawTotal != null && String(rawTotal).trim() !== '' && Number.isSafeInteger(Number(rawTotal)) && Number(rawTotal) >= 0 ? Number(rawTotal) : null;
     return { data, total };
+  },
+
+  getAllApplications: async (params = {}) => {
+    const limit = 500;
+    let page = 1, total = null;
+    const records = new Map();
+    while (true) {
+      const result = await api.getApplicationsPage({ ...params, page, limit });
+      if (result.total != null) total = result.total;
+      let data = result.data;
+      while (data && !Array.isArray(data) && typeof data === 'object') {
+        const next = ['applications', 'records', 'results', 'items', 'data'].map(key => data[key]).find(value => Array.isArray(value) || (value && typeof value === 'object'));
+        if (!next) throw new Error('Applications returned an unsupported list response.');
+        data = next;
+      }
+      if (!Array.isArray(data)) throw new Error('Applications returned an unsupported list response.');
+      const previousSize = records.size;
+      for (const record of data) {
+        const id = record.id || record.application_id || record.uuid || record._id;
+        if (!id) throw new Error('An application is missing its database identity.');
+        records.set(String(id), record);
+      }
+      if (total != null && records.size >= total) break;
+      if (!data.length) {
+        if (total != null && records.size < total) throw new Error('The applications list is incomplete. Refresh to retry.');
+        break;
+      }
+      if (records.size === previousSize) throw new Error('The applications service repeated a page. Refresh to retry.');
+      if (total == null && data.length < limit) break;
+      page++;
+    }
+    return { data: [...records.values()], total };
   },
 
   updateApplicationStatus: async (applicationId, statusData) => {
@@ -2318,9 +2352,11 @@ export const api = {
     if (!Number.isFinite(totalPayable) || totalPayable <= 0 || Math.round(totalPayable * 100) !== Math.round(calculatedTotal * 100)) {
       throw new Error('The bill total must equal its fee items, arrears and discount. No bill was posted.');
     }
+    const academicYear = String(bill.academic_year || bill.academicYear || '').trim();
+    if (!academicYear) throw new Error('Choose the learner’s registered academic year before posting a bill.');
     const payload = {
       student_id: studentId,
-      academic_year: String(bill.academic_year || bill.academicYear || '2025/2026').slice(0, 50),
+      academic_year: academicYear.slice(0, 50),
       term: normalizeBillTerm(bill.term),
       class_level: classLevelForBillPost(bill.class_level || bill.classLevel),
       tuition_fee: split.tuition_fee,
@@ -2370,7 +2406,7 @@ export const api = {
     totalAmount,
     term = 'Term 1',
     classLevel,
-    academicYear = '2025/2026',
+    academicYear,
     billedBy,
     dueDate,
     useBatch = false,
@@ -2469,8 +2505,8 @@ export const api = {
             class_level: student.level || student.classLevel || classLevel,
             items: sanitizedItems,
             total_amount: total,
-            term,
-            academic_year: academicYear,
+            term: student.billingTerm || term,
+            academic_year: student.billingAcademicYear || academicYear,
             billed_by: billedBy,
             due_date: dueDate,
           });

@@ -8,7 +8,7 @@ import {
 import { usePortalData, findStudentByCardUid, mapStudentFromApi, rfidUidsMatch, resolveGuardianPhone } from '../../data/PortalStore';
 import { api } from '../../services/api';
 import './AttendanceControlTable.css';
-import { attendanceRows, attendanceDate } from '../../lib/attendanceRecords';
+import { attendanceRows, attendanceDate, saveManualAttendance } from '../../lib/attendanceRecords';
 
 const INITIAL_ATTENDANCE_LOGS = [];
 
@@ -146,16 +146,20 @@ export default function AttendanceControlTable() {
     }
   };
 
-  const handleSendDirectSmsSubmit = async (e) => {
+  const manualSaveLock = useRef(false);
+  const handleSendDirectSmsSubmit = async (e, sendSms = true) => {
     if (e) e.preventDefault();
-    if (!directSmsModalStudent || !directSmsText.trim()) return;
+    if (!directSmsModalStudent || manualSaveLock.current) return;
+    if (sendSms && !directSmsText.trim()) return;
 
+    manualSaveLock.current = true;
     setIsSendingDirectSms(true);
     const sId = directSmsModalStudent.studentId || directSmsModalStudent.id;
     const phone = parentPhoneFor(directSmsModalStudent, sId);
-    if (!phone) {
+    if (sendSms && !phone && !directSmsAttendanceStatus) {
       setNotification('⚠ No parent number on file for this student. Enter the guardian phone before sending SMS.');
       setIsSendingDirectSms(false);
+      manualSaveLock.current = false;
       setTimeout(() => setNotification(''), 6000);
       return;
     }
@@ -165,14 +169,21 @@ export default function AttendanceControlTable() {
 
     try {
       if (statusToApply) {
-        await api.submitRollCall({
-          class_level: directSmsModalStudent.level || directSmsModalStudent.classLevel,
-          records: [{student_id: directSmsModalStudent.studentUuid || directSmsModalStudent.id, status: statusToApply}],
-          sendSmsForAbsence: false
+        await saveManualAttendance({
+          student: directSmsModalStudent,
+          status: statusToApply,
+          submit: api.submitRollCall,
+          load: loadAttendance,
+          // Retrying SMS after a successful POST must not submit attendance again.
+          onSubmitted: () => setDirectSmsAttendanceStatus(null),
         });
-        // Attendance is saved independently of SMS delivery; retrying SMS must not save it again.
+      }
+      if (!sendSms || !phone) {
+        setNotification(`Attendance saved: ${directSmsModalStudent.fullName} — ${statusToApply}. SMS not sent${!phone ? ': no guardian phone number' : ''}.`);
+        setDirectSmsModalStudent(null);
         setDirectSmsAttendanceStatus(null);
-        await loadAttendance();
+        setDirectSmsText('');
+        return;
       }
       const smsRes = await api.sendDirectSms({recipientPhone: phone, messageText: directSmsText, senderId: 'RCIS'});
       const deliveryStatus = smsRes?.data?.destinations?.[0]?.status?.label;
@@ -193,6 +204,7 @@ export default function AttendanceControlTable() {
       setAttendanceState(prev => ({ ...prev, [sId]: { ...prev[sId], smsSent: false, sending: false } }));
       setNotification(`SMS or attendance save failed: ${err.message}. Check the record before retrying.`);
     } finally {
+      manualSaveLock.current = false;
       setIsSendingDirectSms(false);
     }
   };
@@ -1314,7 +1326,7 @@ export default function AttendanceControlTable() {
                   value={parentPhoneFor(directSmsModalStudent, directSmsModalStudent.studentId || directSmsModalStudent.id)}
                   onChange={(e) => setCustomPhones(prev => ({ ...prev, [directSmsModalStudent.studentId || directSmsModalStudent.id]: e.target.value }))}
                   style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13 }}
-                  required
+                  required={!directSmsAttendanceStatus}
                 />
               </div>
 
@@ -1326,7 +1338,7 @@ export default function AttendanceControlTable() {
                   onChange={(e) => setDirectSmsText(e.target.value)}
                   placeholder="Type instant SMS message to guardian..."
                   style={{ width: '100%', padding: '10px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, resize: 'vertical' }}
-                  required
+                  required={!directSmsAttendanceStatus}
                 />
                 <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
                   You can edit this message prior to dispatching. Sender ID: <strong>RCIS</strong>.
@@ -1344,6 +1356,12 @@ export default function AttendanceControlTable() {
                 >
                   Cancel
                 </button>
+                {directSmsAttendanceStatus && <button
+                  type="button"
+                  disabled={isSendingDirectSms}
+                  onClick={() => handleSendDirectSmsSubmit(null, false)}
+                  style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #166534', background: '#fff', color: '#166534', fontWeight: 700, cursor: 'pointer' }}
+                >{isSendingDirectSms ? 'Saving…' : 'Save attendance only'}</button>}
                 <button
                   type="submit"
                   disabled={isSendingDirectSms || !directSmsText.trim()}

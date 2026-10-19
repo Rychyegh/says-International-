@@ -1,3 +1,5 @@
+import { billingPeriod } from '../lib/billingPeriod.js';
+import { isConfirmedReviewStatus, notifyVoucherChange, PV_CHANGED_KEY } from '../lib/pvReviewSync.js';
 import { ITEM_PAYMENTS_ENABLED, isItemUuid } from '../lib/itemPaymentContract.js';
 import { requiresItemDisbursement } from '../lib/pvDisbursementItems.js';
 import { voucherNotifications } from '../lib/pvNotifications.js';
@@ -507,7 +509,8 @@ function mapApiApplication(a = {}) {
     || blankGuardianText(a.guardian)
     || blankGuardianText(a.guardian_name);
   return {
-    learner: a.learner || a.learner_name || formData.learner,
+    learner: a.learner || a.learner_name || a.fullName || a.full_name || formData.learner,
+    studentId: a.studentId || a.student_id || a.student_code || formData.studentId,
     phone: a.phone || a.contact_phone || formData.phone,
     level: formatClassToBasic(a.level || a.applying_level || formData.level || formData.applyingClass),
     submittedAt: a.submittedAt || a.submitted_at,
@@ -517,7 +520,8 @@ function mapApiApplication(a = {}) {
     otherNames: formData.otherNames || a.otherNames,
     surname: formData.surname || a.surname,
     dob: formData.dob || a.dob,
-    academicYear: formData.academicYear || a.academicYear,
+    academicYear: formData.academicYear || a.academicYear || a.academic_year,
+    academicTerm: formData.academicTerm || a.academicTerm || a.academic_term || a.term,
     ...formData,
     fatherName,
     motherName,
@@ -534,7 +538,7 @@ function mapApiApplication(a = {}) {
 
 async function findRemoteApplicationId(candidate) {
   try {
-    const raw = await api.getApplications();
+    const raw = await api.getAllApplications();
     const list = extractApplicationsList(raw).map(mapApiApplication);
     return findMatchingApplication(list, candidate)?.id || null;
   } catch (error) {
@@ -947,6 +951,8 @@ export function mapStudentFromApi(s = {}, fallback = {}) {
     fatherPhone: s.fatherPhone || s.father_phone || fallback.fatherPhone || '',
     motherName: s.motherName || s.mother_name || fallback.motherName || '',
     motherPhone: s.motherPhone || s.mother_phone || fallback.motherPhone || '',
+    academicYear: s.academicYear || s.academic_year || fallback.academicYear || fallback.academic_year || '',
+    academicTerm: s.academicTerm || s.academic_term || s.term || fallback.academicTerm || fallback.term || '',
     applicationId: s.applicationId || s.application_id || fallback.applicationId || '',
   };
 }
@@ -1536,7 +1542,7 @@ export function PortalDataProvider({ children, enabled = false }) {
         allowed(privileged, () => api.getAssetTasks()),
         api.getMessages(),
         api.getAssignments(),
-        allowed(privileged, () => progressive('applications', api.getApplicationsPage())),
+        allowed(privileged, () => progressive('applications', api.getAllApplications())),
         role === 'parent' ? progressive('students', api.getMyChildren().then(raw => raw.children || raw.data || raw)) : allowed(staff, () => progressive('students', api.getStudents())),
         allowed(privileged || role === "parent" || role === "student", () => progressive('fees', api.getFees())),
         allowed(staff, () => api.getStaff()),
@@ -2115,7 +2121,7 @@ export function PortalDataProvider({ children, enabled = false }) {
       cacheGenerationRef.current.admissions = generation;
       jobs.push((async () => {
         const [appsRes, studentsRes] = await Promise.allSettled([
-          api.getApplicationsPage(),
+          api.getAllApplications(),
           api.getStudents(),
         ]);
         if (cacheGenerationRef.current.admissions !== generation || tokenAtStart !== getAuthToken() || epoch !== mutationEpochRef.current) return;
@@ -2133,6 +2139,16 @@ export function PortalDataProvider({ children, enabled = false }) {
               next = { ...next, applications: mapped, applicationsTotal: appsRes.value.total };
               changed = true;
             }
+          }
+
+          if (appsRes.status === 'rejected') {
+            next = { ...next, syncErrors: { ...next.syncErrors, appsRes: appsRes.reason.message }, resourceStatus: { ...next.resourceStatus, appsRes: 'error' } };
+            changed = true;
+          } else if (appsRes.status === 'fulfilled') {
+            const syncErrors = { ...next.syncErrors };
+            delete syncErrors.appsRes;
+            next = { ...next, syncErrors, resourceStatus: { ...next.resourceStatus, appsRes: 'ready' } };
+            changed = true;
           }
 
           if (studentsRes.status === 'fulfilled' && studentsRes.value != null) {
@@ -2224,18 +2240,28 @@ export function PortalDataProvider({ children, enabled = false }) {
   // submissions made from another account/device. Never overlap these polls.
   useEffect(() => {
     if (!enabled || !['admin', 'accountant'].includes(portalForRole(getAuthUser()?.role))) return;
-    let busy = false;
+    let busy = false, refreshQueued = false;
     const refresh = async () => {
-      if (busy || document.visibilityState === 'hidden') return;
+      if (document.visibilityState === 'hidden') return;
+      if (busy) { refreshQueued = true; return; }
       busy = true;
-      try { await invalidateQueries(['payment-vouchers']); }
-      finally { busy = false; }
+      try {
+        do {
+          refreshQueued = false;
+          await invalidateQueries(['payment-vouchers']);
+        } while (refreshQueued && document.visibilityState !== 'hidden');
+      } finally { busy = false; }
+    };
+    const handleVoucherChange = event => {
+      if (event.key === PV_CHANGED_KEY) refresh();
     };
     const timer = setInterval(refresh, 5000);
+    window.addEventListener('storage', handleVoucherChange);
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
     return () => {
       clearInterval(timer);
+      window.removeEventListener('storage', handleVoucherChange);
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
@@ -3501,7 +3527,7 @@ export function PortalDataProvider({ children, enabled = false }) {
       if (!Number.isFinite(paidAmount) || paidAmount <= 0) throw new Error('Enter a positive payment amount.');
       const lock = `fee:${fee.id}`;
       if (writeLocksRef.current.has(lock)) throw new Error('A payment for this invoice is already being recorded.');
-      const payload = { paidAmount, paymentDate: payment.paymentDate || new Date().toISOString().slice(0, 10), paymentMethod: payment.paymentMethod || 'Cash', receivingAccount: payment.receivingAccount, notes: payment.notes || '', transactionRef: payment.transactionRef };
+      const payload = { paidAmount, paymentDate: payment.paymentDate || new Date().toISOString().slice(0, 10), paymentMethod: payment.paymentMethod || 'Cash', receivingAccount: payment.receivingAccount, allocations: payment.allocations, notes: payment.notes || '', transactionRef: payment.transactionRef };
       const fingerprint = JSON.stringify([fee.id, payload]);
       const idempotencyKey = payment.idempotencyKey || paymentKeysRef.current.get(fingerprint) || crypto.randomUUID();
       paymentKeysRef.current.set(fingerprint, idempotencyKey);
@@ -3534,7 +3560,7 @@ export function PortalDataProvider({ children, enabled = false }) {
         paymentDate: (feeRecord.paidAmount || 0) > 0 ? (feeRecord.paymentDate || new Date().toISOString().split('T')[0]) : null,
       }, ...(current.studentFees || [])],
     })),
-    postAcademicBill: async ({ studentId, studentName, classLevel, items, totalAmount, term = 'Term 1 · 2026', targetStudents: requestedStudents } = {}) => {
+    postAcademicBill: async ({ studentId, studentName, classLevel, items, totalAmount, term, academicYear, targetStudents: requestedStudents } = {}) => {
       const current = dataRef.current || {};
       const amountToPost = Number(totalAmount) || 0;
       let targetStudents = [];
@@ -3556,12 +3582,15 @@ export function PortalDataProvider({ children, enabled = false }) {
       let persistResult = { posted: 0, skipped: 0, failed: 0, errors: [], postedStudentKeys: [] };
       try {
         persistResult = await api.persistPostedAcademicBills({
-          students: targetStudents,
+          students: targetStudents.map(student => {
+            const period = billingPeriod(student, current.semesterRegistrations, current.applications, settings);
+            return { ...student, billingAcademicYear: academicYear || period.academicYear, billingTerm: term || period.term };
+          }),
           items,
           totalAmount: amountToPost,
           term,
           classLevel,
-          academicYear: settings.academicYear || '2025/2026',
+          academicYear: academicYear || settings.academicYear,
           billedBy: getUserFullName() || 'Accounts Office',
           dueDate: settings.resumptionDate || '2026-09-15',
         });
@@ -4087,8 +4116,9 @@ export function PortalDataProvider({ children, enabled = false }) {
       mutationEpochRef.current += 1;
       const saved = unwrapApiPaymentVoucher(raw);
       if (String(saved?.id) !== String(voucher.id)) throw new Error('The database did not return the reviewed voucher. Refresh before retrying.');
-      if (!['APPROVED', 'REJECTED', 'PRE_AUDITED'].includes(String(saved.status).toUpperCase())) throw new Error('The database did not confirm approval or rejection. Refresh the voucher before retrying.');
+      if (!isConfirmedReviewStatus(saved.status)) throw new Error('The database did not confirm approval or rejection. Refresh the voucher before retrying.');
       setData(current => ({ ...current, paymentVouchers: current.paymentVouchers.map(v => String(v.id) === String(saved.id) ? mapApiPaymentVoucher(saved) : v) }));
+      notifyVoucherChange();
       return saved;
       } finally { writeLocksRef.current.delete(reviewKey); }
     },
