@@ -53,6 +53,10 @@ try {
  await page.getByRole('button',{name:'Disburse & Pay',exact:true}).click();
  await dialog.getByRole('button',{name:'Retry item 1 payment'}).click();
  await dialog.getByText('Item payment confirmed.',{exact:true}).waitFor();
+ await page.getByText('PARTIALLY PAID',{exact:true}).waitFor();
+ const partialHistory=page.getByRole('button',{name:/Payment & Disbursement History/});
+ assert.equal(await partialHistory.evaluate(button=>button.style.background),'rgb(15, 58, 75)');
+ assert.equal(await page.getByRole('cell').filter({hasText:'PARTIALLY PAID'}).innerText().then(text=>text.includes('25.00')),true);
  assert.deepEqual(calls[1],original);assert.equal(responses.size,1);
  lost=true;
  await dialog.getByRole('button',{name:'Record confirmed payment for item 2',exact:true}).click();

@@ -323,7 +323,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       id: `usr_${createForm.role}_${Date.now()}`,
       fullName: createForm.fullName.trim(),
       email: emailKey,
-      phone: createForm.phone.trim() || '024 000 0000',
+      phone: createForm.phone.trim(),
       role: createForm.role,
       teacherDesignation: isClassTeacher ? 'class_teacher' : undefined,
       status: createForm.status || 'Active',
@@ -1594,7 +1594,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span style={{ color: 'var(--text-muted)' }}>Portal URL:</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#0369a1' }}>http://localhost:5173</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#0369a1' }}>{window.location.origin}</span>
                 </div>
               </div>
 
@@ -1609,7 +1609,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                 <button
                   type="button"
                   onClick={() => {
-                    const text = `REMALJ CAREWELL ACCESS CREDENTIALS\nName: ${slipUser.fullName}\nRole: ${slipUser.role.toUpperCase()}\nLogin: ${slipUser.email}\nPassword: ${slipUser.password || 'Stored in the database'}${slipUser.passcode ? `\nClass Teacher Passcode: ${slipUser.passcode}` : ''}\nStaff ID: ${slipUser.staffId || ''}\nPortal: http://localhost:5173`;
+                    const text = `REMALJ CAREWELL ACCESS CREDENTIALS\nName: ${slipUser.fullName}\nRole: ${slipUser.role.toUpperCase()}\nLogin: ${slipUser.email}\nPassword: ${slipUser.password || 'Stored in the database'}${slipUser.passcode ? `\nClass Teacher Passcode: ${slipUser.passcode}` : ''}\nStaff ID: ${slipUser.staffId || ''}\nPortal: ${window.location.origin}`;
                     copyToClipboard(text, 'slip-full');
                   }}
                   style={{

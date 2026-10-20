@@ -17,7 +17,7 @@ const STUDENT_ACCENT= '#c8703a';
 
 const NAV = [
   { icon: <LayoutDashboard size={15}/>, label: 'My Dashboard', badge: null },
-  { icon: <ClipboardList size={15}/>,   label: 'Assignments',  badge: '5'  },
+  { icon: <ClipboardList size={15}/>,   label: 'Assignments',  badge: null  },
   { icon: <Award size={15}/>,           label: 'My Grades',    badge: null },
   { icon: <Calendar size={15}/>,        label: 'Timetable',    badge: null },
   { icon: <Zap size={15}/>,             label: 'e-Library',    badge: null },
@@ -79,7 +79,7 @@ export default function StudentPortal() {
         <aside className="portal__sidebar">
           <div style={{ margin: '0 0 16px', padding: '14px', background: STUDENT_LIGHT, borderRadius: 'var(--radius-md)', borderLeft: `4px solid ${STUDENT_BG}` }}>
             <div style={{ fontWeight: 800, fontSize: 13, color: STUDENT_BG }}>Student Portal</div>
-            <div style={{ fontSize: 11, color: '#8a5e3a', marginTop: 2 }}>{getAuthUser()?.fullName || getAuthUser()?.name || 'Kwame Edwards'} — Senior High II</div>
+            <div style={{ fontSize: 11, color: '#8a5e3a', marginTop: 2 }}>{getAuthUser()?.fullName || getAuthUser()?.name || 'Student'}{studentClass ? ` — ${studentClass}` : ''}</div>
           </div>
           <span className="sidebar-section-label">My Space</span>
           {NAV.map((item) => (

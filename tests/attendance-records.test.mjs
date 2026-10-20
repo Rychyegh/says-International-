@@ -32,3 +32,8 @@ test('manual attendance rejects failed writes and success responses without save
  assert.equal(reads,0);
  await assert.rejects(saveManualAttendance({student,status:'Absent',submit:async () => ({}),load:async () => []}), /not visible in database history/);
 });
+
+test('manual status takes precedence over scan metadata and placeholder phones stay empty', () => {
+ const [row] = attendanceRows([{id:'saved',student_id:'uuid',date:'2026-10-20',status:'PRESENT',scan_type:'manual',guardian_phone:'+233541769621',sms_status:'NOT_REQUESTED'}],[{id:'uuid',studentId:'CODE',guardianPhone:''}]);
+ assert.equal(row.status,'Present'); assert.equal(row.phone,''); assert.equal(row.smsStatus,'NOT_REQUESTED');
+});

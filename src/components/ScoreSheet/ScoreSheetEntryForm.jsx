@@ -120,8 +120,12 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
     }
   }, [initialTarget, students]);
 
-  const [year, setYear] = useState(academicSettings?.academicYear || '2025/2026');
-  const [term, setTerm] = useState(academicSettings?.academicTerm || 'Term 3');
+  const [year, setYear] = useState(academicSettings?.academicYear || '');
+  const [term, setTerm] = useState(academicSettings?.academicTerm || '');
+  useEffect(() => {
+    if (academicSettings?.academicYear) setYear(current => current || academicSettings.academicYear);
+    if (academicSettings?.academicTerm) setTerm(current => current || academicSettings.academicTerm);
+  }, [academicSettings?.academicYear, academicSettings?.academicTerm]);
   const [subject, setSubject] = useState('Mathematics');
   const [category, setCategory] = useState('Core');
   const [instructor, setInstructor] = useState(getUserFullName() || '');

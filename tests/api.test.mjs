@@ -410,3 +410,10 @@ test('bill posts use each learner period instead of an old shared year', async (
  assert.deepEqual(posted.map(row=>[row.academic_year,row.term]),[['2026/2027','Term 1'],['2025/2026','Term 2']]);
  await assert.rejects(api.postStudentAcademicBill({studentId:students[0].id,items:[{details:'Tuition',amount:100}],totalAmount:100}),/registered academic year/);
 });
+
+test('read failures do not claim an uncertain payment and validation identifies the field', async () => {
+ globalThis.fetch=async()=>{throw new TypeError('Load failed');};
+ await assert.rejects(request('/finance/receipts'), error => /Could not load/.test(error.message) && !/save outcome/.test(error.message));
+ globalThis.fetch=async()=>json({detail:[{loc:['body','contact_email'],msg:'Invalid email address',type:'value_error'}]},422);
+ await assert.rejects(request('/admissions/applications',{method:'POST',body:'{}'}), error => error.message==='contact_email: Invalid email address' && error.payload.detail[0].type==='value_error');
+});

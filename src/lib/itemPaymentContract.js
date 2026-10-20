@@ -7,9 +7,13 @@ export function paymentAccountOptions(raw) {
   const usable = rows => (Array.isArray(rows) ? rows : []).filter(row =>
     isItemUuid(row.id) && row.is_active !== false && row.status !== 'archived'
     && (row.is_active === true || row.status === 'active'));
-  const configured = usable(Array.isArray(rows) ? rows : [
-    ...(data?.source_accounts || []), ...(data?.expense_accounts || []),
-  ]);
+  const activeSources = usable(data?.source_accounts);
+  const activeExpenses = usable(data?.expense_accounts);
+  const configured = usable(Array.isArray(rows) ? rows : [...activeSources, ...activeExpenses]);
   const accounts = [...new Map(configured.map(account => [account.id, account])).values()];
-  return { sources: accounts, expenses: accounts };
+  const type = account => String(account.account_type || account.type || '').toLowerCase();
+  return {
+    sources: accounts.filter(account => type(account) === 'asset' || (!type(account) && activeSources.some(row => row.id === account.id))),
+    expenses: accounts.filter(account => type(account) === 'expense' || (!type(account) && activeExpenses.some(row => row.id === account.id))),
+  };
 }

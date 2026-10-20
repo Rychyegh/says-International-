@@ -412,6 +412,7 @@ export default function AttendanceControlTable() {
 
   // Statistics calculation
   const totalLogsCount = filteredAttendanceLogs.length;
+  const dispatchedSmsCount = filteredAttendanceLogs.filter(log => ['sent', 'delivered'].includes(String(log.smsStatus).toLowerCase())).length;
   const presentLogsCount = filteredAttendanceLogs.filter(l => l.status === 'Present' || l.status === 'CardScanned' || l.status === 'Check In' || l.status === 'Check-in' || l.status === 'Check Out' || l.status === 'Check-out').length;
   const absentLogsCount = filteredAttendanceLogs.filter(l => l.status === 'Absent').length;
   const rfidScansCount = filteredAttendanceLogs.filter(l => l.method === 'RFID Card Reader' || l.status === 'CardScanned' || l.status.includes('Check')).length;
@@ -906,13 +907,13 @@ export default function AttendanceControlTable() {
             <div style={{ padding: '16px 20px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Absent Logged</div>
               <div style={{ fontSize: 26, fontWeight: 900, color: '#7f1d1d', marginTop: 4 }}>{absentLogsCount}</div>
-              <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 600, marginTop: 2 }}>Absence alerts dispatched</div>
+              <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 600, marginTop: 2 }}>Saved absence records</div>
             </div>
 
             <div style={{ padding: '16px 20px', background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 10 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>SMS Alerts Dispatched</div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: '#581c87', marginTop: 4 }}>{totalLogsCount}</div>
-              <div style={{ fontSize: 11, color: '#7e22ce', fontWeight: 600, marginTop: 2 }}>100% guardian notification rate</div>
+              <div style={{ fontSize: 26, fontWeight: 900, color: '#581c87', marginTop: 4 }}>{dispatchedSmsCount}</div>
+              <div style={{ fontSize: 11, color: '#7e22ce', fontWeight: 600, marginTop: 2 }}>{totalLogsCount ? Math.round(dispatchedSmsCount / totalLogsCount * 100) : 0}% confirmed sent or delivered</div>
             </div>
           </div>
 
@@ -978,7 +979,7 @@ export default function AttendanceControlTable() {
                 style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 12.5, fontWeight: 700, background: '#fff' }}
               >
                 <option value="All">All Dates Recorded</option>
-                <option value="Today">Today (05 Sep 2026)</option>
+                <option value="Today">Today ({attendanceDate()})</option>
                 <option value="Yesterday">Previous Days</option>
               </select>
 
@@ -1097,7 +1098,7 @@ export default function AttendanceControlTable() {
                             </span>
                           ) : (
                             <span className="status-badge status-badge--absent">
-                              <XCircle size={13} /> Absent
+                              <XCircle size={13} /> {log.status || 'Unknown'}
                             </span>
                           )}
                         </td>

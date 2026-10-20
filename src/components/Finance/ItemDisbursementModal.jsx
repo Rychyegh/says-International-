@@ -154,8 +154,8 @@ export default function ItemDisbursementModal({voucher:initialVoucher,onClose,on
   const {paymentVouchers=[]} = usePortalData();
   const voucher = paymentVouchers.find(row=>row.id===initialVoucher.id && row.items?.length > 1) || initialVoucher;
   const onPaid = saved => {
+    onCompleted?.(saved);
     if (saved.items.every(item => ['paid','disbursed','settled','declined','cancel pv','non-accrual'].includes(String(item.status).toLowerCase()))) {
-      onCompleted?.(saved);
       onClose();
     }
   };

@@ -1,3 +1,4 @@
+import { saveReportRequest } from '../lib/reportRecords.js';
 import { resolveGuardianPhone } from '../lib/guardianPhone.js';
 export { resolveGuardianPhone, isPlaceholderGuardianPhone } from '../lib/guardianPhone.js';
 import { billingPeriod } from '../lib/billingPeriod.js';
@@ -641,7 +642,7 @@ export function mapApiPaymentVoucher(p = {}) {
     disbursedBy: p.disbursed_by || p.disbursedBy,
     disbursementReference: p.reference_number || p.disbursement_reference || p.disbursementReference,
     disbursementNotes: p.disbursement_notes || p.disbursementNotes || p.notes || '',
-    paymentMethod: p.payment_method || p.paymentMethod,
+    paymentMethod: p.payment_method || p.paymentMethod || p.payment_mode || p.paymentMode,
     paymentSourceAccount: p.account_number || p.source_account || p.payment_source || p.paymentSourceAccount,
     updatedAt: p.updated_at || p.updatedAt || p.disbursed_at || p.approved_at || p.date_prepared,
     items,
@@ -1677,6 +1678,7 @@ export function PortalDataProvider({ children, enabled = false }) {
           const mapped = reportsRes.value.map(r => ({
             id: r.id,
             child: r.child || r.child_name,
+            studentId: r.student_id || r.studentId,
             semester: r.semester,
             note: r.note,
             status: r.status,
@@ -1687,6 +1689,7 @@ export function PortalDataProvider({ children, enabled = false }) {
           }));
           if (!isDeepEqual(current.reportRequests, mapped)) {
             updates.reportRequests = mapped;
+            updates.publishedReports = mapped.filter(row => row.fileUrl);
             hasChanges = true;
           }
         }
@@ -2530,25 +2533,20 @@ export function PortalDataProvider({ children, enabled = false }) {
       ...current,
       courses: current.courses.includes(course) ? current.courses : [...current.courses, course],
     })),
-    requestReport: async ({ child, semester, note }) => {
-      try {
-        await api.createReportRequest({ child, semester, note });
-      } catch (e) {
-        console.warn('Backend report request fallback:', e);
-      }
-      setData((current) => ({
-        ...current,
-        reportRequests: [{ id: crypto.randomUUID?.() || String(Date.now()), child, semester, note, status: 'Requested', requestedAt: new Date().toLocaleString() }, ...current.reportRequests],
-      }));
+    requestReport: async ({ child, studentId, semester, note }) => {
+      const saved = await saveReportRequest({ child, studentId, semester, note, submit: api.createReportRequest });
+      setData(current => ({ ...current, reportRequests: [saved, ...current.reportRequests.filter(row => row.id !== saved.id)] }));
+      return saved;
     },
     uploadRequestedReport: async ({ id, fileName, fileData, fileType, fileObj }) => {
-      if (fileObj) {
-        try {
-          await api.uploadReport(id, fileObj);
-        } catch (e) {
-          console.warn('Backend report upload fallback:', e);
-        }
-      }
+      if (!fileObj) throw new Error('Select the original result file to upload.');
+      await api.uploadReport(id, fileObj);
+      const refreshed = await api.getReportRequests();
+      const rows = Array.isArray(refreshed) ? refreshed : refreshed?.requests || refreshed?.data;
+      const confirmed = rows?.find(row => row.id === id && (row.file_url || row.fileUrl));
+      if (!confirmed) throw new Error('Upload was accepted but the saved report file is not available yet. Refresh reports before retrying.');
+      fileName = confirmed.file_name || confirmed.fileName || fileName;
+      fileData = confirmed.file_url || confirmed.fileUrl;
       setData((current) => {
         const request = current.reportRequests.find((item) => item.id === id);
         if (!request) return current;
@@ -3033,11 +3031,7 @@ export function PortalDataProvider({ children, enabled = false }) {
       }));
     },
     deleteApplication: async (id) => {
-      try {
-        await api.deleteApplication(id);
-      } catch (e) {
-        console.warn('Backend delete application fallback:', e);
-      }
+      await api.deleteApplication(id);
       setData((current) => ({
         ...current,
         applications: (current.applications || []).filter((item) => item.id !== id),
@@ -3251,11 +3245,7 @@ export function PortalDataProvider({ children, enabled = false }) {
       });
     },
     deleteOnboardedStudent: async (id) => {
-      try {
-        await api.deleteStudent(id);
-      } catch (e) {
-        console.warn('Backend delete student fallback:', e);
-      }
+      await api.deleteStudent(id);
 
       setData((current) => {
         const targetStudent = (current.onboardedStudents || []).find((s) => s.id === id || s.studentId === id);

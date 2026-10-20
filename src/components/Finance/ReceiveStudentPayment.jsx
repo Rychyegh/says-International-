@@ -6,12 +6,14 @@ import { SCHOOL_PL_ACCOUNTS } from '../../data/chartOfAccounts';
 import { useList, LoadState } from './AccountingUI';
 import { paymentAllocations, allocationNotes } from '../../lib/paymentAllocations';
 import StudentReceiptModal from './StudentReceiptModal';
+import StudentPaymentHistory from './StudentPaymentHistory';
 import './ReceiveStudentPayment.css';
 
 const OPERATION='/finance/receive-payment';
 const empty=()=>({id:'',paidAmount:'',paymentMethod:'Cash',paymentDate:new Date().toISOString().slice(0,10),transactionRef:'',notes:'',allocations:[{accountName:'',accountCode:'',amount:''}]});
 export default function ReceiveStudentPayment() {
  const {studentFees=[],recordFeePayment}=usePortalData();
+ const [tab,setTab]=useState('receive');
  const [form,setForm]=useState(empty),[search,setSearch]=useState(''),[pending,setPending]=useState(null),[ready,setReady]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[confirmation,setConfirmation]=useState(null),[showReceipt,setShowReceipt]=useState(false);
  const accountDirectory=useList('accounts');
  const accounts=[...new Map([...SCHOOL_PL_ACCOUNTS,...accountDirectory.rows].filter(account=>account.name).map(account=>[account.name,account])).values()].sort((a,b)=>a.name.localeCompare(b.name));
@@ -76,6 +78,11 @@ export default function ReceiveStudentPayment() {
  };
  return <section className="receive-payment-page">
   <h1>Receive Payments</h1><p>Select a student invoice, enter the amount received, then save and print the receipt.</p>
+  <div className="receive-payment-tabs">
+   <button type="button" className={`btn ${tab==='receive'?'btn-green':'btn-outline-green'}`} aria-pressed={tab==='receive'} onClick={()=>setTab('receive')}>Receive Payment</button>
+   <button type="button" className={`btn ${tab==='history'?'btn-green':'btn-outline-green'}`} aria-pressed={tab==='history'} onClick={()=>setTab('history')}>Payment History</button>
+  </div>
+  {tab==='history' ? <StudentPaymentHistory fees={studentFees} initialStudentId={confirmation?.fee.studentId || fee?.studentId} /> : <>
   {error && <p role="alert" className="receive-payment-error">{error}</p>}
   {pending && <p role="status">An earlier payment needs confirmation. Retry with its original details. Reference: {pending.key}</p>}
   {!ready && !error && <p role="status">Checking saved payment requests…</p>}
@@ -110,5 +117,6 @@ export default function ReceiveStudentPayment() {
    <button className="btn btn-green" type="submit" disabled={busy || !ready || (Boolean(pending)&&!pending.input)}>{busy?'Saving payment…':pending?'Retry original payment':'Receive Payment & Print Receipt'}</button>
   </form>}
   {showReceipt && confirmation?.receipt && <StudentReceiptModal fee={confirmation.fee} confirmedReceipt={confirmation.receipt} onClose={()=>setShowReceipt(false)} />}
+  </>}
  </section>;
 }

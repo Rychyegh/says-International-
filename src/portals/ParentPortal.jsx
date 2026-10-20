@@ -29,32 +29,8 @@ const NAV = [
   { icon: <Calendar size={15}/>, label: 'Timetable', badge: null },
 ];
 
-const STATS = [
-  { label: 'Children Enrolled', value: '2',     trend: 'Both active',      up: true,  icon: '👨‍👩‍👦', bg: '#dbeafe', ic: '#1e3a8a' },
-  { label: 'Attendance Rate',   value: '96%',   trend: '+1% this term',    up: true,  icon: '✅',      bg: '#dcfce7', ic: '#166534' },
-  { label: 'Fees Outstanding',  value: 'GHS 0', trend: 'All paid',         up: true,  icon: '💳',      bg: '#dcfce7', ic: '#166534' },
-  { label: 'Upcoming Events',   value: '3',     trend: 'Next: Sports Day', up: null,  icon: '📅',      bg: '#fef9c3', ic: '#78350f' },
-];
-
-const RESULTS = [
-  { subject: 'Mathematics',    kweku: [82, 'A'],  adwoa: [91, 'A+'] },
-  { subject: 'English',        kweku: [75, 'A-'], adwoa: [88, 'A']  },
-  { subject: 'Science',        kweku: [88, 'A'],  adwoa: [95, 'A+'] },
-  { subject: 'Social Studies', kweku: [70, 'B+'], adwoa: [84, 'A']  },
-  { subject: 'ICT',            kweku: [93, 'A+'], adwoa: [89, 'A']  },
-];
-
-const EVENTS = [
-  { title: 'Sports & Culture Day',      date: 'Oct 24', tag: 'School Event', color: PARENT_ACCENT },
-  { title: 'Parent-Teacher Conference', date: 'Nov 2',  tag: 'Meeting',      color: '#c89a3a'     },
-  { title: 'End of Term Exams',         date: 'Nov 20', tag: 'Exams',        color: '#c84a4a'     },
-  { title: 'Prize Giving Ceremony',     date: 'Dec 6',  tag: 'Ceremony',     color: '#16a34a'     },
-];
-
-const TEACHER_UPDATES = [
-  { teacher: 'Ms. Sarah Mensah', time: '2h ago',   subject: 'Social Studies', note: 'Benjamin participated brilliantly in today\'s debate on renewable energy.' },
-  { teacher: 'Mr. Kofi Appiah',  time: 'Yesterday', subject: 'Mathematics',   note: 'Math homework on equations was perfect. Great attention to detail shown.'  },
-];
+const EVENTS = [];
+const TEACHER_UPDATES = [];
 
 function resolveParentIdentity() {
   const user = getAuthUser() || {};
@@ -98,8 +74,8 @@ export default function ParentPortal() {
       studentId: s.studentId || s.id,
       databaseStudentId: s.studentUuid || s.id,
       grade: `${s.classSection || s.subClass || s.level || 'Basic 1'}`,
-      gpa: '3.8',
-      attendance: 96,
+      gpa: 'Not available',
+      attendance: s.attendanceRate ?? s.attendance_rate ?? null,
       photo: s.gender === 'Female' ? '👧' : '👦',
       bio: `${s.fullName || s.name} is enrolled in ${s.level || 'Class'} at REMALJ Carewell Inspirational School.`,
     }));
@@ -143,9 +119,9 @@ export default function ParentPortal() {
 
   const DYNAMIC_STATS = [
     { label: 'Children Enrolled', value: String(childrenList.length), trend: childrenList.length > 0 ? 'Active in system' : 'None registered', up: childrenList.length > 0, icon: '👨‍👩‍👦', bg: '#dbeafe', ic: '#1e3a8a' },
-    { label: 'Attendance Rate', value: childrenList.length > 0 ? '96%' : '0%', trend: 'Database synced', up: true, icon: '✅', bg: '#dcfce7', ic: '#166534' },
+    { label: 'Attendance Rate', value: 'Not available', trend: 'Awaiting attendance summary', up: true, icon: '✅', bg: '#dcfce7', ic: '#166534' },
     { label: 'Fees Outstanding', value: dynamicFeeValue, trend: dynamicFeeTrend, up: householdOutstanding === 0, icon: '💳', bg: householdOutstanding > 0 ? '#fee2e2' : '#dcfce7', ic: householdOutstanding > 0 ? '#b91c1c' : '#166534' },
-    { label: 'Upcoming Events', value: '3', trend: 'Next: Sports Day', up: null, icon: '📅', bg: '#fef9c3', ic: '#78350f' },
+    { label: 'Upcoming Events', value: String(EVENTS.length), trend: 'No published events', up: null, icon: '📅', bg: '#fef9c3', ic: '#78350f' },
   ];
 
   return (
@@ -155,7 +131,7 @@ export default function ParentPortal() {
         <aside className="portal__sidebar">
           <div style={{ margin: '0 0 16px', padding: '14px', background: PARENT_LIGHT, borderRadius: 'var(--radius-md)', borderLeft: `4px solid ${PARENT_BG}` }}>
             <div style={{ fontWeight: 800, fontSize: 13, color: PARENT_BG }}>Parent Portal</div>
-            <div style={{ fontSize: 11, color: '#3a5a8a', marginTop: 2 }}>{getAuthUser()?.fullName || getAuthUser()?.name || 'Mrs. Angela Edwards'}</div>
+            <div style={{ fontSize: 11, color: '#3a5a8a', marginTop: 2 }}>{getAuthUser()?.fullName || getAuthUser()?.name || 'Parent / Guardian'}</div>
           </div>
           <span className="sidebar-section-label">Navigation</span>
           {NAV.slice(0, 5).map((item) => {
@@ -193,6 +169,7 @@ export default function ParentPortal() {
 
         {/* Main */}
         <main className="portal__content">
+          {!childrenList.length && <p role="status">No children are linked to this account. Ask the school to confirm your parent access.</p>}
 
           {/* ── TRANSPORT VIEW ── */}
           {activeNav === 'Transport' && (
@@ -208,28 +185,7 @@ export default function ParentPortal() {
                   See exactly where the school bus is right now, who's onboard, and when to expect arrival.
                 </p>
               </div>
-              {/* Child's transport summary */}
-              <div style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
-                {childrenList.map((c, i) => (
-                  <div key={c.name} onClick={() => setActiveChild(i)} style={{
-                    flex: 1, padding: '14px 18px',
-                    background: PARENT_BG, color: '#fff',
-                    borderRadius: 'var(--radius-lg)', cursor: 'pointer',
-                    border: `2px solid ${activeChild === i ? '#7aaee8' : 'transparent'}`,
-                    opacity: activeChild === i ? 1 : 0.7,
-                    transition: 'all 200ms',
-                  }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: 'rgba(255,255,255,.55)', marginBottom: 2 }}>Child</div>
-                    <div style={{ fontWeight: 800, fontSize: 15 }}>{c.name} {i === 0 ? '👦' : '👧'}</div>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,.6)', marginTop: 2 }}>{c.grade} • Bus 01 – Route A</div>
-                    <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                      <div><div style={{ color: 'rgba(255,255,255,.5)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>Next Stop</div><div style={{ fontWeight: 700 }}>Anikoko</div></div>
-                      <div style={{ textAlign: 'right' }}><div style={{ color: 'rgba(255,255,255,.5)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>ETA</div><div style={{ fontWeight: 800, fontSize: 18 }}>15:45</div></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <BusTracker mode="parent" />
+              <p>No verified live transport feed is available for this account.</p>
             </div>
           )}
 
@@ -337,7 +293,7 @@ export default function ParentPortal() {
                         <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.07em', color: 'rgba(255,255,255,.8)', marginTop: 2 }}>This child fees</div>
                       </div>
                       <div style={{ background: '#16a34a', borderRadius: 'var(--radius-md)', padding: '14px 20px', textAlign: 'center' }}>
-                        <div style={{ fontSize: 24, fontWeight: 800 }}>{child.attendance}%</div>
+                        <div style={{ fontSize: 24, fontWeight: 800 }}>{child.attendance == null ? 'Not available' : `${child.attendance}%`}</div>
                         <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.07em', color: 'rgba(255,255,255,.8)', marginTop: 2 }}>Attendance</div>
                       </div>
                     </div>
@@ -389,32 +345,7 @@ export default function ParentPortal() {
                     </div>
                   </div>
 
-                  {/* Transport widget on dashboard */}
-                  <div
-                    className="transport-widget"
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => setActiveNav('Transport')}
-                    title="Track bus live"
-                  >
-                    <div className="transport-widget__label">Transport Status — Live</div>
-                    <div className="transport-widget__route">Route 14 • Bus B-202 &nbsp;•&nbsp; {child.name}</div>
-                    <div className="transport-widget__row">
-                      <div>
-                        <div className="transport-widget__stop-label">Next Stop</div>
-                        <div className="transport-widget__stop">🚌 Anikoko</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div className="transport-widget__eta">15:45</div>
-                        <div className="transport-widget__eta-label">ETA</div>
-                      </div>
-                    </div>
-                    <div className="transport-track">
-                      <div className="transport-track__fill" style={{ width: '62%' }}/>
-                      <div className="transport-track__bus" style={{ left: 'calc(62% - 7px)' }}/>
-                    </div>
-                    <div className="transport-stops"><span>School</span><span>On Route</span><span>Anikoko</span></div>
-                    <div style={{ marginTop: 10, fontSize: 11, color: 'rgba(255,255,255,.5)', textAlign: 'center' }}>Click to open full tracker →</div>
-                  </div>
+                  <div className="panel"><p>No verified live transport information is available.</p></div>
                 </div>
 
                 {/* Right */}

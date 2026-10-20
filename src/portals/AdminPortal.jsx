@@ -951,12 +951,16 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     setTimeout(() => setSuccessMsg(''), 5000);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     const student = (onboardedStudents || []).find((s) => s.id === id || s.studentId === id);
     const studentName = student?.fullName || 'this student';
     if (window.confirm(`⚠️ Are you sure you want to COMPLETELY delete ${studentName}? This will permanently wipe their student profile, fee accounts, semester registrations, and academic records from the system.`)) {
-      deleteOnboardedStudent(id);
-      setSuccessMsg(`✅ Student record for ${studentName} completely deleted from the system.`);
+      try {
+        await deleteOnboardedStudent(id);
+        setSuccessMsg(`✅ Student record for ${studentName} deleted from the database.`);
+      } catch (error) {
+        setSuccessMsg(`Deletion failed: ${error.message}`);
+      }
       setTimeout(() => setSuccessMsg(''), 5000);
     }
   };
@@ -2259,9 +2263,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                                     )}
 
                                     <button
-                                      onClick={() => {
+                                      onClick={async () => {
                                         if (window.confirm('Delete this application form record?')) {
-                                          deleteApplication(app.id);
+                                          try { await deleteApplication(app.id); }
+                                          catch (error) { setSuccessMsg(`Deletion failed: ${error.message}`); }
                                         }
                                       }}
                                       style={{
@@ -4498,7 +4503,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
                 {(() => {
                   const s = viewingCredentialStudent;
-                  const pass = s.defaultPassword || `StuPass#${s.studentId.replace('REMALJ-', '')}`;
+                  const pass = s.defaultPassword || 'Not supplied by the server — use Reset Password';
                   const isRevealed = showPassMap[s.id];
 
                   return (
@@ -4688,7 +4693,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
                     {(() => {
                       const s = printingCredentialSlip;
-                      const pass = s.defaultPassword || `StuPass#${s.studentId.replace('REMALJ-', '')}`;
+                      const pass = s.defaultPassword || 'Not supplied by the server — use Reset Password';
                       return (
                         <div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20, background: '#f8fafc', padding: 14, borderRadius: 8 }}>

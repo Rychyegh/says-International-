@@ -1,4 +1,5 @@
-import { useList, LoadState } from './AccountingUI';
+import { paymentAccountOptions } from '../../lib/itemPaymentContract.js';
+import { isFullyPaidVoucher, hasConfirmedPayment, confirmedPaidAmount } from '../../lib/pvPaymentHistory.js';
 import SchoolPrintHeader from '../School/SchoolPrintHeader';
 import SchoolContactDetails from '../School/SchoolContactDetails';
 import { disbursementItems, requiresItemDisbursement } from '../../lib/pvDisbursementItems.js';
@@ -14,27 +15,23 @@ import {
 import { usePortalData, pvNosMatch, mapApiPaymentVoucher } from '../../data/PortalStore';
 import { api } from '../../services/api';
 import { SchoolLogoSVG } from '../Onboarding/OfficialApplicationForm';
-import { SCHOOL_PL_ACCOUNTS, BANK_RECEIVING_ACCOUNTS, getPlAccountCode, printPvPage } from '../../data/chartOfAccounts';
-
-function isPvDisbursed(v) {
-  const s = String(v?.status || '').toLowerCase().trim();
-  if (s.includes('partial')) return false;
-  if (s === 'disbursed' || s === 'paid' || s.includes('disburs') || s.includes('settled')) return true;
-  if (v?.disbursedAt || v?.disbursed_at || v?.disbursedBy || v?.disbursed_by) return true;
-  return false;
-}
+import { printPvPage } from '../../data/chartOfAccounts';
 
 export default function PayPVForm({ onCompleted } = {}) {
   const { paymentVouchers = [], disbursePaymentVoucher, invalidateQueries, syncErrors = {} } = usePortalData();
 
-  const accountDirectory = useList('accounts');
-  const availableAccounts = useMemo(() => {
-    const accounts = new Map();
-    for (const account of [...SCHOOL_PL_ACCOUNTS, ...BANK_RECEIVING_ACCOUNTS, ...accountDirectory.rows]) {
-      if (account.name) accounts.set(account.name, account);
-    }
-    return [...accounts.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [accountDirectory.rows]);
+  const [configuredPaymentAccounts, setConfiguredPaymentAccounts] = useState({sources: [], expenses: []});
+  const [paymentAccountsError, setPaymentAccountsError] = useState('');
+  const [paymentAccountsRevision, setPaymentAccountsRevision] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setPaymentAccountsError('');
+    api.getPaymentAccounts().then(raw => { if (active) setConfiguredPaymentAccounts(paymentAccountOptions(raw)); })
+      .catch(error => { if (active) setPaymentAccountsError(error.message); });
+    return () => { active = false; };
+  }, [paymentAccountsRevision]);
+  const sourceAccounts = configuredPaymentAccounts.sources;
+  const expenseAccounts = configuredPaymentAccounts.expenses;
 
   const voucherPayableAmount = payableAmount;
 
@@ -50,9 +47,9 @@ export default function PayPVForm({ onCompleted } = {}) {
 
   // Payment Form Fields
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer (Instant EFT)');
-  const [sourceAccount, setSourceAccount] = useState('Stanbic Bank - Operations Account (Acc: 90400031892)');
-  const [plAccountName, setPlAccountName] = useState('Diesel');
-  const selectedAccountCode = availableAccounts.find(account => account.name === plAccountName)?.code || getPlAccountCode(plAccountName);
+  const [sourceAccount, setSourceAccount] = useState('');
+  const [plAccountName, setPlAccountName] = useState('');
+  const selectedAccountCode = expenseAccounts.find(account => account.name === plAccountName)?.code || '';
   const [referenceNumber, setReferenceNumber] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [disbursementNotes, setDisbursementNotes] = useState('');
@@ -98,7 +95,7 @@ export default function PayPVForm({ onCompleted } = {}) {
   const readyVouchers = useMemo(() => {
     return (paymentVouchers || []).filter((v) => {
       const s = String(v.status || '').toLowerCase().trim();
-      return !confirmedDisbursed.some(paid => paid.id === v.id || pvNosMatch(paid.pvNo, v.pvNo)) && (
+      return !confirmedDisbursed.some(paid => isFullyPaidVoucher(paid) && (paid.id === v.id || pvNosMatch(paid.pvNo, v.pvNo))) && (
         s === 'validated' ||
         s === 'approved' ||
         s === 'partially approved' ||
@@ -110,11 +107,11 @@ export default function PayPVForm({ onCompleted } = {}) {
     });
   }, [paymentVouchers, confirmedDisbursed]);
 
-  // All DISBURSED vouchers from the live database, merged with local store copies
+  // Include confirmed partial payments while keeping their unpaid items payable.
   const disbursedVouchers = useMemo(() => {
     const merged = new Map();
     [...(paymentVouchers || []), ...dbDisbursed, ...confirmedDisbursed].forEach((v) => {
-      if (!v || !isPvDisbursed(v)) return;
+      if (!v || !hasConfirmedPayment(v)) return;
       let key = disbursementIdentityKey(v);
       const existingKey = [...merged.keys()].find((k) => {
         if (k === key) return true;
@@ -127,7 +124,7 @@ export default function PayPVForm({ onCompleted } = {}) {
       merged.set(key, {
         ...prev,
         ...v,
-        status: 'DISBURSED',
+        status: isFullyPaidVoucher(v) ? 'DISBURSED' : 'Partially Paid',
         id: (prev.id && !/^pv-\d+$/i.test(String(prev.id))) ? prev.id : (v.id || prev.id),
         pvNo: (String(v.pvNo || '').length >= String(prev.pvNo || '').length) ? (v.pvNo || prev.pvNo) : (prev.pvNo || v.pvNo),
         disbursedAt: v.disbursedAt || prev.disbursedAt,
@@ -147,7 +144,7 @@ export default function PayPVForm({ onCompleted } = {}) {
 
   const showConfirmedPayment = (saved) => {
     const paid = mapApiPaymentVoucher(saved);
-    if (!isPvDisbursed(paid)) return;
+    if (!hasConfirmedPayment(paid)) return;
     setConfirmedDisbursed(current => [...current.filter(row => row.id !== paid.id), paid]);
     setSearchQuery('');
     setActiveTab('history');
@@ -160,7 +157,7 @@ export default function PayPVForm({ onCompleted } = {}) {
   }, [readyVouchers]);
 
   const disbursedTotalGHS = useMemo(() => {
-    return disbursedVouchers.reduce((acc, v) => acc + (parseFloat(v.paidTotal ?? v.total ?? v.cost ?? v.amount) || 0), 0);
+    return disbursedVouchers.reduce((acc, v) => acc + confirmedPaidAmount(v), 0);
   }, [disbursedVouchers]);
 
   // Filtered lists based on search
@@ -238,8 +235,10 @@ export default function PayPVForm({ onCompleted } = {}) {
   // Open Payment Modal
   const handleOpenPayModal = (voucher) => {
     setPayingVoucher({ ...voucher, items: disbursementItems(voucher) });
-    const generatedRef = `TXN-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
-    setReferenceNumber(generatedRef);
+    const mode = String(voucher.paymentMethod || voucher.paymentMode || '').toLowerCase();
+    setPaymentMethod(mode.includes('cash') ? 'School Petty Cash' : mode.includes('mobile') || mode.includes('momo') ? 'Mobile Money (MTN / Telecel MoMo)' : mode.includes('cheque') ? 'Company Cheque' : 'Bank Transfer (Instant EFT)');
+    setSourceAccount(''); setPlAccountName('');
+    setReferenceNumber('');
     setPaymentDate(new Date().toISOString().split('T')[0]);
     setDisbursementNotes(`Disbursement authorized for ${voucher.provider || 'Vendor'} as approved by Head Admin.`);
   };
@@ -249,6 +248,9 @@ export default function PayPVForm({ onCompleted } = {}) {
     e.preventDefault();
     if (!payingVoucher || requiresItemDisbursement(payingVoucher) || isProcessing) return;
 
+    if (!sourceAccounts.some(a => a.name === sourceAccount) || !expenseAccounts.some(a => a.name === plAccountName) || !referenceNumber.trim()) {
+      setPaymentNotice('Select a configured source account, expense account and the actual payment reference.'); return;
+    }
     setIsProcessing(true);
     const targetPvNo = payingVoucher.pvNo || payingVoucher.id;
 
@@ -752,7 +754,7 @@ export default function PayPVForm({ onCompleted } = {}) {
               </div>
             )}
             <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, marginBottom: 10 }}>
-              Showing every payment voucher with status <strong style={{ color: '#166534' }}>DISBURSED</strong> from the live database
+              Showing confirmed payments from the database, including partially paid vouchers
               {historySourceCount ? ` · ${historySourceCount} settled record${historySourceCount === 1 ? '' : 's'} loaded` : ''}.
             </div>
             {historyLoading && filteredDisbursed.length === 0 ? (
@@ -770,10 +772,10 @@ export default function PayPVForm({ onCompleted } = {}) {
               }}>
                 <Clock size={44} color="#64748b" style={{ margin: '0 auto 12px', opacity: 0.6 }} />
                 <h4 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: '#1e293b' }}>
-                  No DISBURSED Payment Vouchers in the Database
+                  No confirmed payments found
                 </h4>
                 <p style={{ fontSize: 12, color: '#64748b', maxWidth: 440, margin: '8px auto 0' }}>
-                  History now reads live from the finance vouchers API. Once a voucher is disbursed, it appears here with status DISBURSED.
+                  Confirmed item payments appear here even while other items on the voucher remain unpaid.
                 </p>
               </div>
             ) : (
@@ -791,7 +793,7 @@ export default function PayPVForm({ onCompleted } = {}) {
                   </thead>
                   <tbody>
                     {filteredDisbursed.map((v, idx) => {
-                      const amount = Number(v.paidTotal ?? v.total ?? v.cost ?? v.amount) || 0;
+                      const amount = confirmedPaidAmount(v);
                       return (
                         <tr
                           key={v.id || v.pvNo || idx}
@@ -865,7 +867,7 @@ export default function PayPVForm({ onCompleted } = {}) {
                               padding: '1px 6px',
                               borderRadius: 4
                             }}>
-                              DISBURSED
+                              {isFullyPaidVoucher(v) ? 'DISBURSED' : 'PARTIALLY PAID'}
                             </span>
                           </td>
 
@@ -1019,17 +1021,16 @@ export default function PayPVForm({ onCompleted } = {}) {
                       onChange={(e) => setSourceAccount(e.target.value)}
                       style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11.5, background: '#fff', fontWeight: 700 }}
                     >
-                      <option value="Stanbic Bank - Operations Account (Acc: 90400031892)">Stanbic Bank - Operations (Acc: 90400031892)</option>
-                      <option value="Ecobank Ghana - Tuition & Payables (Acc: 14410029310)">Ecobank Ghana - Payables (Acc: 14410029310)</option>
-                      <option value="School Central Cash Vault">School Central Cash Vault</option>
-                      {availableAccounts.map(account => (
+                      <option value="">Select a configured source account</option>
+                      {sourceAccounts.map(account => (
                         <option key={account.name} value={account.name}>{account.code ? `${account.code} · ` : ''}{account.name}</option>
                       ))}
                     </select>
                   </div>
                 </div>
 
-                <LoadState state={accountDirectory} label="Account directory" />
+                <button type="button" onClick={() => setPaymentAccountsRevision(value => value + 1)}>Refresh payment accounts</button>
+                {paymentAccountsError && <p role="alert">Payment accounts could not be loaded: {paymentAccountsError}</p>}
 
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#0f3a4b', marginBottom: 4 }}>
@@ -1040,7 +1041,8 @@ export default function PayPVForm({ onCompleted } = {}) {
                     onChange={(e) => setPlAccountName(e.target.value)}
                     style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11.5, background: '#fff', fontWeight: 700 }}
                   >
-                    {availableAccounts.map((account) => (
+                    <option value="">Select an expense account</option>
+                    {expenseAccounts.map((account) => (
                       <option key={account.code + account.name} value={account.name}>{account.code ? `${account.code} · ` : ''}{account.name}</option>
                     ))}
                   </select>
@@ -1286,7 +1288,7 @@ export default function PayPVForm({ onCompleted } = {}) {
                   GHS {(parseFloat(receiptVoucher.total || receiptVoucher.cost || receiptVoucher.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div style={{ fontSize: 11, color: '#166534', marginTop: 4, fontWeight: 700 }}>
-                  PL/Account: {receiptVoucher.plAccountName || 'Diesel'} · Source: {receiptVoucher.paymentSourceAccount || 'School Operations Account'}
+                  PL/Account: {receiptVoucher.plAccountName || 'Not supplied'} · Source: {receiptVoucher.paymentSourceAccount || 'School Operations Account'}
                 </div>
               </div>
 

@@ -1,3 +1,4 @@
+import { hasConfirmedPayment } from '../lib/pvPaymentHistory.js';
 import { isSessionVerificationError, sessionRoleAllowed } from '../lib/sessionVerification.js';
 import { voucherProviders, supportsVoucherItemProviders } from '../lib/pvProviders.js';
 import { identityRetry, recoveryPayload, listRetryOperations } from '../lib/identityRetry.js';
@@ -220,7 +221,8 @@ export async function request(endpoint, options = {}) {
     catch { throw new Error('The server returned an invalid JSON response. The operation was not confirmed.'); }
     if (!response.ok || data?.success === false) {
       const detail = data?.detail || data?.message || `HTTP ${response.status}`;
-      const error = new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+      const message = Array.isArray(detail) ? detail.map(item => `${(item.loc || []).filter(part => part !== 'body').join(' → ') || 'Request'}: ${item.msg || 'Invalid value'}`).join('; ') : typeof detail === 'string' ? detail : 'The server rejected this request.';
+      const error = new Error(message);
       error.status = response.status;
       error.payload = data;
       if (isSessionVerificationError(error)) window.dispatchEvent(new Event('says_reauthenticate'));
@@ -232,7 +234,10 @@ export async function request(endpoint, options = {}) {
   } catch (error) {
     if (error.name === 'AbortError') throw new Error('The server timed out. Check the record before retrying.');
     if (error instanceof TypeError && /load failed|failed to fetch|networkerror|network request failed/i.test(error.message)) {
-      const connectionError = new Error('The connection to the payment/data server failed before a response could be read. The save outcome is unknown. Check the saved record before retrying; keep the original payment request key.');
+      const reading = ['GET', 'HEAD'].includes(String(options.method || 'GET').toUpperCase());
+      const connectionError = new Error(reading
+        ? 'Could not load records from the server. Check the connection and refresh.'
+        : 'The connection to the payment/data server failed before a response could be read. The save outcome is unknown. Check the saved record before retrying; keep the original payment request key.');
       connectionError.code = 'NETWORK_RESPONSE_UNAVAILABLE';
       connectionError.cause = error;
       throw connectionError;
@@ -1784,7 +1789,7 @@ export const api = {
     for (const result of batches) {
       if (result.status !== 'fulfilled') continue;
       for (const row of api.extractPaymentVoucherList(result.value)) {
-        if (!api.isApiDisbursedVoucher(row) && String(row.status || '').toUpperCase() !== 'DISBURSED') continue;
+        if (!hasConfirmedPayment(row)) continue;
         const key = String(row.id || row.pv_number || row.pvNo || '').toLowerCase();
         if (!key || seen.has(key)) continue;
         seen.add(key);

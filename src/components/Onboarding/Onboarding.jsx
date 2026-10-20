@@ -614,9 +614,9 @@ export function AdmissionsRegister() {
                               <Eye size={13} /> View Form PDF
                             </button>
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 if (window.confirm(`Delete application for ${learnerName}?`)) {
-                                  if (deleteApplication) deleteApplication(item.id);
+                                  try { if (deleteApplication) await deleteApplication(item.id); } catch (error) { window.alert(`Deletion failed: ${error.message}`); }
                                 }
                               }}
                               title="Delete Application"

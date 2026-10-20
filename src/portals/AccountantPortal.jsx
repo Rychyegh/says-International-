@@ -1,3 +1,4 @@
+import LiveBalanceSheet from '../components/Finance/accounting/BalanceSheet';
 import AccountingWorkspace from '../components/Finance/AccountingWorkspace';
 import { FINANCE_SECTIONS } from '../services/accounting';
 import SchoolPrintHeader from '../components/School/SchoolPrintHeader';
@@ -983,7 +984,7 @@ export default function AccountantPortal({ onSignOut }) {
           )}
 
           {/* ── BALANCE SHEET VIEW ── */}
-          {(activeNav === 'Print statement of financial position [Balance sheet]' || activeNav === 'Balance Sheet' || activeNav === 'Statement of Financial Position') && (
+          {(!FINANCE_SECTIONS.includes(activeNav) && (activeNav === 'Print statement of financial position [Balance sheet]' || activeNav === 'Statement of Financial Position')) && (
             <div style={{ background: '#ffffff', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', padding: 12 }}>
               <BalanceSheetForm setM={() => {}} />
             </div>
@@ -1414,6 +1415,7 @@ function OfficialSchoolHeaderBar({ documentTitle, documentSubtitle }) {
 }
 
 function PrepareStudentAcademicBillForm({ setM, students = [] }) {
+  const { academicSettings = {} } = usePortalData();
   // Dropdown Options
   const [years, setYears] = useState(['2023/2024', '2024/2025', '2025/2026', '2026/2027', '2027/2028', '2028/2029', '2029/2030']);
   const [terms, setTerms] = useState(['1st Term', '2nd Term', '3rd Term']);
@@ -1440,18 +1442,25 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
   ]);
 
   // Selected Academic Period
-  const [currYear, setCurrYear] = useState('2025/2026');
+  const [currYear, setCurrYear] = useState(academicSettings.academicYear || '');
   const [currTerm, setCurrTerm] = useState('1st Term');
+  useEffect(() => {
+    if (academicSettings.academicYear) {
+      setCurrYear(current => current || academicSettings.academicYear);
+      setPostYear(current => current || academicSettings.academicYear);
+    }
+    if (academicSettings.resumptionDate) setReopeningDate(current => current || academicSettings.resumptionDate);
+  }, [academicSettings.academicYear, academicSettings.resumptionDate]);
   const [currClass, setCurrClass] = useState('');
 
-  const [postYear, setPostYear] = useState('2025/2026');
+  const [postYear, setPostYear] = useState(academicSettings.academicYear || '');
   const [postTerm, setPostTerm] = useState('1st Term');
   const [postDept, setPostDept] = useState('Pre-school');
   const [postClass, setPostClass] = useState('Nursery 2');
   const [postSubClass, setPostSubClass] = useState('Nursery 2A');
 
-  const [billDate, setBillDate] = useState('2026-07-28');
-  const [reopeningDate, setReopeningDate] = useState('2026-07-28');
+  const [billDate, setBillDate] = useState(new Date().toISOString().slice(0, 10));
+  const [reopeningDate, setReopeningDate] = useState(academicSettings.resumptionDate || '');
 
   // Search & Top Action Controls
   const [prevBillNo, setPrevBillNo] = useState('');
@@ -1466,7 +1475,7 @@ function PrepareStudentAcademicBillForm({ setM, students = [] }) {
   const [formCurrentClass, setFormCurrentClass] = useState('');
   const [formSubClass, setFormSubClass] = useState('');
   const [formEntryStatus, setFormEntryStatus] = useState('Enrolled');
-  const [formDateReported, setFormDateReported] = useState('2026-01-15');
+  const [formDateReported, setFormDateReported] = useState('');
 
   // Active Tab
   const [activeTab, setActiveTab] = useState('Next Term Student Compulsory Bill'); // options: 'Next Term Student Compulsory Bill', 'Next Term Student Other Requisition', 'Print Bill'
@@ -11327,151 +11336,8 @@ function PrintAllPostClassStudentsBillsForm({ setM }) {
   );
 }
 
-function BalanceSheetForm({ setM }) {
-  const [asAtDate, setAsAtDate] = useState('Saturday , September 5, 2026');
-  const [zoomLevel, setZoomLevel] = useState('100%');
-  const [searchText, setSearchText] = useState('');
-
-  return (
-    <div style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)', background: '#cbd5e1', borderRadius: 8, overflow: 'hidden', border: '1px solid #94a3b8' }}>
-      {/* ── HEADER BANNER ── */}
-      <div className="no-print" style={{
-        background: 'linear-gradient(90deg, #93c5fd 0%, #3b82f6 100%)',
-        color: '#0f172a',
-        padding: '6px 14px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderBottom: '1px solid #60a5fa'
-      }}>
-        <span style={{ fontSize: 15, fontWeight: 900, color: '#0f172a' }}>Balance Sheet</span>
-        {setM && (
-          <button
-            type="button"
-            onClick={() => setM(null)}
-            style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 10px', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}
-          >
-            ✕ Close
-          </button>
-        )}
-      </div>
-
-      {/* ── MAIN WORKSPACE ── */}
-      <div style={{ display: 'flex', minHeight: 560 }}>
-        {/* LEFT CONTROL PANEL (Matching photo media_1788935249609.jpg) */}
-        <div className="no-print" style={{ width: 260, background: '#d9e2ec', borderRight: '1px solid #94a3b8', padding: 12, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
-          <div>
-            <label style={{ display: 'block', fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>Select Date as at ?</label>
-            <input
-              type="text"
-              value={asAtDate}
-              onChange={(e) => setAsAtDate(e.target.value)}
-              style={{ width: '100%', padding: '4px 6px', fontSize: 10.5, border: '1px solid #94a3b8', borderRadius: 3, background: '#fff' }}
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => alert(`Balance Sheet previewed as at ${asAtDate}`)}
-            style={{ width: '100%', padding: '6px 8px', background: '#cbd5e1', color: '#0f172a', border: '1px solid #64748b', borderRadius: 3, fontWeight: 800, fontSize: 11, cursor: 'pointer' }}
-          >
-            Preview Balance sheet
-          </button>
-        </div>
-
-        {/* RIGHT REPORT CANVAS */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#cbd5e1' }}>
-          {/* TOOLBAR */}
-          <div className="no-print" style={{ background: '#e2e8f0', borderBottom: '1px solid #94a3b8', padding: '4px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <button type="button" onClick={() => window.print()} title="Print" style={{ padding: '2px 6px', background: '#fff', border: '1px solid #94a3b8', borderRadius: 3, cursor: 'pointer' }}>🖨️</button>
-              <button type="button" onClick={() => alert('Exporting PDF...')} title="Save PDF" style={{ padding: '2px 6px', background: '#fff', border: '1px solid #94a3b8', borderRadius: 3, cursor: 'pointer' }}>💾</button>
-              <button type="button" onClick={() => alert('Refreshed')} title="Refresh" style={{ padding: '2px 6px', background: '#fff', border: '1px solid #94a3b8', borderRadius: 3, cursor: 'pointer' }}>🔄</button>
-              <span style={{ color: '#94a3b8' }}>|</span>
-              <button type="button" style={{ padding: '2px 6px', background: '#fff', border: '1px solid #94a3b8', borderRadius: 3 }}>|&lt;</button>
-              <button type="button" style={{ padding: '2px 6px', background: '#fff', border: '1px solid #94a3b8', borderRadius: 3 }}>&lt;</button>
-              <span style={{ fontWeight: 600 }}>Page 1 of 1</span>
-              <button type="button" style={{ padding: '2px 6px', background: '#fff', border: '1px solid #94a3b8', borderRadius: 3 }}>&gt;</button>
-              <button type="button" style={{ padding: '2px 6px', background: '#fff', border: '1px solid #94a3b8', borderRadius: 3 }}>&gt;|</button>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontWeight: 600 }}>Find Text:</span>
-              <input type="text" value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder="Search..." style={{ width: 90, padding: '2px 4px', fontSize: 10.5, border: '1px solid #94a3b8', borderRadius: 3 }} />
-            </div>
-          </div>
-
-          {/* MAIN REPORT TAB */}
-          <div style={{ background: '#cbd5e1', borderBottom: '1px solid #94a3b8', padding: '2px 10px 0 10px', display: 'flex', gap: 4 }}>
-            <div style={{ background: '#ffffff', border: '1px solid #94a3b8', borderBottom: 'none', padding: '3px 12px', fontSize: 10.5, fontWeight: 700, borderRadius: '3px 3px 0 0', color: '#0f172a' }}>
-              Main Report
-            </div>
-          </div>
-
-          <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
-            <div style={{ background: '#ffffff', width: 740, minHeight: 540, padding: 24, borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid #cbd5e1' }}>
-              <div style={{ textAlign: 'center', borderBottom: '2px solid #0f3a4b', paddingBottom: 10, marginBottom: 16 }}>
-
-                <SchoolPrintHeader />
-
-                <p style={{ fontSize: 11, color: '#0284c7', margin: '2px 0 6px 0', fontWeight: 700 }}>Bogoso, Western Region, Ghana</p>
-                <h3 style={{ fontSize: 15, color: '#b91c1c', fontWeight: 900, margin: '4px 0 0 0' }}>STATEMENT OF FINANCIAL POSITION (BALANCE SHEET)</h3>
-                <p style={{ fontSize: 11, color: '#475569', margin: '2px 0 0 0', fontStyle: 'italic' }}>As at {asAtDate}</p>
-              </div>
-
-              {/* ASSETS SECTION */}
-              <div style={{ marginBottom: 16 }}>
-                <h4 style={{ fontSize: 13, color: '#0f3a4b', borderBottom: '1px solid #0f3a4b', paddingBottom: 4, margin: '0 0 8px 0', textTransform: 'uppercase', fontWeight: 900 }}>ASSETS</h4>
-                <div style={{ fontSize: 11, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ fontWeight: 800, color: '#475569' }}>Non-Current Assets:</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12 }}><span>School Premises & Infrastructure</span><span>450,000.00</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12 }}><span>Furniture & Office Equipment</span><span>75,000.00</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12 }}><span>School Transportation Buses</span><span>120,000.00</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12, fontWeight: 800, borderTop: '1px dashed #cbd5e1', paddingTop: 2 }}><span>Total Non-Current Assets</span><span>645,000.00</span></div>
-
-                  <div style={{ fontWeight: 800, color: '#475569', marginTop: 8 }}>Current Assets:</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12 }}><span>Cash & Bank Balances (GCB, EcoBank, MoMo)</span><span>299,000.00</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12 }}><span>Accounts Receivable - Student Academic Fees</span><span>62,400.00</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12 }}><span>Stationery & Depot Inventory</span><span>18,400.00</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12, fontWeight: 800, borderTop: '1px dashed #cbd5e1', paddingTop: 2 }}><span>Total Current Assets</span><span>379,800.00</span></div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', background: '#e0f2fe', padding: '6px 8px', borderRadius: 4, fontWeight: 900, color: '#0369a1', marginTop: 8 }}>
-                    <span>TOTAL ASSETS (GHS)</span>
-                    <span>1,024,800.00</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* EQUITY & LIABILITIES SECTION */}
-              <div>
-                <h4 style={{ fontSize: 13, color: '#0f3a4b', borderBottom: '1px solid #0f3a4b', paddingBottom: 4, margin: '0 0 8px 0', textTransform: 'uppercase', fontWeight: 900 }}>EQUITY & LIABILITIES</h4>
-                <div style={{ fontSize: 11, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ fontWeight: 800, color: '#475569' }}>Capital & Reserves:</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12 }}><span>School Founding Capital Reserve</span><span>550,000.00</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12 }}><span>Retained Surplus Fund</span><span>377,900.00</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12, fontWeight: 800, borderTop: '1px dashed #cbd5e1', paddingTop: 2 }}><span>Total Equity & Capital</span><span>927,900.00</span></div>
-
-                  <div style={{ fontWeight: 800, color: '#475569', marginTop: 8 }}>Current Liabilities:</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12 }}><span>Accounts Payable - Vendors & Suppliers</span><span>65,000.00</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12 }}><span>Accrued Payroll & Statutory Liabilities</span><span>31,900.00</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12, fontWeight: 800, borderTop: '1px dashed #cbd5e1', paddingTop: 2 }}><span>Total Current Liabilities</span><span>96,900.00</span></div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', background: '#fef3c7', padding: '6px 8px', borderRadius: 4, fontWeight: 900, color: '#b45309', marginTop: 8 }}>
-                    <span>TOTAL EQUITY & LIABILITIES (GHS)</span>
-                    <span>1,024,800.00</span>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ marginTop: 20, padding: '8px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 4, display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 800, color: '#15803d' }}>
-                <span>✓ BALANCE SHEET IS BALANCED</span>
-                <span>ASSETS (1,024,800.00) = EQUITY & LIABILITIES (1,024,800.00)</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+function BalanceSheetForm() {
+  return <LiveBalanceSheet />;
 }
 
 function MonthlyPayrollReportForm({ setM }) {

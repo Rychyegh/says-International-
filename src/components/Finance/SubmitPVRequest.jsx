@@ -444,6 +444,13 @@ export default function SubmitPVRequest({ setM = () => {} }) {
       <RetryRecovery onRecovered={async (endpoint, saved) => {
         await portalData.refreshPaymentVoucherDesk();
         if (endpoint === '/finance/service-providers') selectSavedProvider(saved.provider || saved.data || saved);
+        const recoveredVoucher = saved.voucher || saved.data || saved;
+        const recoveredNumber = recoveredVoucher.pvNo || recoveredVoucher.pv_no || recoveredVoucher.pv_number;
+        if (endpoint === '/finance/vouchers' && recoveredNumber && formatOfficialPvNo(recoveredNumber) === formatOfficialPvNo(pvNo)) {
+          setPvItems([]); setDescription(''); setQty(''); setCostPerItem('');
+          setPvNo(generateUniquePvNumber());
+          setSuccessNotice('Recovered voucher confirmed saved. The submitted draft has been cleared.');
+        }
       }} />
       {/* Top Banner Header */}
       <div style={{
