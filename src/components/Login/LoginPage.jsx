@@ -472,9 +472,6 @@ export default function LoginPage({ portal, onLoginSuccess }) {
             </div>
           </div>
 
-          {portal !== 'admin' && <div className="login-left__badge">
-            <span>{cfg.icon}</span> {cfg.label}
-          </div>}
 
           <h1 className="login-left__title">
             Empowering<br />Every Learner.

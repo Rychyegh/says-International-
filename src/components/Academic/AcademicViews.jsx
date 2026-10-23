@@ -1,4 +1,5 @@
 import ViewportModal from '../Modal/ViewportModal';
+import { SCHOOL_GRADING_BANDS, proficiencyGrade, proficiencyRemark } from '../../lib/schoolGrading';
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Download, Plus, Save, CheckCircle2 } from 'lucide-react';
 import { usePortalData, hasRecordedClassScore, hasRecordedExamScore, MISSING_SCORE, resultsForStudent } from '../../data/PortalStore';
@@ -12,7 +13,7 @@ import { PublishedTimetable } from './Timetable';
 
 const COURSE_CATALOGUE = ['Pure Mathematics', 'Physics', 'Literature in English', 'ICT Project', 'Chemistry', 'Economics', 'Government', 'Biology'];
 
-const blankResult = { subject: 'Pure Mathematics', score: 0, grade: 'A', lecturer: '' };
+const blankResult = { subject: 'Pure Mathematics', score: 0, grade: '9', lecturer: '' };
 
 export function LecturerSchedule() {
   return <PublishedTimetable />;
@@ -175,8 +176,8 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
         classScore,
         examScore,
         totalScore,
-        grade: totalScore != null ? (entry?.grade || MISSING_SCORE) : MISSING_SCORE,
-        remarks: totalScore != null ? (entry?.remarks || 'Recorded') : (hasClass ? 'Class score recorded' : MISSING_SCORE),
+        grade: proficiencyGrade(totalScore),
+        remarks: totalScore != null ? proficiencyRemark(totalScore) : (hasClass ? 'Class score recorded' : MISSING_SCORE),
         status: entry?.status || (hasScore ? 'Class Score Recorded' : 'Not Entered'),
         declineNote: entry?.declineNote,
         entry
@@ -203,7 +204,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
     event.preventDefault();
     const score = Number(result.score);
     if (!Number.isFinite(score) || score < 0 || score > 100) return;
-    publishResult({ ...result, score, status: 'Pending Approval', declineNote: null, updatedAt: new Date().toLocaleString() });
+    publishResult({ ...result, score, grade: proficiencyGrade(score), remarks: proficiencyRemark(score), status: 'Pending Approval', declineNote: null, updatedAt: new Date().toLocaleString() });
     setNotice(`Result for ${result.subject} submitted successfully! Pending Academic Head approval.`);
     setShowManualSubmitModal(false);
     setTimeout(() => setNotice(''), 5000);
@@ -325,7 +326,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
               gap: 6
             }}
           >
-            <Plus size={14} /> Single Course Result Submission
+            <Plus size={14} /> School-wide Grading Settings
           </button>
         </div>
       </div>
@@ -646,8 +647,8 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
                           borderRadius: 4,
                           fontSize: 11,
                           fontWeight: 900,
-                          background: row.grade === 'A' || row.grade === 'A+' ? '#dcfce7' : (row.grade === 'F' ? '#fee2e2' : '#f1f5f9'),
-                          color: row.grade === 'A' || row.grade === 'A+' ? '#166534' : (row.grade === 'F' ? '#dc2626' : '#334155')
+                          background: row.grade === '1' ? '#dcfce7' : (row.grade === '9' ? '#fee2e2' : '#f1f5f9'),
+                          color: row.grade === '1' ? '#166534' : (row.grade === '9' ? '#dc2626' : '#334155')
                         }}>
                           {row.grade}
                         </span>
@@ -725,64 +726,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
         </section>
 
       {/* OPTIONAL MANUAL RESULT SUBMISSION MODAL */}
-      {showManualSubmitModal && (
-        <ViewportModal onClose={() => setShowManualSubmitModal(false)} style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          padding: 20
-        }}>
-          <div style={{ background: '#fff', borderRadius: 8, padding: 24, maxWidth: 450, width: '100%', boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: '#0f3a4b' }}>
-                📝 Submit Course Result to Academic Head
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowManualSubmitModal(false)}
-                style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#64748b' }}
-              >
-                ✕
-              </button>
-            </div>
-            <form onSubmit={submitManual}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#0f3a4b' }}>
-                  Course / Subject:
-                  <select value={result.subject} onChange={updateManualResult('subject')} style={{ width: '100%', padding: 7, borderRadius: 4, border: '1px solid #cbd5e1', marginTop: 4 }}>
-                    {COURSE_CATALOGUE.map((course) => <option key={course}>{course}</option>)}
-                  </select>
-                </label>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#0f3a4b' }}>
-                  Score (%):
-                  <input type="number" min="0" max="100" value={result.score} onChange={updateManualResult('score')} required style={{ width: '100%', padding: 7, borderRadius: 4, border: '1px solid #cbd5e1', marginTop: 4 }} />
-                </label>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#0f3a4b' }}>
-                  Grade:
-                  <select value={result.grade} onChange={updateManualResult('grade')} style={{ width: '100%', padding: 7, borderRadius: 4, border: '1px solid #cbd5e1', marginTop: 4 }}>
-                    {['A+', 'A', 'A-', 'B+', 'B', 'C+', 'C', 'D', 'F'].map((grade) => <option key={grade}>{grade}</option>)}
-                  </select>
-                </label>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
-                  <button type="button" onClick={() => setShowManualSubmitModal(false)} style={{ padding: '8px 14px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer', fontWeight: 800 }}>
-                    Cancel
-                  </button>
-                  <button type="submit" style={{ padding: '8px 16px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 800 }}>
-                    Submit Result
-                  </button>
-          </div>
-          </div>
-        </form>
-      </div>
-        </ViewportModal>
-      )}
+      {showManualSubmitModal && <AcademicSettingsManager onClose={() => setShowManualSubmitModal(false)} />}
     </div>
   );
 }

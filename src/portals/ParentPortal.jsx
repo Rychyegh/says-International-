@@ -1,4 +1,5 @@
 import { PublishedTimetable } from '../components/Academic/Timetable';
+import { proficiencyGrade } from '../lib/schoolGrading';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   LayoutDashboard, User, Calendar, CreditCard,
@@ -310,7 +311,7 @@ export default function ParentPortal() {
                         {childResults.slice(0, 2).map((r) => {
                           const complete = hasRecordedClassScore(r) && hasRecordedExamScore(r);
                           const score = complete ? Number(r.score) : null;
-                          const grade = complete ? r.grade : MISSING_SCORE;
+                          const grade = complete ? proficiencyGrade(r.score) : MISSING_SCORE;
                           return (
                             <div key={r.id || r.subject} style={{ padding: '14px', background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-200)' }}>
                               <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--gray-400)', marginBottom: 4 }}>{r.subject}</div>
@@ -330,7 +331,7 @@ export default function ParentPortal() {
                         {childResults.slice(2).map((r) => {
                           const complete = hasRecordedClassScore(r) && hasRecordedExamScore(r);
                           const score = complete ? Number(r.score) : null;
-                          const grade = complete ? r.grade : MISSING_SCORE;
+                          const grade = complete ? proficiencyGrade(r.score) : MISSING_SCORE;
                           return (
                             <div key={r.id || r.subject} style={{ textAlign: 'center' }}>
                               <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--gray-400)', marginBottom: 4 }}>{r.subject}</div>

@@ -21,7 +21,7 @@ test('drafts never acquire a final grade, zero exams remain complete',()=>{
  const draft=normalizeAssessment({id:'a',has_exam_score:false,raw_exam_score:null,total_score:40,grade:'Should not display'});
  assert.equal(draft.score,null);assert.equal(draft.grade,'');assert.equal(draft.hasExamScore,false);
  const zero=normalizeAssessment({id:'b',has_exam_score:true,raw_exam_score:0,total_score:0,grade:'School zero grade'});
- assert.equal(zero.examScore,0);assert.equal(zero.score,0);assert.equal(zero.grade,'School zero grade');
+ assert.equal(zero.examScore,0);assert.equal(zero.score,0);assert.equal(zero.grade,'9');assert.equal(zero.remarks,'Fail');
 });
 test('low weighted numbers never imply raw marks',()=>{
  const saved=normalizeAssessment({id:'a',class_score:20,exam_score:15,has_exam_score:true});

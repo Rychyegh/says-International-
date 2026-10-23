@@ -1,3 +1,4 @@
+import { proficiencyGrade, proficiencyRemark } from './schoolGrading.js';
 const numberOrNull = value => value === null || value === undefined || value === '' ? null : Number(value);
 export function rawAssessment(entry) {
   const max = Number(entry.classTestMax ?? 100);
@@ -29,7 +30,9 @@ export function normalizeAssessment(raw = {}) {
     studentName: field('student_name', 'studentName'),
     classLevel: field('class_level', 'classLevel'), subClass, subClassLevel: subClass,
     subject: score.subject || raw.subject, category: score.category || raw.category,
-    instructor: score.instructor || raw.instructor, term: score.term || raw.term,
+    instructor: field('teacher_name', 'teacherName') || field('instructor_name', 'instructorName') || score.instructor || raw.instructor,
+    teacherId: field('teacher_id', 'teacherId') || field('instructor_id', 'instructorId') || field('created_by', 'createdBy'),
+    term: score.term || raw.term,
     year: field('academic_year', 'academicYear') || raw.year,
     examDate: field('exam_date', 'examDate'),
     arrivalTest: breakdown.arrival_test ?? breakdown.arrivalTest ?? field('arrival_test', 'arrivalTest') ?? null,
@@ -43,8 +46,8 @@ export function normalizeAssessment(raw = {}) {
     examScore: hasExam ? numberOrNull(rawExam ?? convertedExam) : null,
     examScoreConverted: hasExam ? (field('exam_score_converted', 'examScoreConverted') ?? score.exam_score ?? null) : null,
     score: hasExam ? (field('total_score', 'score') ?? null) : null,
-    grade: hasExam ? (score.grade ?? raw.grade ?? '') : '',
-    remarks: score.remarks ?? raw.remarks ?? '',
+    grade: hasExam ? proficiencyGrade(field('total_score', 'score')) : '',
+    remarks: hasExam ? proficiencyRemark(field('total_score', 'score')) : '',
     teacherNote: field('teacher_note', 'teacherNote') || '',
     hasClassScore: field('has_class_score', 'hasClassScore') ?? true,
     hasExamScore: Boolean(hasExam),

@@ -1,3 +1,4 @@
+import { proficiencyGrade, proficiencyRemark } from '../lib/schoolGrading';
 import SchoolPrintHeader from '../components/School/SchoolPrintHeader';
 import AcademicSettingsManager from '../components/Academic/AcademicSettingsManager';
 import { approvedResults } from '../lib/approvedResults';
@@ -151,7 +152,7 @@ export default function TeacherPortal() {
       String(r.subject || '').toLowerCase().includes(needle)
     );
     if (!row || !hasRecordedClassScore(row) || !hasRecordedExamScore(row)) return MISSING_SCORE;
-    return row.grade || MISSING_SCORE;
+    return proficiencyGrade(row.score);
   };
 
   const terminalReadyNotices = (portalMessages || []).filter((m) =>
@@ -827,8 +828,8 @@ export default function TeacherPortal() {
             const reportSubjects = stResults.map(r => ({
               subject: r.subject,
               score: r.score != null ? `${r.score}%` : 'Not available',
-              grade: String(r.grade || 'Not available'),
-              remarks: r.remarks || 'Not provided',
+              grade: proficiencyGrade(r.score),
+              remarks: proficiencyRemark(r.score),
             }));
 
             return (
@@ -925,7 +926,7 @@ export default function TeacherPortal() {
                             <tr key={sub.subject || i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                               <td style={{ padding: '8px 10px', color: '#1e293b', fontWeight: 600 }}>{sub.subject}</td>
                               <td style={{ padding: '8px 10px', color: '#0f172a', fontWeight: 700 }}>{sub.score}</td>
-                              <td style={{ padding: '8px 10px', fontWeight: 800, color: sub.grade.startsWith('A') ? '#166534' : '#0284c7' }}>{sub.grade}</td>
+                              <td style={{ padding: '8px 10px', fontWeight: 800, color: sub.grade === '1' ? '#166534' : '#0284c7' }}>{sub.grade}</td>
                               <td style={{ padding: '8px 10px', color: '#475569' }}>{sub.remarks}</td>
                             </tr>
                           ))}

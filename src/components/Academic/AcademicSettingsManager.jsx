@@ -177,9 +177,9 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
             onChange={(e) => setGradingSystem(e.target.value)}
             style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 700, fontSize: 12.5 }}
           >
-            <option value="BECE 9-Point Scale (GES Standard)">BECE 9-Point Scale (1=Highest Proficiency, 9=Fail)</option>
-            <option value="Standard Letter Grade (A-F)">Standard Letter Grade (A+, A, B, C, D, F)</option>
-            <option value="Custom Percentage Bands">School-approved custom percentage scale</option>
+            <option value="REMALJ 9-Point Proficiency Scale">REMALJ 9-Point Proficiency Scale (1–9)</option>
+
+
           </select>
         </div>
 

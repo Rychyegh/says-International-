@@ -126,15 +126,6 @@ export default function Topbar({ activePortal, isAuthed, onSignOut, adminRole })
         <div className="topbar__middle">
           {isAuthed && <DashboardSearch activePortal={activePortal} />}
 
-          {/* Current Portal Badge */}
-          {activePortal !== 'admin' && <div className="topbar__portal-badge" style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px',
-            borderRadius: 99, background: currentInfo.color, color: '#fff',
-            fontWeight: 800, fontSize: 12, flexShrink: 0, boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
-          }}>
-            <span>{currentInfo.icon}</span>
-            <span>{currentInfo.label}</span>
-          </div>}
         </div>
 
         {/* User profile & Sign out */}

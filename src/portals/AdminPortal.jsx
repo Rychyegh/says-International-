@@ -243,8 +243,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   }, [results]);
 
   const examPendingResults = useMemo(() => {
-    return (results || []).filter((r) => r.status === 'Pending Approval' || r.status === 'Declined');
-  }, [results]);
+    return (results || []).filter((r) => r.status === 'Pending Approval' || r.status === 'Declined').map(result => {
+      const key = String(result.studentId || result.student_id || '').trim().toLowerCase();
+      const student = key ? (onboardedStudents || []).find(row => [row.id, row.studentId, row.studentUuid, row.student_uuid, row.student_code].filter(Boolean).some(value => String(value).trim().toLowerCase() === key)) : null;
+      const authorKey = typeof result.teacherId === 'string' ? result.teacherId.toLowerCase().trim() : '';
+      const teacher = authorKey ? (teacherDirectory || []).find(row => [row.id, row.userId, row.user_id, row.staffId, row.staffRecordId, row.email].filter(Boolean).some(value => String(value).toLowerCase().trim() === authorKey)) : null;
+      return { ...result, lecturer: teacher?.name || teacher?.fullName || result.lecturer || result.instructor, studentName: student?.fullName || (result.studentName === 'N/A' ? '' : result.studentName), displayStudentId: student?.studentId || result.studentId };
+    });
+  }, [results, onboardedStudents, teacherDirectory]);
 
   const terminalReportNotices = useMemo(() => {
     return (messages || []).filter((m) => m.type === 'terminal-report' || String(m.subject || '') === 'Terminal Report is ready');
@@ -680,7 +686,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       [`Student Name: ${student.fullName}`, `Student ID: ${student.studentId}`, `Class Level: ${student.level}`],
       [`Guardian: ${student.guardianName}`, `Date: ${new Date().toLocaleDateString()}`],
       [],
-      ['Course Code', 'Subject Name', 'Class Assessment (50%)', 'End of Term Exam (50%)', 'Total Score (100%)', 'Letter Grade', 'Remark']
+      ['Course Code', 'Subject Name', 'Class Assessment (50%)', 'End of Term Exam (50%)', 'Total Score (100%)', 'Grade (1–9)', 'Remark']
     ];
     const rows = data.subjects.map(s => [
       s.code,
@@ -2755,7 +2761,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         <tr key={r.id || `${r.studentId}-${r.subject}`} style={{ background: r.status === 'Declined' ? '#fff1f2' : r.status === 'Pending Approval' ? '#fffbeb' : 'transparent' }}>
                           <td>
                             <strong>{r.studentName || MISSING_SCORE}</strong>
-                            <div style={{ fontSize: 11, color: '#64748b' }}>{r.studentId || MISSING_SCORE} · {r.classLevel || ''} {r.subClass || ''}</div>
+                            <div style={{ fontSize: 11, color: '#64748b' }}>{r.displayStudentId || r.studentId || MISSING_SCORE} · {r.classLevel || ''} {r.subClass || ''}</div>
                           </td>
                           <td><strong>{r.subject}</strong></td>
                           <td>{r.lecturer || r.instructor || MISSING_SCORE}</td>
@@ -2780,7 +2786,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                                 )}
                               </div>
                             ) : (
-                              <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800, background: '#fef3c7', color: '#92400e' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap', lineHeight: 1.4, padding: '5px 12px', borderRadius: 99, fontSize: 11, fontWeight: 800, background: '#fef3c7', color: '#92400e' }}>
                                 🟡 Pending Academic Review
                               </span>
                             )}

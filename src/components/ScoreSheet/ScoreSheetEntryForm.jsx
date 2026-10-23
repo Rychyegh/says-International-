@@ -242,8 +242,9 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
   const exams50 = Number((Number(examsScore || 0) / 100 * examWeight).toFixed(2));
   const totalScore = test50 + exams50;
   const previewBand = totalScore >= 0 && totalScore <= 100 ? SCHOOL_GRADING_BANDS.find(band => totalScore >= band.min) : null;
-  const grade = savedEntry?.hasExamScore && !dirty.current ? savedEntry.grade || '' : '';
-  const remarks = savedEntry?.hasExamScore && !dirty.current ? savedEntry.remarks || '' : 'Grade is available after a complete score is saved.';
+  const completeMarks = [arrivalTest, test1, test2, test3, examsScore].every(value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 100);
+  const grade = completeMarks ? previewBand?.grade || '' : '';
+  const remarks = completeMarks ? previewBand?.remarks || '' : 'Enter all class and exam marks to calculate the grade.';
 
   const buildEntry = (submitKind) => {
     const submittingExam = submitKind === 'exam';
