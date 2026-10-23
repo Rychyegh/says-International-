@@ -110,8 +110,9 @@ export default function ReceiveStudentPayment() {
      <label>Account amount (GHS)<input aria-label={`Account amount ${index+1}`} required type="number" min="0.01" step="0.01" value={line.amount} onChange={e=>editLine(index,{amount:e.target.value})}/></label>
      <button type="button" disabled={lines.length===1} onClick={()=>change('allocations',lines.filter((_,i)=>i!==index))}>Remove account</button>
     </div>)}
-    <button type="button" onClick={()=>change('allocations',[...lines,{accountName:'',accountCode:'',amount:''}])}>Add another account</button>
+    <button className="receive-payment-add-account" type="button" onClick={()=>change('allocations',[...lines,{accountName:'',accountCode:'',amount:''}])}>+ Add account</button>
     <p>Allocated: GHS {lines.reduce((sum,line)=>sum+(Number(line.amount)||0),0).toFixed(2)} / GHS {Number(form.paidAmount || 0).toFixed(2)}</p>
+    <p aria-live="polite">Remaining to allocate: GHS {(Number(form.paidAmount || 0)-lines.reduce((sum,line)=>sum+(Number(line.amount)||0),0)).toFixed(2)}. Account amounts must equal the amount received before saving.</p>
     <label>Notes<textarea rows={3} value={form.notes} onChange={e=>change('notes',e.target.value)} /></label>
    </fieldset>
    <button className="btn btn-green" type="submit" disabled={busy || !ready || (Boolean(pending)&&!pending.input)}>{busy?'Saving payment…':pending?'Retry original payment':'Receive Payment & Print Receipt'}</button>

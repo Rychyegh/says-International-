@@ -4,6 +4,7 @@ import { Card, Field, Metrics, Table, LoadState, MutationNotice, WorkflowActions
 
 export default function BankReconciliation({role}) {
   const book=useBook('reconciliations'), accounts=useList('accounts'), ledger=useReport();
+  const paymentAccounts=accountOptions(accounts.rows.filter(a=>['bank','mobile_money','cash'].includes(a.channel)));
   const [account,setAccount]=useState(''),[from,setFrom]=useState(''),[date,setDate]=useState(today()),[balance,setBalance]=useState(''),[deposits,setDeposits]=useState('0'),[payments,setPayments]=useState('0');
   const [lines,setLines]=useState([]),[matches,setMatches]=useState({}),[fileError,setFileError]=useState(''),[fileName,setFileName]=useState('');
   const ledgerLines=Array.isArray(ledger.data?.lines)?ledger.data.lines:[];
@@ -22,6 +23,8 @@ export default function BankReconciliation({role}) {
     <MutationNotice mutation={book.mutation}/>
     <Card title="Statement and ledger comparison" hint="Use positive amounts for money in and negative amounts for money out. Matching records does not post a new payment.">
       <LoadState state={accounts} label="Payment accounts"/>
+      <button type="button" disabled={accounts.loading} onClick={accounts.reload}>Refresh payment accounts</button>
+      {accounts.loaded && !paymentAccounts.length && <p role="status">No active payment accounts are available. In Account Setup → Payment accounts, create or update a bank, mobile money, or cash account and ensure its status is active. Then refresh payment accounts here. School fees and bus income accounts are selected when allocating a payment; reconciliation uses the account holding the money.</p>}
       <div className="accounting-grid"><Field name="bank_account" label="Payment account" options={accountOptions(accounts.rows.filter(a=>['bank','mobile_money','cash'].includes(a.channel)))} value={account} onChange={e=>resetScope(setAccount,e.target.value)}/><Field name="bank_from" label="Statement start date" type="date" max={date} value={from} onChange={e=>resetScope(setFrom,e.target.value)}/><Field name="bank_to" label="Statement end date" type="date" min={from} value={date} onChange={e=>resetScope(setDate,e.target.value)}/><button disabled={!account||!from||!date||from>date||ledger.busy} onClick={()=>{setMatches({});ledger.load(`accounts/${encodeURIComponent(account)}/transactions`,{from,to:date});}}>Load bank ledger</button></div>
       {ledger.error&&<p role="alert" className="accounting-error">{ledger.error}</p>}
       <div className="accounting-grid"><Field name="statement_balance" label="Statement closing balance" type="number" step="0.01" value={balance} onChange={e=>setBalance(e.target.value)}/><Field name="outstanding_deposits" label="Deposits not on statement" type="number" min="0" step="0.01" value={deposits} onChange={e=>setDeposits(e.target.value)}/><Field name="outstanding_payments" label="Payments not on statement" type="number" min="0" step="0.01" value={payments} onChange={e=>setPayments(e.target.value)}/></div>
