@@ -4404,7 +4404,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         <div style={{ background: '#1e1b4b', color: '#fff', borderRadius: 6, padding: '8px 12px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>
                             <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', opacity: 0.75, letterSpacing: '.06em' }}>CUMULATIVE PERFORMANCE SUMMARY</div>
-                            <div style={{ fontSize: 12.5, fontWeight: 900, marginTop: 1 }}>Overall Remarks: {viewingTranscriptStudent.overallRemarks || viewingTranscriptStudent.overall_remarks || 'Not provided'}</div>
+                            <div style={{ fontSize: 12.5, fontWeight: 900, marginTop: 1 }}>Overall Remarks: {tData.standing}</div>
                             <div style={{ fontSize: 9.5, opacity: 0.8, marginTop: 1 }}>{tData.subjects.length} Total Subjects Assessed · Term 1 2026</div>
                           </div>
 

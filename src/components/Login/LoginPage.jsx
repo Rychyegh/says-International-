@@ -458,7 +458,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   };
 
   return (
-    <div className="login-page">
+    <div className={`login-page${portal === 'admin' ? ' login-page--admin-image' : portal === 'accountant' ? ' login-page--accountant-image' : ''}`}>
       {/* Left branding panel */}
       <div className={`login-left${portal === 'student' ? ' login-left--student' : ''}`}>
         <div className="login-left__circles" />
@@ -472,9 +472,9 @@ export default function LoginPage({ portal, onLoginSuccess }) {
             </div>
           </div>
 
-          <div className="login-left__badge">
+          {portal !== 'admin' && <div className="login-left__badge">
             <span>{cfg.icon}</span> {cfg.label}
-          </div>
+          </div>}
 
           <h1 className="login-left__title">
             Empowering<br />Every Learner.

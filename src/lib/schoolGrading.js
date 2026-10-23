@@ -15,3 +15,9 @@ export function proficiencyRemark(score) {
   if (!Number.isFinite(value) || value < 0 || value > 100) return 'N/A';
   return SCHOOL_GRADING_BANDS.find(band => value >= band.min)?.remarks || 'N/A';
 }
+export function proficiencyGrade(score) {
+  if (score === null || score === undefined || score === '') return 'N/A';
+  const value = Number(score);
+  if (!Number.isFinite(value) || value < 0 || value > 100) return 'N/A';
+  return SCHOOL_GRADING_BANDS.find(band => value >= band.min)?.grade || 'N/A';
+}

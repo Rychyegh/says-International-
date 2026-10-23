@@ -8,7 +8,7 @@ import { requiresItemDisbursement } from '../lib/pvDisbursementItems.js';
 import { voucherNotifications } from '../lib/pvNotifications.js';
 import { sameStudentIdentity, studentDisplayCode } from '../lib/studentIdentity.js';
 import { validateAcademicSettings } from '../lib/assessmentRules.js';
-import { proficiencyRemark } from '../lib/schoolGrading.js';
+import { proficiencyRemark, proficiencyGrade } from '../lib/schoolGrading.js';
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { api, extractStudentList, extractExamRegistrations, mapExamRegistration, getUserFullName, hasLiveDatabaseSession, getAuthToken, getAuthUser, mapScoreSheetEntry } from '../services/api';
 import { registerCustomSubClass, getCustomSubClassMap } from './classStructure';
@@ -1218,9 +1218,9 @@ export function buildStudentTranscriptData(student, results = []) {
       classScore,
       examScore,
       total,
-      grade: total != null ? (entry.grade || MISSING_SCORE) : MISSING_SCORE,
+      grade: proficiencyGrade(total),
       gpaPoint: gpaPoint == null ? MISSING_SCORE : gpaPoint,
-      remark: total != null ? (entry.remarks || 'Recorded') : MISSING_SCORE,
+      remark: proficiencyRemark(total),
       status: entry.status,
     };
   });
