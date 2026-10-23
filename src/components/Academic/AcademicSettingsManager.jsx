@@ -1,5 +1,5 @@
 import ViewportModal from '../Modal/ViewportModal';
-import { SCHOOL_GRADING_BANDS } from '../../lib/schoolGrading';
+import { SCHOOL_GRADING_BANDS, validateGradingBands } from '../../lib/schoolGrading';
 import React, { useState, useEffect, useRef } from 'react';
 import { validateAcademicSettings } from '../../lib/assessmentRules.js';
 import { usePortalData } from '../../data/PortalStore';
@@ -7,6 +7,7 @@ import { Settings, Calendar, Save, CheckCircle2, RefreshCw, ShieldCheck, Award, 
 
 export default function AcademicSettingsManager({ onClose, onSaved, inline = false }) {
   const { academicSettings, updateAcademicSettings } = usePortalData();
+  const [bands,setBands] = useState(academicSettings?.gradingBands?.length === 9 ? academicSettings.gradingBands : SCHOOL_GRADING_BANDS);
 
   const [year, setYear] = useState(academicSettings?.academicYear || '2025/2026');
   const [term, setTerm] = useState(academicSettings?.academicTerm || 'Term 3');
@@ -26,6 +27,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
 
   useEffect(() => {
     if (academicSettings && !dirty.current) {
+      if (academicSettings.gradingBands?.length === 9) setBands(academicSettings.gradingBands);
       if (academicSettings.academicYear) setYear(academicSettings.academicYear);
       if (academicSettings.academicTerm) setTerm(academicSettings.academicTerm);
       if (academicSettings.classTestWeight != null) setClassWeight(academicSettings.classTestWeight);
@@ -48,7 +50,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
       academicTerm: term,
       classTestWeight: Number(classWeight),
       examWeight: Number(examWeight),
-      gradingBands: SCHOOL_GRADING_BANDS,
+      gradingBands: bands,
       gradingSystem: 'REMALJ 9-Point Proficiency Scale',
       resumptionDate,
       vacationDate,
@@ -56,6 +58,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
     };
 
     try {
+      newSettings.gradingBands = validateGradingBands(bands);
       validateAcademicSettings(newSettings);
       savingRef.current = true; setSaving(true);
       await updateAcademicSettings(newSettings);
@@ -184,7 +187,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
         </div>
 
         <p>Saving installs the REMALJ 9-Point Proficiency Scale below. The backend must accept and apply these bands.</p>
-        <table style={{width:'100%'}}><thead><tr><th>Marks</th><th>Grade</th><th>Remarks</th></tr></thead><tbody>{SCHOOL_GRADING_BANDS.map(band=><tr key={band.grade}><td>{band.min}–{band.max}</td><td>{band.grade}</td><td>{band.remarks}</td></tr>)}</tbody></table>
+        <table style={{width:'100%',borderCollapse:'collapse'}}><thead><tr><th>Minimum</th><th>Maximum</th><th>Grade</th><th>Remarks</th></tr></thead><tbody>{bands.map((band,index)=><tr key={index}>{['min','max','grade','remarks'].map(field=><td key={field} style={{padding:4}}><input aria-label={`Band ${index+1} ${field}`} type={field==='remarks'?'text':'number'} value={band[field]} disabled={saving} onChange={event=>{dirty.current=true;setBands(current=>current.map((row,position)=>position===index?{...row,[field]:event.target.value}:row));}} style={{width:'100%',minWidth:field==='remarks'?140:50,padding:8,boxSizing:'border-box'}} /></td>)}</tr>)}</tbody></table>
         <p>Institution and campus names are shown for reference. They are not saved by academic settings.</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div>

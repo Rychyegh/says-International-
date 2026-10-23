@@ -8,7 +8,7 @@ import { requiresItemDisbursement } from '../lib/pvDisbursementItems.js';
 import { voucherNotifications } from '../lib/pvNotifications.js';
 import { sameStudentIdentity, studentDisplayCode } from '../lib/studentIdentity.js';
 import { validateAcademicSettings } from '../lib/assessmentRules.js';
-import { proficiencyRemark, proficiencyGrade } from '../lib/schoolGrading.js';
+import { proficiencyRemark, proficiencyGrade, configureGradingBands } from '../lib/schoolGrading.js';
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { api, extractStudentList, extractExamRegistrations, mapExamRegistration, getUserFullName, hasLiveDatabaseSession, getAuthToken, getAuthUser, mapScoreSheetEntry } from '../services/api';
 import { registerCustomSubClass, getCustomSubClassMap } from './classStructure';
@@ -1396,6 +1396,7 @@ export function PortalDataProvider({ children, enabled = false }) {
   const paymentKeysRef = useRef(new Map());
   const dataRef = useRef(data);
   dataRef.current = data;
+  configureGradingBands(data.academicSettings?.gradingBands);
   const setData = useCallback((update) => {
     if (!mountedRef.current) return;
     rawSetData(current => stripCredentials(typeof update === 'function' ? update(current) : update));

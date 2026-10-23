@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { SCHOOL_GRADING_BANDS } from '../../lib/schoolGrading';
+import { proficiencyGrade, proficiencyRemark } from '../../lib/schoolGrading';
 import { usePortalData, scoreSheetEntryKey } from '../../data/PortalStore';
 import { getUserFullName } from '../../services/api';
 import { getMappedSubClasses, isLegacySectionLabel, normalizeSubClass } from '../../data/classStructure';
@@ -241,7 +241,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
   const test50 = Number((totalTest / CLASS_TEST_TOTAL_MAX * classWeight).toFixed(2));
   const exams50 = Number((Number(examsScore || 0) / 100 * examWeight).toFixed(2));
   const totalScore = test50 + exams50;
-  const previewBand = totalScore >= 0 && totalScore <= 100 ? SCHOOL_GRADING_BANDS.find(band => totalScore >= band.min) : null;
+  const previewBand = { grade: proficiencyGrade(totalScore), remarks: proficiencyRemark(totalScore) };
   const completeMarks = [arrivalTest, test1, test2, test3, examsScore].every(value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 100);
   const grade = completeMarks ? previewBand?.grade || '' : '';
   const remarks = completeMarks ? previewBand?.remarks || '' : 'Enter all class and exam marks to calculate the grade.';
