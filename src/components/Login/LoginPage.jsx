@@ -284,7 +284,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     }
   };
 
-  const finishTeacherLogin = async () => {
+  const finishTeacherLogin = async (loginUser = {}) => {
     // Only the server can declare password authentication complete.
     const verified = await api.getVerifiedSession();
     if (verified.requiresSecondFactor || verified.user.requiresSecondFactor === true) {
@@ -294,7 +294,12 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     if (!['teacher', 'class_teacher', 'preschool_teacher'].includes(role)) {
       throw new Error('This account is not authorised for the Teacher Portal.');
     }
-    const user = verified.user;
+    const sameUser = loginUser.id && String(loginUser.id) === String(verified.user.id);
+    const user = {
+      ...verified.user,
+      teacher_designation: verified.user.teacher_designation || verified.user.teacherDesignation || (sameUser ? loginUser.teacher_designation || loginUser.teacherDesignation : undefined),
+      is_class_teacher: verified.user.is_class_teacher ?? verified.user.isClassTeacher ?? (sameUser ? loginUser.is_class_teacher ?? loginUser.isClassTeacher : false),
+    };
     const classTeacher = role === 'class_teacher' || isClassTeacherAccount(user);
     setAuthUser({
       ...user,

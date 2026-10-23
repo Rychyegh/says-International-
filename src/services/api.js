@@ -709,10 +709,9 @@ function lookupDirectoryTeacher(email, staffId) {
 
 export function isClassTeacherAccount(user) {
   if (!user || typeof user !== 'object') return false;
-  const designation = String(
-    user.teacherDesignation || user.teacher_designation || user.designation || user.role || ''
-  ).toLowerCase().replace(/\s+/g, '_');
-  if (designation === 'class_teacher' || designation.includes('class_teacher')) return true;
+  const designations = [user.teacherDesignation, user.teacher_designation, user.designation, user.role]
+    .map(value => String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_'));
+  if (designations.includes('class_teacher')) return true;
   if (String(user.role || '').toLowerCase() === 'class teacher') return true;
   if (user.isClassTeacher === true || user.is_class_teacher === true) return true;
   if (user.requiresClassTeacherPasscode === true || user.requires_class_teacher_passcode === true) return true;
