@@ -27,6 +27,8 @@ export function normalizeAssessment(raw = {}) {
     backendId: score.id || score._id,
     entryKey: raw.entry_key || raw.entryKey,
     studentId: field('student_id', 'studentId') || score.student_code,
+    studentCode: field('student_code', 'studentCode') || field('student_id_code', 'studentIdCode'),
+    studentUuid: field('student_uuid', 'studentUuid'),
     studentName: field('student_name', 'studentName'),
     classLevel: field('class_level', 'classLevel'), subClass, subClassLevel: subClass,
     subject: score.subject || raw.subject, category: score.category || raw.category,

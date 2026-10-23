@@ -1157,9 +1157,9 @@ export function displayScoreValue(value, suffix = '') {
 
 function resultMatchesStudent(entry, student) {
   if (!entry || !student) return false;
-  const studentIds = [student.studentId, student.id, student.studentUuid, student.student_id].map(value => String(value || '').toLowerCase().trim()).filter(Boolean);
+  const studentIds = [student.studentId, student.id, student.studentUuid, student.student_id, student.student_uuid, student.student_code, student.student_id_code].map(value => String(value || '').toLowerCase().trim()).filter(Boolean);
   const name = normalizePersonName(student.fullName || student.name);
-  const entryIds = [entry.studentId, entry.student_id, entry.studentUuid].map(value => String(value || '').toLowerCase().trim()).filter(Boolean);
+  const entryIds = [entry.studentId, entry.student_id, entry.studentUuid, entry.studentCode, entry.student_code, entry.student_uuid, entry.student_id_code].map(value => String(value || '').toLowerCase().trim()).filter(Boolean);
   const eName = normalizePersonName(entry.studentName);
   if (studentIds.some(value => entryIds.includes(value))) return true;
   if (studentIds.length && entryIds.length) return false;
@@ -1630,6 +1630,8 @@ export function PortalDataProvider({ children, enabled = false }) {
             id: r.id,
             backendId: r.id,
             studentId: r.student_id || r.studentId,
+            studentCode: r.student_code || r.studentCode || r.student_id_code,
+            studentUuid: r.student_uuid || r.studentUuid,
             studentName: r.student_name || r.studentName,
             subject: r.subject,
             classLevel: formatClassToBasic(r.class_level || r.classLevel),

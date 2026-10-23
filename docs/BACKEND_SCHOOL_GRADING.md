@@ -1,5 +1,17 @@
 # REMALJ grading policy - 23 October 2026
 
+## Sub-Admin ownership and save contract
+
+The grading editor is now available in Sub-Admin → Academic Settings (grading-only view); Head Admin retains Academic Settings access. Teacher Grades and Terminal Report Cards no longer expose grading configuration. Enforce permissions server-side: permit fully verified head_admin and sub_admin to update grading policy, deny teacher/class_teacher/preschool_teacher/student/parent/accountant writes. Read the authenticated role, never a role supplied in the body.
+
+Existing frontend uses GET and PUT `/api/v1/academic/settings`. PUT sends `gradingSystem`, `gradingBands` (nine `{min,max,grade,remarks}` objects), and existing academicYear, academicTerm, classTestWeight, examWeight, resumptionDate and vacationDate. Grading-only mode hides those unrelated fields and must preserve their saved values. Prefer a dedicated versioned grading-policy update/patch contract in a coordinated revision to avoid stale full-settings writes. Until then enforce optimistic concurrency or reject conflicts; Sub-Admin grading changes must not alter unrelated settings.
+
+Persist the policy transactionally and return `{ "settings": { ...canonical saved settings including gradingBands, gradingSystem, academicYear, academicTerm } }` only after commit. Validate exactly nine bands, unique numeric grade strings 1–9, nonempty remarks, integer boundaries covering 0–100 without gaps/overlaps, and range order. Return readable JSON 403/409/422 errors. Do not acknowledge a save while discarding the bands.
+
+All authenticated clients must read the same persisted school policy after refresh and in new sessions/devices. Apply it server-side when saving/publishing results and generating report data. Frontend display uses the loaded policy, with the supplied school scale as a fallback; a build alone is not proof of database persistence. Add policy revision and audit actor/time/before/after. Historical approved results require an explicit audited regrade, not silent overwrites.
+
+Acceptance: log in as Sub-Admin, edit a remark/range, save, inspect the database and GET response, refresh and sign in on another device; verify score entry, approval, terminal cards, transcripts and exports use that same policy. Confirm teacher writes fail with 403 and unrelated academic settings stay unchanged. Backend save/deployment and cross-device behavior remain unverified in this frontend task.
+
 Apply this school-requested nine-point scale to final weighted totals out of 100:
 
 | Marks | Grade | Remarks |

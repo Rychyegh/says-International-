@@ -1450,7 +1450,11 @@ export const api = {
   // --- Academic Results ---
   getResults: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
-    return await request(`/results${query ? `?${query}` : ''}`);
+    const raw = await request(`/results${query ? `?${query}` : ''}`);
+    const data = raw.data || raw;
+    const rows = Array.isArray(data) ? data : data.results || data.items;
+    if (!Array.isArray(rows)) throw new Error('The results API did not return a valid result list.');
+    return rows;
   },
 
   // --- Timetables ---

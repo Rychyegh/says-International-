@@ -673,9 +673,7 @@ export default function TeacherPortal() {
           {activeNav === 'Reports' && <TeacherReports />}
           {activeNav === 'Terminal Report Cards' && isClassTeacher && (
             <div className="animate-fade-up">
-              <button type="button" className="btn btn-green" onClick={()=>setGradingOpen(true)}>Change grading system</button>
-              <p>Grading settings are school-wide and require backend permission. Remarks edited in the report are print-preview drafts in this session.</p>
-              {gradingOpen && <AcademicSettingsManager gradingOnly onClose={()=>setGradingOpen(false)} />}
+              <p>Remarks edited in the report are print-preview drafts in this session.</p>
               <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
                 <div>
                   <p className="page-header__eyebrow" style={{ color: TEACHER_ACCENT }}>
@@ -827,6 +825,8 @@ export default function TeacherPortal() {
             const stResults = approvedResults(matchingResults).filter(hasRecordedExamScore);
             const reportSubjects = stResults.map(r => ({
               subject: r.subject,
+              classScore: hasRecordedClassScore(r) && r.classScore != null ? r.classScore : 'N/A',
+              examScore: r.examScoreConverted ?? r.examScore ?? 'N/A',
               score: r.score != null ? `${r.score}%` : 'Not available',
               grade: proficiencyGrade(r.score),
               remarks: proficiencyRemark(r.score),
@@ -906,9 +906,11 @@ export default function TeacherPortal() {
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, marginBottom: 14 }}>
                         <thead>
                           <tr style={{ borderBottom: '1px solid #cbd5e1', textAlign: 'left', color: '#64748b' }}>
-                            <th style={{ padding: '8px 10px', fontWeight: 800, width: '40%' }}>SUBJECT</th>
-                            <th style={{ padding: '8px 10px', fontWeight: 800, width: '15%' }}>SCORE</th>
-                            <th style={{ padding: '8px 10px', fontWeight: 800, width: '15%' }}>GRADE</th>
+                            <th style={{ padding: '8px 10px', fontWeight: 800 }}>SUBJECT</th>
+                            <th style={{ padding: '8px 10px', fontWeight: 800 }}>CLASS SCORE</th>
+                            <th style={{ padding: '8px 10px', fontWeight: 800 }}>EXAM SCORE</th>
+                            <th style={{ padding: '8px 10px', fontWeight: 800 }}>TOTAL</th>
+                            <th style={{ padding: '8px 10px', fontWeight: 800 }}>GRADE</th>
                             <th style={{ padding: '8px 10px', fontWeight: 800, width: '30%' }}>REMARKS</th>
                           </tr>
                         </thead>
@@ -916,6 +918,8 @@ export default function TeacherPortal() {
                           {reportSubjects.map((sub, i) => (
                             <tr key={sub.subject || i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                               <td style={{ padding: '8px 10px', color: '#1e293b', fontWeight: 600 }}>{sub.subject}</td>
+                              <td style={{ padding: '8px 10px' }}>{sub.classScore}</td>
+                              <td style={{ padding: '8px 10px' }}>{sub.examScore}</td>
                               <td style={{ padding: '8px 10px', color: '#0f172a', fontWeight: 700 }}>{sub.score}</td>
                               <td style={{ padding: '8px 10px', fontWeight: 800, color: sub.grade === '1' ? '#166534' : '#0284c7' }}>{sub.grade}</td>
                               <td style={{ padding: '8px 10px', color: '#475569' }}>{sub.remarks}</td>

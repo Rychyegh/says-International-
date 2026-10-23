@@ -211,7 +211,11 @@ export default function LoginPage({ portal, onLoginSuccess }) {
   // Handle Login Submit
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setError('');
+    const loginIdentifier = loginMethod === 'password' ? email : cardId;
+    const lockout = loginLockout(loginIdentifier);
+    if (lockout.blockedUntil > Date.now()) { setError(`Sign-in is blocked after three incorrect attempts. Try again in ${Math.ceil((lockout.blockedUntil-Date.now())/60000)} minutes.`); return; }
 
     if (loginMethod === 'password') {
       if (!email.trim())    { setError(`Please enter your ${cfg.idLabel || 'email address'}.`); return; }
@@ -226,6 +230,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     try {
       if (loginMethod === 'password') {
         const result = await api.login({ email, password, portal });
+        clearLoginLockout(loginIdentifier);
         const liveToken = extractAuthToken(result) || result.token;
         if (liveToken) setAuthToken(liveToken);
         const userObj = result.user || { email, role: portal };
@@ -280,7 +285,10 @@ export default function LoginPage({ portal, onLoginSuccess }) {
           severity: portal === 'admin' || portal === 'accountant' ? 'High' : 'Medium'
         });
       }
-      setError(err.message || 'Authentication failed. Please check your credentials and try again.');
+      if (err.status === 401) {
+        const failed = failedLogin(loginIdentifier);
+        setError(failed.blockedUntil ? 'Three incorrect sign-in attempts. Sign-in is blocked for 15 minutes.' : `Incorrect credentials. ${3-failed.attempts} attempts remaining before a 15-minute block.`);
+      } else setError(err.message || 'Authentication failed. Please check your credentials and try again.');
     }
   };
 
@@ -1016,3 +1024,4 @@ export default function LoginPage({ portal, onLoginSuccess }) {
     </div>
   );
 }
+import { loginLockout, failedLogin, clearLoginLockout } from '../../lib/loginLockout';

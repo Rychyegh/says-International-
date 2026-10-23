@@ -309,7 +309,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
             </button>
           )}
 
-          <button
+          {['head_admin','sub_admin'].includes(authUser.role) && <button
             type="button"
             onClick={() => setShowManualSubmitModal(prev => !prev)}
             style={{
@@ -327,7 +327,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
             }}
           >
             <Plus size={14} /> School-wide Grading Settings
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -726,7 +726,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
         </section>
 
       {/* OPTIONAL MANUAL RESULT SUBMISSION MODAL */}
-      {showManualSubmitModal && <AcademicSettingsManager gradingOnly onClose={() => setShowManualSubmitModal(false)} />}
+      {showManualSubmitModal && ['head_admin','sub_admin'].includes(authUser.role) && <AcademicSettingsManager gradingOnly onClose={() => setShowManualSubmitModal(false)} />}
     </div>
   );
 }

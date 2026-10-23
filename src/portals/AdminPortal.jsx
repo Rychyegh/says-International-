@@ -3050,7 +3050,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   Configure and synchronize active academic year, term, continuous assessment weights, exam weights, and grading standards across all school portals.
                 </p>
               </div>
-              <AcademicSettingsManager inline={true} />
+              <AcademicSettingsManager inline={true} gradingOnly={adminRole === 'sub_admin'} />
             </div>
           )}
 
