@@ -2691,9 +2691,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     </span>
                   </p>
                   <h1 className="page-header__title">Academic Transcripts & Master Results 📜</h1>
-                  <p className="page-header__subtitle">
-                    View and filter student results by name or class across all grade levels (Primary 1 to SHS 3), calculate CGPAs, and print or export official academic transcripts.
-                  </p>
                 </div>
 
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>

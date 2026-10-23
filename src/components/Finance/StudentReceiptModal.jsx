@@ -39,6 +39,7 @@ export default function StudentReceiptModal({fee,onClose,confirmedReceipt}) {
    {receipt && <article className="student-receipt-paper">
     <SchoolPrintHeader />
     <h3>Student Payment Receipt</h3>
+    <p><strong>Name of Payer:</strong> {receipt.payerName || receipt.payer_name || 'Not supplied'}</p>
     <dl><dt>Receipt / payment reference</dt><dd>{receipt.reference}</dd><dt>Student</dt><dd>{fee.studentName}</dd><dt>Student ID</dt><dd>{fee.studentId}</dd><dt>Payment date</dt><dd>{receipt.date || 'Not provided'}</dd>{receipt.paymentMethod && <><dt>Payment method</dt><dd>{receipt.paymentMethod}</dd></>}<dt>Description</dt><dd>{receipt.description}</dd><dt>Amount received</dt><dd><strong>GHS {Number(receipt.credit || receipt.amount).toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></dd></dl>
     {receiptAllocations(receipt).length > 0 && <table style={{width:'100%',borderCollapse:'collapse',margin:'16px 0'}}><thead><tr><th style={{textAlign:'left'}}>Account</th><th style={{textAlign:'right'}}>Amount (GHS)</th></tr></thead><tbody>{receiptAllocations(receipt).map((line,index)=><tr key={index}><td>{line.accountName}{line.accountCode ? ` (${line.accountCode})` : ''}</td><td style={{textAlign:'right'}}>{Number(line.amount).toFixed(2)}</td></tr>)}</tbody></table>}
     <p>Copy of the payment confirmed by the school database.</p>

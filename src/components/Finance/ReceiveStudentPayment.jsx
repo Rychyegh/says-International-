@@ -8,7 +8,7 @@ import StudentPaymentHistory from './StudentPaymentHistory';
 import './ReceiveStudentPayment.css';
 
 const OPERATION='/finance/receive-payment';
-const empty=()=>({id:'',paidAmount:'',paymentMethod:'Cash',paymentDate:new Date().toISOString().slice(0,10),transactionRef:'',notes:'',allocations:[{accountName:'',accountCode:'',amount:''}]});
+const empty=()=>({id:'',payerName:'',paidAmount:'',paymentMethod:'Cash',paymentDate:new Date().toISOString().slice(0,10),transactionRef:'',notes:'',allocations:[{accountName:'',accountCode:'',amount:''}]});
 export default function ReceiveStudentPayment() {
  const {studentFees=[],recordFeePayment}=usePortalData();
  const [tab,setTab]=useState('receive');
@@ -47,6 +47,7 @@ export default function ReceiveStudentPayment() {
   setError('');
   let input=pending?.input;
   if(!input){
+   if(!form.payerName?.trim()){setError('Enter the name of the person making this payment.');return;}
    const amount=Number(form.paidAmount);
    if(!fee){setError('Select an invoice for this payment.');return;}
    if(!Number.isFinite(amount)||amount<=0||amount>Number(fee.balance)||Math.abs(amount*100-Math.round(amount*100))>0.000001){setError('Enter an amount with up to two decimal places, no greater than the outstanding balance.');return;}
@@ -68,7 +69,7 @@ export default function ReceiveStudentPayment() {
    if(String(invoice?.id)!==String(input.fee.id))throw new Error('The updated invoice was not confirmed. Reconcile the original payment.');
    const number=raw.receipt_number || raw.receipt?.receipt_number || raw.data?.receipt_number;
    if(!number)throw new Error('Receipt number missing. Reconcile the original payment before continuing.');
-   const receipt={id:raw.payment.id,reference:number,type:'PAYMENT',amount:raw.payment.amount || input.payment.paidAmount,credit:input.payment.paidAmount,date:input.payment.paymentDate.slice(0,10),paymentMethod:input.payment.paymentMethod,allocations:raw.payment.allocations.map(line=>({...line,accountName:line.accountName || line.account_name || line.accountCode || line.account_code,accountCode:line.accountCode || line.account_code}))};
+   const receipt={id:raw.payment.id,payerName:raw.payment.payerName || raw.payment.payer_name || '',reference:number,type:'PAYMENT',amount:raw.payment.amount || input.payment.paidAmount,credit:input.payment.paidAmount,date:input.payment.paymentDate.slice(0,10),paymentMethod:input.payment.paymentMethod,allocations:raw.payment.allocations.map(line=>({...line,accountName:line.accountName || line.account_name || line.accountCode || line.account_code,accountCode:line.accountCode || line.account_code}))};
    // The store confirms the matching updated invoice before returning.
    // A missing receipt must never cause a second payment submission.
    setConfirmation({fee:input.fee,receipt});setShowReceipt(Boolean(receipt));
@@ -97,6 +98,7 @@ export default function ReceiveStudentPayment() {
    {!pending && <button type="button" className="btn btn-green" onClick={()=>{setConfirmation(null);setSearch('');setError('');}}>Receive another payment</button>}
   </div> : <form onSubmit={submit} aria-label="Receive student payment">
    <fieldset disabled={busy || Boolean(pending) || !ready}>
+    <label>Name of Payer<input required maxLength={200} value={form.payerName || ''} onChange={event=>change('payerName',event.target.value)} placeholder="Full name of the person paying" /></label>
     <label>Find student<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Student name, student ID or invoice ID" /></label>
     <label>Student invoice<select aria-label="Student invoice" required value={form.id} onChange={e=>change('id',e.target.value)}><option value="">Select an unpaid invoice</option>{options.map(item=><option key={item.id} value={item.id}>{item.studentName} · {item.studentId} · {item.id} · GHS {Number(item.balance).toFixed(2)} owing</option>)}</select></label>
     {fee && <p>Outstanding balance: <strong>GHS {Number(fee.balance).toFixed(2)}</strong></p>}

@@ -3480,7 +3480,7 @@ export function PortalDataProvider({ children, enabled = false }) {
       if (!Number.isFinite(paidAmount) || paidAmount <= 0) throw new Error('Enter a positive payment amount.');
       const lock = `fee:${fee.id}`;
       if (writeLocksRef.current.has(lock)) throw new Error('A payment for this invoice is already being recorded.');
-      const payload = { paidAmount, paymentDate: payment.paymentDate || new Date().toISOString().slice(0, 10), paymentMethod: payment.paymentMethod || 'Cash', receivingAccount: payment.receivingAccount, allocations: payment.allocations, notes: payment.notes || '', transactionRef: payment.transactionRef };
+      const payload = { payerName: payment.payerName?.trim(), paidAmount, paymentDate: payment.paymentDate || new Date().toISOString().slice(0, 10), paymentMethod: payment.paymentMethod || 'Cash', receivingAccount: payment.receivingAccount, allocations: payment.allocations, notes: payment.notes || '', transactionRef: payment.transactionRef };
       const fingerprint = JSON.stringify([fee.id, payload]);
       const idempotencyKey = payment.idempotencyKey || paymentKeysRef.current.get(fingerprint) || crypto.randomUUID();
       paymentKeysRef.current.set(fingerprint, idempotencyKey);

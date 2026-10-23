@@ -1280,7 +1280,7 @@ export const api = {
       : allocationNotes(paymentData.notes, paymentData.allocations);
     // FeePaymentRequest rejects additional properties. Preserve the account
     // breakdown in supported notes until structured allocations are supported.
-    const payload = { paidAmount: Number(paidAmount).toFixed(2), paymentMethod, paymentDate, transactionRef, notes, idempotencyKey, allocations: paymentData.allocations.map(line => ({ accountCode: line.accountCode, amount: Number(line.amount).toFixed(2) })) };
+    const payload = { payerName: paymentData.payerName?.trim(), paidAmount: Number(paidAmount).toFixed(2), paymentMethod, paymentDate, transactionRef, notes, idempotencyKey, allocations: paymentData.allocations.map(line => ({ accountCode: line.accountCode, amount: Number(line.amount).toFixed(2) })) };
     // A stable idempotency key prevents duplicate ledger entries on retry.
     return await request(`/finance/fees/${encodeURIComponent(feeId)}/pay`, {
       method: 'POST',
