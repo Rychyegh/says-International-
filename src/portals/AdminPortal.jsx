@@ -2969,7 +2969,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                             </td>
                             <td>
                               <span style={{
-                                padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800,
+                                display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap', lineHeight: 1.4,
+                                padding: '5px 12px', borderRadius: 99, fontSize: 11, fontWeight: 800,
                                 background: Number(tData.cgpa) >= 3.6 ? '#dcfce7' : Number(tData.cgpa) >= 3.0 ? '#e0f2fe' : '#fef3c7',
                                 color: Number(tData.cgpa) >= 3.6 ? '#166534' : Number(tData.cgpa) >= 3.0 ? '#0369a1' : '#92400e'
                               }}>
