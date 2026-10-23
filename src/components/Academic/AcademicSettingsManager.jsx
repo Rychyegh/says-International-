@@ -66,7 +66,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
     } catch (error) { setSaveError(`Settings not saved: ${error.message}`); return; }
     finally { savingRef.current = false; setSaving(false); }
 
-    setSavedNotice(`✅ Academic Settings Synchronized! Global Session set to ${year} (${term}).`);
+    setSavedNotice(gradingOnly ? 'Grading settings saved.' : `✅ Academic Settings Synchronized! Global Session set to ${year} (${term}).`);
     setTimeout(() => setSavedNotice(''), 4500);
 
     onSaved?.();
@@ -80,7 +80,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
       <div style={{ background: '#0284c7', color: '#fff', padding: '12px 18px', borderRadius: '10px 10px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 900, fontSize: 15 }}>
           <Settings size={20} />
-          <span>SIMS Global Academic Settings Manager</span>
+          <span>{gradingOnly ? 'School-wide Grading Settings' : 'SIMS Global Academic Settings Manager'}</span>
         </div>
         {onClose && !inline && (
           <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', fontWeight: 900 }}>✕</button>
@@ -172,7 +172,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
         </div>
 
         </>}
-        <div style={{ marginBottom: 16 }}>
+        {!gradingOnly && <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 6 }}>
             🏆 Official Assessment Grading Scale
           </label>
@@ -186,9 +186,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
 
 
           </select>
-        </div>
-
-        <p>Saving installs the REMALJ 9-Point Proficiency Scale below. The backend must accept and apply these bands.</p>
+        </div>}
         <table style={{width:'100%',borderCollapse:'collapse'}}><thead><tr><th>Minimum</th><th>Maximum</th><th>Grade</th><th>Remarks</th></tr></thead><tbody>{bands.map((band,index)=><tr key={index}>{['min','max','grade','remarks'].map(field=><td key={field} style={{padding:4}}><input aria-label={`Band ${index+1} ${field}`} type={field==='remarks'?'text':'number'} value={band[field]} disabled={saving} onChange={event=>{dirty.current=true;setBands(current=>current.map((row,position)=>position===index?{...row,[field]:event.target.value}:row));}} style={{width:'100%',minWidth:field==='remarks'?140:50,padding:8,boxSizing:'border-box'}} /></td>)}</tr>)}</tbody></table>
         {!gradingOnly && <>
         <p>Institution and campus names are shown for reference. They are not saved by academic settings.</p>
@@ -262,7 +260,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
             disabled={saving}
             style={{ padding: '10px 24px', borderRadius: 6, border: 'none', background: '#0284c7', color: '#fff', fontWeight: 900, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
           >
-            <Save size={16} /> Save & Synchronize Academic Settings
+            <Save size={16} /> {gradingOnly ? 'Save Grading Settings' : 'Save & Synchronize Academic Settings'}
           </button>
         </div>
       </form>
