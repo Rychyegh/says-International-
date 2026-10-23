@@ -1,5 +1,7 @@
 # General ledger payer details
 
+Update: also return `student_id`, `student_code`, and `student_name` for student-payment ledger entries, including receipt reclassifications. The frontend now shows Student name separately from Name of payer and can resolve a canonical student ID/code against its roster. The receipt payer and student may be different people. Existing RECLASS rows currently display Not supplied because the response does not expose a usable name/link. Preserve the original receipt/payment relationship and project these fields in the ledger response; do not require the frontend to extract identities from description strings. Backfill historical projections from those relationships without changing amounts or balances.
+
 The accountant requests columns: Name of payer, Reference, Description, Amount, Date, Dr/Cr, Running Balance. The frontend now displays these and includes them in CSV exports. Trial balance is unchanged.
 
 Existing API: GET `/api/v1/finance/accounting/accounts/{account_uuid}/ledger?from=YYYY-MM-DD&to=YYYY-MM-DD` returning `{ "report": { "lines": [...] } }`.

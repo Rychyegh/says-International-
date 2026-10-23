@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { usePortalData } from '../../../data/PortalStore';
 import { money, validateJournal } from '../../../lib/accountingRules';
 import { Field, Card, Tabs, Metrics, Table, LoadState, MutationNotice, WorkflowActions, ExportButton, useBook, useList, useReport, accountOptions, amountColumn, today } from '../AccountingUI';
 
@@ -31,14 +32,18 @@ function JournalForm({ initial, book, accounts }) {
   </Card>;
 }
 function LedgerReport({ accounts, trial }) {
+  const { onboardedStudents = [] } = usePortalData();
   const report = useReport();
   const [account, setAccount] = useState(''), [from, setFrom] = useState(''), [to, setTo] = useState(today());
   const change = (setter,value) => { setter(value); report.clear(); };
-  const columns = trial ? [{key:'account_code'},{key:'account_name'},amountColumn('debit'),amountColumn('credit')] : [{key:'payer_name',label:'Name of payer'},{key:'reference'},{key:'description'},amountColumn('amount'),{key:'date'},{key:'direction',label:'Dr/Cr'},amountColumn('running_balance')];
+  const columns = trial ? [{key:'account_code'},{key:'account_name'},amountColumn('debit'),amountColumn('credit')] : [{key:'student_name',label:'Student name'},{key:'payer_name',label:'Name of payer'},{key:'reference'},{key:'description'},amountColumn('amount'),{key:'date'},{key:'direction',label:'Dr/Cr'},amountColumn('running_balance')];
   const rows = Array.isArray(report.data?.lines) ? report.data.lines.map(line => {
     if (trial) return line;
     const debit = Number(line.debit || 0), credit = Number(line.credit || 0);
     const mixed = debit > 0 && credit > 0;
+    const studentKey = line.student_id || line.studentId || line.student_code || line.payment?.student_id || line.receipt?.student_id;
+    const student = studentKey ? onboardedStudents.find(row => [row.id, row.studentId, row.student_code].filter(Boolean).some(value => String(value) === String(studentKey))) : null;
+    line = { ...line, student_name: line.student_name || line.studentName || line.student?.full_name || line.payment?.student_name || line.receipt?.student_name || student?.fullName || 'Not supplied' };
     return { ...line, payer_name: line.payer_name || line.payerName || line.paid_by_name || line.payer?.full_name || line.payer?.name || 'Not supplied', amount: mixed ? null : debit > 0 ? debit : credit > 0 ? credit : line.amount ?? 0, direction: mixed ? 'Dr & Cr' : debit > 0 ? 'Dr' : credit > 0 ? 'Cr' : line.direction || '—' };
   }) : null;
   const valid = Array.isArray(rows);

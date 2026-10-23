@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { SCHOOL_GRADING_BANDS } from '../../lib/schoolGrading';
 import { usePortalData, scoreSheetEntryKey } from '../../data/PortalStore';
 import { getUserFullName } from '../../services/api';
 import { getMappedSubClasses, isLegacySectionLabel, normalizeSubClass } from '../../data/classStructure';
@@ -240,6 +241,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
   const test50 = Number((totalTest / CLASS_TEST_TOTAL_MAX * classWeight).toFixed(2));
   const exams50 = Number((Number(examsScore || 0) / 100 * examWeight).toFixed(2));
   const totalScore = test50 + exams50;
+  const previewBand = totalScore >= 0 && totalScore <= 100 ? SCHOOL_GRADING_BANDS.find(band => totalScore >= band.min) : null;
   const grade = savedEntry?.hasExamScore && !dirty.current ? savedEntry.grade || '' : '';
   const remarks = savedEntry?.hasExamScore && !dirty.current ? savedEntry.remarks || '' : 'Grade is available after a complete score is saved.';
 
@@ -488,6 +490,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
             </div>
           </div>
 
+          <p>School grading preview: Grade {previewBand?.grade || '—'} · {previewBand?.remarks || '—'} (unsaved; official grade comes from the backend).</p>
           {savedEntry && <p role="status">Last database result: {savedEntry.hasExamScore ? `${savedEntry.score ?? 'Not available'} / 100 · Grade ${savedEntry.grade || 'Not available'}` : 'Class score recorded · Exam not submitted'} ({savedEntry.status})</p>}
           <div style={{ marginTop: 14, background: '#f8fafc', border: '1px solid #e2e8f0', padding: 12, borderRadius: 6 }}>
             <div style={{ fontWeight: 800, fontSize: 11, color: '#0f3a4b', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>

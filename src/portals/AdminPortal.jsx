@@ -1987,12 +1987,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                             >
                               <Eye size={13} /> View Record
                             </button>
-                            <button
-                              onClick={() => handleDelete(s.id)}
-                              style={{ padding: '4px 8px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer' }}
-                            >
-                              <Trash2 size={13} />
-                            </button>
                           </div>
                         </td>
                       </tr>
@@ -2972,8 +2966,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                               <span style={{
                                 display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap', lineHeight: 1.4,
                                 padding: '5px 12px', borderRadius: 99, fontSize: 11, fontWeight: 800,
-                                background: Number(tData.cgpa) >= 3.6 ? '#dcfce7' : Number(tData.cgpa) >= 3.0 ? '#e0f2fe' : '#fef3c7',
-                                color: Number(tData.cgpa) >= 3.6 ? '#166534' : Number(tData.cgpa) >= 3.0 ? '#0369a1' : '#92400e'
+                                background: Number(tData.averageScore) >= 80 ? '#dcfce7' : Number(tData.averageScore) >= 65 ? '#e0f2fe' : '#fef3c7',
+                                color: Number(tData.averageScore) >= 80 ? '#166534' : Number(tData.averageScore) >= 65 ? '#0369a1' : '#92400e'
                               }}>
                                 {tData.standing}
                               </span>

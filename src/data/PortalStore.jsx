@@ -8,6 +8,7 @@ import { requiresItemDisbursement } from '../lib/pvDisbursementItems.js';
 import { voucherNotifications } from '../lib/pvNotifications.js';
 import { sameStudentIdentity, studentDisplayCode } from '../lib/studentIdentity.js';
 import { validateAcademicSettings } from '../lib/assessmentRules.js';
+import { proficiencyRemark } from '../lib/schoolGrading.js';
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { api, extractStudentList, extractExamRegistrations, mapExamRegistration, getUserFullName, hasLiveDatabaseSession, getAuthToken, getAuthUser, mapScoreSheetEntry } from '../services/api';
 import { registerCustomSubClass, getCustomSubClassMap } from './classStructure';
@@ -1232,9 +1233,7 @@ export function buildStudentTranscriptData(student, results = []) {
   const cgpa = gpaVals.length
     ? (gpaVals.reduce((acc, n) => acc + n, 0) / gpaVals.length).toFixed(2)
     : MISSING_SCORE;
-  const standing = cgpa === MISSING_SCORE
-    ? MISSING_SCORE
-    : (Number(cgpa) >= 3.5 ? 'First Class Honor Roll' : Number(cgpa) >= 3.0 ? 'Second Class Upper' : 'Good Standing');
+  const standing = proficiencyRemark(averageScore);
 
   return {
     courses: subjects,

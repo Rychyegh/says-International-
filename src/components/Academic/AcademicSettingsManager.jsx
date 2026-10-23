@@ -1,4 +1,5 @@
 import ViewportModal from '../Modal/ViewportModal';
+import { SCHOOL_GRADING_BANDS } from '../../lib/schoolGrading';
 import React, { useState, useEffect, useRef } from 'react';
 import { validateAcademicSettings } from '../../lib/assessmentRules.js';
 import { usePortalData } from '../../data/PortalStore';
@@ -47,8 +48,8 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
       academicTerm: term,
       classTestWeight: Number(classWeight),
       examWeight: Number(examWeight),
-      gradingBands: academicSettings?.gradingBands,
-      gradingSystem,
+      gradingBands: SCHOOL_GRADING_BANDS,
+      gradingSystem: 'REMALJ 9-Point Proficiency Scale',
       resumptionDate,
       vacationDate,
       updatedAt: new Date().toISOString()
@@ -182,7 +183,8 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
           </select>
         </div>
 
-        <p>{academicSettings?.gradingBands?.length ? `${academicSettings.gradingBands.length} approved grading bands loaded. These will be preserved when saving.` : 'School-approved grading bands are not available. An administrator must configure them before these settings can be saved.'}</p>
+        <p>Saving installs the REMALJ 9-Point Proficiency Scale below. The backend must accept and apply these bands.</p>
+        <table style={{width:'100%'}}><thead><tr><th>Marks</th><th>Grade</th><th>Remarks</th></tr></thead><tbody>{SCHOOL_GRADING_BANDS.map(band=><tr key={band.grade}><td>{band.min}–{band.max}</td><td>{band.grade}</td><td>{band.remarks}</td></tr>)}</tbody></table>
         <p>Institution and campus names are shown for reference. They are not saved by academic settings.</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div>
