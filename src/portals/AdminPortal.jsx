@@ -502,6 +502,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     if (!newStaffForm.name) return;
     const teaching = isTeachingStaffMember(newStaffForm);
     if (teaching && adminRole !== 'head_admin') return;
+    if (teaching && !newStaffForm.subject.trim()) { setStaffActionError('Add at least one subject for this teacher.'); return; }
 
     setStaffActionLoading(true);
     setStaffActionError('');
@@ -3126,7 +3127,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   >
                     <UserPlus size={16} /> Add Non-teaching Staff
                   </button>
-                  {adminRole === 'head_admin' && <div style={{ width: '100%' }}><button type="button" className="btn btn-green" onClick={() => { setNewStaffForm({ ...blankNonTeachingStaff, role: 'Subject Teacher', subject: SUBJECT_OPTIONS[0] || '', classAssigned: LEVEL_OPTIONS[0] || '' }); setStaffActionError(''); setIsAddingStaff(true); }}><UserPlus size={16} /> Add New Teacher</button></div>}
+                  {adminRole === 'head_admin' && <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end' }}><button type="button" className="btn btn-green" onClick={() => { setNewStaffForm({ ...blankNonTeachingStaff, role: 'Subject Teacher', subject: SUBJECT_OPTIONS[0] || '', classAssigned: LEVEL_OPTIONS[0] || '' }); setStaffActionError(''); setIsAddingStaff(true); }}><UserPlus size={16} /> Add New Teacher</button></div>}
                 </div>
               </div>
 
@@ -3583,8 +3584,17 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       </select>
                     </label>
 
-                    <label>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>{isTeachingStaffMember(newStaffForm) ? 'Subject' : 'Duty area'}</span>
+                    {isTeachingStaffMember(newStaffForm) ? <div>
+                      <span style={{ fontSize: 12, fontWeight: 800 }}>Subjects</span>
+                      {(newStaffForm.subject ? newStaffForm.subject.split(', ') : []).map((subject, index, selected) => <div key={index} style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                        <select aria-label={`Subject ${index + 1}`} value={subject} onChange={event => setNewStaffForm({ ...newStaffForm, subject: selected.map((value, position) => position === index ? event.target.value : value).join(', ') })} style={{ flex: 1, minWidth: 0, padding: 8 }}>
+                          {SUBJECT_OPTIONS.filter(value => value === subject || !selected.includes(value)).map(value => <option key={value}>{value}</option>)}
+                        </select>
+                        <button type="button" aria-label={`Remove ${subject}`} onClick={() => setNewStaffForm({ ...newStaffForm, subject: selected.filter((_, position) => position !== index).join(', ') })}>Remove</button>
+                      </div>)}
+                      <button type="button" style={{ marginTop: 8 }} disabled={SUBJECT_OPTIONS.every(subject => newStaffForm.subject.split(', ').includes(subject))} onClick={() => { const selected = newStaffForm.subject ? newStaffForm.subject.split(', ') : []; const next = SUBJECT_OPTIONS.find(subject => !selected.includes(subject)); if (next) setNewStaffForm({ ...newStaffForm, subject: [...selected, next].join(', ') }); }}>+ Add subject</button>
+                    </div> : <label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Duty area</span>
                       <select
                         value={newStaffForm.subject}
                         onChange={(e) => setNewStaffForm({ ...newStaffForm, subject: e.target.value })}
@@ -3594,7 +3604,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                           <option key={s} value={s}>{s}</option>
                         ))}
                       </select>
-                    </label>
+                    </label>}
                   </div>
 
                   {isTeachingStaffMember(newStaffForm) && <label>Allocated class<select required value={newStaffForm.classAssigned} onChange={event => setNewStaffForm({ ...newStaffForm, classAssigned: event.target.value })} style={{ width: '100%', padding: 10, marginTop: 4 }}><option value="">Select a class</option>{LEVEL_OPTIONS.map(level => <option key={level} value={level}>{level}</option>)}</select></label>}
@@ -4341,7 +4351,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       <div style={{ fontSize: 8.5, fontWeight: 800, textTransform: 'uppercase', color: '#64748b', letterSpacing: '.06em' }}>DOCUMENT ID</div>
                       <div style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 11, color: '#1e1b4b' }}>TR-2026-{viewingTranscriptStudent.studentId.replace(/\D/g, '')}</div>
                       <div style={{ fontSize: 8.5, color: '#166534', fontWeight: 800, marginTop: 1, background: '#dcfce7', padding: '1px 6px', borderRadius: 99, display: 'inline-block' }}>
-                        OFFICIAL VERIFIED
+                        {tData.subjects.length ? 'ACADEMIC REPORT' : 'NO MATCHING SCORES'}
                       </div>
                     </div>
                   </div>

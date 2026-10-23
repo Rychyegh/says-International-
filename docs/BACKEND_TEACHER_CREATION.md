@@ -30,6 +30,8 @@ Example for a subject teacher; actual class and subject values come from the sch
 
 `department` currently carries the selected teaching subject. For Class Teacher, role and designation are `Class Teacher`, with `teacher_designation: "class_teacher"` and `is_class_teacher: true`. Empty optional profile values are omitted. Staff ID fields may be empty/omitted when auto-generation is requested. Keep aliases compatible with the existing frontend, or coordinate an adapter change before rejecting them.
 
+The teacher popup now supports Add subject and Remove per subject. Multiple selected subjects are sent in the existing `department` string, separated by comma-space, for example `Mathematics, English`. Validate each catalog subject and persist all selected assignments, not just the first one. At least one subject is required. A normalized subjects array would be preferable for a future coordinated API revision; the current creation request does not send that array.
+
 ## Required backend behavior
 
 - Implement/verify POST `/api/v1/staff` and GET `/api/v1/staff`. Enforce Head Admin authorization for teacher creation and allocation on the server.

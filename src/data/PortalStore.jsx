@@ -1155,11 +1155,12 @@ export function displayScoreValue(value, suffix = '') {
 
 function resultMatchesStudent(entry, student) {
   if (!entry || !student) return false;
-  const sid = String(student.studentId || student.id || '').toLowerCase().trim();
+  const studentIds = [student.studentId, student.id, student.studentUuid, student.student_id].map(value => String(value || '').toLowerCase().trim()).filter(Boolean);
   const name = normalizePersonName(student.fullName || student.name);
-  const eSid = String(entry.studentId || '').toLowerCase().trim();
+  const entryIds = [entry.studentId, entry.student_id, entry.studentUuid].map(value => String(value || '').toLowerCase().trim()).filter(Boolean);
   const eName = normalizePersonName(entry.studentName);
-  if (sid && eSid && sid === eSid) return true;
+  if (studentIds.some(value => entryIds.includes(value))) return true;
+  if (studentIds.length && entryIds.length) return false;
   return Boolean(name && eName && name === eName);
 }
 
@@ -2523,7 +2524,7 @@ export function PortalDataProvider({ children, enabled = false }) {
         if (!hasRecordedExamScore(record)) throw new Error('Class-only drafts cannot be published.');
         await api.publishScoreSheet(record.backendId);
       } else await api.updateResultStatus(id, { status: 'Approved' });
-      setData(current => ({ ...current, results: current.results.map(r => r.id === id ? { ...r, status: 'Approved', declineNote: 'Approved' === 'Declined' ? note : null } : r) }));
+      setData(current => ({ ...current, results: current.results.map(r => r.id === id || r.backendId === id ? { ...r, status: 'Approved', declineNote: null } : r) }));
     },
     declineResult: async (id, note) => {
       await api.updateResultStatus(id, { status: 'Declined', decline_note: 'Declined' === 'Declined' ? note : undefined });
