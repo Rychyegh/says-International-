@@ -194,7 +194,9 @@ async function originalAuthRequest(endpoint, options = {}) {
       if (data !== null && data !== undefined) return data;
       return { success: true, status: response.status };
   } catch (err) {
-      lastError = err;
+      lastError = err instanceof TypeError
+        ? new Error('Unable to connect to the school server. Check your internet connection and try again shortly.')
+        : err;
       if (err?.status >= 400 && err?.status < 500) throw err;
       if (err && /FastAPI|HTTP 4/.test(String(err.message || ''))) throw err;
     }
