@@ -153,7 +153,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
   const { addStaffMember, refreshBackendData, classLevels } = usePortalData();
   const mainClassOptions = useMemo(() => {
     const custom = (classLevels || []).filter((level) => level && !ALL_SUB_CLASSES.includes(level) && !CLASS_LEVELS.includes(level));
-    return [...ALL_SUB_CLASSES, ...custom];
+    return [...new Set(['Pre-school', ...ALL_SUB_CLASSES, ...custom])];
   }, [classLevels]);
 
   const [activeTab, setActiveTab] = useState('users'); // 'users' | 'matrix' | 'audit'
@@ -1244,7 +1244,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                   <option value="">
                     {['class_teacher','preschool_teacher'].includes(createForm.role) ? 'Select main class' : 'Select a class teacher role first'}
                   </option>
-                  {['class_teacher','preschool_teacher'].includes(createForm.role) && mainClassOptions.filter(level => createForm.role !== 'preschool_teacher' || /creche|nursery|kg|kindergarten/i.test(level)).map((level) => (
+                  {['class_teacher','preschool_teacher'].includes(createForm.role) && mainClassOptions.filter(level => createForm.role !== 'preschool_teacher' || /pre-school|creche|nursery|kg|kindergarten/i.test(level)).map((level) => (
                     <option key={level} value={level}>{level}</option>
                   ))}
                 </select>
