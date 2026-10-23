@@ -1918,6 +1918,7 @@ export const api = {
   },
 
   getPaymentAccounts: () => request('/finance/payment-accounts'),
+  createPaymentAccount: (account) => request('/finance/payment-accounts', { method: 'POST', body: JSON.stringify(account) }),
   getItemPaymentByKey: (pvId, itemId, key) => request(`/finance/vouchers/${encodeURIComponent(pvId)}/items/${encodeURIComponent(itemId)}/payments/by-idempotency-key?idempotency_key=${encodeURIComponent(key)}`),
   getItemPayment: (pvId, itemId, paymentId) => request(`/finance/vouchers/${encodeURIComponent(pvId)}/items/${encodeURIComponent(itemId)}/payments/${encodeURIComponent(paymentId)}`),
   authorizePaymentVoucherItem: async (pvId, itemId, input) => {

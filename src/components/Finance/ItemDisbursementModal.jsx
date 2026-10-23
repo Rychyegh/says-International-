@@ -10,7 +10,7 @@ import { ITEM_PAYMENTS_ENABLED, isItemUuid, paymentAccountOptions } from '../../
 import './ItemDisbursementModal.css';
 import './StudentReceiptModal.css';
 
-function ItemInstructions({ item, index, voucher, onPaid, accounts, accountsReady, onReceipt }) {
+function ItemInstructions({ item, index, voucher, onPaid, accounts, accountsReady, onReceipt, onAddAccount }) {
   const {disbursePaymentVoucherItem} = usePortalData();
   const actor = getAuthUser()?.id;
   const canDisburse = ITEM_PAYMENTS_ENABLED && accountsReady && !voucher.itemReconciliationRequired && accounts.sources.length > 0 && accounts.expenses.length > 0;
@@ -98,7 +98,7 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, accountsRead
           setNotice('Unsaved changes');
         }}><option value="">Select an account</option>
           {accounts.expenses.length>0 && <optgroup label="Configured accounts">{accounts.expenses.map(account=><option key={account.id} value={account.id}>{account.name || account.account_name} · {account.code || account.account_code}</option>)}</optgroup>}
-        </select>{fields.expense_account_draft && <small>Previous draft choice: {fields.expense_account_draft.replace(/^draft:/,'')}. Select a configured account to use for payment.</small>}</label>
+        </select><button type="button" className="btn btn-outline-green" onClick={onAddAccount}>+ Add account</button>{fields.expense_account_draft && <small>Previous draft choice: {fields.expense_account_draft.replace(/^draft:/,'')}. Select a configured account to use for payment.</small>}</label>
         <label>Payment date<input type="date" required value={fields.payment_date} onChange={e=>field('payment_date',e.target.value)} /></label>
       </div>
       <label>Notes<textarea rows={2} value={fields.notes} onChange={e=>field('notes',e.target.value)} /></label>
@@ -122,6 +122,11 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, accountsRead
 }
 
 export default function ItemDisbursementModal({voucher:initialVoucher,onClose,onCompleted}) {
+  const [addingAccount,setAddingAccount] = useState(false);
+  const [accountDraft,setAccountDraft] = useState({name:'',code:''});
+  const [savingAccount,setSavingAccount] = useState(false);
+  const [createAccountError,setCreateAccountError] = useState('');
+  const accountSaveLock = useRef(false);
   const [receipt,setReceipt] = useState(null), [receiptError,setReceiptError] = useState('');
   const [combined,setCombined] = useState([]), [receiptsLoading,setReceiptsLoading] = useState(false);
   useEffect(()=>()=>document.body.classList.remove('print-student-receipt'),[]);
@@ -142,6 +147,20 @@ export default function ItemDisbursementModal({voucher:initialVoucher,onClose,on
   };
   const [accounts,setAccounts] = useState({sources:[],expenses:[]}), [accountError,setAccountError] = useState('');
   const [accountsLoading,setAccountsLoading] = useState(true), [accountReload,setAccountReload] = useState(0);
+  const saveAccount = async event => {
+    event.preventDefault();
+    if(accountSaveLock.current) return;
+    const name = accountDraft.name.trim(), code = accountDraft.code.trim();
+    if(!name || !code) {setCreateAccountError('Enter an account name and code.');return;}
+    accountSaveLock.current=true;setSavingAccount(true);setCreateAccountError('');
+    try {
+      await api.createPaymentAccount({name,code,account_type:'expense',is_active:true});
+      setAccountDraft({name:'',code:''});setAddingAccount(false);
+      setAccountsLoading(true);setAccountReload(value=>value+1);
+    } catch(error) {
+      setCreateAccountError([404,405].includes(error.status) ? 'Account creation is not available on the backend yet. Ask the backend administrator to enable POST /finance/payment-accounts.' : error.message);
+    } finally {accountSaveLock.current=false;setSavingAccount(false);}
+  };
   useEffect(()=>{
     let active=true;
     setAccountsLoading(true);setAccountError('');
@@ -185,8 +204,19 @@ export default function ItemDisbursementModal({voucher:initialVoucher,onClose,on
         {!accounts.expenses.length && <p>No active expense accounts are available. An administrator must configure them in the backend.</p>}
       </>}
       <button type="button" className="btn" disabled={accountsLoading} onClick={()=>{setAccountsLoading(true);setAccountReload(value=>value+1);}}>Refresh payment accounts</button>
+      {addingAccount && <form className="item-payment-card" aria-label="Add expense account" onSubmit={saveAccount}>
+        <h3>Add PL / expense account</h3>
+        <div className="item-payment-fields">
+          <label>Account name<input required maxLength={255} disabled={savingAccount} value={accountDraft.name} onChange={event=>setAccountDraft(current=>({...current,name:event.target.value}))}/></label>
+          <label>Account code<input required maxLength={50} disabled={savingAccount} value={accountDraft.code} onChange={event=>setAccountDraft(current=>({...current,code:event.target.value}))}/></label>
+        </div>
+        <p>The account is saved as an active expense account and becomes available after the saved accounts reload.</p>
+        {createAccountError && <p role="alert">{createAccountError}</p>}
+        <button type="submit" className="btn btn-green" disabled={savingAccount}>{savingAccount?'Saving…':'Save account'}</button>
+        <button type="button" className="btn" disabled={savingAccount} onClick={()=>setAddingAccount(false)}>Cancel</button>
+      </form>}
       {voucher.items.some(item => item.recoveredFromDescription) && <p className="item-payment-availability">These item details were recovered from the voucher description. The payment service must return saved item records before they can be paid separately.</p>}
-      {voucher.items.map((item,index)=><ItemInstructions key={item.id || index} item={item} index={index} voucher={voucher} onPaid={onPaid} accounts={accounts} accountsReady={!accountsLoading && !accountError} onReceipt={loadReceipt} />)}
+      {voucher.items.map((item,index)=><ItemInstructions key={item.id || index} item={item} index={index} voucher={voucher} onPaid={onPaid} accounts={accounts} accountsReady={!accountsLoading && !accountError} onReceipt={loadReceipt} onAddAccount={()=>{setCreateAccountError('');setAddingAccount(true);}} />)}
       <button type="button" className="btn btn-outline-green" disabled={receiptsLoading} onClick={loadCombined}>{receiptsLoading?'Loading vendor receipts…':'View all vendor payments on one sheet'}</button>
       {receiptError && <p role="alert">{receiptError}</p>}
       {combined.length>0 && <><article className="student-receipt-paper vendor-payment-summary">
