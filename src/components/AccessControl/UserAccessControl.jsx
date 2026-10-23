@@ -17,6 +17,7 @@ const ROLES = [
   { value: 'sub_admin', label: 'Sub-Administrator', badgeColor: '#0369a1', bg: '#e0f2fe', desc: 'Operational student roster and academic task handling' },
   { value: 'accountant', label: 'Accountant', badgeColor: '#166534', bg: '#dcfce7', desc: 'Billing, fee collection, payment vouchers, and ledger' },
   { value: 'teacher', label: 'Subject Teacher', badgeColor: '#b45309', bg: '#fef3c7', desc: 'Class roster, lesson planning, grades, and attendance' },
+  { value: 'preschool_head', label: 'Pre-school Head', badgeColor: '#6b21a8', bg: '#f3e8ff', desc: 'Review and approve preschool learner reports' },
   { value: 'preschool_teacher', label: 'Pre-school Teacher', badgeColor: '#6b21a8', bg: '#f3e8ff', desc: 'Assigned preschool learners and developmental reports' },
   { value: 'class_teacher', label: 'Class Teacher', badgeColor: '#166534', bg: '#dcfce7', desc: 'Form tutor with class leadership, passcode verification, and class portal access' },
   { value: 'student', label: 'Student', badgeColor: '#4338ca', bg: '#e0e7ff', desc: 'Assignments, timetable, report cards, and digital ID' },

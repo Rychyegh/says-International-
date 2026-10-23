@@ -1,5 +1,15 @@
 # Preschool teacher portal: backend contract
 
+## New approval section (frontend implemented, backend required)
+
+Head Admin can now provision role `preschool_head`. Both preschool_teacher and preschool_head use `/teacher`; auth/me must return the actual role and completed verification. The portal includes saved reports and head review. This supersedes the earlier note that approval controls are absent; backend availability is still unverified.
+
+Implement GET `/preschool/reports` → `{items:[...]}`, GET `/preschool/reports/{id}` → `{report:{...}}`, and POST `/preschool/reports/{id}/submit`, `/approve`, `/return` → `{report:{...}}`, all relative to `/api/v1`. Actions send expected_version and note. Include id, version, student_id/student_name, academic_year, term, template, assessments, general_comments and status in responses. Statuses: draft → submitted → approved, or submitted → returned. A return requires a note delivered to the original teacher. Only preschool_head may approve/return; teachers may submit their assigned drafts/returned reports. Enforce school/assignment boundaries, audit, version conflicts and duplicate-action protection atomically.
+
+GET `/preschool/reports/{id}/pdf` must return application/pdf only for the current approved revision. Deny unapproved PDF access server-side even if called directly. PDF must use the stored approved snapshot and the correct versioned skill descriptions/template. An edit after approval must invalidate approval and require resubmission; never print an edited draft under an old approval. Frontend downloads the authenticated approved PDF for printing, never prints the entry form as an official report. The current PDF adapter uses the same-origin /api/v1 proxy.
+
+Test teacher save → persisted draft list → submit → preschool head reads complete details → approve → teacher refresh → approved PDF; also return-note delivery, unauthorized decisions, conflict handling and direct unapproved PDF requests. Saved-report editing remains a separate follow-up; do not treat duplicate creation as editing.
+
 23 October 2026. Frontend implementation is present locally; the API endpoints below are proposed and have not been verified live. Do not claim database availability until deployed integration tests pass.
 
 ## Credentials and access

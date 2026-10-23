@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api, request } from '../services/api';
 import SchoolPrintHeader from '../components/School/SchoolPrintHeader';
 import './PreschoolPortal.css';
+import PreschoolReportApprovals from './PreschoolReportApprovals';
 
 const kgAreas = {
   'Language and literacy': ['Participating in songs and rhymes', 'Following spoken directions', 'Sharing stories and favourite characters', 'Combining syllables into words', 'Developing a story', 'Communicating through labelled drawings', 'Writing short sentences'],
@@ -28,7 +29,7 @@ const classKey = value => String(value || '').toLowerCase().replace(/\bkg\s*/g,'
 export default function PreschoolPortal() {
   const [selectedClass,setSelectedClass] = useState('');
   const [session, setSession] = useState(null), [learners, setLearners] = useState([]), [form, setForm] = useState(blank), [saved, setSaved] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);
-  useEffect(() => { let live = true; (async () => { try { const verified = await api.getVerifiedSession(); if (verified.user.role !== 'preschool_teacher' || verified.requiresSecondFactor) throw new Error('A verified preschool teacher account issued by Head Admin is required.'); const raw = await request('/preschool/learners'); if (!Array.isArray(raw.items)) throw new Error('The preschool learner API is not available in the expected format.'); if (live) { setSession(verified.user); setLearners(raw.items); } } catch (failure) { if (live) setError(failure.message); } })(); return () => { live = false; }; }, []);
+  useEffect(() => { let live = true; (async () => { try { const verified = await api.getVerifiedSession(); if (!['preschool_teacher','preschool_head'].includes(verified.user.role) || verified.requiresSecondFactor) throw new Error('A verified preschool teacher account issued by Head Admin is required.'); const raw = await request('/preschool/learners'); if (!Array.isArray(raw.items)) throw new Error('The preschool learner API is not available in the expected format.'); if (live) { setSession(verified.user); setLearners(raw.items); } } catch (failure) { if (live) setError(failure.message); } })(); return () => { live = false; }; }, []);
   const change = (key, value) => { setForm(current => ({ ...current, [key]: value })); setSaved(null); };
   const learner = learners.find(row => row.id === form.student_id);
   const creche = learner?.report_template === 'creche-progressive-v1';
@@ -41,6 +42,7 @@ export default function PreschoolPortal() {
   const ratedSkills = Object.values(form.assessments).filter(entry=>ratings.includes(entry.rating)).length;
   return <main className="preschool-portal"><header className="preschool-hero"><div><span className="preschool-eyebrow">EARLY YEARS · LEARNER DEVELOPMENT</span><h1>{creche ? 'Creche Progressive Report' : 'Pre-school assessments'}</h1><p>Welcome, {session.full_name || session.name}. Record observations, celebrate progress.</p></div><div className="preschool-progress"><strong>{ratedSkills}<span> / {totalSkills}</span></strong><p>skills assessed</p><progress value={ratedSkills} max={totalSkills} aria-label="Assessment completion" /></div></header>
     <nav className="preschool-section-nav" aria-label="Assessment sections"><button type="button" onClick={()=>document.getElementById("preschool-learner")?.scrollIntoView({behavior:"smooth"})}>Learner details</button>{Object.keys(areas).map((area,index)=><button type="button" key={area} onClick={()=>document.getElementById(`preschool-area-${index}`)?.scrollIntoView({behavior:"smooth"})}>{area}</button>)}<button type="button" onClick={()=>document.getElementById("preschool-comments")?.scrollIntoView({behavior:"smooth"})}>Final comments</button></nav>
+    <PreschoolReportApprovals session={session} revision={saved?.id} />
     {error && <p role="alert">{error}</p>}
     {learner && <section className="preschool-learner-summary"><strong>Student name: {learner.full_name}</strong><p>Student ID: {learner.student_code || learner.id} · Class: {learner.class_name}</p><p>Academic period: Term {form.term || '—'}, {form.academic_year || '—'} · Attendance: {form.days_present || '—'} out of {form.school_days || '—'}</p></section>}
     <form onSubmit={submit}><fieldset id="preschool-learner" disabled={busy}><legend>Learner and term</legend><div className="preschool-grid">

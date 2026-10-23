@@ -227,7 +227,7 @@ function AppRoutes() {
         />
       );
     }
-    if (portalKey === 'teacher' && getAuthUser()?.role === 'preschool_teacher') return <PreschoolPortal />;
+    if (portalKey === 'teacher' && ['preschool_teacher','preschool_head'].includes(getAuthUser()?.role)) return <PreschoolPortal />;
     return <Component onSignOut={handleSignOut} initialAdminRole={adminRole} />;
   };
 
