@@ -3324,11 +3324,11 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         </td>
                         <td>
                           {t.status === 'Offboarded' ? (
-                            <span style={{ padding: '3px 10px', background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 99, fontWeight: 800, fontSize: 11 }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap', lineHeight: 1.4, padding: '3px 10px', background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 99, fontWeight: 800, fontSize: 11 }}>
                               🚫 Offboarded
                             </span>
                           ) : (
-                            <span style={{ padding: '3px 10px', background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: 99, fontWeight: 800, fontSize: 11 }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap', lineHeight: 1.4, padding: '3px 10px', background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: 99, fontWeight: 800, fontSize: 11 }}>
                               🟢 Active Staff
                             </span>
                           )}
@@ -4351,7 +4351,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       <div style={{ fontSize: 8.5, fontWeight: 800, textTransform: 'uppercase', color: '#64748b', letterSpacing: '.06em' }}>DOCUMENT ID</div>
                       <div style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 11, color: '#1e1b4b' }}>TR-2026-{viewingTranscriptStudent.studentId.replace(/\D/g, '')}</div>
                       <div style={{ fontSize: 8.5, color: '#166534', fontWeight: 800, marginTop: 1, background: '#dcfce7', padding: '1px 6px', borderRadius: 99, display: 'inline-block' }}>
-                        {tData.subjects.length ? 'ACADEMIC REPORT' : 'NO MATCHING SCORES'}
+                        {getStudentTranscriptData(viewingTranscriptStudent).subjects.length ? 'ACADEMIC REPORT' : 'NO MATCHING SCORES'}
                       </div>
                     </div>
                   </div>
