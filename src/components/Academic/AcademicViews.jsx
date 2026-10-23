@@ -136,17 +136,16 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
       const sname = (student.fullName || student.name || '').toLowerCase().trim();
 
       // Find matching score in results
-      const entry = (results || []).find((r) => {
-        const rSid = String(r.studentId || '').toLowerCase().trim();
-        const rName = String(r.studentName || '').toLowerCase().trim();
-        const matchStudent = (sid && rSid && sid === rSid) || (sname && rName && sname === rName);
-        if (!matchStudent) return false;
+      const entry = resultsForStudent(results || [], student).find((r) => {
 
         if (selectedSubject && selectedSubject !== 'All Subjects') {
           const rSubj = String(r.subject || '').toLowerCase().trim();
-          if (!rSubj.includes(selectedSubject.toLowerCase().trim())) return false;
+          if (rSubj !== selectedSubject.toLowerCase().trim()) return false;
         }
-        if (selectedTerm && r.term && r.term !== selectedTerm) return false;
+        const normalizeTerm = value => String(value || '').trim().toLowerCase().replace(/^term\s*/, '');
+        if (selectedTerm && r.term && normalizeTerm(r.term) !== normalizeTerm(selectedTerm)) return false;
+        const year = r.year || r.academicYear;
+        if (selectedYear && year && String(year).trim() !== String(selectedYear).trim()) return false;
         return true;
       });
 
@@ -183,7 +182,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
         entry
       };
     });
-  }, [filteredStudents, results, selectedSubject, selectedTerm, selectedClass]);
+  }, [filteredStudents, results, selectedSubject, selectedTerm, selectedYear, selectedClass]);
 
   // Statistics
   const stats = useMemo(() => {

@@ -87,8 +87,9 @@ export default function ReceiveStudentPayment() {
   <div className="receive-payment-tabs">
    <button type="button" className={`btn ${tab==='receive'?'btn-green':'btn-outline-green'}`} aria-pressed={tab==='receive'} onClick={()=>setTab('receive')}>Receive Payment</button>
    <button type="button" className={`btn ${tab==='history'?'btn-green':'btn-outline-green'}`} aria-pressed={tab==='history'} onClick={()=>setTab('history')}>Payment History</button>
+   <button type="button" className={`btn ${tab==='reprint'?'btn-green':'btn-outline-green'}`} aria-pressed={tab==='reprint'} onClick={()=>setTab('reprint')}>Re-print Receipt</button>
   </div>
-  {tab==='history' ? <StudentPaymentHistory fees={studentFees} initialStudentId={confirmation?.fee.studentId || fee?.studentId} /> : <>
+  {tab!=='receive' ? <StudentPaymentHistory key={tab} fees={studentFees} reprint={tab==='reprint'} initialStudentId={confirmation?.fee.studentId || fee?.studentId} /> : <>
   {error && <p role="alert" className="receive-payment-error">{error}</p>}
   {pending && <p role="status">An earlier payment needs confirmation. Retry with its original details. Reference: {pending.key}</p>}
   {!ready && !error && <p role="status">Checking saved payment requests…</p>}

@@ -442,6 +442,7 @@ export default function TeacherPortal() {
 
         {/* Main content */}
         <main className="portal__content">
+          {recordedResults.filter(result => String(result.status).toLowerCase() === 'declined' && result.declineNote && result.teacherId && [authUser.id, authUser.userId, authUser.staffId].filter(Boolean).some(value => String(value) === String(result.teacherId))).map(result => <div key={result.id} role="alert" style={{background:'#fff1f2',border:'1px solid #fecaca',borderRadius:10,padding:16,marginBottom:12,color:'#991b1b'}}><strong>Result returned by Head Admin · {result.subject}</strong><p>{result.studentName || 'Student result'} · {result.classLevel}</p><p>{result.declineNote}</p><p>Review the comment, correct the score sheet and resubmit for approval.</p></div>)}
           {/* ── TRANSPORT VIEW ── */}
           {activeNav === 'Transport' && isClassTeacher && (
             <div className="animate-fade-up">

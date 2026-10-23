@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import StudentReceiptModal from './StudentReceiptModal';
 
-export default function StudentPaymentHistory({ fees, initialStudentId }) {
+export default function StudentPaymentHistory({ fees, initialStudentId, reprint = false }) {
   const students = [...new Map(fees.filter(fee => fee.studentId).map(fee => [String(fee.studentId), fee])).values()];
   const [studentId, setStudentId] = useState(initialStudentId || '');
   const [rows, setRows] = useState([]), [loading, setLoading] = useState(false), [error, setError] = useState('');
@@ -20,7 +20,8 @@ export default function StudentPaymentHistory({ fees, initialStudentId }) {
     return () => { active = false; };
   }, [studentId, refresh]);
   return <section aria-label="Payment history">
-    <h2>Payment History</h2>
+    <h2>{reprint ? 'Re-print Receipt' : 'Payment History'}</h2>
+    {reprint && <p>Choose the student, locate the original payment, then open its receipt to print a replacement copy. This does not record another payment.</p>}
     <p>Select a student to view payments saved in the database, including payments for fully paid invoices.</p>
     <label>Student<select aria-label="History student" value={studentId} onChange={event => setStudentId(event.target.value)}>
       <option value="">Select a student</option>

@@ -21,6 +21,7 @@ import AttendanceControlTable from '../components/Attendance/AttendanceControlTa
 import BulkStudentUpload from '../components/Onboarding/BulkStudentUpload';
 import RegisterForExamsForm from '../components/RegisterForExams/RegisterForExamsForm';
 import AcademicSettingsManager from '../components/Academic/AcademicSettingsManager';
+import StudentStatusEditor from '../components/Onboarding/StudentStatusEditor';
 import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
 import ApprovePVForm from '../components/Finance/ApprovePVForm';
 import PayPVForm from '../components/Finance/PayPVForm';
@@ -721,12 +722,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
   const [rosterClass, setRosterClass] = useState('');
   const [rosterSubClass, setRosterSubClass] = useState('');
+  const [rosterStatus,setRosterStatus] = useState('Active');
+  const [managingStudent,setManagingStudent] = useState(null);
   const rosterStudents = useMemo(() => (onboardedStudents || [])
-    .filter(s => isBackendUuid(s?.id) && s?.status === 'Active' && s?.is_active !== false)
+    .filter(s => isBackendUuid(s?.id) && (!rosterStatus || (rosterStatus === 'Active' ? s.status === 'Active' && s.is_active !== false : s.status === 'Inactive' || s.is_active === false)))
     .map(s => {
       const level = formatClassToBasic(s.level || s.classLevel || s.applyingClass || '');
       return { ...s, level, rosterSubClass: formatDetailedClass(level, s.classSection || s.subClass || s.subClassLevel || s.section || '') };
-    }), [onboardedStudents]);
+    }), [onboardedStudents, rosterStatus]);
   const rosterClasses = useMemo(() => [...new Set(rosterStudents.map(s => s.level).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [rosterStudents]);
   const rosterSubClasses = useMemo(() => [...new Set(rosterStudents
@@ -783,6 +786,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       { key: 'level', label: 'Class' },
       { key: 'rosterSubClass', label: 'Sub-class' },
       { key: 'enrollmentYear', label: 'Year of Enrollment' },
+      { key: 'academicYear', label: 'Academic Year' },
+      { key: 'academicTerm', label: 'Term' },
+      { key: 'gender', label: 'Gender' },
     ], filteredStudents);
     const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' }));
     const link = document.createElement('a');
@@ -1851,6 +1857,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
               </div>
 
               <div className="no-print" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+                <label>Status <select value={rosterStatus} onChange={event=>setRosterStatus(event.target.value)}><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="">All students</option></select></label>
+                {managingStudent && <StudentStatusEditor student={managingStudent} classes={LEVEL_OPTIONS} onClose={()=>setManagingStudent(null)} onSaved={refreshBackendData} />}
                 <label>Class{' '}
                   <select value={rosterClass} onChange={e => { setRosterClass(e.target.value); setRosterSubClass(''); }} style={{ padding: 8, borderRadius: 6 }}>
                     <option value="">All classes</option>
@@ -1880,6 +1888,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '2px solid #0f172a', width: 56 }}>#</th>
                       <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '2px solid #0f172a' }}>Full Name</th>
                       <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '2px solid #0f172a' }}>Level / Section</th>
+                      <th>Academic Year</th>
+                      <th>Term</th>
+                      <th>Gender</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1888,6 +1899,9 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         <td style={{ padding: '7px 10px', borderBottom: '1px solid #e2e8f0' }}>{idx + 1}</td>
                         <td style={{ padding: '7px 10px', borderBottom: '1px solid #e2e8f0', fontWeight: 700 }}>{s.fullName}</td>
                         <td style={{ padding: '7px 10px', borderBottom: '1px solid #e2e8f0' }}>{studentDetailedClass(s)}</td>
+                        <td style={{ padding: '7px 10px' }}>{s.academicYear || 'Not supplied'}</td>
+                        <td style={{ padding: '7px 10px' }}>{s.academicTerm || 'Not supplied'}</td>
+                        <td style={{ padding: '7px 10px' }}>{s.gender || 'Not supplied'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1955,6 +1969,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         <td><span className="status-pill status-pill--success">{s.status}</span></td>
                         <td>
                           <div style={{ display: 'flex', gap: 6 }}>
+                            {['head_admin','sub_admin'].includes(adminRole) && <button type="button" onClick={()=>setManagingStudent(s)}>Status / Promote</button>}
                             {adminRole === 'head_admin' && (
                               <>
                                 <button

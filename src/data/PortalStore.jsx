@@ -2532,8 +2532,10 @@ export function PortalDataProvider({ children, enabled = false }) {
       await refreshBackendData();
     },
     declineResult: async (id, note) => {
+      if (!String(note || '').trim()) throw new Error('Enter a comment explaining why the result was declined.');
       await api.updateResultStatus(id, { status: 'Declined', decline_note: 'Declined' === 'Declined' ? note : undefined });
-      setData(current => ({ ...current, results: current.results.map(r => r.id === id ? { ...r, status: 'Declined', declineNote: 'Declined' === 'Declined' ? note : null } : r) }));
+      setData(current => ({ ...current, results: current.results.map(r => r.id === id || r.backendId === id ? { ...r, status: 'Declined', declineNote: note.trim() } : r) }));
+      await refreshBackendData();
     },
     registerCourse: (course) => setData((current) => ({
       ...current,

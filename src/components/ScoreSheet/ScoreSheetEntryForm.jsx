@@ -181,7 +181,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
   };
 
   const filteredStudents = useMemo(() => {
-    let list = (students || []).filter((student) => studentMatchesSelectedClass(student, cls, subClass));
+    let list = studentSearch.trim() ? [...(students || [])] : (students || []).filter((student) => studentMatchesSelectedClass(student, cls, subClass));
     if (studentSearch.trim()) {
       const q = studentSearch.toLowerCase();
       list = list.filter(s =>
@@ -209,6 +209,13 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
     }
     if (currentKey) setSelectedStudent({ fullName: '', name: '', studentId: '' });
   }, [filteredStudents, selectedStudent]);
+
+  useEffect(() => {
+    if (!studentSearch.trim() || !(selectedStudent?.id || selectedStudent?.studentId)) return;
+    const detected = detectStudentClassAndSub(selectedStudent);
+    setCls(detected.classLevel);
+    setSubClass(normalizeSubClass(detected.classLevel, detected.subClassLevel));
+  }, [studentSearch, selectedStudent]);
 
   const studentKey = selectedStudent.id || selectedStudent.studentId;
 

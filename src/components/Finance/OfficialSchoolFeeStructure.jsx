@@ -681,7 +681,8 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
   const resolvedAdminRole = adminRole || (typeof window !== 'undefined' ? localStorage.getItem('says_admin_role') : '') || '';
   const canCancelPostedBill = ['head_admin', 'super_admin'].includes(String(getAuthUser()?.role || resolvedAdminRole).toLowerCase());
 
-  const [feeSchedule, setFeeSchedule] = useState(() => loadFeeSchedule());
+  const [feeSchedule, setSharedFeeSchedule] = useState(() => loadFeeSchedule());
+  const [studentBillDrafts,setStudentBillDrafts] = useState({});
 
   useEffect(() => {
     try {
@@ -786,7 +787,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
   const baseClassKey = (selectedClassKey || '').replace(/\s*[AB]$/i, '');
   const activeSubLevelDisplay = selectedClassKey;
 
-  const activeClassData = feeSchedule[selectedClassKey] 
+  const sharedClassData = feeSchedule[selectedClassKey] 
     || feeSchedule[baseClassKey] 
     || feeSchedule[`${baseClassKey}A`] 
     || feeSchedule[baseClassKey.replace(/Basic\s*/i, 'Grade ')]
@@ -794,6 +795,19 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     || INITIAL_FEE_SCHEDULE[baseClassKey]
     || feeSchedule['Creche'] 
     || { baseBill: [], optionalBills: [] };
+
+  const studentDraftKey = activeBillingView === 'single_student' && preparingStudentBill
+    ? `${preparingStudentBill.id || preparingStudentBill.studentId}:${selectedClassKey}:${periodLabel(preparingStudentBill)}` : '';
+  const activeClassData = studentDraftKey ? studentBillDrafts[studentDraftKey] || sharedClassData : sharedClassData;
+  const setFeeSchedule = update => {
+    if (!studentDraftKey) { setSharedFeeSchedule(update); return; }
+    setStudentBillDrafts(current => {
+      const draft = current[studentDraftKey] || structuredClone(sharedClassData);
+      const scoped = { ...feeSchedule, [selectedClassKey]: draft };
+      const updated = typeof update === 'function' ? update(scoped) : update;
+      return { ...current, [studentDraftKey]: updated[selectedClassKey] };
+    });
+  };
 
 
   const liveClassStudents = useMemo(() => {

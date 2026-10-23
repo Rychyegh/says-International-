@@ -51,6 +51,7 @@ export function normalizeAssessment(raw = {}) {
     grade: hasExam ? proficiencyGrade(field('total_score', 'score')) : '',
     remarks: hasExam ? proficiencyRemark(field('total_score', 'score')) : '',
     teacherNote: field('teacher_note', 'teacherNote') || '',
+    declineNote: field('decline_note', 'declineNote') || field('rejection_reason', 'rejectionReason') || '',
     hasClassScore: field('has_class_score', 'hasClassScore') ?? true,
     hasExamScore: Boolean(hasExam),
     status: score.status || raw.status || (hasExam ? 'Pending Approval' : 'Class Score Recorded'),
