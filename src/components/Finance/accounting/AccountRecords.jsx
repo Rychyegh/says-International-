@@ -34,8 +34,13 @@ function LedgerReport({ accounts, trial }) {
   const report = useReport();
   const [account, setAccount] = useState(''), [from, setFrom] = useState(''), [to, setTo] = useState(today());
   const change = (setter,value) => { setter(value); report.clear(); };
-  const columns = trial ? [{key:'account_code'},{key:'account_name'},amountColumn('debit'),amountColumn('credit')] : [{key:'date'},{key:'reference'},{key:'description'},amountColumn('debit'),amountColumn('credit'),amountColumn('running_balance')];
-  const rows = report.data?.lines;
+  const columns = trial ? [{key:'account_code'},{key:'account_name'},amountColumn('debit'),amountColumn('credit')] : [{key:'payer_name',label:'Name of payer'},{key:'reference'},{key:'description'},amountColumn('amount'),{key:'date'},{key:'direction',label:'Dr/Cr'},amountColumn('running_balance')];
+  const rows = Array.isArray(report.data?.lines) ? report.data.lines.map(line => {
+    if (trial) return line;
+    const debit = Number(line.debit || 0), credit = Number(line.credit || 0);
+    const mixed = debit > 0 && credit > 0;
+    return { ...line, payer_name: line.payer_name || line.payerName || line.paid_by_name || line.payer?.full_name || line.payer?.name || 'Not supplied', amount: mixed ? null : debit > 0 ? debit : credit > 0 ? credit : line.amount ?? 0, direction: mixed ? 'Dr & Cr' : debit > 0 ? 'Dr' : credit > 0 ? 'Cr' : line.direction || '—' };
+  }) : null;
   const valid = Array.isArray(rows);
   return <Card title={trial?'Trial balance':'General ledger'} hint={trial?'Review debit and credit balances across all posted accounts at a reporting date.':'Choose one account to follow posted entries and the running balance.'}>
     <form onSubmit={e=>{e.preventDefault();report.load(trial?'reports/trial-balance':`accounts/${encodeURIComponent(account)}/ledger`,trial?{as_of:to}:{from,to});}}>

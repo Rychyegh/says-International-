@@ -900,6 +900,7 @@ export function mapStudentFromApi(s = {}, fallback = {}) {
     })(),
     guardianPhone: resolveGuardianPhone(s, fallback) || '',
     homeAddress: s.homeAddress || s.home_address || fallback.homeAddress || '',
+    enrollmentYear: s.enrollmentYear || s.enrollment_year || String(s.enrollmentDate || s.enrollment_date || fallback.enrollmentYear || fallback.enrollmentDate || '').match(/^\d{4}/)?.[0] || '',
     enrollmentDate: s.enrollmentDate || s.enrollment_date || fallback.enrollmentDate || new Date().toISOString().split('T')[0],
     onboardedAt: s.onboardedAt || s.onboarded_at || s.created_at || s.createdAt || fallback.onboardedAt || s.enrollmentDate || s.enrollment_date || fallback.enrollmentDate || null,
     createdAt: s.created_at || s.createdAt || fallback.createdAt || null,

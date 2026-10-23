@@ -776,6 +776,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       { key: 'fullName', label: 'Full Name' },
       { key: 'level', label: 'Class' },
       { key: 'rosterSubClass', label: 'Sub-class' },
+      { key: 'enrollmentYear', label: 'Year of Enrollment' },
     ], filteredStudents);
     const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' }));
     const link = document.createElement('a');
