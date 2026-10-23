@@ -9,3 +9,4 @@
 .student-receipt-letterhead p{margin:3px 0;}
 @media(max-width:480px){.student-receipt-letterhead{flex-direction:column;text-align:center;}}
 @media print{.student-receipt-letterhead{flex-direction:row;text-align:left;}.student-receipt-letterhead img{print-color-adjust:exact;-webkit-print-color-adjust:exact;}}
+.vendor-payment-summary table{width:100%;border-collapse:collapse;font-size:12px;}.vendor-payment-summary th,.vendor-payment-summary td{padding:8px;text-align:left;border:1px solid #cbd5e1;overflow-wrap:anywhere;}.vendor-payment-summary tr{break-inside:avoid;}@media print{.vendor-payment-summary{break-inside:avoid;}.vendor-payment-summary table{table-layout:fixed;}}

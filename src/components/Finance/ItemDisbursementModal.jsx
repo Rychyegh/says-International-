@@ -90,7 +90,6 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, accountsRead
           <option value="">Select a configured source account</option>
           {accounts.sources.map(account=><option key={account.id} value={account.id}>{account.name || account.account_name} · {account.code || account.account_code || 'Asset'}</option>)}
         </select><small>REMALJ Carewell Inspirational School</small></label>
-        <label>Destination account<input required value={fields.destination_account} onChange={e=>field('destination_account',e.target.value)} placeholder="Recipient bank account or MoMo number" /></label>
         <label>Beneficiary<input readOnly required value={item.provider || ''} /></label>
         <label>Payment method<select aria-label="Payment method" value={fields.payment_method} onChange={e=>field('payment_method',e.target.value)}>{['Bank Transfer','Mobile Money','Cheque','Cash'].map(method=><option key={method}>{method}</option>)}</select></label>
         <label>PL / Account<select aria-label="Expense account" required value={accounts.expenses.some(account=>account.id===fields.expense_account_id) ? fields.expense_account_id : ''} onChange={e=>{
@@ -100,7 +99,6 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, accountsRead
         }}><option value="">Select an account</option>
           {accounts.expenses.length>0 && <optgroup label="Configured accounts">{accounts.expenses.map(account=><option key={account.id} value={account.id}>{account.name || account.account_name} · {account.code || account.account_code}</option>)}</optgroup>}
         </select>{fields.expense_account_draft && <small>Previous draft choice: {fields.expense_account_draft.replace(/^draft:/,'')}. Select a configured account to use for payment.</small>}</label>
-        <label>Payment reference<input required value={fields.reference} onChange={e=>field('reference',e.target.value)} /></label>
         <label>Payment date<input type="date" required value={fields.payment_date} onChange={e=>field('payment_date',e.target.value)} /></label>
       </div>
       <label>Notes<textarea rows={2} value={fields.notes} onChange={e=>field('notes',e.target.value)} /></label>
@@ -125,9 +123,10 @@ function ItemInstructions({ item, index, voucher, onPaid, accounts, accountsRead
 
 export default function ItemDisbursementModal({voucher:initialVoucher,onClose,onCompleted}) {
   const [receipt,setReceipt] = useState(null), [receiptError,setReceiptError] = useState('');
+  const [combined,setCombined] = useState([]), [receiptsLoading,setReceiptsLoading] = useState(false);
   useEffect(()=>()=>document.body.classList.remove('print-student-receipt'),[]);
   const loadReceipt = async (item,id) => {
-    setReceipt(null);setReceiptError('');
+    setReceipt(null);setCombined([]);setReceiptError('');
     try {
       const raw=await api.getItemPayment(initialVoucher.id,item.id,id);
       const record=raw.payment || raw.data?.payment || raw.data || raw;
@@ -153,6 +152,20 @@ export default function ItemDisbursementModal({voucher:initialVoucher,onClose,on
   },[accountReload]);
   const {paymentVouchers=[]} = usePortalData();
   const voucher = paymentVouchers.find(row=>row.id===initialVoucher.id && row.items?.length > 1) || initialVoucher;
+  const loadCombined = async () => {
+    setReceipt(null);setCombined([]);setReceiptError('');setReceiptsLoading(true);
+    try {
+      const payments=voucher.items.flatMap(item=>(item.payments || []).filter(payment=>isItemUuid(payment.id)).map(payment=>({item,id:payment.id})));
+      if(!payments.length) throw new Error('No confirmed vendor payments are available to print.');
+      const records=await Promise.all(payments.map(async ({item,id})=>{
+        const raw=await api.getItemPayment(voucher.id,item.id,id);
+        const record=raw.payment || raw.data?.payment || raw.data || raw;
+        if(record.id!==id || record.item_id!==item.id || record.voucher_id!==voucher.id || !record.receipt_number || !Number.isFinite(Number(record.amount))) throw new Error('The server did not return a matching confirmed vendor receipt.');
+        return record;
+      }));
+      setCombined(records);
+    } catch(error){setReceiptError(error.message);} finally {setReceiptsLoading(false);}
+  };
   const onPaid = saved => {
     onCompleted?.(saved);
     if (saved.items.every(item => ['paid','disbursed','settled','declined','cancel pv','non-accrual'].includes(String(item.status).toLowerCase()))) {
@@ -162,7 +175,7 @@ export default function ItemDisbursementModal({voucher:initialVoucher,onClose,on
   return <ViewportModal className="item-payment-overlay" aria-label="Item authorization and disbursement" onClose={onClose}>
     <section className="item-payment-dialog">
       <header><div><h2>Record item payments</h2><p>PV #{voucher.pvNo} · {voucher.items.length} items</p></div><button type="button" className="btn btn-outline-green" onClick={onClose}>Close</button></header>
-      <p>Prepare each item separately with its PV beneficiary, destination account and payment reference.</p>
+      <p>Prepare each item separately with its PV beneficiary.</p>
       <p className="item-payment-availability" id="item-payment-availability">Record an external payment only after verifying its settlement and reference. This records the payment in the school ledger; it does not send money through a bank or mobile-money service.</p>
       {!ITEM_PAYMENTS_ENABLED && <p className="item-payment-availability">Item payment recording is disabled in this frontend release. The administrator must enable it after verifying backend payment setup.</p>}
       {voucher.itemReconciliationRequired && <p role="alert">This historical voucher requires audited reconciliation. Do not issue a second payment.</p>}
@@ -174,7 +187,14 @@ export default function ItemDisbursementModal({voucher:initialVoucher,onClose,on
       <button type="button" className="btn" disabled={accountsLoading} onClick={()=>{setAccountsLoading(true);setAccountReload(value=>value+1);}}>Refresh payment accounts</button>
       {voucher.items.some(item => item.recoveredFromDescription) && <p className="item-payment-availability">These item details were recovered from the voucher description. The payment service must return saved item records before they can be paid separately.</p>}
       {voucher.items.map((item,index)=><ItemInstructions key={item.id || index} item={item} index={index} voucher={voucher} onPaid={onPaid} accounts={accounts} accountsReady={!accountsLoading && !accountError} onReceipt={loadReceipt} />)}
+      <button type="button" className="btn btn-outline-green" disabled={receiptsLoading} onClick={loadCombined}>{receiptsLoading?'Loading vendor receipts…':'View all vendor payments on one sheet'}</button>
       {receiptError && <p role="alert">{receiptError}</p>}
+      {combined.length>0 && <><article className="student-receipt-paper vendor-payment-summary">
+        <SchoolPrintHeader />
+        <h3>Vendor payment summary · PV #{voucher.pvNo}</h3>
+        <table><thead><tr><th>Vendor / beneficiary</th><th>Receipt / reference</th><th>Date / method</th><th>Amount (GHS)</th></tr></thead><tbody>{combined.map(record=><tr key={record.id}><td>{record.beneficiary}<br/>{record.destination_account}</td><td>{record.receipt_number}<br/>{record.reference}</td><td>{record.payment_date}<br/>{record.payment_method}</td><td>{Number(record.amount).toFixed(2)}</td></tr>)}</tbody><tfoot><tr><th colSpan={3}>Total confirmed payments</th><th>{combined.reduce((total,record)=>total+Number(record.amount),0).toFixed(2)}</th></tr></tfoot></table>
+        <p>Includes confirmed payments only. Unpaid items are excluded.</p>
+      </article><button type="button" className="btn" onClick={printReceipt}>Print all vendor payments on one sheet</button></>}
       {receipt && <><article className="student-receipt-paper">
         <SchoolPrintHeader />
         <h3>Confirmed item payment · {receipt.receipt_number}</h3>
