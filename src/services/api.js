@@ -2282,7 +2282,12 @@ export const api = {
     const res = await request(`/sims/score-sheets${query ? `?${query}` : ''}`);
     const rows = Array.isArray(res) ? res : (res.scores || res.sheets || res.entries || res.items || res.data);
     if (!Array.isArray(rows)) throw new Error("Invalid score sheet list response.");
-    return rows.flatMap(row => Array.isArray(row.scores) ? row.scores.map(score => mapScoreSheetEntry({ ...row, scores: [score] })) : [mapScoreSheetEntry(row)]);
+    const detailed = await Promise.all(rows.map(async row => {
+      if (Array.isArray(row.scores) || row.student_id || row.studentId || !row.id) return row;
+      const raw = await api.getScoreSheet(row.id);
+      return raw.sheet || raw.score_sheet || raw.data || raw;
+    }));
+    return detailed.flatMap(row => Array.isArray(row.scores) ? row.scores.map(score => mapScoreSheetEntry({ ...row, scores: [score] })) : [mapScoreSheetEntry(row)]);
   },
 
   saveScoreSheet: async (entry) => {

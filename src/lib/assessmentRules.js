@@ -18,7 +18,8 @@ export function normalizeAssessment(raw = {}) {
   const field = (snake, camel) => score[snake] ?? score[camel] ?? raw[snake] ?? raw[camel];
   const rawClass = field('raw_class_score', 'rawClassScore') ?? (raw.score_format === 'raw' ? score.class_score : null);
   const rawExam = field('raw_exam_score', 'rawExamScore') ?? (raw.score_format === 'raw' ? score.exam_score : null);
-  const hasExam = field('has_exam_score', 'hasExamScore') ?? (rawExam !== null && rawExam !== undefined);
+  const convertedExam = field('exam_score_converted', 'examScoreConverted') ?? field('exam_score', 'examScore');
+  const hasExam = field('has_exam_score', 'hasExamScore') ?? [rawExam, convertedExam].some(value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)));
   const subClass = field('sub_class', 'subClass') || raw.sub_class_level || '';
   return {
     id: score.id || score._id,
@@ -39,7 +40,7 @@ export function normalizeAssessment(raw = {}) {
     classTestTotal: field('class_test_total', 'classTestTotal') ?? null,
     rawClassScore: numberOrNull(rawClass), rawExamScore: numberOrNull(rawExam),
     classScore: field('class_score', 'classScore') ?? null,
-    examScore: hasExam ? numberOrNull(rawExam) : null,
+    examScore: hasExam ? numberOrNull(rawExam ?? convertedExam) : null,
     examScoreConverted: hasExam ? (field('exam_score_converted', 'examScoreConverted') ?? score.exam_score ?? null) : null,
     score: hasExam ? (field('total_score', 'score') ?? null) : null,
     grade: hasExam ? (score.grade ?? raw.grade ?? '') : '',
