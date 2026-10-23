@@ -41,7 +41,7 @@ export function stripCredentials(value) {
 export function portalForRole(role) {
   const normalized = String(role || '').toLowerCase().replace(/[ -]/g, '_');
   if (['admin', 'head_admin', 'sub_admin', 'super_admin'].includes(normalized)) return 'admin';
-  if (['teacher', 'class_teacher', 'subject_teacher', 'staff'].includes(normalized)) return 'teacher';
+  if (['teacher', 'class_teacher', 'subject_teacher', 'preschool_teacher', 'staff'].includes(normalized)) return 'teacher';
   return ['parent', 'student', 'accountant'].includes(normalized) ? normalized : '';
 }
 export function studentBelongsToParent(student, parent) {

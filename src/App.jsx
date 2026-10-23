@@ -4,6 +4,7 @@ import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-d
 import Topbar from './components/Topbar/Topbar';
 import LoginPage from './components/Login/LoginPage';
 import TeacherPortal from './portals/TeacherPortal';
+import PreschoolPortal from './portals/PreschoolPortal';
 import ParentPortal from './portals/ParentPortal';
 import StudentPortal from './portals/StudentPortal';
 import AdminPortal from './portals/AdminPortal';
@@ -226,6 +227,7 @@ function AppRoutes() {
         />
       );
     }
+    if (portalKey === 'teacher' && getAuthUser()?.role === 'preschool_teacher') return <PreschoolPortal />;
     return <Component onSignOut={handleSignOut} initialAdminRole={adminRole} />;
   };
 

@@ -291,7 +291,7 @@ export default function LoginPage({ portal, onLoginSuccess }) {
       throw new Error('The backend still requires additional verification for this teacher account. Ask the administrator to enable direct email-and-password login for class teachers.');
     }
     const role = String(verified.user.role || '').toLowerCase();
-    if (!['teacher', 'class_teacher'].includes(role)) {
+    if (!['teacher', 'class_teacher', 'preschool_teacher'].includes(role)) {
       throw new Error('This account is not authorised for the Teacher Portal.');
     }
     const user = verified.user;

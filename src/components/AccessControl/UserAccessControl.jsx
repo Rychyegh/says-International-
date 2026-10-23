@@ -17,6 +17,7 @@ const ROLES = [
   { value: 'sub_admin', label: 'Sub-Administrator', badgeColor: '#0369a1', bg: '#e0f2fe', desc: 'Operational student roster and academic task handling' },
   { value: 'accountant', label: 'Accountant', badgeColor: '#166534', bg: '#dcfce7', desc: 'Billing, fee collection, payment vouchers, and ledger' },
   { value: 'teacher', label: 'Subject Teacher', badgeColor: '#b45309', bg: '#fef3c7', desc: 'Class roster, lesson planning, grades, and attendance' },
+  { value: 'preschool_teacher', label: 'Pre-school Teacher', badgeColor: '#6b21a8', bg: '#f3e8ff', desc: 'Assigned preschool learners and developmental reports' },
   { value: 'class_teacher', label: 'Class Teacher', badgeColor: '#166534', bg: '#dcfce7', desc: 'Form tutor with class leadership, passcode verification, and class portal access' },
   { value: 'student', label: 'Student', badgeColor: '#4338ca', bg: '#e0e7ff', desc: 'Assignments, timetable, report cards, and digital ID' },
   { value: 'parent', label: 'Parent / Guardian', badgeColor: '#be185d', bg: '#fce7f3', desc: 'Child progress, tuition fees, bus tracking, and messaging' },
@@ -317,7 +318,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       createForm.role === 'admin' ? `ADM-2026-${String(users.length + 1).padStart(3, '0')}` : undefined
     );
     const classPasscode = isClassTeacher ? String(Math.floor(1000 + Math.random() * 9000)) : undefined;
-    const mainClass = isClassTeacher ? createForm.mainClass : '';
+    const mainClass = isClassTeacher || createForm.role === 'preschool_teacher' ? createForm.mainClass : '';
 
     const newUser = {
       id: `usr_${createForm.role}_${Date.now()}`,
@@ -1216,7 +1217,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                   onChange={(role) => setCreateForm(prev => ({
                     ...prev,
                     role,
-                    mainClass: role === 'class_teacher' ? prev.mainClass : '',
+                    mainClass: ['class_teacher','preschool_teacher'].includes(role) ? prev.mainClass : '',
                   }))}
                 />
               </div>
@@ -1227,7 +1228,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                 </label>
                 <select
                   value={createForm.mainClass}
-                  disabled={createForm.role !== 'class_teacher'}
+                  disabled={!['class_teacher','preschool_teacher'].includes(createForm.role)}
                   onChange={(e) => setCreateForm(prev => ({ ...prev, mainClass: e.target.value }))}
                   style={{
                     width: '100%',
@@ -1241,9 +1242,9 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                   }}
                 >
                   <option value="">
-                    {createForm.role === 'class_teacher' ? 'Select main class' : 'Available when Class Teacher is selected'}
+                    {['class_teacher','preschool_teacher'].includes(createForm.role) ? 'Select main class' : 'Select a class teacher role first'}
                   </option>
-                  {createForm.role === 'class_teacher' && mainClassOptions.map((level) => (
+                  {['class_teacher','preschool_teacher'].includes(createForm.role) && mainClassOptions.filter(level => createForm.role !== 'preschool_teacher' || /creche|nursery|kg|kindergarten/i.test(level)).map((level) => (
                     <option key={level} value={level}>{level}</option>
                   ))}
                 </select>
