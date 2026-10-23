@@ -822,15 +822,14 @@ export default function TeacherPortal() {
             const st = selectedReportStudent;
             const studentIdx = classStudents.findIndex(s => (s.id && s.id === st.id) || (s.studentId && s.studentId === st.studentId));
             const rankStr = st.classPosition || 'Not available';
-            const matchingResults = resultsForStudent(recordedResults, st);
-            const stResults = approvedResults(matchingResults).filter(hasRecordedExamScore);
-            const reportSubjects = stResults.map(r => ({
-              subject: r.subject,
-              classScore: hasRecordedClassScore(r) && r.classScore != null ? r.classScore : 'N/A',
-              examScore: r.examScoreConverted ?? r.examScore ?? 'N/A',
-              score: r.score != null ? `${r.score}%` : 'Not available',
-              grade: proficiencyGrade(r.score),
-              remarks: proficiencyRemark(r.score),
+            const transcript = buildStudentTranscriptData(st, recordedResults);
+            const reportSubjects = transcript.subjects.map(subject => ({
+              subject: subject.name,
+              classScore: subject.classScore ?? 'N/A',
+              examScore: subject.examScore ?? 'N/A',
+              score: subject.total != null ? `${subject.total}%` : 'Not available',
+              grade: subject.grade,
+              remarks: subject.remark,
             }));
 
             return (
