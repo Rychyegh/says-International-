@@ -4,21 +4,25 @@ import { filterBills, money } from '../../lib/accountingRules';
 import SchoolPrintHeader from '../School/SchoolPrintHeader';
 import { Field, PrintDocument, printDocument } from './AccountingUI';
 export default function BillPrinting({onPrepareBill}) {
- const { studentFees = [], onboardedStudents = [], syncErrors = {}, resourceStatus = {}, isLoadingBackend } = usePortalData();
+ const { studentFees = [], onboardedStudents = [], syncErrors = {}, resourceStatus = {}, isLoadingBackend, refreshAccounts, isRefreshingBackend } = usePortalData();
  const [filters,setFilters] = useState({ search:'',classLevel:'',term:'',year:'',status:'',min:'',max:'',sort:'name' });
  const [selected,setSelected] = useState([]);
  const [mode,setMode] = useState('individual');
+ const [printAll,setPrintAll] = useState(false);
  const rows = studentFees.map(f => {
   const student = onboardedStudents.find(s => String(s.studentId) === String(f.studentId) || String(s.id) === String(f.studentId));
   return {...f,classLevel:f.classLevel || student?.level || '',academicYear:f.academicYear || ''};
  });
  const visible = filterBills(rows, filters);
- const printable = visible.filter(row => selected.includes(row.id));
+ const printable = printAll ? visible : visible.filter(row => selected.includes(row.id));
  const blocked = Boolean(syncErrors.feesRes || syncErrors.connection || isLoadingBackend || resourceStatus.feesRes === 'loading');
  const choose = (key,value) => {setFilters(f => ({...f,[key]:value}));setSelected([]);};
  const opts = key => [...new Set(rows.map(r => r[key]).filter(Boolean))].sort();
  const summary = <table><thead><tr>{['Student','Class','Year / term','Billed','Paid','Balance'].map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>{printable.map(r => <tr key={r.id}><td>{r.studentName} ({r.studentId})</td><td>{r.classLevel}</td><td>{r.academicYear} / {r.term}</td><td>{money(r.billedAmount)}</td><td>{money(r.paidAmount)}</td><td>{money(r.balance)}</td></tr>)}</tbody><tfoot><tr><th colSpan={3}>Total</th>{['billedAmount','paidAmount','balance'].map(k => <th key={k}>{money(printable.reduce((sum,r)=>sum+Number(r[k]||0),0))}</th>)}</tr></tfoot></table>;
  return <>
+  <div className="accounting-toolbar"><button type="button" disabled={isRefreshingBackend} onClick={()=>refreshAccounts?.()}>Refresh saved bills</button><button type="button" disabled={blocked || !visible.length} onClick={()=>{setMode('individual');setPrintAll(true);requestAnimationFrame(()=>requestAnimationFrame(()=>{printDocument();setPrintAll(false);}));}}>Print all filtered bills ({visible.length})</button></div>
+  <p>Bills posted by Admin appear here from the saved invoice ledger. Prepared schedules that have not been posted are not saved student invoices.</p>
+  <div className="accounting-card"><h2>Full saved bill details</h2>{visible.map(bill=><details key={bill.id}><summary>{bill.studentName} · {bill.billId || bill.id} · {money(bill.billedAmount)}</summary><p>{bill.classLevel} · {bill.academicYear} · {bill.term} · Balance: {money(bill.balance)}</p><table><thead><tr><th>Fee item</th><th>Amount</th></tr></thead><tbody>{(bill.itemsBreakdown || []).map((item,index)=><tr key={index}><td>{item.details || item.description || item.name}</td><td>{money(item.amount ?? item.fee)}</td></tr>)}</tbody></table>{!bill.itemsBreakdown?.length && <p>The backend did not supply item details for this invoice.</p>}</details>)}</div>
   <p>Prepare bills, filter the saved ledger, then print individual bills or a class summary. Select a year and term to limit the reporting period.</p>
   {onPrepareBill && <button className="primary" onClick={onPrepareBill}>Prepare student / class bill</button>}
   <div className="accounting-toolbar">

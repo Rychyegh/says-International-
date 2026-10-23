@@ -679,7 +679,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
   const periodForStudent = student => billingPeriod(student || {}, portalData?.semesterRegistrations || [], portalData?.applications || [], portalData?.academicSettings || {});
   const periodLabel = student => billingPeriodLabel(periodForStudent(student));
   const resolvedAdminRole = adminRole || (typeof window !== 'undefined' ? localStorage.getItem('says_admin_role') : '') || '';
-  const canCancelPostedBill = resolvedAdminRole === 'head_admin' || resolvedAdminRole === 'sub_admin' || Boolean(onOpenSimsModal);
+  const canCancelPostedBill = ['head_admin', 'super_admin'].includes(String(getAuthUser()?.role || resolvedAdminRole).toLowerCase());
 
   const [feeSchedule, setFeeSchedule] = useState(() => loadFeeSchedule());
 
@@ -1561,6 +1561,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
   const submitCancellation = async (event) => {
     event.preventDefault();
     if (cancelBusy || !cancellation?.feeId || !cancellation.reason.trim()) return;
+    if (!canCancelPostedBill) { setCancelError('Only Head Admin or Super Admin can cancel invoices.'); return; }
     setCancelBusy(true);
     setCancelError('');
     try {
@@ -1594,9 +1595,9 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
               </select>
             </label>
             {!cancellation.invoices.length && <p>No saved invoice is available for this student.</p>}
-            <label>Reason<textarea required disabled={cancelBusy} value={cancellation.reason} onChange={e => setCancellation({ ...cancellation, reason: e.target.value })} style={{ width: '100%' }} /></label>
+            <label>Reason (at least 3 characters)<textarea required minLength={3} disabled={cancelBusy} value={cancellation.reason} onChange={e => setCancellation({ ...cancellation, reason: e.target.value })} style={{ width: '100%', padding: 10, minHeight: 90 }} /></label>
             {cancelError && <p role="alert" style={{ color: '#b91c1c' }}>{cancelError}</p>}
-            <button type="submit" disabled={cancelBusy || !cancellation.feeId || !cancellation.reason.trim()}>{cancelBusy ? 'Cancelling…' : 'Confirm cancellation'}</button>
+            <button className="btn btn-danger" type="submit" disabled={cancelBusy || !canCancelPostedBill || !cancellation.feeId || cancellation.reason.trim().length < 3}>{cancelBusy ? 'Cancelling…' : 'Confirm cancellation'}</button>
             <button type="button" disabled={cancelBusy} onClick={() => setCancellation(null)}>Close</button>
           </form>
         </ViewportModal>
