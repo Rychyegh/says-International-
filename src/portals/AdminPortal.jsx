@@ -500,7 +500,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   const handleAddStaffSubmit = async (e) => {
     e.preventDefault();
     if (!newStaffForm.name) return;
-    if (isTeachingStaffMember(newStaffForm)) return;
+    const teaching = isTeachingStaffMember(newStaffForm);
+    if (teaching && adminRole !== 'head_admin') return;
 
     setStaffActionLoading(true);
     setStaffActionError('');
@@ -509,11 +510,11 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       await addStaffMember({
         ...newStaffForm,
         role: newStaffForm.role,
-        subject: NON_TEACHING_DUTIES.includes(newStaffForm.subject) ? newStaffForm.subject : 'Transport',
-        classAssigned: '',
+        subject: teaching ? newStaffForm.subject : NON_TEACHING_DUTIES.includes(newStaffForm.subject) ? newStaffForm.subject : 'Transport',
+        classAssigned: teaching ? newStaffForm.classAssigned : '',
       });
-      setSuccessMsg(`✅ ${newStaffForm.name} was saved as non-teaching staff.`);
-      setStaffKindFilter('non_teaching');
+      setSuccessMsg(`✅ ${newStaffForm.name} was saved as ${teaching ? 'teaching' : 'non-teaching'} staff.`);
+      setStaffKindFilter(teaching ? 'teaching' : 'non_teaching');
       setIsAddingStaff(false);
       setNewStaffForm(blankNonTeachingStaff);
       setTimeout(() => setSuccessMsg(''), 5000);
@@ -3125,6 +3126,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   >
                     <UserPlus size={16} /> Add Non-teaching Staff
                   </button>
+                  {adminRole === 'head_admin' && <div style={{ width: '100%' }}><button type="button" className="btn btn-green" onClick={() => { setNewStaffForm({ ...blankNonTeachingStaff, role: 'Subject Teacher', subject: SUBJECT_OPTIONS[0] || '', classAssigned: LEVEL_OPTIONS[0] || '' }); setStaffActionError(''); setIsAddingStaff(true); }}><UserPlus size={16} /> Add New Teacher</button></div>}
                 </div>
               </div>
 
@@ -3530,8 +3532,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
               <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 560, borderRadius: 14, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', overflow: 'hidden' }} className="animate-fade-up">
                 <div style={{ background: ADMIN_BG, padding: '18px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>Add Non-teaching Staff</h3>
-                    <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0 0' }}>Drivers, security, cleaners, cooks, and other support staff.</p>
+                    <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0 }}>{isTeachingStaffMember(newStaffForm) ? 'Add New Teacher' : 'Add Non-teaching Staff'}</h3>
+                    <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0 0' }}>{isTeachingStaffMember(newStaffForm) ? 'Create a teacher and allocate their subject and class.' : 'Drivers, security, cleaners, cooks, and other support staff.'}</p>
                   </div>
                   <button onClick={() => setIsAddingStaff(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 30, height: 30, borderRadius: 15, cursor: 'pointer', fontWeight: 900 }}>✕</button>
                 </div>
@@ -3564,7 +3566,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <label>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Non-teaching role</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Staff role</span>
                       <select
                         value={newStaffForm.role}
                         onChange={(e) => {
@@ -3572,29 +3574,30 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                           setNewStaffForm({
                             ...newStaffForm,
                             role,
-                            subject: NON_TEACHING_DUTIES.includes(newStaffForm.subject) ? newStaffForm.subject : 'Transport',
+                            subject: isTeachingStaffMember(newStaffForm) ? newStaffForm.subject : NON_TEACHING_DUTIES.includes(newStaffForm.subject) ? newStaffForm.subject : 'Transport',
                           });
                         }}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4 }}
                       >
-                        {NON_TEACHING_STAFF_ROLES.map((role) => <option key={role}>{role}</option>)}
+                        {(isTeachingStaffMember(newStaffForm) ? ['Subject Teacher', 'Class Teacher'] : NON_TEACHING_STAFF_ROLES).map((role) => <option key={role}>{role}</option>)}
                       </select>
                     </label>
 
                     <label>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Duty area</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>{isTeachingStaffMember(newStaffForm) ? 'Subject' : 'Duty area'}</span>
                       <select
                         value={newStaffForm.subject}
                         onChange={(e) => setNewStaffForm({ ...newStaffForm, subject: e.target.value })}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, appearance: 'auto' }}
                       >
-                        {NON_TEACHING_DUTIES.map((s) => (
+                        {(isTeachingStaffMember(newStaffForm) ? SUBJECT_OPTIONS : NON_TEACHING_DUTIES).map((s) => (
                           <option key={s} value={s}>{s}</option>
                         ))}
                       </select>
                     </label>
                   </div>
 
+                  {isTeachingStaffMember(newStaffForm) && <label>Allocated class<select required value={newStaffForm.classAssigned} onChange={event => setNewStaffForm({ ...newStaffForm, classAssigned: event.target.value })} style={{ width: '100%', padding: 10, marginTop: 4 }}><option value="">Select a class</option>{LEVEL_OPTIONS.map(level => <option key={level} value={level}>{level}</option>)}</select></label>}
                   <label>
                     <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Phone Number</span>
                     <input
@@ -3623,7 +3626,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       disabled={staffActionLoading}
                       style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: '#166534', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
                     >
-                      {staffActionLoading ? 'Saving...' : 'Save Non-teaching Staff'}
+                      {staffActionLoading ? 'Saving...' : isTeachingStaffMember(newStaffForm) ? 'Save Teacher' : 'Save Non-teaching Staff'}
                     </button>
                   </div>
                 </form>

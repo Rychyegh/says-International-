@@ -3721,7 +3721,7 @@ export function PortalDataProvider({ children, enabled = false }) {
         status: staffData.status || 'Active'
       });
       const createdPayload = (created && typeof created === 'object') ? (created.staff || created.data || created) : null;
-      if (!createdPayload || typeof createdPayload !== 'object') {
+      if (!createdPayload || typeof createdPayload !== 'object' || !createdPayload.id) {
         throw new Error('The database did not save this staff member.');
       }
       const newStaff = {
