@@ -3093,7 +3093,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   <p className="page-header__subtitle">Filter teaching staff from drivers and other non-teaching staff, then onboard, edit, or offboard them.</p>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginLeft: 'auto', gap: 10, flexWrap: 'wrap' }}>
                   <button
                     type="button"
                     onClick={() => {
