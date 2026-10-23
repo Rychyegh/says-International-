@@ -714,3 +714,12 @@
   user-select: none;
 }
 .sidebar-item.accountant-hub-disabled:hover { background: transparent; }
+@media print {
+  body.printing-terminal-report *{visibility:hidden!important;}
+  body.printing-terminal-report .terminal-report-paper,body.printing-terminal-report .terminal-report-paper *{visibility:visible!important;}
+  body.printing-terminal-report .terminal-report-paper .no-print,body.printing-terminal-report .terminal-report-paper .no-print *{display:none!important;visibility:hidden!important;}
+  body.printing-terminal-report .terminal-report-paper{position:absolute!important;left:0!important;top:0!important;width:100%!important;margin:0!important;padding:12mm!important;border:0!important;box-sizing:border-box!important;overflow:visible!important;}
+  body.printing-terminal-report .terminal-report-paper table{width:100%;border-collapse:collapse;}
+  body.printing-terminal-report .terminal-report-paper tr{break-inside:avoid;}
+  body.printing-terminal-report [role="dialog"]{position:static!important;max-height:none!important;overflow:visible!important;transform:none!important;}
+}

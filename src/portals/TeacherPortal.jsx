@@ -877,7 +877,7 @@ export default function TeacherPortal() {
 
                   {/* Body: Official Report Card Preview */}
                   <div style={{ padding: 24 }}>
-                    <div className="printable-area" style={{ background: '#fff', padding: '16px', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+                    <div className="printable-area terminal-report-paper" style={{ background: '#fff', padding: '16px', border: '1px solid #e5e7eb', borderRadius: 8 }}>
                       {/* School Crest & Header */}
                       <div style={{ textAlign: 'center', marginBottom: 14 }}>
                         <SchoolPrintHeader />
@@ -913,15 +913,6 @@ export default function TeacherPortal() {
                           </tr>
                         </thead>
                         <tbody>
-                          {reportSubjects.length === 0 && <tr><td colSpan={4}>
-                            <p>No complete assessment records were loaded for this learner.</p>
-                            {store.syncErrors?.resultsRes && <p role="alert">Results API: {store.syncErrors.resultsRes}</p>}
-                            {store.syncErrors?.scoreSheetsRes && <p role="alert">Score-sheet API: {store.syncErrors.scoreSheetsRes}</p>}
-                            <p>Loaded records: {recordedResults.length} · Matching learner: {matchingResults.length} · With exam marks: {stResults.length}</p>
-                            {matchingResults.length > 0 && <p>Matched statuses: {[...new Set(matchingResults.map(row => row.status || 'Not returned'))].join(', ')}. Exam recorded flags: {[...new Set(matchingResults.map(row => String(row.hasExamScore ?? 'Not returned')))].join(', ')}</p>}
-                            <p>Last refresh: {store.lastSyncedAt || 'Not completed'}</p>
-                            <button type="button" disabled={store.isRefreshingBackend} onClick={() => store.refreshBackendData?.()}>{store.isRefreshingBackend ? 'Refreshing scores…' : 'Refresh saved scores'}</button>
-                          </td></tr>}
                           {reportSubjects.map((sub, i) => (
                             <tr key={sub.subject || i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                               <td style={{ padding: '8px 10px', color: '#1e293b', fontWeight: 600 }}>{sub.subject}</td>
@@ -969,7 +960,12 @@ export default function TeacherPortal() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => window.print()}
+                        onClick={() => {
+                          document.body.classList.add('printing-terminal-report');
+                          const cleanup = () => document.body.classList.remove('printing-terminal-report');
+                          window.addEventListener('afterprint', cleanup, { once: true });
+                          try { window.print(); } catch (error) { cleanup(); window.removeEventListener('afterprint', cleanup); throw error; }
+                        }}
                         style={{
                           padding: '9px 22px', background: '#881337', color: '#fff', border: 'none',
                           borderRadius: 6, fontWeight: 800, fontSize: 13, cursor: 'pointer',

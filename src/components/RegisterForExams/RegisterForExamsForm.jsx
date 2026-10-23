@@ -114,12 +114,12 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
       .flatMap((t) => (Array.isArray(t?.subjects) ? t.subjects : [t?.subject, t?.department]))
       .map((s) => String(s || '').trim())
       .filter(Boolean);
-    const persisted = loadPersistedSubjects();
-    return Array.from(new Set([...listFromCatalog, ...listFromAssignments, ...persisted, ...DEFAULT_SUBJECTS]));
+    return Array.from(new Set([...listFromCatalog, ...listFromAssignments, ...DEFAULT_SUBJECTS]));
   }, [catalogSubjects, teachingAssignments]);
 
   const [allSubjects, setAllSubjects] = useState(dbSubjects);
   const [newSubjectInput, setNewSubjectInput] = useState('');
+  const subjectSaveLock = React.useRef(false);
 
   React.useEffect(() => {
     setAllSubjects((current) => {
@@ -238,18 +238,23 @@ export default function RegisterForExamsForm({ setM, students: propStudents }) {
   };
 
   // Add a new subject to the shared pool and database
-  const addSubjectToPool = (forBulk = false) => {
+  const addSubjectToPool = async (forBulk = false) => {
+    if (subjectSaveLock.current) return;
     const trimmed = newSubjectInput.trim();
     if (!trimmed) return;
     if (allSubjects.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
       alert('This subject already exists in the list.');
       return;
     }
-    const updated = [...allSubjects, trimmed];
-    setAllSubjects(updated);
-    if (saveSubjectToDb) {
-      saveSubjectToDb(trimmed);
-    }
+    subjectSaveLock.current = true;
+    try {
+      if (!saveSubjectToDb) throw new Error('Subject saving is unavailable.');
+      await saveSubjectToDb(trimmed);
+    } catch (error) {
+      alert(`Subject was not saved to the database: ${error.message}`);
+      return;
+    } finally { subjectSaveLock.current = false; }
+    setAllSubjects(current => [...new Set([...current, trimmed])]);
     // Auto-select the new subject in whichever tab added it
     if (forBulk) {
       setBulkSubjects(prev => [...prev, trimmed]);
