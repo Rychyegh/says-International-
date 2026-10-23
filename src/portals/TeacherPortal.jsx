@@ -808,7 +808,8 @@ export default function TeacherPortal() {
             const st = selectedReportStudent;
             const studentIdx = classStudents.findIndex(s => (s.id && s.id === st.id) || (s.studentId && s.studentId === st.studentId));
             const rankStr = st.classPosition || 'Not available';
-            const stResults = resultsForStudent(recordedResults, st).filter(hasRecordedExamScore);
+            const matchingResults = resultsForStudent(recordedResults, st);
+            const stResults = matchingResults.filter(hasRecordedExamScore);
             const reportSubjects = stResults.map(r => ({
               subject: r.subject,
               score: r.score != null ? `${r.score}%` : 'Not available',
@@ -897,7 +898,15 @@ export default function TeacherPortal() {
                           </tr>
                         </thead>
                         <tbody>
-                          {reportSubjects.length === 0 && <tr><td colSpan={4}>No complete assessment records.</td></tr>}
+                          {reportSubjects.length === 0 && <tr><td colSpan={4}>
+                            <p>No complete assessment records were loaded for this learner.</p>
+                            {store.syncErrors?.resultsRes && <p role="alert">Results API: {store.syncErrors.resultsRes}</p>}
+                            {store.syncErrors?.scoreSheetsRes && <p role="alert">Score-sheet API: {store.syncErrors.scoreSheetsRes}</p>}
+                            <p>Loaded records: {recordedResults.length} · Matching learner: {matchingResults.length} · With exam marks: {stResults.length}</p>
+                            {matchingResults.length > 0 && <p>Matched statuses: {[...new Set(matchingResults.map(row => row.status || 'Not returned'))].join(', ')}. Exam recorded flags: {[...new Set(matchingResults.map(row => String(row.hasExamScore ?? 'Not returned')))].join(', ')}</p>}
+                            <p>Last refresh: {store.lastSyncedAt || 'Not completed'}</p>
+                            <button type="button" disabled={store.isRefreshingBackend} onClick={() => store.refreshBackendData?.()}>{store.isRefreshingBackend ? 'Refreshing scores…' : 'Refresh saved scores'}</button>
+                          </td></tr>}
                           {reportSubjects.map((sub, i) => (
                             <tr key={sub.subject || i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                               <td style={{ padding: '8px 10px', color: '#1e293b', fontWeight: 600 }}>{sub.subject}</td>
