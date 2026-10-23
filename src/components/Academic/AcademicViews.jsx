@@ -726,7 +726,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
         </section>
 
       {/* OPTIONAL MANUAL RESULT SUBMISSION MODAL */}
-      {showManualSubmitModal && <AcademicSettingsManager onClose={() => setShowManualSubmitModal(false)} />}
+      {showManualSubmitModal && <AcademicSettingsManager gradingOnly onClose={() => setShowManualSubmitModal(false)} />}
     </div>
   );
 }

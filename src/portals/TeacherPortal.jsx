@@ -675,7 +675,7 @@ export default function TeacherPortal() {
             <div className="animate-fade-up">
               <button type="button" className="btn btn-green" onClick={()=>setGradingOpen(true)}>Change grading system</button>
               <p>Grading settings are school-wide and require backend permission. Remarks edited in the report are print-preview drafts in this session.</p>
-              {gradingOpen && <AcademicSettingsManager onClose={()=>setGradingOpen(false)} />}
+              {gradingOpen && <AcademicSettingsManager gradingOnly onClose={()=>setGradingOpen(false)} />}
               <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
                 <div>
                   <p className="page-header__eyebrow" style={{ color: TEACHER_ACCENT }}>
@@ -937,9 +937,6 @@ export default function TeacherPortal() {
                       <div style={{ marginTop: 14, borderTop: '1px dashed #cbd5e1', paddingTop: 10, fontSize: 11, color: '#334155', lineHeight: 1.6 }}>
                         <div style={{ marginBottom: 6 }}>
                           <strong>Class Master Comment:</strong> {classMasterComment || 'Not provided'}
-                        </div>
-                        <div>
-                          <strong>Headmaster Endorsement:</strong> Not provided
                         </div>
                       </div>
                     </div>

@@ -5,7 +5,7 @@ import { validateAcademicSettings } from '../../lib/assessmentRules.js';
 import { usePortalData } from '../../data/PortalStore';
 import { Settings, Calendar, Save, CheckCircle2, RefreshCw, ShieldCheck, Award, BookOpen, Building } from 'lucide-react';
 
-export default function AcademicSettingsManager({ onClose, onSaved, inline = false }) {
+export default function AcademicSettingsManager({ onClose, onSaved, inline = false, gradingOnly = false }) {
   const { academicSettings, updateAcademicSettings } = usePortalData();
   const [bands,setBands] = useState(academicSettings?.gradingBands?.length === 9 ? academicSettings.gradingBands : SCHOOL_GRADING_BANDS);
 
@@ -96,6 +96,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
           </div>
         )}
 
+        {!gradingOnly && <>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 6 }}>
@@ -170,6 +171,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
           </div>
         </div>
 
+        </>}
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 6 }}>
             🏆 Official Assessment Grading Scale
@@ -188,6 +190,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
 
         <p>Saving installs the REMALJ 9-Point Proficiency Scale below. The backend must accept and apply these bands.</p>
         <table style={{width:'100%',borderCollapse:'collapse'}}><thead><tr><th>Minimum</th><th>Maximum</th><th>Grade</th><th>Remarks</th></tr></thead><tbody>{bands.map((band,index)=><tr key={index}>{['min','max','grade','remarks'].map(field=><td key={field} style={{padding:4}}><input aria-label={`Band ${index+1} ${field}`} type={field==='remarks'?'text':'number'} value={band[field]} disabled={saving} onChange={event=>{dirty.current=true;setBands(current=>current.map((row,position)=>position===index?{...row,[field]:event.target.value}:row));}} style={{width:'100%',minWidth:field==='remarks'?140:50,padding:8,boxSizing:'border-box'}} /></td>)}</tr>)}</tbody></table>
+        {!gradingOnly && <>
         <p>Institution and campus names are shown for reference. They are not saved by academic settings.</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div>
@@ -242,6 +245,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
             />
           </div>
         </div>
+        </>}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
           {onClose && !inline && (
