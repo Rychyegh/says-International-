@@ -1,9 +1,7 @@
 import React, {useEffect,useRef,useState} from 'react';
 import {usePortalData} from '../../data/PortalStore';
-import {getAuthUser} from '../../services/api';
+import {api,getAuthUser} from '../../services/api';
 import {identityRetry,listRetryOperations,recoveryPayload} from '../../lib/identityRetry';
-import { SCHOOL_PL_ACCOUNTS } from '../../data/chartOfAccounts';
-import { useList, LoadState } from './AccountingUI';
 import { paymentAllocations, allocationNotes } from '../../lib/paymentAllocations';
 import StudentReceiptModal from './StudentReceiptModal';
 import StudentPaymentHistory from './StudentPaymentHistory';
@@ -15,8 +13,9 @@ export default function ReceiveStudentPayment() {
  const {studentFees=[],recordFeePayment}=usePortalData();
  const [tab,setTab]=useState('receive');
  const [form,setForm]=useState(empty),[search,setSearch]=useState(''),[pending,setPending]=useState(null),[ready,setReady]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[confirmation,setConfirmation]=useState(null),[showReceipt,setShowReceipt]=useState(false);
- const accountDirectory=useList('accounts');
- const accounts=[...new Map([...SCHOOL_PL_ACCOUNTS,...accountDirectory.rows].filter(account=>account.name).map(account=>[account.name,account])).values()].sort((a,b)=>a.name.localeCompare(b.name));
+ const enabled=import.meta.env.VITE_ENABLE_PAYMENT_ALLOCATIONS === 'true';
+ const [accounts,setAccounts]=useState([]),[accountError,setAccountError]=useState('');
+ useEffect(()=>{let active=true;api.getPaymentAccounts().then(raw=>{const data=raw.data || raw;const rows=Array.isArray(data)?data:data.accounts || data.income_accounts || [];if(active)setAccounts(rows.filter(account=>account.code && (account.is_active===true || account.status==='active') && account.is_active!==false && account.status!=='archived' && String(account.account_type || account.type).toLowerCase()==='income' && account.is_allocation_destination!==false));}).catch(error=>{if(active)setAccountError(error.message);});return()=>{active=false;};},[]);
  const lines=form.allocations || [];
  const editLine=(index,patch)=>change('allocations',lines.map((line,i)=>i===index?{...line,...patch}:line));
  const lock=useRef(false);
@@ -43,6 +42,7 @@ export default function ReceiveStudentPayment() {
  const change=(name,value)=>{setForm(current=>({...current,[name]:value}));setError('');};
  const submit=async event=>{
   event.preventDefault();
+  if(!enabled){setError('Payment allocations are disabled until the deployed backend is verified.');return;}
   if(lock.current || !ready || confirmation)return;
   setError('');
   let input=pending?.input;
@@ -53,6 +53,7 @@ export default function ReceiveStudentPayment() {
    if(!form.paymentDate){setError('Choose the payment date.');return;}
    let allocations;
    try { allocations=paymentAllocations(lines,amount); } catch(err) { setError(err.message);return; }
+   if(allocations.some(line=>!accounts.some(account=>account.code===line.accountCode))){setError('Select saved active income accounts for every allocation.');return;}
    input={fee:{id:fee.id,studentId:fee.studentId,studentName:fee.studentName},payment:{...form,allocations,receivingAccount:allocations.map(line=>line.accountName).join(' / '),notes:allocationNotes(form.notes,allocations),paidAmount:amount,paymentDate:`${form.paymentDate}T00:00:00Z`}};
   }
   lock.current=true;setBusy(true);
@@ -61,9 +62,13 @@ export default function ReceiveStudentPayment() {
    retry=await identityRetry(OPERATION,actor,input,localStorage,{replayCompleted:false});
    setPending({key:retry.key,input});
    retry.dispatched();
-   const raw=await recordFeePayment({...input.payment,idempotencyKey:retry.key});
+   const raw=pending ? await api.reconcileFeePayment(input.fee.id,retry.key) : await recordFeePayment({...input.payment,idempotencyKey:retry.key});
+   if(!raw.payment?.id || !Array.isArray(raw.payment.allocations) || !raw.payment.allocations.length) throw new Error('Saved allocations were not confirmed. Reconcile the original payment before continuing.');
+   const invoice=raw.updatedFee || raw.fee || raw.invoice || raw.updatedInvoice;
+   if(String(invoice?.id)!==String(input.fee.id))throw new Error('The updated invoice was not confirmed. Reconcile the original payment.');
    const number=raw.receipt_number || raw.receipt?.receipt_number || raw.data?.receipt_number;
-   const receipt=number ? {id:number,reference:number,type:'PAYMENT',amount:input.payment.paidAmount,credit:input.payment.paidAmount,date:input.payment.paymentDate.slice(0,10),description:input.payment.notes || 'Student fee payment',paymentMethod:input.payment.paymentMethod,allocations:input.payment.allocations} : null;
+   if(!number)throw new Error('Receipt number missing. Reconcile the original payment before continuing.');
+   const receipt={id:raw.payment.id,reference:number,type:'PAYMENT',amount:raw.payment.amount || input.payment.paidAmount,credit:input.payment.paidAmount,date:input.payment.paymentDate.slice(0,10),paymentMethod:input.payment.paymentMethod,allocations:raw.payment.allocations.map(line=>({...line,accountName:line.accountName || line.account_name || line.accountCode || line.account_code,accountCode:line.accountCode || line.account_code}))};
    // The store confirms the matching updated invoice before returning.
    // A missing receipt must never cause a second payment submission.
    setConfirmation({fee:input.fee,receipt});setShowReceipt(Boolean(receipt));
@@ -102,7 +107,8 @@ export default function ReceiveStudentPayment() {
      <label>Payment date<input type="date" required value={form.paymentDate} onChange={e=>change('paymentDate',e.target.value)} /></label>
      <label>Transaction reference<input value={form.transactionRef} onChange={e=>change('transactionRef',e.target.value)} /></label>
     </div>
-    <LoadState state={accountDirectory} label="Saved accounts" />
+    {!enabled && <p role="status">Payment allocation submission is disabled pending deployed backend verification.</p>}
+    {accountError && <p role="alert">{accountError}</p>}
     <h2>Payment accounts</h2>
     <p>Split the amount received across accounts. All rows appear on one receipt.</p>
     {lines.map((line,index)=><div key={index} className="receive-payment-fields">

@@ -1274,13 +1274,14 @@ export const api = {
   },
 
   recordFeePayment: async (feeId, paymentData) => {
+    if (import.meta.env?.VITE_ENABLE_PAYMENT_ALLOCATIONS !== 'true') throw new Error('Structured payment allocations are disabled pending deployed backend verification.');
     const { paidAmount, paymentMethod, paymentDate, transactionRef, idempotencyKey } = paymentData;
     const notes = String(paymentData.notes || '').includes('Payment account breakdown:')
       ? paymentData.notes
       : allocationNotes(paymentData.notes, paymentData.allocations);
     // FeePaymentRequest rejects additional properties. Preserve the account
     // breakdown in supported notes until structured allocations are supported.
-    const payload = { paidAmount, paymentMethod, paymentDate, transactionRef, notes, idempotencyKey };
+    const payload = { paidAmount: Number(paidAmount).toFixed(2), paymentMethod, paymentDate, transactionRef, notes, idempotencyKey, allocations: paymentData.allocations.map(line => ({ accountCode: line.accountCode, amount: Number(line.amount).toFixed(2) })) };
     // A stable idempotency key prevents duplicate ledger entries on retry.
     return await request(`/finance/fees/${encodeURIComponent(feeId)}/pay`, {
       method: 'POST',
@@ -1288,6 +1289,8 @@ export const api = {
       body: JSON.stringify(payload),
     });
   },
+
+  reconcileFeePayment: (feeId, key) => request(`/finance/fees/${encodeURIComponent(feeId)}/payments/by-idempotency-key`, { headers: { 'Idempotency-Key': key } }),
 
   sendSingleFeeOwingReminder: async (feeId, data = {}) => {
     return await request(`/finance/fees/${feeId}/remind-owing`, {
