@@ -1,4 +1,5 @@
 import SchoolPrintHeader from '../components/School/SchoolPrintHeader';
+import AcademicSettingsManager from '../components/Academic/AcademicSettingsManager';
 import { approvedResults } from '../lib/approvedResults';
 import ViewportModal from '../components/Modal/ViewportModal';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -242,7 +243,12 @@ export default function TeacherPortal() {
   const [gradesTarget, setGradesTarget] = useState(null);
   const [scoreSheetTarget, setScoreSheetTarget] = useState(null);
   const [selectedReportStudent, setSelectedReportStudent] = useState(null);
+  const [gradingOpen, setGradingOpen] = useState(false);
   const [classMasterComment, setClassMasterComment] = useState('');
+  const [reportRemarks, setReportRemarks] = useState({});
+  useEffect(() => {
+    setClassMasterComment(reportRemarks[selectedReportStudent?.id || selectedReportStudent?.studentId] || '');
+  }, [selectedReportStudent]);
   const [reportSearchTerm, setReportSearchTerm] = useState('');
 
   const classStudents = useMemo(() => {
@@ -666,6 +672,9 @@ export default function TeacherPortal() {
           {activeNav === 'Reports' && <TeacherReports />}
           {activeNav === 'Terminal Report Cards' && isClassTeacher && (
             <div className="animate-fade-up">
+              <button type="button" className="btn btn-green" onClick={()=>setGradingOpen(true)}>Change grading system</button>
+              <p>Grading settings are school-wide and require backend permission. Remarks edited in the report are print-preview drafts in this session.</p>
+              {gradingOpen && <AcademicSettingsManager onClose={()=>setGradingOpen(false)} />}
               <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
                 <div>
                   <p className="page-header__eyebrow" style={{ color: TEACHER_ACCENT }}>
@@ -941,8 +950,9 @@ export default function TeacherPortal() {
                       </label>
                       <input
                         type="text"
-                        value={classMasterComment || 'Not provided'}
-                        onChange={(e) => setClassMasterComment(e.target.value)}
+                        value={classMasterComment || ''}
+                        placeholder="Enter class teacher remarks"
+                        onChange={(e) => { setClassMasterComment(e.target.value); setReportRemarks(current=>({...current,[st.id || st.studentId]:e.target.value})); }}
                         style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11.5 }}
                       />
                     </div>

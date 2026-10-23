@@ -649,7 +649,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
   });
 
   const handleExportClassResultsCSV = (studentsList) => {
-    const headers = ['Student ID', 'Full Name', 'Class Level', 'Section', 'Guardian', 'Average Score (%)', 'GPA (4.0 Scale)', 'Academic Standing'];
+    const headers = ['Student ID', 'Full Name', 'Class Level', 'Section', 'Guardian', 'Average Score (%)', 'Remarks'];
     const rows = studentsList.map((student) => {
       const data = getStudentTranscriptData(student);
       return [
@@ -659,7 +659,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
         student.classSection || 'A',
         student.guardianName || 'Guardian',
         `${data.averageScore === MISSING_SCORE ? MISSING_SCORE : `${data.averageScore}%`}`,
-        data.cgpa,
         data.standing
       ];
     });
@@ -681,7 +680,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       [`Student Name: ${student.fullName}`, `Student ID: ${student.studentId}`, `Class Level: ${student.level}`],
       [`Guardian: ${student.guardianName}`, `Date: ${new Date().toLocaleDateString()}`],
       [],
-      ['Course Code', 'Subject Name', 'Class Assessment (50%)', 'End of Term Exam (50%)', 'Total Score (100%)', 'Letter Grade', 'GPA Point', 'Remark']
+      ['Course Code', 'Subject Name', 'Class Assessment (50%)', 'End of Term Exam (50%)', 'Total Score (100%)', 'Letter Grade', 'Remark']
     ];
     const rows = data.subjects.map(s => [
       s.code,
@@ -690,12 +689,11 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
       s.examScore == null ? MISSING_SCORE : `${s.examScore}/50`,
       s.total == null ? MISSING_SCORE : `${s.total}%`,
       s.grade || MISSING_SCORE,
-      s.gpaPoint === MISSING_SCORE || s.gpaPoint == null ? MISSING_SCORE : s.gpaPoint,
       s.remark || MISSING_SCORE,
     ]);
     const footer = [
       [],
-      [`Cumulative GPA: ${data.cgpa}`, `Average Mark: ${data.averageScore === MISSING_SCORE ? MISSING_SCORE : `${data.averageScore}%`}`, `Academic Standing: ${data.standing}`]
+      [`Average Mark: ${data.averageScore === MISSING_SCORE ? MISSING_SCORE : `${data.averageScore}%`}`, `Remarks: ${data.standing}`]
     ];
     const csvContent = [...header, ...rows, ...footer].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -2518,7 +2516,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     title: 'Transcripts & Master Results',
                     badge: 'Transcripts',
                     color: '#f59e0b',
-                    desc: 'Access cumulative grade point averages (CGPA), term averages, and exportable result rosters.',
+                    desc: 'Access term averages, student remarks, and exportable result rosters.',
                     action: () => setActiveNav('Transcripts & Results')
                   }
                 ].map((card) => (
@@ -2927,22 +2925,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   </div>
                   <div style={{ fontSize: 11, color: '#15803d', marginTop: 2 }}>Term Average Score</div>
                 </div>
-                <div style={{ padding: '16px 20px', background: '#e0f2fe', border: '1px solid #bae6fd', borderRadius: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#0369a1' }}>Mean CGPA</div>
-                  <div style={{ fontSize: 24, fontWeight: 900, color: '#0c4a6e', marginTop: 4 }}>
-                    {filteredTranscriptStudents.length > 0
-                      ? numericTranscriptCgpa(filteredTranscriptStudents)
-                      : MISSING_SCORE}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#0284c7', marginTop: 2 }}>Out of 4.0 Scale</div>
-                </div>
-                <div style={{ padding: '16px 20px', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#92400e' }}>Distinction Students</div>
-                  <div style={{ fontSize: 24, fontWeight: 900, color: '#78350f', marginTop: 4 }}>
-                    {filteredTranscriptStudents.filter(s => Number(getStudentTranscriptData(s).cgpa) >= 3.5).length}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#b45309', marginTop: 2 }}>GPA 3.5 or higher</div>
-                </div>
               </div>
 
               {/* Master Results Table */}
@@ -2961,8 +2943,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         <th>Class Level</th>
                         <th>Guardian</th>
                         <th>Avg Score (%)</th>
-                        <th>CGPA</th>
-                        <th>Standing / Status</th>
+                        <th>Remarks</th>
                         <th style={{ textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
@@ -2984,11 +2965,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                             <td>
                               <span style={{ fontWeight: 800, fontSize: 14, color: Number(tData.averageScore) >= 75 ? '#166534' : '#92400e' }}>
                                 {tData.averageScore === MISSING_SCORE ? MISSING_SCORE : `${tData.averageScore}%`}
-                              </span>
-                            </td>
-                            <td>
-                              <span style={{ fontWeight: 900, fontSize: 15, color: ADMIN_ACCENT }}>
-                                {tData.cgpa}
                               </span>
                             </td>
                             <td>
@@ -4392,10 +4368,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                             <span style={{ fontSize: 8.5, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Date of Birth / Gender:</span>
                             <div style={{ fontSize: 10.5, fontWeight: 700, color: '#334155' }}>{viewingTranscriptStudent.dob || '2014-05-12'} · {viewingTranscriptStudent.gender || 'Male'}</div>
                           </div>
-                          <div>
-                            <span style={{ fontSize: 8.5, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Enrollment Date:</span>
-                            <div style={{ fontSize: 10.5, fontWeight: 700, color: '#334155' }}>{viewingTranscriptStudent.enrollmentDate || '2026-09-01'}</div>
-                          </div>
                         </div>
 
                         {/* Course Breakdown Table */}
@@ -4412,7 +4384,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                                 <th style={{ padding: '5px 8px', border: '1px solid #1e1b4b', textAlign: 'center' }}>Exam (50%)</th>
                                 <th style={{ padding: '5px 8px', border: '1px solid #1e1b4b', textAlign: 'center' }}>Total (100%)</th>
                                 <th style={{ padding: '5px 8px', border: '1px solid #1e1b4b', textAlign: 'center' }}>Grade</th>
-                                <th style={{ padding: '5px 8px', border: '1px solid #1e1b4b', textAlign: 'center' }}>GPA Pt</th>
                                 <th style={{ padding: '5px 8px', border: '1px solid #1e1b4b' }}>Remarks</th>
                               </tr>
                             </thead>
@@ -4429,7 +4400,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                                   <td style={{ padding: '5px 8px', textAlign: 'center', color: '#475569' }}>{sub.examScore == null ? MISSING_SCORE : `${sub.examScore}/50`}</td>
                                   <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 900, color: sub.total >= 75 ? '#166534' : '#0f172a' }}>{sub.total == null ? MISSING_SCORE : `${sub.total}%`}</td>
                                   <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 900, color: '#4a1d6e' }}>{sub.grade || MISSING_SCORE}</td>
-                                  <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 800 }}>{sub.gpaPoint === MISSING_SCORE || sub.gpaPoint == null ? MISSING_SCORE : Number(sub.gpaPoint).toFixed(1)}</td>
                                   <td style={{ padding: '5px 8px', fontWeight: 700, color: sub.total >= 70 ? '#166534' : '#92400e' }}>{sub.remark || MISSING_SCORE}</td>
                                 </tr>
                               ))}
@@ -4441,7 +4411,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         <div style={{ background: '#1e1b4b', color: '#fff', borderRadius: 6, padding: '8px 12px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>
                             <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', opacity: 0.75, letterSpacing: '.06em' }}>CUMULATIVE PERFORMANCE SUMMARY</div>
-                            <div style={{ fontSize: 12.5, fontWeight: 900, marginTop: 1 }}>Academic Standing: {tData.standing}</div>
+                            <div style={{ fontSize: 12.5, fontWeight: 900, marginTop: 1 }}>Overall Remarks: {viewingTranscriptStudent.overallRemarks || viewingTranscriptStudent.overall_remarks || 'Not provided'}</div>
                             <div style={{ fontSize: 9.5, opacity: 0.8, marginTop: 1 }}>{tData.subjects.length} Total Subjects Assessed · Term 1 2026</div>
                           </div>
 
@@ -4449,10 +4419,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                             <div style={{ background: 'rgba(255,255,255,0.12)', padding: '4px 10px', borderRadius: 5, textAlign: 'center' }}>
                               <div style={{ fontSize: 14, fontWeight: 900 }}>{tData.averageScore}%</div>
                               <div style={{ fontSize: 8, opacity: 0.8, textTransform: 'uppercase' }}>Average Mark</div>
-                            </div>
-                            <div style={{ background: '#166534', padding: '4px 12px', borderRadius: 5, textAlign: 'center' }}>
-                              <div style={{ fontSize: 14, fontWeight: 900 }}>{tData.cgpa}</div>
-                              <div style={{ fontSize: 8, opacity: 0.9, textTransform: 'uppercase' }}>CGPA (4.0 Max)</div>
                             </div>
                           </div>
                         </div>
