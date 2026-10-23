@@ -180,7 +180,9 @@ async function originalAuthRequest(endpoint, options = {}) {
           }
         } else if (data && data.message) {
           errorMessage = data.message;
-        } else if (text && text.trim()) {
+        } else if (response.status >= 500) {
+          errorMessage = `The school server is temporarily unavailable (HTTP ${response.status}). Please try again shortly. If this continues, contact the system administrator.`;
+        } else if (text && text.trim() && !/^\s*</.test(text)) {
           errorMessage = text.trim().slice(0, 300);
         }
         lastError = new Error(errorMessage);
