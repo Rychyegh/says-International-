@@ -1,6 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rosterAcademicYear } from '../src/lib/rosterAcademicYear.js';
+import { rosterAcademicYear, rosterAcademicTerm } from '../src/lib/rosterAcademicYear.js';
+
+test('roster term uses the latest matching registration and normalizes numeric terms', () => {
+  assert.equal(rosterAcademicTerm({ id: 'one' }, [
+    { student_id: 'one', academic_year: '2026/2027', term: '1' },
+    { student_id: 'one', academic_year: '2026/2027', term: '2' },
+    { student_id: 'two', academic_year: '2026/2027', term: '3' },
+  ]), 'Term 2');
+});
+
+test('roster term falls back without inventing a term or using a different year', () => {
+  assert.equal(rosterAcademicTerm({}, [], [], { academicYear: '2026/2027', academicTerm: 'Term 1' }), 'Term 1');
+  assert.equal(rosterAcademicTerm({ academicYear: '2025/2026' }, [], [], { academicYear: '2026/2027', academicTerm: 'Term 1' }), '');
+  assert.equal(rosterAcademicTerm({}), '');
+});
 
 test('roster resolves the latest active registration for the student only', () => {
   assert.equal(rosterAcademicYear({ id: 'one' }, [

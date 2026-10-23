@@ -1,5 +1,5 @@
 import { csvExport } from '../lib/accountingRules.js';
-import { rosterAcademicYear } from '../lib/rosterAcademicYear.js';
+import { rosterAcademicYear, rosterAcademicTerm } from '../lib/rosterAcademicYear.js';
 import SchoolPrintHeader from '../components/School/SchoolPrintHeader';
 import SchoolContactDetails from '../components/School/SchoolContactDetails';
 import { isPendingVoucher } from '../lib/pvNotifications.js';
@@ -731,7 +731,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     .filter(s => isBackendUuid(s?.id) && (!rosterStatus || (rosterStatus === 'Active' ? s.status === 'Active' && s.is_active !== false : s.status === 'Inactive' || s.is_active === false)))
     .map(s => {
       const level = formatClassToBasic(s.level || s.classLevel || s.applyingClass || '');
-      return { ...s, level, academicYear: rosterAcademicYear(s, semesterRegistrations, applications, academicSettings), rosterSubClass: formatDetailedClass(level, s.classSection || s.subClass || s.subClassLevel || s.section || '') };
+      return { ...s, level, academicYear: rosterAcademicYear(s, semesterRegistrations, applications, academicSettings), academicTerm: rosterAcademicTerm(s, semesterRegistrations, applications, academicSettings), rosterSubClass: formatDetailedClass(level, s.classSection || s.subClass || s.subClassLevel || s.section || '') };
     }), [onboardedStudents, rosterStatus, semesterRegistrations, applications, academicSettings]);
   const rosterClasses = useMemo(() => [...new Set(rosterStudents.map(s => s.level).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [rosterStudents]);
