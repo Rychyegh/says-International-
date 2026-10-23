@@ -1,4 +1,5 @@
 import SchoolPrintHeader from '../components/School/SchoolPrintHeader';
+import { approvedResults } from '../lib/approvedResults';
 import ViewportModal from '../components/Modal/ViewportModal';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
@@ -141,6 +142,7 @@ export default function TeacherPortal() {
   const onboardedStudents = store?.onboardedStudents || [];
   const teacherDirectory = store?.teacherDirectory || [];
   const recordedResults = store?.results || [];
+  const terminalResults = approvedResults(recordedResults);
   const portalMessages = store?.messages || [];
 
   const subjectGradeFor = (student, needle) => {
@@ -258,6 +260,9 @@ export default function TeacherPortal() {
       localStorage.setItem('says_teacher_active_nav', nav);
     } catch (e) {}
   };
+  useEffect(() => {
+    if (activeNav === 'Terminal Report Cards') store.refreshBackendData?.();
+  }, [activeNav]);
 
   useEffect(() => {
     if (!isClassTeacher && SUBJECT_RESTRICTED.includes(activeNav)) {
@@ -755,7 +760,7 @@ export default function TeacherPortal() {
                             (s.studentId || s.id || '').toLowerCase().includes(q);
                         })
                         .map((st, idx) => {
-                          const tData = buildStudentTranscriptData(st, recordedResults);
+                          const tData = buildStudentTranscriptData(st, terminalResults);
                           const subCls = st.subClass || st.subClassLevel || st.classSection || '';
                           return (
                             <tr key={st.id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -809,7 +814,7 @@ export default function TeacherPortal() {
             const studentIdx = classStudents.findIndex(s => (s.id && s.id === st.id) || (s.studentId && s.studentId === st.studentId));
             const rankStr = st.classPosition || 'Not available';
             const matchingResults = resultsForStudent(recordedResults, st);
-            const stResults = matchingResults.filter(hasRecordedExamScore);
+            const stResults = approvedResults(matchingResults).filter(hasRecordedExamScore);
             const reportSubjects = stResults.map(r => ({
               subject: r.subject,
               score: r.score != null ? `${r.score}%` : 'Not available',

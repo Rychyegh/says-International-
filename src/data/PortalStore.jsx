@@ -2525,6 +2525,7 @@ export function PortalDataProvider({ children, enabled = false }) {
         await api.publishScoreSheet(record.backendId);
       } else await api.updateResultStatus(id, { status: 'Approved' });
       setData(current => ({ ...current, results: current.results.map(r => r.id === id || r.backendId === id ? { ...r, status: 'Approved', declineNote: null } : r) }));
+      await refreshBackendData();
     },
     declineResult: async (id, note) => {
       await api.updateResultStatus(id, { status: 'Declined', decline_note: 'Declined' === 'Declined' ? note : undefined });
