@@ -1143,7 +1143,7 @@ export function hasRecordedExamScore(entry) {
   if (!entry) return false;
   if (entry.hasExamScore === true || entry.examSubmitted === true) return true;
   if (entry.hasExamScore === false) return false;
-  return Number(entry.examScore) > 0 || Number(entry.examScoreConverted) > 0;
+  return [entry.examScore, entry.examScoreConverted].some(value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)));
 }
 
 export function displayScoreValue(value, suffix = '') {

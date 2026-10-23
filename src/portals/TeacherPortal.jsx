@@ -808,7 +808,7 @@ export default function TeacherPortal() {
             const st = selectedReportStudent;
             const studentIdx = classStudents.findIndex(s => (s.id && s.id === st.id) || (s.studentId && s.studentId === st.studentId));
             const rankStr = st.classPosition || 'Not available';
-            const stResults = resultsForStudent(recordedResults, st).filter(r => r.hasExamScore === true);
+            const stResults = resultsForStudent(recordedResults, st).filter(hasRecordedExamScore);
             const reportSubjects = stResults.map(r => ({
               subject: r.subject,
               score: r.score != null ? `${r.score}%` : 'Not available',
