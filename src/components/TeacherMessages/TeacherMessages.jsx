@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { MessageSquare, Send, Users } from 'lucide-react';
 import './TeacherMessages.css';
 import { usePortalData } from '../../data/PortalStore';
-import { getUserFullName } from '../../services/api';
+import { getUserFullName, getAuthUser } from '../../services/api';
 
 const RECIPIENTS = {
   Parents: [
@@ -41,7 +41,11 @@ export default function TeacherMessages({ initialAudience = 'Parents' }) {
   };
 
   const sent = messages.filter((item) => item.senderRole === 'Staff');
-  const inbox = messages.filter((item) => item.to === 'Staff');
+  const ownEmail = String(getAuthUser()?.email || '').toLowerCase();
+  const inbox = messages.filter((item) => {
+    const recipient = String(item.recipientEmail || item.recipient_email || '').toLowerCase();
+    return recipient ? recipient === ownEmail : item.to === 'Staff';
+  });
   return <div className="teacher-messages animate-fade-up">
     <div className="page-header"><h1 className="page-header__title">Send a message</h1><p className="page-header__subtitle">Contact a parent, student, or transport driver. Student replies arrive in the staff inbox below.</p></div>
     <div className="teacher-message-layout">

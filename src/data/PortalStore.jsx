@@ -9,6 +9,7 @@ import { voucherNotifications } from '../lib/pvNotifications.js';
 import { sameStudentIdentity, studentDisplayCode } from '../lib/studentIdentity.js';
 import { validateAcademicSettings } from '../lib/assessmentRules.js';
 import { proficiencyRemark, proficiencyGrade, configureGradingBands } from '../lib/schoolGrading.js';
+import { approvedResults } from '../lib/approvedResults.js';
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { api, extractStudentList, extractExamRegistrations, mapExamRegistration, getUserFullName, hasLiveDatabaseSession, getAuthToken, getAuthUser, mapScoreSheetEntry } from '../services/api';
 import { registerCustomSubClass, getCustomSubClassMap } from './classStructure';
@@ -1199,7 +1200,7 @@ export function buildStudentTranscriptData(student, results = []) {
     };
   }
 
-  const studentResults = resultsForStudent(results, student);
+  const studentResults = approvedResults(resultsForStudent(results, student));
   const subjects = studentResults.map((entry, idx) => {
     const classScore = hasRecordedClassScore(entry) ? Number(entry.classScore) : null;
     const examScore = hasRecordedExamScore(entry)
@@ -2533,9 +2534,18 @@ export function PortalDataProvider({ children, enabled = false }) {
     },
     declineResult: async (id, note) => {
       if (!String(note || '').trim()) throw new Error('Enter a comment explaining why the result was declined.');
-      await api.updateResultStatus(id, { status: 'Declined', decline_note: 'Declined' === 'Declined' ? note : undefined });
+      const record = dataRef.current.results.find(row => row.id === id || row.backendId === id);
+      const authorKey = String(record?.teacherId || '').toLowerCase();
+      const author = authorKey ? (dataRef.current.teacherDirectory || []).find(row => [row.id,row.userId,row.user_id,row.staffId,row.email].filter(Boolean).some(value => String(value).toLowerCase() === authorKey)) : null;
+      const response = await api.updateResultStatus(id, { status: 'Declined', decline_note: note.trim() });
       setData(current => ({ ...current, results: current.results.map(r => r.id === id || r.backendId === id ? { ...r, status: 'Declined', declineNote: note.trim() } : r) }));
       await refreshBackendData();
+      if (response.notification?.id || response.notification_id) return;
+      if (!author?.email) throw new Error('Result declined and excluded from transcripts. Teacher message could not be sent because the saved author is not linked to a teacher email. Backend notification delivery is required.');
+      try {
+        await api.sendMessage({ recipient_role: 'teacher', recipient_name: author.name || author.fullName, recipient_email: author.email, student_name: record.studentName, subject: `Result declined: ${record.subject}`, body: `Head Admin returned the result for ${record.studentName || record.studentId}, ${record.subject}, ${record.term || ''} ${record.year || ''}.\n\n${note.trim()}\n\nCorrect the score sheet and resubmit for approval.` });
+        await refreshBackendData();
+      } catch (error) { throw new Error(`Result declined and excluded from transcripts, but teacher message was not confirmed: ${error.message}`); }
     },
     registerCourse: (course) => setData((current) => ({
       ...current,
