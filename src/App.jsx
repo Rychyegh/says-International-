@@ -2,6 +2,7 @@ import { sessionRoleAllowed } from './lib/sessionVerification.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Topbar from './components/Topbar/Topbar';
+import SchoolHome from './components/School/SchoolHome';
 import LoginPage from './components/Login/LoginPage';
 import TeacherPortal from './portals/TeacherPortal';
 import PreschoolPortal from './portals/PreschoolPortal';
@@ -275,7 +276,7 @@ function AppRoutes() {
         aria-labelledby={`tab-${activePortal}`}
       >
         <Routes>
-          <Route path="/" element={<Navigate to="/admin" replace />} />
+          <Route path="/" element={<SchoolHome />} />
           <Route path="/admin" element={renderPortalView('admin', AdminPortal)} />
           <Route path="/accountant" element={renderPortalView('accountant', AccountantPortal)} />
           <Route path="/parent" element={renderPortalView('parent', ParentPortal)} />
