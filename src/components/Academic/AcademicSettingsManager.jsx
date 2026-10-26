@@ -2,12 +2,14 @@ import ViewportModal from '../Modal/ViewportModal';
 import { SCHOOL_GRADING_BANDS, validateGradingBands } from '../../lib/schoolGrading';
 import React, { useState, useEffect, useRef } from 'react';
 import { validateAcademicSettings } from '../../lib/assessmentRules.js';
-import { academicSettingsPayload } from '../../lib/academicSettingsPayload.js';
+import { academicSettingsPayload, academicSettingsVersion } from '../../lib/academicSettingsPayload.js';
 import { usePortalData } from '../../data/PortalStore';
 import { Settings, Calendar, Save, CheckCircle2, RefreshCw, ShieldCheck, Award, BookOpen, Building } from 'lucide-react';
 
 export default function AcademicSettingsManager({ onClose, onSaved, inline = false, gradingOnly = false }) {
-  const { academicSettings, updateAcademicSettings } = usePortalData();
+  const { academicSettings, updateAcademicSettings, refreshBackendData } = usePortalData();
+  const settingsVersion = useRef(academicSettingsVersion(academicSettings));
+  const [versionConflict, setVersionConflict] = useState(false);
   const [bands,setBands] = useState(academicSettings?.gradingBands?.length === 9 ? academicSettings.gradingBands : SCHOOL_GRADING_BANDS);
 
   const [year, setYear] = useState(academicSettings?.academicYear || '2025/2026');
@@ -28,6 +30,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
 
   useEffect(() => {
     if (academicSettings && !dirty.current) {
+      settingsVersion.current = academicSettingsVersion(academicSettings);
       if (academicSettings.gradingBands?.length === 9) setBands(academicSettings.gradingBands);
       if (academicSettings.academicYear) setYear(academicSettings.academicYear);
       if (academicSettings.academicTerm) setTerm(academicSettings.academicTerm);
@@ -46,6 +49,11 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
 
     if (savingRef.current) return;
     setSaveError(''); setSavedNotice('');
+    if (settingsVersion.current === null) {
+      setVersionConflict(true);
+      setSaveError('Load the latest settings before saving. The backend must return a numeric version with the settings.');
+      return;
+    }
     const newSettings = academicSettingsPayload({
       academicYear: year,
       academicTerm: term,
@@ -53,6 +61,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
       examWeight: Number(examWeight),
       gradingBands: bands,
       gradingSystem: 'REMALJ 9-Point Proficiency Scale',
+      expectedVersion: settingsVersion.current,
       resumptionDate,
       vacationDate,
       updatedAt: new Date().toISOString()
@@ -62,9 +71,16 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
       newSettings.gradingBands = validateGradingBands(bands);
       validateAcademicSettings(newSettings);
       savingRef.current = true; setSaving(true);
-      await updateAcademicSettings(newSettings);
+      const saved = await updateAcademicSettings(newSettings);
+      settingsVersion.current = academicSettingsVersion(saved);
+      setVersionConflict(false);
       dirty.current = false;
-    } catch (error) { setSaveError(`Settings not saved: ${error.message}`); return; }
+    } catch (error) {
+      const conflict = [409, 412].includes(error.status) || /expectedVersion|version.*(conflict|stale|match)/i.test(error.message);
+      setVersionConflict(conflict);
+      setSaveError(conflict ? 'Settings changed or their version is out of date. Your edits have not been saved. Load the latest settings and review them before trying again.' : `Settings not saved: ${error.message}`);
+      return;
+    }
     finally { savingRef.current = false; setSaving(false); }
 
     setSavedNotice(gradingOnly ? 'Grading settings saved.' : `✅ Academic Settings Synchronized! Global Session set to ${year} (${term}).`);
@@ -90,6 +106,14 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
 
       <form onChange={() => { dirty.current = true; setSavedNotice(''); }} onSubmit={handleSave} style={{ border: '1px solid #cbd5e1', borderTop: 'none', padding: 20, borderRadius: '0 0 10px 10px', background: '#f8fafc' }}>
         {saveError && <p role="alert" style={{ color: '#b91c1c' }}>{saveError}</p>}
+        {versionConflict && <button type="button" disabled={saving} onClick={async () => {
+          if (!window.confirm('Discard your unsaved grading edits and load the latest settings?')) return;
+          dirty.current = false;
+          setSaving(true);
+          try { await refreshBackendData(); setSaveError('Latest settings requested. Review the values before saving.'); }
+          catch (error) { setSaveError(`Could not reload settings: ${error.message}`); }
+          finally { setSaving(false); }
+        }}>Discard edits and load latest settings</button>}
         {savedNotice && (
           <div style={{ background: '#dcfce7', border: '1px solid #166534', color: '#166534', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontWeight: 800, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
             <CheckCircle2 size={18} />

@@ -5,3 +5,8 @@ export function academicSettingsPayload(settings, { gradingOnly = false } = {}) 
   }
   return payload;
 }
+
+export function academicSettingsVersion(settings = {}) {
+  const version = settings.version ?? settings.expectedVersion;
+  return Number.isInteger(version) && version >= 0 ? version : null;
+}

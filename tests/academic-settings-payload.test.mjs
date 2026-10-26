@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { academicSettingsPayload } from '../src/lib/academicSettingsPayload.js';
+import { academicSettingsPayload, academicSettingsVersion } from '../src/lib/academicSettingsPayload.js';
+
+test('settings keep the loaded version including zero without inventing a version', () => {
+  assert.equal(academicSettingsVersion({ version: 0 }), 0);
+  assert.equal(academicSettingsVersion({ version: 7 }), 7);
+  assert.equal(academicSettingsVersion({}), null);
+  assert.equal(academicSettingsVersion({ version: '7' }), null);
+  assert.equal(academicSettingsPayload({ expectedVersion: 7 }, { gradingOnly: true }).expectedVersion, 7);
+});
 
 test('grading-only saves never send hidden dates or mutate existing settings', () => {
   const settings = { gradingBands: [{ grade: 1 }], resumptionDate: '2026-10-26', vacationDate: '' };
