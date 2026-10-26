@@ -1,5 +1,6 @@
 import { saveReportRequest } from '../lib/reportRecords.js';
 import { catalogNames } from '../lib/catalogNames.js';
+import { confirmedStudentUpdate } from '../lib/studentSaveContract.js';
 import { resolveGuardianPhone } from '../lib/guardianPhone.js';
 export { resolveGuardianPhone, isPlaceholderGuardianPhone } from '../lib/guardianPhone.js';
 import { billingPeriod } from '../lib/billingPeriod.js';
@@ -3169,22 +3170,21 @@ export function PortalDataProvider({ children, enabled = false }) {
       const matchingApps = existing
         ? (dataRef.current.applications || []).filter((app) => applicationMatchesStudent(app, existing))
         : [];
-      const cardMustBeSaved = updates.parentPickupCardIssued === true || Boolean(updates.rfidCardCode);
       let savedToDatabase = false;
+      let persistedStudent;
       try {
         if (backendId) {
-          await api.updateStudent(backendId, payload);
+          persistedStudent = confirmedStudentUpdate(await api.updateStudent(backendId, payload), backendId);
           savedToDatabase = true;
         } else if (existing?.studentId && !isSyntheticLocalId(existing.studentId)) {
-          await api.updateStudent(existing.studentId, payload);
+          persistedStudent = confirmedStudentUpdate(await api.updateStudent(existing.studentId, payload), existing.id);
           savedToDatabase = true;
         }
       } catch (e) {
-        if (cardMustBeSaved) throw e;
-        console.warn('Backend update student fallback:', e);
+        throw e;
       }
-      if (cardMustBeSaved && !savedToDatabase) {
-        throw new Error('The database did not save this card.');
+      if (!savedToDatabase) {
+        throw new Error('No saved student identity is available. Reload the roster before editing.');
       }
       if (updates.rfidCardCode) {
         await Promise.all(matchingApps.map(async (app) => {
@@ -3205,10 +3205,10 @@ export function PortalDataProvider({ children, enabled = false }) {
           || findMatchingStudent(roster, updates);
         if (!prev) return current;
         const merged = mergeStudentRecords(prev, {
-          ...updates,
+          ...mapStudentFromApi(persistedStudent, prev),
           id: prev.id,
           studentId: prev.studentId,
-          level: updates.level ? formatClassToBasic(updates.level) : prev.level,
+          level: formatClassToBasic(persistedStudent.class_level || persistedStudent.level || prev.level),
         });
         const oldName = normalizePersonName(prev.fullName || prev.name);
         const oldSid = String(prev.studentId || prev.id || '');
@@ -3798,12 +3798,8 @@ export function PortalDataProvider({ children, enabled = false }) {
       const c = String(className || '').trim();
       const sc = String(subClassName || '').trim();
       if (!c || !sc) return;
+      await api.createCatalogEntry('subclasses', sc, { className: c, classLevel: c, name: sc });
       registerCustomSubClass(c, sc);
-      try {
-        await api.createCatalogEntry('subclasses', sc, { className: c, classLevel: c, name: sc });
-      } catch (e) {
-        console.warn('Backend subclass catalog fallback:', e?.message || e);
-      }
       setData((current) => ({
         ...current,
         customSubClassMap: {

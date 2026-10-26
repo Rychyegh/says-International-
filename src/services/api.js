@@ -1,4 +1,5 @@
 import { hasConfirmedPayment } from '../lib/pvPaymentHistory.js';
+import { feeTemplateSnapshot } from '../lib/feeTemplateContract.js';
 import { isSessionVerificationError, sessionRoleAllowed } from '../lib/sessionVerification.js';
 import { voucherProviders, supportsVoucherItemProviders } from '../lib/pvProviders.js';
 import { identityRetry, recoveryPayload, listRetryOperations } from '../lib/identityRetry.js';
@@ -2181,6 +2182,8 @@ export const api = {
   },
 
   getAcademicSettings: () => request('/academic/settings'),
+  getFeeTemplates: async ({ academicYear, academicTerm }) => feeTemplateSnapshot(await request(`/finance/fee-templates?${new URLSearchParams({academicYear,academicTerm})}`)),
+  saveFeeTemplates: async (snapshot) => feeTemplateSnapshot(await request('/finance/fee-templates', {method:'PUT',body:JSON.stringify(snapshot)})),
   updateAcademicSettings: async (settings) => {
     return await request('/academic/settings', {
       method: 'PUT',

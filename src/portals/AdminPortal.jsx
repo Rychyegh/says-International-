@@ -347,7 +347,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
         if (addSubClassLevel) {
           await addSubClassLevel(finalClass, finalSubClass);
         } else {
-          registerCustomSubClass(finalClass, finalSubClass);
+          throw new Error('Subclass database saving is unavailable. No local-only subclass was created.');
         }
       }
 
@@ -475,7 +475,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
         cardIssued: true,
         dailyLimit: cardForm.dailyLimit || '50'
       });
-      setSuccessMsg(`💳 Smart RFID Card #${issuedUid} encoded & issued to ${issuingCardStudent.fullName}!`);
+      setSuccessMsg(`Card UID #${issuedUid} saved for ${issuingCardStudent.fullName}. Physical card encoding is separate.`);
       setIssuingCardStudent(null);
       setCardForm({ rfidCardCode: '', dailyLimit: '50', pin: '1234', holderName: '', notes: '' });
     } catch (err) {
@@ -1226,6 +1226,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           )}
 
           {adminRole === 'sub_admin' && [
+            'UAC',
+            'User Access Control',
             'Pre-Audit & Approve PV',
             'Pay PV',
             'Pay PV (Disbursement)',
@@ -1388,7 +1390,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           )}
 
           {/* ── USER ACCESS CONTROL (UAC) ── */}
-          {(activeNav === 'User Access Control (UAC)' || activeNav === 'UAC' || activeNav === 'User Access Control') && (
+          {adminRole === 'head_admin' && (activeNav === 'User Access Control (UAC)' || activeNav === 'UAC' || activeNav === 'User Access Control') && (
             <div className="animate-fade-up">
               <UserAccessControl adminRole={adminRole} />
             </div>
@@ -2316,7 +2318,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
               <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
                 <div>
                   <h1 className="page-header__title">Smart Card Issuance & Identity Management 💳</h1>
-                  <p className="page-header__subtitle">Encode RFID/NFC cards, issue student spending tags & parent pickup cards, assign card UIDs, or re-encrypt lost cards.</p>
+                  <p className="page-header__subtitle">Save student card UIDs and parent pickup card associations. Physical card encoding and PIN management require a separate supported integration.</p>
                 </div>
 
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -2335,7 +2337,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(74, 29, 110, 0.25)'
                     }}
                   >
-                    <CreditCard size={16} /> 💳 Encode & Issue Student RFID Card
+                    <CreditCard size={16} /> Associate student card UID
                   </button>
                 </div>
               </div>
@@ -2347,7 +2349,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   <div style={{ fontSize: 26, fontWeight: 900, color: '#14532d', marginTop: 4 }}>
                     {(onboardedStudents || []).filter(s => s.rfidCardCode).length}
                   </div>
-                  <div style={{ fontSize: 11, color: '#15803d', fontWeight: 600, marginTop: 2 }}>Active RFID tags encoded</div>
+                  <div style={{ fontSize: 11, color: '#15803d', fontWeight: 600, marginTop: 2 }}>Student records with a saved card UID</div>
                 </div>
 
                 <div style={{ padding: '16px 20px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10 }}>
@@ -4117,16 +4119,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       />
                     </label>
 
-                    <label>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gray-800)' }}>Card Security PIN</span>
-                      <input
-                        type="text" disabled={cardSaving}
-                        maxLength="4"
-                        value={cardForm.pin}
-                        onChange={(e) => setCardForm({ ...cardForm, pin: e.target.value })}
-                        style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontSize: 13, marginTop: 4, fontWeight: 700, letterSpacing: 2 }}
-                      />
-                    </label>
+                    <p style={{ fontSize: 12 }}>This saves the card UID association. Card PIN setup and physical RFID encoding are not supported by this form.</p>
                   </div>
 
                   <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
@@ -4141,7 +4134,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       type="submit" disabled={cardSaving}
                       style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, background: ADMIN_BG, color: '#fff', fontWeight: 900, cursor: 'pointer' }}
                     >
-                      {cardSaving ? 'Saving card…' : '💳 Write & Activate RFID Card'}
+                      {cardSaving ? 'Saving card…' : 'Save card UID'}
                     </button>
                   </div>
                 </form>
@@ -4795,8 +4788,15 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     students={onboardedStudents || []}
                     onClose={() => setAcademicSimsModal(null)}
                   />
+                ) : /Creche|Pending|Un-Authorised|audit/i.test(academicSimsModal) ? (
+                  <div role="status" style={{padding:24}}>
+                    <h3>{/Creche/i.test(academicSimsModal) ? 'Use the dedicated preschool assessment workflow' : 'Review saved results on the approval board'}</h3>
+                    <p>{/Creche/i.test(academicSimsModal) ? 'Preschool assessments must be submitted through the preschool portal and reviewed by the preschool head. This shortcut does not create or approve an assessment.' : 'This shortcut does not approve or decline results. Open Transcripts & Results to review saved records and submit an actual approval decision.'}</p>
+                    {!/Creche/i.test(academicSimsModal) && <button type="button" onClick={()=>{setAcademicSimsModal(null);setActiveNav('Transcripts & Results');}}>Open result approval board</button>}
+                  </div>
                 ) : (
                   <div>
+                    <p role="status">Approved-result summary only. This is not a subject-specific assessment or an individual terminal report. Use Transcripts & Results for detailed reports.</p>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <label style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Filter Class:</label>
@@ -4852,7 +4852,6 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                         <tbody>
                           {(onboardedStudents || [])
                             .filter(s => academicReportClass === 'All' || (s.level || s.classLevel || s.class) === academicReportClass)
-                            .slice(0, 50)
                             .map((st, idx) => {
                               const tData = getStudentTranscriptData(st);
                               const subCls = st.subClass || st.subClassLevel || st.classSection || '';
@@ -4865,14 +4864,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                                   </td>
                                   <td style={{ padding: '8px 10px', textAlign: 'center', color: '#475569' }}>{st.gender || '-'}</td>
                                   <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#0284c7' }}>
-                                    {tData?.averageScore || '82.5'}%
+                                    {tData?.averageScore != null && tData.averageScore !== MISSING_SCORE ? `${tData.averageScore}%` : MISSING_SCORE}
                                   </td>
                                   <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#166534' }}>
-                                    {tData?.cgpa || '3.75'}
+                                    {tData?.cgpa ?? MISSING_SCORE}
                                   </td>
                                   <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                                     <span style={{ fontSize: 10, fontWeight: 800, background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: 99 }}>
-                                      Verified
+                                      {tData?.subjects?.some(subject => subject.total != null) ? 'Approved results only' : 'No approved results'}
                                     </span>
                                   </td>
                                 </tr>

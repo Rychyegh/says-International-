@@ -1,4 +1,5 @@
 import { billingPeriod, billingPeriodLabel } from '../../lib/billingPeriod.js';
+import FeeTemplateSync from './FeeTemplateSync';
 import SchoolPrintHeader from '../School/SchoolPrintHeader';
 import SchoolContactDetails from '../School/SchoolContactDetails';
 import ViewportModal from '../Modal/ViewportModal';
@@ -1597,6 +1598,10 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
   return (
     <div className="fee-structure-container">
+      <FeeTemplateSync key={`${portalData?.academicSettings?.academicYear}:${portalData?.academicSettings?.academicTerm}`}
+        academicYear={portalData?.academicSettings?.academicYear} academicTerm={portalData?.academicSettings?.academicTerm}
+        feeSchedule={feeSchedule} stationerySchedule={stationerySchedule}
+        onLoaded={saved=>{setSharedFeeSchedule(saved.feeSchedule);setStationerySchedule(saved.stationerySchedule);setStudentBillDrafts({});}} />
       {cancellation && (
         <ViewportModal onClose={() => setCancellation(null)} role="dialog" aria-modal="true" aria-label="Cancel invoice" style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#0008', display: 'grid', placeItems: 'center' }}>
           <form onSubmit={submitCancellation} style={{ background: 'white', padding: 24, borderRadius: 12, width: 'min(480px, 90vw)', display: 'grid', gap: 16 }}>
