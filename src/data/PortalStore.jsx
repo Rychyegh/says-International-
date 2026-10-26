@@ -1,4 +1,5 @@
 import { saveReportRequest } from '../lib/reportRecords.js';
+import { catalogNames } from '../lib/catalogNames.js';
 import { resolveGuardianPhone } from '../lib/guardianPhone.js';
 export { resolveGuardianPhone, isPlaceholderGuardianPhone } from '../lib/guardianPhone.js';
 import { billingPeriod } from '../lib/billingPeriod.js';
@@ -93,16 +94,7 @@ function extractTeachingAssignments(raw) {
 }
 
 function extractCatalogNames(raw) {
-  const list = Array.isArray(raw) ? raw
-    : Array.isArray(raw?.classes) ? raw.classes
-    : Array.isArray(raw?.items) ? raw.items
-    : Array.isArray(raw?.data) ? raw.data
-    : Array.isArray(raw?.results) ? raw.results
-    : [];
-  return list.map((item) => {
-    if (typeof item === 'string') return item.trim();
-    return String(item?.name || item?.class_name || item?.title || '').trim();
-  }).filter(Boolean);
+  return catalogNames(raw);
 }
 
 function extractAccountList(raw) {

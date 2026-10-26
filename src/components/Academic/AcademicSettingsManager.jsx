@@ -2,6 +2,7 @@ import ViewportModal from '../Modal/ViewportModal';
 import { SCHOOL_GRADING_BANDS, validateGradingBands } from '../../lib/schoolGrading';
 import React, { useState, useEffect, useRef } from 'react';
 import { validateAcademicSettings } from '../../lib/assessmentRules.js';
+import { academicSettingsPayload } from '../../lib/academicSettingsPayload.js';
 import { usePortalData } from '../../data/PortalStore';
 import { Settings, Calendar, Save, CheckCircle2, RefreshCw, ShieldCheck, Award, BookOpen, Building } from 'lucide-react';
 
@@ -45,7 +46,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
 
     if (savingRef.current) return;
     setSaveError(''); setSavedNotice('');
-    const newSettings = {
+    const newSettings = academicSettingsPayload({
       academicYear: year,
       academicTerm: term,
       classTestWeight: Number(classWeight),
@@ -55,7 +56,7 @@ export default function AcademicSettingsManager({ onClose, onSaved, inline = fal
       resumptionDate,
       vacationDate,
       updatedAt: new Date().toISOString()
-    };
+    }, { gradingOnly });
 
     try {
       newSettings.gradingBands = validateGradingBands(bands);

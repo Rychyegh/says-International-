@@ -182,7 +182,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
         entry
       };
     });
-  }, [filteredStudents, results, selectedSubject, selectedTerm, selectedYear, selectedClass]);
+  }, [filteredStudents, results, selectedSubject, selectedTerm, selectedYear, selectedClass, academicSettings?.gradingBands]);
 
   // Statistics
   const stats = useMemo(() => {

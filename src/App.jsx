@@ -235,12 +235,12 @@ function AppRoutes() {
   return (
     <PortalDataProvider key={`${activePortal}-${Boolean(isAuthed)}`} enabled={Boolean(isAuthed)}>
     <div className="app" id="app-root">
-      <Topbar
+      {location.pathname !== '/' && <Topbar
         activePortal={activePortal}
         isAuthed={isAuthed}
         onSignOut={handleSignOut}
         adminRole={isAuthed ? adminRole : null}
-      />
+      />}
 
       {logoutNotice && (
         <div style={{
