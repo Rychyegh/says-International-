@@ -488,6 +488,8 @@ export function mapStudentLedgerFromApi(raw = {}) {
         description: entry.description || entry.narration || entry.notes || type || 'Ledger entry',
         notes: entry.notes || '',
         allocations: entry.allocations,
+        payerName: entry.payerName || entry.payer_name || '',
+        paymentMethod: entry.paymentMethod || entry.payment_method || '',
         type: type || (isDebit ? 'DEBIT' : isCredit ? 'CREDIT' : ''),
         debit: explicitDebit || (isDebit ? amount : 0),
         credit: explicitCredit || (isCredit && !isDebit ? amount : 0),

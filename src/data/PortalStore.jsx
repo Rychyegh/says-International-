@@ -1,3 +1,4 @@
+import { savedBillItems } from '../lib/savedBillItems';
 import { saveReportRequest } from '../lib/reportRecords.js';
 import { catalogNames } from '../lib/catalogNames.js';
 import { confirmedStudentUpdate } from '../lib/studentSaveContract.js';
@@ -1097,7 +1098,7 @@ export function mapFeeFromApi(f = {}) {
     status,
     dueDate: f.dueDate || f.due_date || '2026-09-15',
     paymentDate: f.paymentDate || f.payment_date || null,
-    itemsBreakdown: f.itemsBreakdown || f.items || f.lines || [],
+    itemsBreakdown: savedBillItems(f),
     updatedAt: f.updatedAt || f.updated_at || f.created_at || f.lastBillPostedAt || null,
     lastBillPostedAt: f.lastBillPostedAt || f.updated_at || f.created_at || null,
   };

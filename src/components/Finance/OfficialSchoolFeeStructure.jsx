@@ -1031,6 +1031,8 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     setTimeout(() => setSuccessMsg(''), 7000);
   };
 
+  const [optionalSelections, setOptionalSelections] = useState({});
+  const selectionScope = `${selectedClassKey}:${preparingStudentBill?.studentId || preparingStudentBill?.id || 'class'}`;
   const baseBillItems = activeClassData.baseBill || [];
   const optionalBillItems = useMemo(() => {
     const raw = activeClassData.optionalBills || [];
@@ -1048,7 +1050,8 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       return false;
     });
 
-    return raw.map(opt => {
+    return raw.map(source => {
+      const opt = {...source, enabled: (optionalSelections[selectionScope] || []).includes(source.id)};
       if (opt.id === 'opt_stationery' && matchedStationery) {
         const countStr = matchedStationery.itemsCount ? ` (${matchedStationery.itemsCount} items)` : '';
         return {
@@ -1061,7 +1064,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       }
       return opt;
     });
-  }, [activeClassData, selectedSubLevel, stationerySchedule]);
+  }, [activeClassData, selectedSubLevel, stationerySchedule, optionalSelections, selectionScope]);
 
   const totalBase = money(baseBillItems.reduce((acc, item) => acc + money(item.amount), 0));
   const totalOptionalActive = money(optionalBillItems.filter(o => o.enabled).reduce((acc, item) => acc + money(item.amount), 0));
@@ -1215,12 +1218,10 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
   // Toggle Optional Bill in Schedule
   const handleToggleOptionalBill = (optId) => {
-    setFeeSchedule((prev) => patchClassSchedule(prev, selectedClassKey, (classData) => ({
-      ...classData,
-      optionalBills: (classData.optionalBills || []).map((opt) =>
-        opt.id === optId ? { ...opt, enabled: !opt.enabled } : opt
-      ),
-    })));
+    setOptionalSelections(previous => {
+      const selected = previous[selectionScope] || [];
+      return {...previous, [selectionScope]: selected.includes(optId) ? selected.filter(id => id !== optId) : [...selected, optId]};
+    });
   };
 
   const handleUpdateOptionalBillAmount = (optId, newAmount) => {
@@ -2441,7 +2442,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                   </table>
                 </div>
 
-                {studentSelectedOpts.length > 0 && (
+                {optionalBillItems.length > 0 && (
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ fontSize: 12, fontWeight: 900, color: '#0284c7', textTransform: 'uppercase', marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
                       <span>2. Optional Services (Motivation, Bus, Feeding, Stationery, Pick Up Card)</span>
@@ -2455,9 +2456,9 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                         </tr>
                       </thead>
                       <tbody>
-                        {studentSelectedOpts.map((opt) => (
+                        {optionalBillItems.map((opt) => (
                           <tr key={opt.id} style={{ borderBottom: '1px solid #f0f9ff' }}>
-                            <td style={{ padding: '5px 10px', fontWeight: 600, color: '#0369a1' }}>{opt.icon} {opt.details}</td>
+                            <td style={{ padding: '5px 10px', fontWeight: 600, color: '#0369a1' }}>{opt.icon} {opt.details} {opt.enabled ? '(Selected)' : '(Optional — not charged)'}</td>
                             <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 700 }}>{Number(opt.amount || 0).toFixed(2)}</td>
                           </tr>
                         ))}
@@ -2762,9 +2763,9 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                             background: opt.enabled ? '#15803d' : '#94a3b8',
                             color: '#ffffff'
                           }}
-                          title={opt.enabled ? 'Click to disable' : 'Click to enable'}
+                          title={opt.enabled ? 'Remove from ledger charges' : 'Select for ledger charges'}
                         >
-                          {opt.enabled ? 'Active ✓' : 'Inactive'}
+                          {opt.enabled ? 'Selected ✓' : 'Not charged'}
                         </button>
                         <button
                           type="button"
@@ -3759,7 +3760,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                             <tbody>
                               {activeOptionals.map((opt) => (
                                 <tr key={opt.id} style={{ borderBottom: '1px solid #f0f9ff' }}>
-                                  <td style={{ padding: '5px 10px', fontWeight: 600, color: '#0369a1' }}>{opt.icon} {opt.details}</td>
+                                  <td style={{ padding: '5px 10px', fontWeight: 600, color: '#0369a1' }}>{opt.icon} {opt.details} {opt.enabled ? '(Selected)' : '(Optional — not charged)'}</td>
                                   <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 700 }}>{Number(opt.amount || 0).toFixed(2)}</td>
                                 </tr>
                               ))}
