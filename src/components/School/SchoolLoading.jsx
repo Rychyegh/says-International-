@@ -8,8 +8,7 @@ export default function SchoolLoading({ error, onRetry }) {
       <img src="/remalj-carewell-logo.png" alt="School crest" width="96" height="96"/>
       <h1>REMALJ</h1>
       <p>Carewell Inspirational School</p>
-      <span className="school-loading__location">BOGOSO</span>
-      {error ? <div className="school-loading__error"><p>{error}</p><button type="button" onClick={onRetry}>Try again</button></div> : <div className="school-loading__progress" aria-hidden="true"><span/></div>}
+      {error ? <div className="school-loading__error"><p>{error}</p><button type="button" onClick={onRetry}>Try again</button></div> : null}
     </div>
   </div>, document.body);
 }
