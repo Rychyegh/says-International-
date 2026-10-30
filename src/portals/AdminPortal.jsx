@@ -3093,7 +3093,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   <p className="page-header__subtitle">Filter teaching staff from drivers and other non-teaching staff, then onboard, edit, or offboard them.</p>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginLeft: 'auto', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginLeft: 'auto', gap: 6, flexWrap: 'wrap' }}>
                   <button
                     type="button"
                     onClick={() => {
@@ -3105,12 +3105,12 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       setIsAddingClass(true);
                     }}
                     style={{
-                      padding: '10px 16px', borderRadius: 8, background: '#1e1b4b', color: '#fff',
-                      border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(30, 27, 75, 0.25)'
+                      padding: '6px 10px', borderRadius: 6, background: '#1e1b4b', color: '#fff',
+                      border: 'none', fontWeight: 650, fontSize: 11, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 5, boxShadow: '0 4px 12px rgba(30, 27, 75, 0.25)'
                     }}
                   >
-                    <School size={16} /> 🏫 ➕ Add New Class
+                    <School size={13} /> Add New Class
                   </button>
                   <button
                     type="button"
@@ -3120,14 +3120,14 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                       setIsAddingStaff(true);
                     }}
                     style={{
-                      padding: '10px 16px', borderRadius: 8, background: '#166534', color: '#fff',
-                      border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                      padding: '6px 10px', borderRadius: 6, background: '#166534', color: '#fff',
+                      border: 'none', fontWeight: 650, fontSize: 11, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', gap: 6
                     }}
                   >
-                    <UserPlus size={16} /> Add Non-teaching Staff
+                    <UserPlus size={13} /> Add Non-teaching Staff
                   </button>
-                  {adminRole === 'head_admin' && <button type="button" className="btn btn-green" onClick={() => setIsAssigningTeacherSubjects(true)}>Assign teacher subjects</button>}
+                  {adminRole === 'head_admin' && <button type="button" style={{ padding: '6px 10px', borderRadius: 6, background: '#287a42', color: '#fff', border: 'none', fontWeight: 650, fontSize: 11, lineHeight: 'normal', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }} onClick={() => setIsAssigningTeacherSubjects(true)}>Assign teacher subjects</button>}
                 </div>
               </div>
 
