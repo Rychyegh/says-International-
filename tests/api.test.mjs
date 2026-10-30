@@ -447,3 +447,14 @@ test('assessment report request preserves scope and surfaces backend rejection',
   globalThis.fetch = async () => json({detail:'Report permission denied'},403);
   await assert.rejects(api.getAssessmentReport({report_type:'class'}), error=>error.status===403);
 });
+
+test('UAC teacher subject assignment sends subjects only and uses the account identity', async () => {
+  let called;
+  globalThis.fetch = async (url, options) => {called={url, options}; return json({assignment:{user_id:'teacher-id',classes:['Basic 4'],subjects:['English']}});};
+  await api.assignTeacherSubjects('teacher-id', ['English']);
+  assert.ok(called.url.endsWith('/academic/teachers/teacher-id/subjects'));
+  assert.equal(called.options.method, 'PUT');
+  assert.deepEqual(JSON.parse(called.options.body), {subjects:['English']});
+  globalThis.fetch = async () => json({detail:'Teacher is not in this school'},404);
+  await assert.rejects(api.assignTeacherSubjects('foreign-teacher', ['English']), error=>error.status===404);
+});

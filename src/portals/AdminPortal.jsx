@@ -1,3 +1,4 @@
+import TeacherSubjectAssignment from '../components/Academic/TeacherSubjectAssignment';
 import AssessmentReports from '../components/Academic/AssessmentReports';
 import { csvExport } from '../lib/accountingRules.js';
 import { rosterAcademicYear, rosterAcademicTerm } from '../lib/rosterAcademicYear.js';
@@ -112,6 +113,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     academicSettings,
     semesterRegistrations,
     teacherDirectory,
+    assignTeacherSubjects: portalAssignTeacherSubjects,
     classLevels,
     subjects,
     results,
@@ -389,6 +391,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
   // Staff Management State
   const [isAddingStaff, setIsAddingStaff] = useState(false);
+  const [isAssigningTeacherSubjects, setIsAssigningTeacherSubjects] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
   const [offboardingStaff, setOffboardingStaff] = useState(null);
   const [staffSearchQuery, setStaffSearchQuery] = useState('');
@@ -3124,7 +3127,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                   >
                     <UserPlus size={16} /> Add Non-teaching Staff
                   </button>
-                  {adminRole === 'head_admin' && <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end' }}><button type="button" className="btn btn-green" onClick={() => { setNewStaffForm({ ...blankNonTeachingStaff, role: 'Subject Teacher', subject: SUBJECT_OPTIONS[0] || '', classAssigned: LEVEL_OPTIONS[0] || '' }); setStaffActionError(''); setIsAddingStaff(true); }}><UserPlus size={16} /> Add New Teacher</button></div>}
+                  {adminRole === 'head_admin' && <button type="button" className="btn btn-green" onClick={() => setIsAssigningTeacherSubjects(true)}>Assign teacher subjects</button>}
                 </div>
               </div>
 
@@ -3436,9 +3439,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                             const existing = teacher ? findTeachingAssignment(teachingAssignments, teacher) : null;
                             setAssignmentTeacherKey(key);
                             setAssignmentError('');
-                            if (!existing) return;
-                            setAssignmentClasses((current) => Array.from(new Set([...(current || []), ...(existing.classes || [])])));
-                            setAssignmentSubjects((current) => Array.from(new Set([...(current || []), ...(existing.subjects || [])])));
+                            setAssignmentClasses(teacher?.classAssigned ? teacher.classAssigned.split(',').map(value => value.trim()).filter(Boolean) : existing?.classes || []);
+                            setAssignmentSubjects(existing?.subjects || (teacher?.subject || '').split(',').map(value => value.trim()).filter(value => SUBJECT_OPTIONS.includes(value)));
                           }}
                           style={{ width: '100%', marginTop: 4, padding: '9px 12px', borderRadius: 8, border: '1px solid var(--gray-300)', fontWeight: 700 }}
                         >
@@ -3519,6 +3521,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
           )}
 
           {/* ── ONBOARD NEW STAFF MODAL ── */}
+          {isAssigningTeacherSubjects && <TeacherSubjectAssignment teachers={assignableTeachers.filter(t => t.userId)} assignments={teachingAssignments || []} subjects={SUBJECT_OPTIONS} onSave={portalAssignTeacherSubjects} onClose={() => setIsAssigningTeacherSubjects(false)}/>}
           {isAddingStaff && (
             <ViewportModal
               onClick={(e) => { if (e.target === e.currentTarget) setIsAddingStaff(false); }}

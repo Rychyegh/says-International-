@@ -822,6 +822,9 @@ function loginFromDemoTeacher() {
 }
 
 export const api = {
+  assignTeacherSubjects: (userId, subjects) => request(`/academic/teachers/${encodeURIComponent(userId)}/subjects`, {
+    method: 'PUT', body: JSON.stringify({ subjects }),
+  }),
   getAssessmentReport: (scope) => request(`/academic/assessment-reports?${new URLSearchParams(scope)}`),
   reviseBillItems: async (id, payload, key) => {
     if (!id || payload.expected_version == null || !key) throw new Error('A saved invoice, version and revision key are required.');

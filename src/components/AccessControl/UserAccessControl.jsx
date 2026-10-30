@@ -151,7 +151,7 @@ function mapBackendUser(item) {
 }
 
 export default function UserAccessControl({ adminRole = 'head_admin' }) {
-  const { addStaffMember, refreshBackendData, classLevels } = usePortalData();
+  const { addStaffMember, syncDirectoryUser, refreshBackendData, classLevels } = usePortalData();
   const mainClassOptions = useMemo(() => {
     const custom = (classLevels || []).filter((level) => level && !ALL_SUB_CLASSES.includes(level) && !CLASS_LEVELS.includes(level));
     return [...new Set(['Pre-school', ...ALL_SUB_CLASSES, ...custom])];
@@ -307,8 +307,8 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
     }
 
     const isClassTeacher = createForm.role === 'class_teacher';
-    if (isClassTeacher && !createForm.mainClass) {
-      alert('Choose a main class before creating a class teacher.');
+    if (['teacher','class_teacher','preschool_teacher'].includes(createForm.role) && !createForm.mainClass) {
+      alert('Choose a class before creating a teacher.');
       return;
     }
 
@@ -319,7 +319,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       createForm.role === 'admin' ? `ADM-2026-${String(users.length + 1).padStart(3, '0')}` : undefined
     );
     const classPasscode = isClassTeacher ? String(Math.floor(1000 + Math.random() * 9000)) : undefined;
-    const mainClass = isClassTeacher || createForm.role === 'preschool_teacher' ? createForm.mainClass : '';
+    const mainClass = ['teacher','class_teacher','preschool_teacher'].includes(createForm.role) ? createForm.mainClass : '';
 
     const newUser = {
       id: `usr_${createForm.role}_${Date.now()}`,
@@ -343,11 +343,14 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
 
     try {
       const res = await api.createUserAccount({ ...newUser });
-      const remoteId = res?.id || res?._id || res?.user?.id || res?.data?.id;
-      const savedUser = { ...newUser, id: remoteId || newUser.id };
+      const remote = res?.user || res?.data?.user || res?.data || res;
+      const remoteId = remote?.id || remote?._id;
+      if (!remoteId) throw new Error('The server did not return the saved account ID. Refresh UAC before retrying.');
+      const savedUser = { ...newUser, ...remote, id: remoteId };
+      syncDirectoryUser?.(savedUser);
 
       const directoryProfile = directoryProfileFromUser(savedUser);
-      if (directoryProfile && addStaffMember) {
+      if (directoryProfile && !['teacher','class_teacher','preschool_teacher'].includes(newUser.role) && addStaffMember) {
         try {
           await addStaffMember({
             ...directoryProfile,
@@ -1218,18 +1221,18 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                   onChange={(role) => setCreateForm(prev => ({
                     ...prev,
                     role,
-                    mainClass: ['class_teacher','preschool_teacher'].includes(role) ? prev.mainClass : '',
+                    mainClass: ['teacher','class_teacher','preschool_teacher'].includes(role) ? prev.mainClass : '',
                   }))}
                 />
               </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                  Main Class {createForm.role === 'class_teacher' ? '*' : ''}
+                  Main Class {['teacher','class_teacher','preschool_teacher'].includes(createForm.role) ? '*' : ''}
                 </label>
                 <select
                   value={createForm.mainClass}
-                  disabled={!['class_teacher','preschool_teacher'].includes(createForm.role)}
+                  disabled={!['teacher','class_teacher','preschool_teacher'].includes(createForm.role)}
                   onChange={(e) => setCreateForm(prev => ({ ...prev, mainClass: e.target.value }))}
                   style={{
                     width: '100%',
@@ -1237,15 +1240,15 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                     borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--border-color)',
                     fontSize: 13,
-                    background: createForm.role === 'class_teacher' ? '#fff' : 'var(--bg-muted, #f1f5f9)',
-                    color: createForm.role === 'class_teacher' ? 'inherit' : '#94a3b8',
-                    cursor: createForm.role === 'class_teacher' ? 'pointer' : 'not-allowed',
+                    background: ['teacher','class_teacher','preschool_teacher'].includes(createForm.role) ? '#fff' : 'var(--bg-muted, #f1f5f9)',
+                    color: ['teacher','class_teacher','preschool_teacher'].includes(createForm.role) ? 'inherit' : '#94a3b8',
+                    cursor: ['teacher','class_teacher','preschool_teacher'].includes(createForm.role) ? 'pointer' : 'not-allowed',
                   }}
                 >
                   <option value="">
-                    {['class_teacher','preschool_teacher'].includes(createForm.role) ? 'Select main class' : 'Select a class teacher role first'}
+                    {['teacher','class_teacher','preschool_teacher'].includes(createForm.role) ? 'Select main class' : 'Select a teacher role first'}
                   </option>
-                  {['class_teacher','preschool_teacher'].includes(createForm.role) && mainClassOptions.filter(level => createForm.role !== 'preschool_teacher' || /pre-school|creche|nursery|kg|kindergarten/i.test(level)).map((level) => (
+                  {['teacher','class_teacher','preschool_teacher'].includes(createForm.role) && mainClassOptions.filter(level => createForm.role !== 'preschool_teacher' || /pre-school|creche|nursery|kg|kindergarten/i.test(level)).map((level) => (
                     <option key={level} value={level}>{level}</option>
                   ))}
                 </select>

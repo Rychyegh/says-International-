@@ -115,7 +115,7 @@ export function directoryProfileFromUser(user = {}) {
   if (designation === 'class_teacher' || raw === 'class_teacher' || raw === 'class teacher') {
     role = 'Class Teacher';
     subject = subject || 'Class Teacher';
-  } else if (raw === 'teacher' || raw === 'teaching staff' || raw === 'subject teacher') {
+  } else if (raw === 'teacher' || raw === 'teaching staff' || raw === 'subject teacher' || raw === 'subject_teacher') {
     role = 'Subject Teacher';
   } else if (raw === 'admin' || raw === 'head_admin' || raw === 'head administrator') {
     role = 'Head Administrator';
@@ -162,7 +162,7 @@ function mergeDirectoryAccount(list, profile) {
   const index = list.findIndex((person) => {
     const personEmail = String(person.email || '').trim().toLowerCase();
     const personStaffId = String(person.staffId || '').trim().toLowerCase();
-    return (email && personEmail === email) || (staffId && personStaffId === staffId);
+    return (profile.userId && String(person.userId || '') === String(profile.userId)) || (email && personEmail === email) || (staffId && personStaffId === staffId);
   });
   if (index >= 0) {
     list[index] = {
@@ -1831,8 +1831,8 @@ export function PortalDataProvider({ children, enabled = false }) {
         }
 
         // Staff directory comes only from the database. An empty response clears the list.
-        if (staffRes.status === 'fulfilled' && staffRes.value != null) {
-          const sRaw = staffRes.value;
+        if ((staffRes.status === 'fulfilled' && staffRes.value != null) || (usersRes.status === 'fulfilled' && usersRes.value != null)) {
+          const sRaw = staffRes.status === 'fulfilled' ? staffRes.value : [];
           const staff = Array.isArray(sRaw)
             ? sRaw
             : (Array.isArray(sRaw?.staff) ? sRaw.staff : Array.isArray(sRaw?.teachers) ? sRaw.teachers : Array.isArray(sRaw?.data) ? sRaw.data : []);
@@ -1843,7 +1843,7 @@ export function PortalDataProvider({ children, enabled = false }) {
             staffId: s.staffId || s.staff_id || s.staff_code || '',
             name: s.name || s.fullName || s.full_name,
             role: s.role || s.designation || 'Subject Teacher',
-            subject: s.subject || '',
+            subject: s.subject || s.department || '',
             classAssigned: formatClassToBasic(s.classAssigned || s.class_assigned || s.level || ''),
             email: s.email || s.contact_email || '',
             phone: s.phone || s.phone_number || s.contact_phone || '',
@@ -2472,6 +2472,27 @@ export function PortalDataProvider({ children, enabled = false }) {
 
   const value = useMemo(() => ({
     ...data,
+    syncDirectoryUser: (user) => {
+      const profile = directoryProfileFromUser(user);
+      if (!profile?.userId) return;
+      setData(current => {
+        const list = [...(current.teacherDirectory || [])];
+        mergeDirectoryAccount(list, profile);
+        return { ...current, teacherDirectory: list };
+      });
+    },
+    assignTeacherSubjects: async (assignment) => {
+      if (!assignment.userId) throw new Error('This teacher must be linked to a UAC account before assigning subjects.');
+      const response = await api.assignTeacherSubjects(assignment.userId, assignment.subjects);
+      const saved = response.assignment || response.data?.assignment;
+      if (!saved || String(saved.user_id) !== String(assignment.userId) || !Array.isArray(saved.subjects) || !Array.isArray(saved.classes)) throw new Error('The backend did not confirm the teacher subject assignment.');
+      const mapped = mapTeachingAssignment({ ...assignment, ...saved, userId: assignment.userId, classes: saved.classes, subjects: saved.subjects });
+      setData(current => ({ ...current,
+        teacherDirectory: current.teacherDirectory.map(t => String(t.userId) === String(assignment.userId) ? {...t, subject:saved.subjects.join(', ')} : t),
+        teachingAssignments: [mapped, ...(current.teachingAssignments || []).filter(t => !findTeachingAssignment([t], assignment))],
+      }));
+      return mapped;
+    },
     academicSettings: data.academicSettings || INITIAL_DATA.academicSettings,
     updateAcademicSettings: async (newSettings) => {
       validateAcademicSettings(newSettings);
