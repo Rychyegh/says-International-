@@ -417,3 +417,33 @@ test('read failures do not claim an uncertain payment and validation identifies 
  globalThis.fetch=async()=>json({detail:[{loc:['body','contact_email'],msg:'Invalid email address',type:'value_error'}]},422);
  await assert.rejects(request('/admissions/applications',{method:'POST',body:'{}'}), error => error.message==='contact_email: Invalid email address' && error.payload.detail[0].type==='value_error');
 });
+
+test('bill item revisions require a saved version and confirm the same invoice', async () => {
+  let calls = 0;
+  globalThis.fetch = async (url, options) => {
+    calls++;
+    assert.ok(url.endsWith('/finance/fees/invoice/items'));
+    assert.equal(options.headers['Idempotency-Key'], 'revision-key');
+    assert.equal(JSON.parse(options.body).expected_version, 3);
+    return json({invoice:{id:'invoice',version:4}});
+  };
+  await assert.rejects(api.reviseBillItems('invoice', {}, 'revision-key'));
+  assert.equal(calls, 0);
+  await api.reviseBillItems('invoice', {expected_version:3,items:[],reason:'Correction'}, 'revision-key');
+  assert.equal(calls, 1);
+  globalThis.fetch = async () => json({invoice:{id:'other-invoice',version:4}});
+  await assert.rejects(api.reviseBillItems('invoice', {expected_version:3}, 'revision-key'), /did not confirm/);
+});
+
+test('assessment report request preserves scope and surfaces backend rejection', async () => {
+  globalThis.fetch = async url => {
+    const query = new URL(url).searchParams;
+    assert.equal(query.get('academic_year'), '2026/2027');
+    assert.equal(query.get('subject'), 'Language & Literacy');
+    assert.equal(query.get('report_type'), 'subject');
+    return json({reports:[]});
+  };
+  assert.deepEqual(await api.getAssessmentReport({academic_year:'2026/2027',subject:'Language & Literacy',report_type:'subject'}), {reports:[]});
+  globalThis.fetch = async () => json({detail:'Report permission denied'},403);
+  await assert.rejects(api.getAssessmentReport({report_type:'class'}), error=>error.status===403);
+});

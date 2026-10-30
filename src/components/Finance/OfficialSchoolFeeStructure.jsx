@@ -1,3 +1,4 @@
+import SavedBillStatement from './SavedBillStatement';
 import { billingPeriod, billingPeriodLabel } from '../../lib/billingPeriod.js';
 import FeeTemplateSync from './FeeTemplateSync';
 import SchoolPrintHeader from '../School/SchoolPrintHeader';
@@ -3641,8 +3642,17 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                 </div>
               ) : (
                 printPages.map((s, idx) => {
+                  const saved = (studentFees || []).filter(bill =>
+                    [s.id, s.studentId].filter(Boolean).some(id => String(id) === String(bill.studentId)) &&
+                    billingPeriodLabel(billingPeriod(bill)) === periodLabel(s));
+                  if (saved.length) return <div key={s.id || s.studentId} className="class-bill-page">{saved.map(bill => <SavedBillStatement key={bill.id} bill={bill} student={s}/>)}</div>;
                   const sFullName = getStudentFullName(s);
-                  const activeOptionals = optionalBillItems.filter((o) => o.enabled);
+                  const baseBillItems = sharedClassData.baseBill || [];
+                  const optionalBillItems = sharedClassData.optionalBills || [];
+                  const totalBase = baseBillItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+                  const totalOptionalActive = 0;
+                  const classBillPerStudent = totalBase;
+                  const activeOptionals = optionalBillItems.map(o => ({...o, enabled:false}));
                   const sTotal = classBillPerStudent;
 
                   return (

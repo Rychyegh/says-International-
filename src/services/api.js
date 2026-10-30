@@ -822,6 +822,16 @@ function loginFromDemoTeacher() {
 }
 
 export const api = {
+  getAssessmentReport: (scope) => request(`/academic/assessment-reports?${new URLSearchParams(scope)}`),
+  reviseBillItems: async (id, payload, key) => {
+    if (!id || payload.expected_version == null || !key) throw new Error('A saved invoice, version and revision key are required.');
+    const response = await request(`/finance/fees/${encodeURIComponent(id)}/items`, {
+      method: 'PUT', headers: { 'Idempotency-Key': key }, body: JSON.stringify(payload),
+    });
+    const invoice = response.invoice || response.data?.invoice;
+    if (String(invoice?.id) !== String(id) || invoice?.version == null || Number(invoice.version) <= Number(payload.expected_version)) throw new Error('The server did not confirm the revised invoice and version. Refresh saved bills before retrying.');
+    return response;
+  },
   getFeePaymentBatches: () => request('/finance/payment-batches'),
   createFeePaymentBatch: (data, key) => request('/finance/payment-batches', { method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify(data) }),
   getReceipts: () => request('/finance/receipts'),
@@ -1553,6 +1563,7 @@ export const api = {
       || staffData.role === 'Class Teacher';
     const payload = {
       ...staffProfilePayload(staffData),
+      ...(staffData.subject && staffData.classAssigned ? { teaching_assignments: staffData.subject.split(',').map(subject => ({ subject: subject.trim(), class_level: staffData.classAssigned })).filter(item => item.subject) } : {}),
       name: staffData.name || staffData.fullName || staffData.full_name,
       staff_id: staffData.staffId || staffData.staff_id || staffData.staff_code,
       role: isClassTeacher ? 'Class Teacher' : (staffData.role || 'Subject Teacher'),

@@ -1,3 +1,4 @@
+import AssessmentReports from '../components/Academic/AssessmentReports';
 import { csvExport } from '../lib/accountingRules.js';
 import { rosterAcademicYear, rosterAcademicTerm } from '../lib/rosterAcademicYear.js';
 import SchoolPrintHeader from '../components/School/SchoolPrintHeader';
@@ -514,6 +515,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
     if (teaching && adminRole !== 'head_admin') return;
     if (teaching && !newStaffForm.subject.trim()) { setStaffActionError('Add at least one subject for this teacher.'); return; }
 
+    if (teaching && !newStaffForm.classAssigned) { setStaffActionError('Select a class for this teacher.'); return; }
     setStaffActionLoading(true);
     setStaffActionError('');
     try {
@@ -4788,6 +4790,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     students={onboardedStudents || []}
                     onClose={() => setAcademicSimsModal(null)}
                   />
+                ) : /terminal report|Subject Based Assessment/i.test(academicSimsModal) ? (
+                  <AssessmentReports key={academicSimsModal} title={academicSimsModal}/>
                 ) : /Creche|Pending|Un-Authorised|audit/i.test(academicSimsModal) ? (
                   <div role="status" style={{padding:24}}>
                     <h3>{/Creche/i.test(academicSimsModal) ? 'Use the dedicated preschool assessment workflow' : 'Review saved results on the approval board'}</h3>

@@ -1,3 +1,4 @@
+import BillItemEditor from './BillItemEditor';
 import React, { useState } from 'react';
 import { usePortalData } from '../../data/PortalStore';
 import { filterBills, money } from '../../lib/accountingRules';
@@ -25,7 +26,7 @@ export default function BillPrinting({onPrepareBill}) {
  return <>
   <div className="accounting-toolbar"><button type="button" disabled={isRefreshingBackend} onClick={()=>refreshAccounts?.()}>Refresh saved bills</button><button type="button" disabled={blocked || !visible.length} onClick={()=>{setMode('individual');setPrintAll(true);requestAnimationFrame(()=>requestAnimationFrame(()=>{printDocument();setPrintAll(false);}));}}>Print all filtered bills ({visible.length})</button></div>
   <p>Bills posted by Admin appear here from the saved invoice ledger. Prepared schedules that have not been posted are not saved student invoices.</p>
-  {preview && <ViewportModal onClose={()=>setPreview(false)} aria-label="Selected student bill preview"><div style={{background:"white",maxWidth:960,width:"95vw",maxHeight:"90vh",overflowY:"auto",borderRadius:14,padding:20}}><div className="accounting-toolbar"><button type="button" onClick={()=>setPreview(false)}>Close preview</button><button type="button" onClick={printDocument}>Print selected bills</button></div>{printable.map(bill=><SavedBillStatement key={bill.id} bill={bill} student={onboardedStudents.find(student=>student.studentId===bill.studentId || student.id===bill.studentId)} />)}</div></ViewportModal>}
+  {preview && <ViewportModal onClose={()=>setPreview(false)} aria-label="Selected student bill preview"><div style={{background:"white",maxWidth:960,width:"95vw",maxHeight:"90vh",overflowY:"auto",borderRadius:14,padding:20}}><div className="accounting-toolbar"><button type="button" onClick={()=>setPreview(false)}>Close preview</button><button type="button" onClick={printDocument}>Print selected bills</button></div>{printable.map(bill=><React.Fragment key={bill.id}><SavedBillStatement bill={bill} student={onboardedStudents.find(student=>student.studentId===bill.studentId || student.id===bill.studentId)} /><BillItemEditor bill={bill} onSaved={async()=>{await refreshAccounts();setPreview(false);}}/></React.Fragment>)}</div></ViewportModal>}
   <p>Prepare bills, filter the saved ledger, then print individual bills or a class summary. Select a year and term to limit the reporting period.</p>
   {onPrepareBill && <button className="primary" onClick={onPrepareBill}>Prepare student / class bill</button>}
   <div className="accounting-toolbar">

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { usePortalData } from '../../../data/PortalStore';
 import { money, validateJournal } from '../../../lib/accountingRules';
-import { Field, Card, Tabs, Metrics, Table, LoadState, MutationNotice, WorkflowActions, ExportButton, useBook, useList, useReport, accountOptions, amountColumn, today } from '../AccountingUI';
+import { Field, Card, Tabs, Metrics, Table, LoadState, MutationNotice, WorkflowActions, ExportButton, useBook, useList, useReport, accountOptions, amountColumn, today, PrintDocument, printDocument } from '../AccountingUI';
 
 function JournalEditor({ book, accounts }) {
   const initial = ['draft', 'returned'].includes(book.selected?.status) ? book.selected : null;
@@ -44,7 +44,7 @@ function LedgerReport({ accounts, trial }) {
     const studentKey = line.student_id || line.studentId || line.student_code || line.payment?.student_id || line.receipt?.student_id;
     const student = studentKey ? onboardedStudents.find(row => [row.id, row.studentId, row.student_code].filter(Boolean).some(value => String(value) === String(studentKey))) : null;
     line = { ...line, student_name: line.student_name || line.studentName || line.student?.full_name || line.payment?.student_name || line.receipt?.student_name || student?.fullName || 'Not supplied' };
-    return { ...line, payer_name: line.payer_name || line.payerName || line.paid_by_name || line.payer?.full_name || line.payer?.name || 'Not supplied', amount: mixed ? null : debit > 0 ? debit : credit > 0 ? credit : line.amount ?? 0, direction: mixed ? 'Dr & Cr' : debit > 0 ? 'Dr' : credit > 0 ? 'Cr' : line.direction || '—' };
+    return { ...line, reference: [line.reference, line.payment_method || line.payment?.payment_method || line.receipt?.payment_method || line.source_type].filter(Boolean).join(' · '), payer_name: line.payer_name || line.payerName || line.paid_by_name || line.payer?.full_name || line.payer?.name || 'Not supplied', amount: mixed ? null : debit > 0 ? debit : credit > 0 ? credit : line.amount ?? 0, direction: mixed ? 'Dr & Cr' : debit > 0 ? 'Dr' : credit > 0 ? 'Cr' : line.direction || '—' };
   }) : null;
   const valid = Array.isArray(rows);
   return <Card title={trial?'Trial balance':'General ledger'} hint={trial?'Review debit and credit balances across all posted accounts at a reporting date.':'Choose one account to follow posted entries and the running balance.'}>
@@ -55,6 +55,8 @@ function LedgerReport({ accounts, trial }) {
     {report.data&&!valid&&<p role="alert">The report did not include its ledger lines.</p>}
     <Metrics items={trial?[["Total debits",report.data?.total_debit!=null?money(report.data.total_debit):null],["Total credits",report.data?.total_credit!=null?money(report.data.total_credit):null],["Difference",report.data?.total_debit!=null&&report.data?.total_credit!=null?money(report.data.total_debit-report.data.total_credit):null]]:[["Opening balance",report.data?.opening_balance!=null?money(report.data.opening_balance):null],["Closing balance",report.data?.closing_balance!=null?money(report.data.closing_balance):null],["Entries",valid?rows.length:null]]}/>
     <ExportButton filename={trial?'trial-balance.csv':'general-ledger.csv'} columns={columns} rows={valid?rows:[]}/>
+    <button type="button" disabled={!valid || report.busy} onClick={printDocument}>Print / Save as PDF</button>
+    {valid && <PrintDocument><article><h1>{trial ? 'Trial balance' : 'General ledger'}</h1><p>{accounts.rows.find(row => String(row.id) === account)?.name || account} · {from || 'Beginning'} – {to}</p><p>Opening balance: {money(report.data?.opening_balance || 0)} · Closing balance: {money(report.data?.closing_balance || 0)}</p><Table columns={columns} rows={rows}/></article></PrintDocument>}
     <Table columns={columns} rows={valid?rows:[]} empty={valid?'No posted entries in this reporting period.':'Choose the reporting scope and load the report.'}/>
   </Card>;
 }
