@@ -1,0 +1,12 @@
+.school-loading { position:fixed; inset:0; z-index:1000000; display:grid; place-items:center; padding:28px; background:#f8fafc; color:#172033; text-align:center; }
+.school-loading__brand { width:min(380px,100%); }
+.school-loading__brand > img { display:block; margin:0 auto 20px; width:96px; height:96px; object-fit:contain; }
+.school-loading__brand h1 { font-size:28px; font-weight:800; letter-spacing:4px; line-height:1.2; margin:0 0 8px; color:#26183e; }
+.school-loading__brand > p { margin:0; font-size:15px; font-weight:550; line-height:1.5; color:#647084; }
+.school-loading__location { display:block; margin-top:10px; letter-spacing:3px; font-size:10px; font-weight:700; color:#8f99a8; }
+.school-loading__progress { height:3px; width:112px; margin:28px auto 0; overflow:hidden; border-radius:8px; background:#e9e1f0; }
+.school-loading__progress span { display:block; width:45%; height:100%; border-radius:inherit; background:#64338a; animation:school-loading 1.4s ease-in-out infinite; }
+.school-loading__error { margin-top:22px; font-size:13px; color:#943449; }
+.school-loading__error button { padding:9px 18px; border:0; border-radius:8px; background:#4a1d6e; color:white; font:inherit; cursor:pointer; }
+@keyframes school-loading { from { transform:translateX(-110%); } to { transform:translateX(330%); } }
+@media(prefers-reduced-motion:reduce) { .school-loading__progress span { animation:none; margin:auto; } }

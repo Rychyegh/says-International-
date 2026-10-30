@@ -1,3 +1,4 @@
+import SchoolLoading from './components/School/SchoolLoading';
 import { sessionRoleAllowed } from './lib/sessionVerification.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
@@ -205,7 +206,7 @@ function AppRoutes() {
   }, [isAuthed, activePortal]);
 
   const renderPortalView = (portalKey, Component) => {
-    if (['admin', 'accountant'].includes(portalKey) && authed[portalKey] && (adminSession !== 'ready' || verifiedSessionPortal !== portalKey || verifiedAdminToken !== getAuthToken())) return <div style={{ padding: '120px 32px' }} role="status">{sessionError || 'Checking your database session…'}{sessionError && <button onClick={() => setSessionRetry(value => value + 1)}>Retry session check</button>}</div>;
+    if (['admin', 'accountant'].includes(portalKey) && authed[portalKey] && (adminSession !== 'ready' || verifiedSessionPortal !== portalKey || verifiedAdminToken !== getAuthToken())) return <SchoolLoading error={sessionError} onRetry={() => setSessionRetry(value => value + 1)}/>;
     if (!authed[portalKey]) {
       return (
         <LoginPage
