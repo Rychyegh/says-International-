@@ -18,7 +18,7 @@ Use the existing account creation/authentication contract. Relevant fields:
 {
   "full_name": "Ama Mensah",
   "email": "ama@example.com",
-  "role": "teacher",
+  "role": "teacher",do th
   "teacher_designation": "class_teacher",
   "staff_code": "CT-2026-010",
   "main_class": "Basic 4",
