@@ -452,3 +452,11 @@ body.print-individual-bill {
     height: 48px !important;
   }
 }
+
+.fee-btn.fee-btn-edit-saved { background: #dc2626; color: #fff; border-color: #dc2626; }
+.fee-btn.fee-btn-edit-saved:hover { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+
+.fee-roster-status { display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; padding: 5px 9px; border-radius: 999px; font-size: 11px; line-height: 1.25; font-weight: 650; vertical-align: middle; }
+.fee-roster-status svg { flex-shrink: 0; }
+.fee-roster-status--included { background: #dcfce7; color: #166534; }
+.fee-roster-status--excluded { background: #fef3c7; color: #b45309; }

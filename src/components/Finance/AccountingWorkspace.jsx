@@ -36,6 +36,6 @@ export default function AccountingWorkspace({section,role='accountant',onPrepare
   return <section className="accounting-workspace">
     {!section&&<nav className="accounting-section-nav" aria-label="Accounting sections">{FINANCE_SECTIONS.map(s=><button key={s} aria-current={current===s?'page':undefined} onClick={()=>setAdminSection(s)}>{s}</button>)}</nav>}
     <header className="accounting-hero">{Icon&&<div className="accounting-hero-icon"><Icon size={26}/></div>}<div><span className="accounting-eyebrow">Finance office / {role==='head_admin'?'Head Admin':role==='auditor'?'Audit access':'Accounts'}</span><h1>{current}</h1><p>{config?.description||'Prepare and print student bills by class, year, term, and payment status.'}</p></div></header>
-    {current==='Student Billing & Printing'?<BillPrinting onPrepareBill={onPrepareBill}/>:Component?<Component key={current} role={role} onNavigate={navigate}/>:<p>Choose a financial section.</p>}
+    {current==='Student Billing & Printing'?<BillPrinting role={role} onPrepareBill={onPrepareBill}/>:Component?<Component key={current} role={role} onNavigate={navigate}/>:<p>Choose a financial section.</p>}
   </section>;
 }

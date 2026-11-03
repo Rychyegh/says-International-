@@ -1,3 +1,8 @@
+import { savedBillItems } from '../../lib/savedBillItems';
+import { csvExport } from '../../lib/accountingRules';
+import { downloadText } from './AccountingUI';
+import { studentSavedBills } from '../../lib/studentSavedBills';
+import SavedBillManager from './SavedBillManager';
 import SavedBillStatement from './SavedBillStatement';
 import { billingPeriod, billingPeriodLabel } from '../../lib/billingPeriod.js';
 import FeeTemplateSync from './FeeTemplateSync';
@@ -685,6 +690,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
   const [feeSchedule, setSharedFeeSchedule] = useState(() => loadFeeSchedule());
   const [studentBillDrafts,setStudentBillDrafts] = useState({});
+  const [editingSavedBills, setEditingSavedBills] = useState(false);
 
   useEffect(() => {
     try {
@@ -736,6 +742,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
   // Prepare & View Student Bill Modal State
   const [preparingStudentBill, setPreparingStudentBill] = useState(null);
+  const savedIndividualBills = studentSavedBills(studentFees, preparingStudentBill, periodForStudent(preparingStudentBill));
 
   // Post Bill Modal & Foremost Success Dialog State
   const [isPostingModalOpen, setIsPostingModalOpen] = useState(false);
@@ -936,9 +943,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       return;
     }
 
-    const optionalItemsToPost = optionalBillItems
-      .filter((o) => o.enabled)
-      .map((o) => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true, serviceId: o.id || o.serviceId || '' }));
+    const optionalItemsToPost = []; // Add optional services later on the individual saved invoice.
     const allItemsToPost = [...baseBillItems, ...optionalItemsToPost];
     const totalToPost = allItemsToPost.reduce((acc, i) => acc + Number(i.amount || 0), 0);
 
@@ -985,9 +990,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
       return;
     }
 
-    const optionalItemsToPost = optionalBillItems
-      .filter((o) => o.enabled)
-      .map((o) => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true, serviceId: o.id || o.serviceId || '' }));
+    const optionalItemsToPost = []; // Add optional services later on the individual saved invoice.
     const allItemsToPost = [...baseBillItems, ...optionalItemsToPost];
     const totalToPost = allItemsToPost.reduce((acc, i) => acc + Number(i.amount || 0), 0);
 
@@ -1068,7 +1071,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
   }, [activeClassData, selectedSubLevel, stationerySchedule, optionalSelections, selectionScope]);
 
   const totalBase = money(baseBillItems.reduce((acc, item) => acc + money(item.amount), 0));
-  const totalOptionalActive = money(optionalBillItems.filter(o => o.enabled).reduce((acc, item) => acc + money(item.amount), 0));
+  const totalOptionalActive = 0; // Initial ledger charges are compulsory only.
   const classBillPerStudent = money(totalBase + totalOptionalActive);
 
   // Handle Category Change (Auto-selects first sub-level in category)
@@ -1218,11 +1221,8 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
   };
 
   // Toggle Optional Bill in Schedule
-  const handleToggleOptionalBill = (optId) => {
-    setOptionalSelections(previous => {
-      const selected = previous[selectionScope] || [];
-      return {...previous, [selectionScope]: selected.includes(optId) ? selected.filter(id => id !== optId) : [...selected, optId]};
-    });
+  const handleToggleOptionalBill = () => {
+    setEditingSavedBills(true);
   };
 
   const handleUpdateOptionalBillAmount = (optId, newAmount) => {
@@ -1303,9 +1303,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
     }
 
     // Compute active items
-    const optionalItemsToPost = optionalBillItems
-      .filter((o) => o.enabled)
-      .map((o) => ({ details: `OPTIONAL: ${o.details}`, amount: o.amount, isOptional: true, serviceId: o.id || o.serviceId || '' }));
+    const optionalItemsToPost = []; // Add optional services later on the individual saved invoice.
 
     const allItemsToPost = [...baseBillItems, ...optionalItemsToPost];
     const totalToPost = allItemsToPost.reduce((acc, i) => acc + Number(i.amount || 0), 0);
@@ -1487,6 +1485,15 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
   // Prepare Printable CSV Export for Student Bill
   const handleExportStudentBillCSV = (student) => {
+    const saved = studentSavedBills(studentFees, student, periodForStudent(student));
+    if (saved.length) {
+      const rows = saved.flatMap(bill => [
+        ...savedBillItems(bill).map(item => ({invoice:bill.billId || bill.id,student:bill.studentName,period:`${bill.academicYear} ${bill.term}`,description:item.details,amount:item.amount})),
+        ...[['Total billed',bill.billedAmount],['Payments received',bill.paidAmount],['Balance',bill.balance]].map(([description,amount]) => ({invoice:bill.billId || bill.id,student:bill.studentName,period:`${bill.academicYear} ${bill.term}`,description,amount})),
+      ]);
+      downloadText('saved-student-bill.csv', csvExport(['invoice','student','period','description','amount'].map(key => ({key,label:key})), rows));
+      return;
+    }
     const studentOptionalItems = optionalBillItems.filter((o) => o.enabled);
     const optionalTotal = studentOptionalItems.reduce((acc, o) => acc + money(o.amount), 0);
     const grandTotal = money(totalBase + optionalTotal);
@@ -1647,7 +1654,9 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
           </div>
         </div>
 
+        {editingSavedBills && <SavedBillManager onClose={() => setEditingSavedBills(false)} onPrepareBill={bill => {setEditingSavedBills(false);const student = onboardedStudents.find(s => [s.id,s.studentId].filter(Boolean).some(id => String(id) === String(bill.studentId)));if (student) handleSelectStudentForBill(student);else setActiveBillingView('single_student');}}/>}
         <div className="fee-header-actions no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button type="button" className="fee-btn fee-btn-edit-saved" onClick={() => setEditingSavedBills(true)}><Edit3 size={15}/> Edit saved bills</button>
           <button
             className="fee-btn"
             style={{ background: '#0284c7', color: '#fff', fontWeight: 800 }}
@@ -2139,12 +2148,12 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
                           <td style={{ padding: '10px 14px' }}>
                             {isIncluded ? (
-                              <span style={{ padding: '3px 8px', borderRadius: 12, background: '#dcfce7', color: '#166534', fontWeight: 800, fontSize: 11 }}>
-                                ✓ Included in Bill
+                              <span className="fee-roster-status fee-roster-status--included">
+                                <Check size={12} aria-hidden="true" /> Included in Bill
                               </span>
                             ) : (
-                              <span style={{ padding: '3px 8px', borderRadius: 12, background: '#fef3c7', color: '#b45309', fontWeight: 800, fontSize: 11 }}>
-                                ✕ Excluded
+                              <span className="fee-roster-status fee-roster-status--excluded">
+                                <X size={12} aria-hidden="true" /> Excluded
                               </span>
                             )}
                           </td>
@@ -2346,16 +2355,16 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
 
                   <button
                     type="button"
-                    onClick={() => handleSinglePostToLedger(preparingStudentBill)}
+                    onClick={() => savedIndividualBills.length ? setEditingSavedBills(true) : handleSinglePostToLedger(preparingStudentBill)}
                     style={{ padding: '6px 14px', background: '#16a34a', color: '#ffffff', border: 'none', borderRadius: 6, fontWeight: 900, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
                   >
-                    ⚡ Post Single Bill to Ledger
+                    {savedIndividualBills.length ? 'Edit saved bill' : '⚡ Post Single Bill to Ledger'}
                   </button>
                 </div>
               </div>
 
               {/* Printable Official Single Student Bill — same one-page layout as bulk class print */}
-              <div
+              {savedIndividualBills.length > 0 ? <div className="printable-document official-bill-document single-student-bill-page">{savedIndividualBills.map(bill => <SavedBillStatement key={`${bill.id}:${bill.version}`} bill={bill} student={preparingStudentBill}/>)}</div> : <div
                 className="printable-document official-bill-document single-student-bill-page"
                 style={{
                   background: '#ffffff',
@@ -2505,7 +2514,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                 <div style={{ textAlign: 'center', fontSize: 10, color: '#64748b', paddingTop: 8 }}>
                   Addressed to {getStudentFullName(preparingStudentBill)} · 1 of 1
                 </div>
-              </div>
+              </div>}
             </div>
           ) : (
             <div style={{
@@ -2764,9 +2773,9 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                             background: opt.enabled ? '#15803d' : '#94a3b8',
                             color: '#ffffff'
                           }}
-                          title={opt.enabled ? 'Remove from ledger charges' : 'Select for ledger charges'}
+                          title="Add this service later to an individual saved bill"
                         >
-                          {opt.enabled ? 'Selected ✓' : 'Not charged'}
+                          Add after billing
                         </button>
                         <button
                           type="button"
@@ -3642,9 +3651,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                 </div>
               ) : (
                 printPages.map((s, idx) => {
-                  const saved = (studentFees || []).filter(bill =>
-                    [s.id, s.studentId].filter(Boolean).some(id => String(id) === String(bill.studentId)) &&
-                    billingPeriodLabel(billingPeriod(bill)) === periodLabel(s));
+                  const saved = studentSavedBills(studentFees, s, periodForStudent(s));
                   if (saved.length) return <div key={s.id || s.studentId} className="class-bill-page">{saved.map(bill => <SavedBillStatement key={bill.id} bill={bill} student={s}/>)}</div>;
                   const sFullName = getStudentFullName(s);
                   const baseBillItems = sharedClassData.baseBill || [];

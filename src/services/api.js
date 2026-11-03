@@ -1,3 +1,4 @@
+import { assertCompulsoryInitialBill } from '../lib/initialBillRules.js';
 import { hasConfirmedPayment } from '../lib/pvPaymentHistory.js';
 import { feeTemplateSnapshot } from '../lib/feeTemplateContract.js';
 import { isSessionVerificationError, sessionRoleAllowed } from '../lib/sessionVerification.js';
@@ -828,8 +829,12 @@ export const api = {
   getAssessmentReport: (scope) => request(`/academic/assessment-reports?${new URLSearchParams(scope)}`),
   reviseBillItems: async (id, payload, key) => {
     if (!id || payload.expected_version == null || !key) throw new Error('A saved invoice, version and revision key are required.');
+    // Optional-service read metadata is not accepted by the invoice revision schema.
+    const revision = { ...payload, ...(Array.isArray(payload.items) ? {
+      items: payload.items.map(({ service_id, serviceId, ...item }) => item),
+    } : {}) };
     const response = await request(`/finance/fees/${encodeURIComponent(id)}/items`, {
-      method: 'PUT', headers: { 'Idempotency-Key': key }, body: JSON.stringify(payload),
+      method: 'PUT', headers: { 'Idempotency-Key': key }, body: JSON.stringify(revision),
     });
     const invoice = response.invoice || response.data?.invoice;
     if (String(invoice?.id) !== String(id) || invoice?.version == null || Number(invoice.version) <= Number(payload.expected_version)) throw new Error('The server did not confirm the revised invoice and version. Refresh saved bills before retrying.');
@@ -2371,6 +2376,7 @@ export const api = {
   },
 
   postAcademicBill: async (bill = {}) => {
+    assertCompulsoryInitialBill(bill.items || []);
     const items = sanitizePostedBillItems(bill.items);
     if (!items.length) {
       throw new Error('A posted bill must include at least one fee item.');
@@ -2390,6 +2396,7 @@ export const api = {
   },
 
   postStudentAcademicBill: async (bill = {}) => {
+    assertCompulsoryInitialBill(bill.items || []);
     const studentId = String(bill.student_id || bill.studentId || '').trim();
     if (!studentId) {
       throw new Error('A student id is required to post an official academic bill.');

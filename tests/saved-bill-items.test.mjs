@@ -12,3 +12,7 @@ test('shows saved split bill components without double counting stationery',()=>
  assert.equal(items[3].is_optional,true);
 });
 test('does not invent items from an invoice total',()=>assert.deepEqual(savedBillItems({billedAmount:500}),[]));
+test('reads stationery snapshots returned under the original posting contract field',()=>{
+ const items=savedBillItems({stationery_package_breakdown:[{name:'Books',amount:150},{name:'Pencils',amount:50}],stationery_fee:200});
+ assert.deepEqual(items.map(item=>item.amount),[150,50]);
+});

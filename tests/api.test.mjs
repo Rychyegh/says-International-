@@ -458,3 +458,19 @@ test('UAC teacher subject assignment sends subjects only and uses the account id
   globalThis.fetch = async () => json({detail:'Teacher is not in this school'},404);
   await assert.rejects(api.assignTeacherSubjects('foreign-teacher', ['English']), error=>error.status===404);
 });
+
+test('bill revisions omit optional-service read metadata without losing charges or mutating originals', async () => {
+  const items = [{details:'Tuition',amount:2050,is_optional:false}, {details:'Books',amount:695,is_optional:true,service_id:'books',serviceId:'books',id:'line-books',account_id:'account-books'}];
+  const payload = {expected_version:3,reason:'Requested services',items};
+  globalThis.fetch = async (url, options) => {
+    const sent = JSON.parse(options.body);
+    assert.deepEqual(sent.items, [{details:'Tuition',amount:2050,is_optional:false},{details:'Books',amount:695,is_optional:true,id:'line-books',account_id:'account-books'}]);
+    assert.equal(sent.reason, payload.reason);
+    assert.equal(sent.expected_version,3);
+    assert.equal(options.headers['Idempotency-Key'],'same-revision-key');
+    return json({invoice:{id:'invoice',version:4}});
+  };
+  await api.reviseBillItems('invoice', payload, 'same-revision-key');
+  assert.equal(items[1].service_id,'books');
+  assert.equal(items[1].serviceId,'books');
+});

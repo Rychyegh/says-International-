@@ -1,3 +1,4 @@
+import SavedBillManager from './SavedBillManager';
 import BillItemEditor from './BillItemEditor';
 import React, { useState } from 'react';
 import { usePortalData } from '../../data/PortalStore';
@@ -6,13 +7,15 @@ import SchoolPrintHeader from '../School/SchoolPrintHeader';
 import SavedBillStatement from './SavedBillStatement';
 import ViewportModal from '../Modal/ViewportModal';
 import { Field, PrintDocument, printDocument } from './AccountingUI';
-export default function BillPrinting({onPrepareBill}) {
+export default function BillPrinting({onPrepareBill, role}) {
  const { studentFees = [], onboardedStudents = [], syncErrors = {}, resourceStatus = {}, isLoadingBackend, refreshAccounts, isRefreshingBackend } = usePortalData();
+ const canEdit = ['sub_admin','head_admin','accountant','super_admin'].includes(role);
  const [filters,setFilters] = useState({ search:'',classLevel:'',term:'',year:'',status:'',min:'',max:'',sort:'name' });
  const [selected,setSelected] = useState([]);
  const [mode,setMode] = useState('individual');
  const [printAll,setPrintAll] = useState(false);
  const [preview,setPreview] = useState(false);
+ const [manageBills,setManageBills] = useState(false);
  const rows = studentFees.map(f => {
   const student = onboardedStudents.find(s => String(s.studentId) === String(f.studentId) || String(s.id) === String(f.studentId));
   return {...f,classLevel:f.classLevel || student?.level || '',academicYear:f.academicYear || ''};
@@ -24,9 +27,10 @@ export default function BillPrinting({onPrepareBill}) {
  const opts = key => [...new Set(rows.map(r => r[key]).filter(Boolean))].sort();
  const summary = <table><thead><tr>{['Student','Class','Year / term','Billed','Paid','Balance'].map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>{printable.map(r => <tr key={r.id}><td>{r.studentName} ({r.studentId})</td><td>{r.classLevel}</td><td>{r.academicYear} / {r.term}</td><td>{money(r.billedAmount)}</td><td>{money(r.paidAmount)}</td><td>{money(r.balance)}</td></tr>)}</tbody><tfoot><tr><th colSpan={3}>Total</th>{['billedAmount','paidAmount','balance'].map(k => <th key={k}>{money(printable.reduce((sum,r)=>sum+Number(r[k]||0),0))}</th>)}</tr></tfoot></table>;
  return <>
+  {canEdit && <><button type="button" className="primary" onClick={()=>setManageBills(true)}>Edit saved bills / Add optional services</button>{manageBills && <SavedBillManager onClose={()=>setManageBills(false)}/>}</>}
   <div className="accounting-toolbar"><button type="button" disabled={isRefreshingBackend} onClick={()=>refreshAccounts?.()}>Refresh saved bills</button><button type="button" disabled={blocked || !visible.length} onClick={()=>{setMode('individual');setPrintAll(true);requestAnimationFrame(()=>requestAnimationFrame(()=>{printDocument();setPrintAll(false);}));}}>Print all filtered bills ({visible.length})</button></div>
   <p>Bills posted by Admin appear here from the saved invoice ledger. Prepared schedules that have not been posted are not saved student invoices.</p>
-  {preview && <ViewportModal onClose={()=>setPreview(false)} aria-label="Selected student bill preview"><div style={{background:"white",maxWidth:960,width:"95vw",maxHeight:"90vh",overflowY:"auto",borderRadius:14,padding:20}}><div className="accounting-toolbar"><button type="button" onClick={()=>setPreview(false)}>Close preview</button><button type="button" onClick={printDocument}>Print selected bills</button></div>{printable.map(bill=><React.Fragment key={bill.id}><SavedBillStatement bill={bill} student={onboardedStudents.find(student=>student.studentId===bill.studentId || student.id===bill.studentId)} /><BillItemEditor bill={bill} onSaved={async()=>{await refreshAccounts();setPreview(false);}}/></React.Fragment>)}</div></ViewportModal>}
+  {preview && <ViewportModal onClose={()=>setPreview(false)} aria-label="Selected student bill preview"><div style={{background:"white",maxWidth:960,width:"95vw",maxHeight:"90vh",overflowY:"auto",borderRadius:14,padding:20}}><div className="accounting-toolbar"><button type="button" onClick={()=>setPreview(false)}>Close preview</button><button type="button" onClick={printDocument}>Print selected bills</button></div>{printable.map(bill=><React.Fragment key={bill.id}><SavedBillStatement bill={bill} student={onboardedStudents.find(student=>student.studentId===bill.studentId || student.id===bill.studentId)} />{canEdit && <BillItemEditor bill={bill} onSaved={async()=>{await refreshAccounts();setPreview(false);}}/>}</React.Fragment>)}</div></ViewportModal>}
   <p>Prepare bills, filter the saved ledger, then print individual bills or a class summary. Select a year and term to limit the reporting period.</p>
   {onPrepareBill && <button className="primary" onClick={onPrepareBill}>Prepare student / class bill</button>}
   <div className="accounting-toolbar">
