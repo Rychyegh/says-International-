@@ -1,0 +1,36 @@
+.admissions-page .page-header__title { font-size:25px; letter-spacing:-.6px; }
+.admissions-page .page-header__subtitle { max-width:800px; font-size:12px; line-height:1.7; color:#8893a4; }
+.admissions-page .admissions-filters { background:#fff!important; border-color:#e6eaf1!important; border-radius:12px!important; padding:15px!important; gap:14px!important; }
+.admissions-filters > div:first-child { flex-basis:320px!important; }
+.admissions-filters input { height:40px; border-color:#dfe5ed!important; background:#fafbfd; font-size:12px!important; }
+.admissions-filters > div:not(:first-child) { flex-direction:column; align-items:flex-start!important; gap:5px!important; min-width:110px; }
+.admissions-filters > div > svg { display:none; }
+.admissions-filters > div:first-child > svg { display:block; }
+.admissions-filters span { font-size:10px!important; color:#8591a3!important; }
+.admissions-filters select,.admissions-panel select { appearance:none; background-color:#f9fafc!important; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%238594a8' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; border:1px solid #dfe5ed!important; border-radius:7px!important; padding:9px 30px 9px 11px!important; font-size:11px!important; font-weight:550!important; color:#4b5870; min-height:36px; }
+.admissions-filters select { width:100%; }
+.admissions-page :is(input,select,button):focus-visible { outline:2px solid #bda0d3; outline-offset:3px; }
+.admissions-results { display:flex; gap:10px; align-items:center; margin:0 0 12px; }
+.admissions-results > span { color:#73458e; font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; background:#f0e9f7; }
+.admissions-results small { color:#9aa5b4; font-size:10px; }
+.admissions-panel { border-radius:12px; overflow:hidden; border:1px solid #e5eaf1; box-shadow:0 2px 6px #0f172a03; }
+.admissions-panel > .panel__body { padding:0!important; overflow-x:auto; }
+.admissions-panel .data-table { min-width:960px; width:100%; border-collapse:collapse; table-layout:auto; }
+.admissions-panel .data-table th { background:#f8fafc; font-size:10px; font-weight:700; letter-spacing:.6px; padding:14px 16px; white-space:nowrap; color:#98a2b3; border-bottom:1px solid #e8edf4; }
+.admissions-panel .data-table td { padding:16px; font-size:12px; border-bottom:1px solid #eef1f6; vertical-align:middle; line-height:1.5; }
+.admissions-panel .data-table tr:hover td { background:#fcfaff; }
+.admissions-panel .data-table td:first-child { min-width:210px; }
+.admissions-panel .data-table td:first-child strong { font-weight:650; font-size:12px; color:#364459; }
+.admissions-panel .data-table td:first-child > div { margin-top:5px; font-size:10px!important; color:#9aa5b5!important; }
+.admissions-panel .data-table td:nth-child(2) { min-width:125px; }
+.admissions-panel .data-table td:nth-child(2) > span { font-size:12px; font-weight:600!important; white-space:nowrap; }
+.admissions-panel .data-table td:nth-child(2) > div { font-size:10px!important; color:#8e9aac!important; }
+.admissions-panel .data-table td:nth-child(3) { max-width:210px; overflow-wrap:anywhere; color:#6c798e; }
+.admissions-panel .data-table td:nth-child(4) > span { display:inline-flex; align-items:center; padding:4px 9px!important; font-size:10px!important; font-weight:650!important; white-space:nowrap; }
+.admissions-panel .data-table td:nth-child(5) select { width:155px; }
+.admissions-reviewed { display:inline-flex; gap:5px; align-items:center; border-radius:20px; padding:4px 8px; background:#ecfdf3; color:#26814d; font-size:10px; white-space:nowrap; font-weight:650; }
+.admissions-admit { display:block; color:#8b9b91; font-size:10px; font-weight:500; margin:4px 0 0 3px; }
+.admissions-panel .data-table td:last-child > div { flex-wrap:nowrap!important; gap:7px!important; align-items:center; }
+.admissions-panel .data-table td:last-child button { white-space:nowrap; min-height:32px; padding:7px 10px!important; font-size:10px!important; border-radius:6px!important; font-weight:650!important; }
+.admissions-panel .data-table td:last-child button:last-child { min-width:31px; }
+@media(max-width:700px) { .admissions-page .page-header__title { font-size:22px; } .admissions-filters > div:first-child { flex-basis:100%!important; } .admissions-filters > div:not(:first-child) { flex:1; min-width:85px; } .admissions-results { flex-wrap:wrap; } }

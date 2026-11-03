@@ -17,6 +17,8 @@ import {
   GraduationCap, BookOpen, Award
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
+import './RosterFilters.css';
+import './Admissions.css';
 import { usePortalData, formatClassToBasic, buildStudentTranscriptData, MISSING_SCORE, findTeachingAssignment, isBackendUuid } from '../data/PortalStore';
 import OfficialApplicationForm from '../components/Onboarding/OfficialApplicationForm';
 import OfficialSchoolFeeStructure from '../components/Finance/OfficialSchoolFeeStructure';
@@ -1866,22 +1868,22 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 />
               </div>
 
-              <div className="no-print" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+              <div className="no-print roster-filter-bar">
                 <label>Status <select value={rosterStatus} onChange={event=>setRosterStatus(event.target.value)}><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="">All students</option></select></label>
                 {managingStudent && <StudentStatusEditor student={managingStudent} classes={LEVEL_OPTIONS} onClose={()=>setManagingStudent(null)} onSaved={refreshBackendData} />}
                 <label>Class{' '}
-                  <select value={rosterClass} onChange={e => { setRosterClass(e.target.value); setRosterSubClass(''); }} style={{ padding: 8, borderRadius: 6 }}>
+                  <select value={rosterClass} onChange={e => { setRosterClass(e.target.value); setRosterSubClass(''); }}>
                     <option value="">All classes</option>
                     {rosterClasses.map(level => <option key={level} value={level}>{level}</option>)}
                   </select>
                 </label>
                 <label>Sub-class{' '}
-                  <select value={rosterSubClass} onChange={e => setRosterSubClass(e.target.value)} style={{ padding: 8, borderRadius: 6 }}>
+                  <select value={rosterSubClass} onChange={e => setRosterSubClass(e.target.value)}>
                     <option value="">All sub-classes</option>
                     {rosterSubClasses.map(section => <option key={section} value={section}>{section}</option>)}
                   </select>
                 </label>
-                <span>{filteredStudents.length} matching students · Export follows these filters and search.</span>
+                <div className="roster-filter-summary" aria-live="polite"><span className="roster-filter-count">{filteredStudents.length} student{filteredStudents.length === 1 ? '' : 's'}</span><small>Exports use these filters and your search</small></div>
               </div>
 
               <div className="student-roster-print official-document-printable">
@@ -2031,10 +2033,10 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
 
           {/* ── APPLICATIONS & FORMS ── */}
           {(activeNav === 'Applications' || activeNav === 'Applications & Forms') && (
-            <div className="animate-fade-up">
+            <div className="animate-fade-up admissions-page">
               <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
                 <div>
-                  <h1 className="page-header__title">Official Application Forms & Admissions 📄</h1>
+                  <h1 className="page-header__title">Applications & Admissions</h1>
                   <p className="page-header__subtitle">
                     Review filled online 4-page REMALJ application forms, record office examination marks, and download local PDF copies.
                   </p>
@@ -2101,7 +2103,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     alignItems: 'center'
                   }}>
                     {/* Search Input */}
-                    <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 180 }}>
+                    <div className="admissions-filters" style={{ position: 'relative', flex: '1 1 200px', minWidth: 180 }}>
                       <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--gray-400)' }} />
                       <input
                         type="text"
@@ -2156,7 +2158,8 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                     </div>
                   </div>
 
-                  <div className="panel">
+                  <div className="admissions-results"><span>{filteredApplications.length} application{filteredApplications.length === 1 ? '' : 's'}</span><small>Matching your search and filters</small></div>
+                  <div className="panel admissions-panel">
                     <div className="panel__body">
                       <table className="data-table">
                         <thead>
@@ -2196,7 +2199,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                               <tr key={app.id}>
                                 <td>
                                   <strong>{learnerName}</strong>
-                                  <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>Submitted: {app.submittedAt || 'Online'}</div>
+                                  <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>Submitted: {app.submittedAt && !Number.isNaN(Date.parse(app.submittedAt)) ? new Intl.DateTimeFormat('en-GB', {day:'numeric',month:'short',year:'numeric',timeZone:'Africa/Accra'}).format(new Date(app.submittedAt)) : 'Online'}</div>
                                 </td>
                                 <td>
                                   <span style={{ fontWeight: 700 }}>{formatClassToBasic(app.applyingClass || app.level || 'Basic 1')}</span>
@@ -2249,7 +2252,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                                 <td>
                                   {app.officeExamEnglishMark || app.officeAdmit ? (
                                     <span style={{ fontSize: 11, color: '#166534', fontWeight: 700 }}>
-                                      ✅ Office Reviewed (Admit: {app.officeAdmit || 'Yes'})
+                                      <span className="admissions-reviewed"><CheckCircle2 size={12}/> Reviewed</span><small className="admissions-admit">Admit: {app.officeAdmit || 'Yes'}</small>
                                     </span>
                                   ) : (
                                     <span style={{ fontSize: 11, color: '#92400e', fontStyle: 'italic' }}>
@@ -2268,7 +2271,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                                       }}
                                       title="Inspect 4-page form, record office marks & print/download PDF"
                                     >
-                                      <Eye size={13} /> View Form PDF
+                                      <Eye size={13} /> View form
                                     </button>
 
                                     {app.status !== 'Enrolled' && (
