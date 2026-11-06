@@ -138,3 +138,25 @@ A fees response containing student account summaries with zero totals is not evi
 ### Deployed revision schema compatibility
 
 The deployed revision endpoint rejects `items[*].service_id` as an extra input. The frontend now omits `service_id` and its camelCase alias from revision requests while preserving line IDs, account mappings, descriptions, optional classification and amounts. These service identifiers may still appear in read responses. Do not replay arbitrary response metadata into the write schema. Resolve service/account mappings on the server using accepted invoice line data.
+
+## Reported production blocker — 2026-11-06
+
+The deployed revision endpoint rejects an edit with `Historical line has no verified active posting account; reconcile before editing`. The frontend preserves saved line IDs/account metadata and must not invent accounts or bypass journal validation. No backend source is present here; this blocker requires a server/data repair.
+
+For the affected invoice, inspect all original saved lines (including removed lines that need reversing) and their original posting journals. Resolve missing account links from verified source postings within the same school. Where an original account is inactive, use the backend's audited account reconciliation workflow; do not silently substitute a similarly named account or a current class-template account. If the source cannot establish the account, return the affected line IDs/descriptions and expose an authorized reconciliation action. Return stable line IDs and verified account IDs in GET /finance/fees after repair.
+
+Retry the revision after reconciliation. In one transaction append the required balanced adjustments, preserve payments, increment the invoice version, and refresh all invoice/ledger projections. Verify a GHS 3,845 bill revised to GHS 3,795 retains GHS 700 paid and reports GHS 3,095 balance after reload. Confirm both the saved-bill manager and class roster show GHS 3,795. Rejected revisions must leave the saved bill and ledger unchanged.
+
+The class roster now displays each student's saved billed total for their billing period, falling back to the compulsory quote only when no saved bill exists. Its class total sums those individual amounts; the per-student summary says “Varies by student” when they differ.
+
+### Frontend synchronization and backend acceptance checklist
+
+The editor now uses decimal-cent calculations and shows the currently saved total separately from the proposed revision. Previous balance and discount are visible so they cannot appear as unexplained differences. It uses refreshed invoice versions/items when the store updates. A discrepancy between the original snapshot sum plus arrears minus discount and billed amount is explicitly reported; the client does not fabricate a missing charge or silently overwrite the authoritative saved total.
+
+Backend acceptance:
+
+- GET /finance/fees returns the same invoice UUID/version, saved items, billed/paid/balance, arrears and discounts for every authorized consumer. Do not return a current class template as a saved invoice snapshot.
+- The sum of saved item amounts plus arrears minus discount equals billed amount; billed minus paid equals balance, with decimal currency precision.
+- A successful PUT returns the committed invoice with its incremented version. An immediate GET and a fresh login must return those same committed figures. Invalidate cached fee/account/ledger projections after commit.
+- An unchanged invoice opens in the editor with the same billed/paid/balance shown in the list. For the reported example, items 2,100 + 600 + 450 + 695 total 3,845; changing tuition to 2,050 proposes 3,795 and, with 700 paid, 3,095 due. Until a save succeeds, the list must continue to show the committed 3,845 and 3,145 due.
+- Reconcile original posting accounts using verified historical source records before retrying the affected invoice revision. Test amount edits, removed lines, newly added services, stale versions, and a failed reconciliation with no partial writes.

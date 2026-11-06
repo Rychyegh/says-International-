@@ -9,7 +9,8 @@ import './SavedBillManager.css';
 
 export default function SavedBillManager({ onClose, onPrepareBill }) {
   const { studentFees = [], refreshAccounts, isRefreshingBackend, isLoadingBackend, syncErrors = {}, resourceStatus = {} } = usePortalData();
-  const [search, setSearch] = useState(''), [classLevel, setClassLevel] = useState(''), [editing, setEditing] = useState(null), [notice, setNotice] = useState('');
+  const [search, setSearch] = useState(''), [classLevel, setClassLevel] = useState(''), [editingSelection, setEditing] = useState(null), [notice, setNotice] = useState('');
+  const editing = editingSelection && (studentFees.find(bill => String(bill.id) === String(editingSelection.id)) || editingSelection);
   const blocked = isLoadingBackend || isRefreshingBackend || resourceStatus.feesRes === 'loading' || Boolean(syncErrors.feesRes || syncErrors.connection);
   const rows = studentFees.filter(bill => (!classLevel || bill.classLevel === classLevel) && `${bill.studentName} ${bill.studentId} ${bill.billId || bill.id}`.toLowerCase().includes(search.toLowerCase()));
   return <ViewportModal className="bill-manager-overlay" onClose={onClose} aria-labelledby="bill-manager-title">

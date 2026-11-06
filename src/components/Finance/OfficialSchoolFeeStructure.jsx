@@ -1,7 +1,7 @@
 import { savedBillItems } from '../../lib/savedBillItems';
 import { csvExport } from '../../lib/accountingRules';
 import { downloadText } from './AccountingUI';
-import { studentSavedBills } from '../../lib/studentSavedBills';
+import { studentSavedBills, studentBillAmount } from '../../lib/studentSavedBills';
 import SavedBillManager from './SavedBillManager';
 import SavedBillStatement from './SavedBillStatement';
 import { billingPeriod, billingPeriodLabel } from '../../lib/billingPeriod.js';
@@ -1073,6 +1073,12 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
   const totalOptionalActive = 0; // Initial ledger charges are compulsory only.
   const classBillPerStudent = money(totalBase + totalOptionalActive);
 
+  const amountForStudent = student => studentBillAmount(studentFees, student, periodForStudent(student), classBillPerStudent);
+  const includedBillAmounts = includedStudentsForClass.map(amountForStudent);
+  const classBillingTotal = includedBillAmounts.reduce((sum, amount) => sum + amount, 0);
+  const uniformBillAmount = includedBillAmounts.length && includedBillAmounts.every(amount => amount === includedBillAmounts[0])
+    ? includedBillAmounts[0] : null;
+
   // Handle Category Change (Auto-selects first sub-level in category)
   const handleCategoryChange = (categoryId) => {
     setSelectedGradeCategory(categoryId);
@@ -1986,14 +1992,14 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
               <div>
                 <div style={{ fontSize: 11, fontWeight: 800, color: '#0369a1', textTransform: 'uppercase' }}>Bill Per Student</div>
                 <div style={{ fontSize: 20, fontWeight: 900, color: '#0369a1', marginTop: 2 }}>
-                  GHS {classBillPerStudent.toFixed(2)}
+                  {uniformBillAmount === null ? 'Varies by student' : `GHS ${uniformBillAmount.toFixed(2)}`}
                 </div>
               </div>
 
               <div>
                 <div style={{ fontSize: 11, fontWeight: 800, color: '#581c87', textTransform: 'uppercase' }}>Projected Class Total</div>
                 <div style={{ fontSize: 20, fontWeight: 900, color: '#581c87', marginTop: 2 }}>
-                  GHS {(classBillPerStudent * includedStudentsForClass.length).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  GHS {classBillingTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               </div>
             </div>
@@ -2090,7 +2096,7 @@ export default function OfficialSchoolFeeStructure({ onOpenSimsModal, adminRole 
                       const sId = s.id || s.studentId;
                       const isIncluded = !excludedStudentIds.includes(sId) && !excludedStudentIds.includes(s.studentId) && !excludedStudentIds.includes(s.id);
                       const sFullName = getStudentFullName(s);
-                      const indivAmount = classBillPerStudent;
+                      const indivAmount = amountForStudent(s);
 
                       return (
                         <tr
