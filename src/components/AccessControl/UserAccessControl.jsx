@@ -347,6 +347,16 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       const remoteId = remote?.id || remote?._id;
       if (!remoteId) throw new Error('The server did not return the saved account ID. Refresh UAC before retrying.');
       const savedUser = { ...newUser, ...remote, id: remoteId };
+      let credentialsSmsNotice = 'No phone number provided; credentials SMS was not requested.';
+      if (newUser.phone) {
+        try {
+          const sms = await api.sendUserCredentialsSms(newUser);
+          credentialsSmsNotice = `Credentials SMS ${sms.status} for ${newUser.phone}.`;
+        } catch {
+          credentialsSmsNotice = 'Credentials SMS could not be confirmed. The account is saved; share the credential slip without creating another account.';
+        }
+      }
+      savedUser.credentialsSmsNotice = credentialsSmsNotice;
       syncDirectoryUser?.(savedUser);
 
       const directoryProfile = directoryProfileFromUser(savedUser);
@@ -383,7 +393,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
       addAuditLog('Account Created', newUser.email, `Created account for ${newUser.fullName} with role [${newUser.role.toUpperCase()}].`);
       setIsCreateModalOpen(false);
       setSlipUser(savedUser);
-      triggerToast(`User account for ${newUser.fullName} was saved in the database.`);
+      triggerToast(`User account for ${newUser.fullName} was saved in the database. ${credentialsSmsNotice}`);
       fetchBackendUsers();
     } catch (err) {
       alert(`The database did not save this account: ${err?.message || 'request failed'}`);
@@ -1280,9 +1290,10 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Phone Number</label>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Phone Number *</label>
                   <input
-                    type="text"
+                    type="tel"
+                    required
                     placeholder="024 123 4567"
                     value={createForm.phone}
                     onChange={(e) => setCreateForm(prev => ({ ...prev, phone: e.target.value }))}
@@ -1489,9 +1500,10 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Phone Number</label>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Phone Number *</label>
                   <input
-                    type="text"
+                    type="tel"
+                    required
                     value={editingUser.phone || ''}
                     onChange={(e) => setEditingUser(prev => ({ ...prev, phone: e.target.value }))}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 13 }}
@@ -1565,6 +1577,7 @@ export default function UserAccessControl({ adminRole = 'head_admin' }) {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {slipUser.credentialsSmsNotice && <div role="status" style={{ fontSize: 12 }}>{slipUser.credentialsSmsNotice}</div>}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span style={{ color: 'var(--text-muted)' }}>Account Holder:</span>
                   <strong style={{ color: 'var(--text-color)' }}>{slipUser.fullName}</strong>

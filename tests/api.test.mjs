@@ -474,3 +474,35 @@ test('bill revisions omit optional-service read metadata without losing charges 
   assert.equal(items[1].service_id,'books');
   assert.equal(items[1].serviceId,'books');
 });
+
+test('UAC credentials SMS includes the issued login and correct portal', async () => {
+  window.location = { origin: 'https://school.example' };
+  let sent;
+  globalThis.fetch = async (url, options) => { sent = JSON.parse(options.body); return json({id:'credentials-sms',status:'queued'}); };
+  const result = await api.sendUserCredentialsSms({fullName:'Test Teacher', email:'teacher@example.test', password:'Issued123!', phone:'0241112222', role:'preschool_teacher'});
+  assert.equal(result.status,'queued');
+  assert.equal(sent.recipientPhone,'233241112222');
+  assert.match(sent.messageText,/Login email: teacher@example.test/);
+  assert.match(sent.messageText,/Password: Issued123!/);
+  assert.match(sent.messageText,/https:\/\/school.example\/teacher/);
+});
+test('UAC credentials SMS skips accounts without a phone and reports gateway failure', async () => {
+  globalThis.fetch = async () => { throw new Error('must not send'); };
+  assert.equal((await api.sendUserCredentialsSms({})).status,'not_requested');
+  window.location = { origin:'https://school.example' };
+  globalThis.fetch = async () => json({detail:'Gateway unavailable'},503);
+  await assert.rejects(api.sendUserCredentialsSms({phone:'0241112222',password:'Issued123!'}));
+});
+
+test('UAC create and edit reject missing or invalid phone before making requests', async () => {
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return json({id:'saved-user'}); };
+  for (const phone of ['', '   ', 'abc', '123']) {
+    await assert.rejects(api.createUserAccount({fullName:'Test User', email:'user@example.test', phone}), /valid phone number is required/);
+    await assert.rejects(api.updateUserAccount('test-user',{phone}), /valid phone number is required/);
+  }
+  assert.equal(calls,0);
+  await api.createUserAccount({fullName:'Test User', email:'user@example.test', phone:'024 111 2222'});
+  await api.updateUserAccount('test-user',{phone:'+233 24 111 2222'});
+  assert.equal(calls,2);
+});

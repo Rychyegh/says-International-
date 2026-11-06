@@ -17,6 +17,14 @@ import { allocationNotes } from '../lib/paymentAllocations.js';
 const LIVE_API_ORIGIN = 'https://rcis-backend.onrender.com/api/v1';
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || 'https://rcis-backend.onrender.com/api/v1';
 
+function requireUacPhone(value) {
+  const phone = String(value || '').trim();
+  const normalized = phone.replace(/[\s()-]/g, '').replace(/^\+/, '').replace(/^0/, '233');
+  if (!/^\d{10,15}$/.test(normalized)) {
+    throw new Error('A valid phone number is required for UAC credentials SMS.');
+  }
+  return phone;
+}
 
 export function extractAuthToken(res) {
   if (!res || typeof res !== 'object') return '';
@@ -2084,6 +2092,21 @@ export const api = {
   },
 
   // --- User Access Control (Admin-only user management) ---
+  sendUserCredentialsSms: async (userData) => {
+    const phone = String(userData.phone || userData.phone_number || '').trim();
+    if (!phone) return { status: 'not_requested' };
+    const portal = ['teacher', 'class_teacher', 'preschool_teacher'].includes(userData.role)
+      ? 'teacher' : (['student', 'parent', 'accountant'].includes(userData.role) ? userData.role : 'admin');
+    const messageText = [
+      `REMALJ Carewell: Hello ${userData.fullName}, your account has been created.`,
+      `Login email: ${userData.email}`,
+      `Password: ${userData.password}`,
+      `Portal: ${window.location.origin}/${portal}`,
+      'Keep these credentials private and change your password after signing in.',
+    ].join('\n');
+    return api.sendSms({ recipientPhone: phone, messageText, senderId: 'RCIS' });
+  },
+
   getUsers: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return await request(`/users${query ? `?${query}` : ''}`);
@@ -2094,7 +2117,7 @@ export const api = {
     // Class teacher is stored as role=teacher + teacher_designation=class_teacher
     const fullName = (userData.fullName || userData.full_name || userData.name || '').trim();
     const email    = (userData.email || '').trim().toLowerCase();
-    const phone    = (userData.phone || userData.phone_number || '').trim();
+    const phone    = requireUacPhone(userData.phone || userData.phone_number);
     const uiRole   = userData.role || 'teacher';
     const isClassTeacher = uiRole === 'class_teacher'
       || userData.teacherDesignation === 'class_teacher'
@@ -2148,7 +2171,7 @@ export const api = {
 
   updateUserAccount: async (userId, userData) => {
     const fullName = (userData.fullName || userData.full_name || '').trim();
-    const phone    = (userData.phone || userData.phone_number || '').trim();
+    const phone    = requireUacPhone(userData.phone || userData.phone_number);
 
     const payload = {
       email:        (userData.email || '').trim().toLowerCase() || undefined,
