@@ -22,8 +22,9 @@ export default function BillItemEditor({ bill, onSaved }) {
   if (!original.length) return <div className="be-missing" role="status"><h3>No saved fee items available</h3><p>{Number(bill.billedAmount || 0) === 0 && Number(bill.paidAmount || 0) === 0 ? 'This account shows no billed amount and no fee items. Prepare and post the compulsory bill first. If a bill was already posted, refresh the records; its saved details need to be returned by the server.' : 'This bill has a saved balance, but its fee breakdown was not returned. Refresh the records. If it is still missing, the backend needs to return the original invoice items before they can be edited.'}</p><p>Existing billed: <strong>{money(bill.billedAmount)}</strong> · Paid: <strong>{money(bill.paidAmount)}</strong> · Balance: <strong>{money(bill.balance)}</strong></p></div>;
   return <form className="bill-edit-form" onSubmit={async event => {
     event.preventDefault(); if (busy || unavailable) return;
+    if (reason.trim().length < 3) {setError('Enter a reason with at least 3 characters.'); return;}
     setBusy(true); setError('');
-    try { await api.reviseBillItems(bill.id,{expected_version:bill.version,reason,items:items.map(item=>({...item,amount:Number(item.amount)}))},key); await onSaved(); }
+    try { await api.reviseBillItems(bill.id,{expected_version:bill.version,reason:reason.trim(),items:items.map(item=>({...item,amount:Number(item.amount)}))},key); await onSaved(); }
     catch(err) {setError(/historical line.*posting account/i.test(err.message) ? 'Changes were not saved. An existing bill item has no verified active accounting account. Accounts must reconcile its original posting account on the server before this bill can be edited. Your entered changes are still shown here.' : err.message);} finally {setBusy(false);}
   }}>
     <div className="be-intro"><h3>Bill items</h3><p>Change an amount below, or add an optional service such as bus or feeding.</p></div>
@@ -34,8 +35,8 @@ export default function BillItemEditor({ bill, onSaved }) {
       {totals.discrepancy !== 0 && <p className="bm-warning" role="alert">The saved fee breakdown differs from the saved bill total by {money(totals.discrepancy)}. Refresh bill records. If this persists, Accounts must reconcile the saved items and total before relying on this estimate.</p>}
       <div className="be-totals"><span>Currently saved bill <strong>{money(totals.savedTotal)}</strong></span><span>Fee subtotal <strong>{money(totals.subtotal)}</strong></span><span>Previous balance <strong>{money(totals.arrears)}</strong></span><span>Discount <strong>{money(totals.discount)}</strong></span></div>
       <div className="be-totals"><span>Revised bill <strong>{money(totals.total)}</strong></span><span>Already paid <strong>{money(totals.paid)}</strong></span><span>Estimated balance <strong>{money(totals.balance)}</strong></span></div>
-      <label className="be-reason">Reason for changes <textarea required rows={2} placeholder="e.g. Parent requested school bus service" value={reason} onChange={e=>{setReason(e.target.value);setKey(crypto.randomUUID());}}/></label>
-      <div className="be-save-row"><p>Saving updates this student's bill and ledger. Existing payments are preserved.</p><button className="be-save" disabled={!items.length || !reason.trim()}><Save size={15}/>{busy ? 'Saving…' : 'Save bill changes'}</button></div>
+      <label className="be-reason">Reason for changes <textarea required minLength={3} rows={2} placeholder="Reason for changes (at least 3 characters)" value={reason} onChange={e=>{setReason(e.target.value);setKey(crypto.randomUUID());}}/></label>
+      <div className="be-save-row"><p>Saving updates this student's bill and ledger. Existing payments are preserved.</p><button className="be-save" disabled={!items.length || reason.trim().length < 3}><Save size={15}/>{busy ? 'Saving…' : 'Save bill changes'}</button></div>
     </fieldset>
     {error && <p className="bm-warning" role="alert">{error}</p>}
   </form>;
