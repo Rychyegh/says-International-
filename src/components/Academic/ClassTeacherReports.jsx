@@ -1,4 +1,5 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal, flushSync } from 'react-dom';
 import { api } from '../../services/api';
 import { usePortalData } from '../../data/PortalStore';
 import SchoolPrintHeader from '../School/SchoolPrintHeader';
@@ -39,6 +40,8 @@ export default function ClassTeacherReports({ classes = [], students = [] }) {
   const allowedClasses = [...new Set(classes.filter(Boolean))];
   const [scope,setScope] = useState({ department:'',class_level:allowedClasses[0] || '',sub_class:'',academic_year:academicSettings.academicYear || '',term:academicSettings.academicTerm || '',preview_creche:false });
   const [reports,setReports] = useState(null), [index,setIndex] = useState(0), [busy,setBusy] = useState(false), [error,setError] = useState('');
+  const [printAll, setPrintAll] = useState(false);
+  useEffect(() => () => document.body.classList.remove('printing-class-teacher-report'), []);
   const lock = useRef(false);
   const subclasses = [...new Set(students.filter(s=>[s.level,s.classLevel,s.class,s.subClass,s.subClassLevel].includes(scope.class_level)).map(s=>s.subClass || s.subClassLevel || s.classSection).filter(Boolean))];
   const change = (key,value) => {setScope(s=>({...s,[key]:value,...(key==='class_level'?{sub_class:''}:{})}));setReports(null);setIndex(0);setError('');};
@@ -51,7 +54,9 @@ export default function ClassTeacherReports({ classes = [], students = [] }) {
     } catch(err) {setError(err.message || 'Reports could not be loaded.');}
     finally {lock.current=false;setBusy(false);}
   };
-  const print = () => {
+  const print = (all = false) => {
+    if (!reports?.length) return;
+    flushSync(() => setPrintAll(all));
     document.body.classList.add('printing-class-teacher-report');
     const cleanup = () => document.body.classList.remove('printing-class-teacher-report');
     window.addEventListener('afterprint',cleanup,{once:true});
@@ -70,9 +75,14 @@ export default function ClassTeacherReports({ classes = [], students = [] }) {
       <button type="submit" disabled={busy || !allowedClasses.length}>{busy?'Loading reports…':'Preview'}</button>
       {!allowedClasses.length && <p>No class is assigned to this account. Ask the administrator to update UAC.</p>}
     </fieldset></form>
-    <section className="class-report-viewer"><div className="class-report-toolbar"><strong>Main Report</strong><button disabled={!reports?.length || index===0} onClick={()=>setIndex(i=>i-1)}>Previous</button><span>{reports?.length?`${index+1} / ${reports.length}`:'0 / 0'}</span><button disabled={!reports?.length || index===reports.length-1} onClick={()=>setIndex(i=>i+1)}>Next</button><button disabled={!reports?.length} onClick={print}>Print / Save PDF</button></div>
+    <section className="class-report-viewer"><div className="class-report-toolbar"><strong>Main Report</strong><button disabled={!reports?.length || index===0} onClick={()=>setIndex(i=>i-1)}>Previous</button><span>{reports?.length?`${index+1} / ${reports.length}`:'0 / 0'}</span><button disabled={!reports?.length || index===reports.length-1} onClick={()=>setIndex(i=>i+1)}>Next</button><button disabled={!reports?.length} onClick={()=>print(false)}>Print this report</button><button disabled={!reports?.length} onClick={()=>print(true)}>Print all reports</button></div>
       {error && <p role="alert" className="class-report-error">{error}</p>}
       {reports?.length ? <ReportPaper report={reports[index]} scope={scope} /> : <p className="class-report-empty">{busy?'Loading saved reports…':reports?'No approved reports match this selection.':'Choose the academic period, then select Preview.'}</p>}
     </section></div>
+    {reports?.length > 0 && createPortal(
+      <div className="class-report-print-root">
+        {(printAll ? reports : [reports[index]]).map(report => <ReportPaper key={report.student_id} report={report} scope={scope} />)}
+      </div>, document.body
+    )}
   </div>;
 }

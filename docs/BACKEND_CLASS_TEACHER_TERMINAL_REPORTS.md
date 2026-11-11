@@ -4,7 +4,7 @@ Date: 11 November 2026
 
 ## Frontend delivered
 
-Class Teacher → Reports and Terminal Report Cards now open the same report viewer based on the supplied video: department/sub-unit, assigned class, subclass, academic year, term and Preview Creche Reports filters; Preview; previous/next student; Print / Save PDF. The report includes student identity, academic period, score summary, subject code, class/exam scores, total, grade, comments, teacher/head remarks and a subject performance chart.
+Class Teacher → Reports and Terminal Report Cards now open the same report viewer based on the supplied video: department/sub-unit, assigned class, subclass, academic year, term and Preview Creche Reports filters; Preview; previous/next student; Print this report and Print all reports (or save as PDF). The report includes student identity, academic period, score summary, subject code, class/exam scores, total, grade, comments, teacher/head remarks and a subject performance chart.
 
 The screen reads `GET /api/v1/academic/assessment-reports`, already referenced by the administrator assessment screens. No backend server or migrations for this workflow are present in this repository. The presence of the local SQLite file does not establish that the deployed report API has the required schema or data. Live backend/database support remains unverified. Implement or extend the contract below.
 
@@ -90,7 +90,7 @@ Use foreign keys, school-scoped authorization and indexes matching the school/ye
 2. Implement class-teacher authorization on the existing API while retaining the admin report modes.
 3. Verify Basic 2A and Basic 2B remain isolated, historical years resolve correctly, and direct requests for another teacher's class return 403.
 4. Verify score 0 displays as 0; absent scores remain blank/dashes; unapproved results do not appear. Confirm cohort rank and weighting against known approved records.
-5. Verify previous/next, empty reports, server errors, and changing filters clears the previous report. Print/PDF must include only the selected student's report.
+5. Verify previous/next, empty reports, server errors, and changing filters clears the previous report. Print this report must include only the displayed student. Print all reports must include every returned student in order, with each report starting on a new page. Return the complete selected group, not just the first page of students; do not silently paginate this response.
 6. Verify Creche qualitative rows without invented numeric scores. Test server refusal of incompatible template selections.
 7. Refresh and sign in again to prove report scores/comments come from persisted data. Check the final printed page against the reference using a designated test learner.
 
