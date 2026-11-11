@@ -1,13 +1,12 @@
 import { proficiencyGrade, proficiencyRemark } from '../lib/schoolGrading';
-import SchoolPrintHeader from '../components/School/SchoolPrintHeader';
+import ClassTeacherReports from '../components/Academic/ClassTeacherReports';
 import AcademicSettingsManager from '../components/Academic/AcademicSettingsManager';
-import { approvedResults } from '../lib/approvedResults';
 import ViewportModal from '../components/Modal/ViewportModal';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   LayoutDashboard, Users, BookOpen, Calendar, ClipboardList,
   MessageSquare, Settings, TrendingUp, Award, Bell, Bus, ClipboardCheck, FileCheck,
-  Printer, FileText, Search, X
+  FileText, X
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
 import '../components/BusTracker/BusTracker.css';
@@ -22,7 +21,7 @@ import { AdmissionsRegister } from '../components/Onboarding/Onboarding';
 import AttendanceControlTable from '../components/Attendance/AttendanceControlTable';
 import ScoreSheetEntryForm from '../components/ScoreSheet/ScoreSheetEntryForm';
 import { api, getAuthUser, getUserFullName, setAuthUser, enrichTeacherSession, isClassTeacherAccount } from '../services/api';
-import { usePortalData, resultsForStudent, hasRecordedClassScore, hasRecordedExamScore, MISSING_SCORE, findTeachingAssignment, classLabelsMatch, buildStudentTranscriptData } from '../data/PortalStore';
+import { usePortalData, resultsForStudent, hasRecordedClassScore, hasRecordedExamScore, MISSING_SCORE, findTeachingAssignment, classLabelsMatch } from '../data/PortalStore';
 
 const TEACHER_GREEN = '#204d2d';
 const TEACHER_LIGHT = '#edf8f0';
@@ -144,7 +143,6 @@ export default function TeacherPortal() {
   const onboardedStudents = store?.onboardedStudents || [];
   const teacherDirectory = store?.teacherDirectory || [];
   const recordedResults = store?.results || [];
-  const terminalResults = approvedResults(recordedResults);
   const portalMessages = store?.messages || [];
 
   const subjectGradeFor = (student, needle) => {
@@ -243,14 +241,8 @@ export default function TeacherPortal() {
 
   const [gradesTarget, setGradesTarget] = useState(null);
   const [scoreSheetTarget, setScoreSheetTarget] = useState(null);
-  const [selectedReportStudent, setSelectedReportStudent] = useState(null);
   const [gradingOpen, setGradingOpen] = useState(false);
-  const [classMasterComment, setClassMasterComment] = useState('');
-  const [reportRemarks, setReportRemarks] = useState({});
-  useEffect(() => {
-    setClassMasterComment(reportRemarks[selectedReportStudent?.id || selectedReportStudent?.studentId] || '');
-  }, [selectedReportStudent]);
-  const [reportSearchTerm, setReportSearchTerm] = useState('');
+
 
   const classStudents = useMemo(() => {
     if (!classLabel) return onboardedStudents;
@@ -671,319 +663,10 @@ export default function TeacherPortal() {
           {activeNav === 'Assignments' && <StaffAssignments />}
           {activeNav === 'Academic Calendar' && isClassTeacher && <StaffCalendar />}
           {activeNav === 'Contacts' && <ContactDirectory />}
-          {activeNav === 'Reports' && <TeacherReports />}
-          {activeNav === 'Terminal Report Cards' && isClassTeacher && (
-            <div className="animate-fade-up">
-              <p>Remarks edited in the report are print-preview drafts in this session.</p>
-              <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                  <p className="page-header__eyebrow" style={{ color: TEACHER_ACCENT }}>
-                    <span style={{ background: TEACHER_LIGHT, padding: '2px 10px', borderRadius: 99, border: '1px solid #c4dfc9' }}>
-                      Class Master / Form Tutor Terminal Evaluation Centre
-                    </span>
-                  </p>
-                  <h1 className="page-header__title">Student Progressive Terminal Report Cards 📜</h1>
-                  <p className="page-header__subtitle">
-                    Official terminal report cards for {classAssignedLabel ? <strong>{classAssignedLabel}</strong> : 'your assigned class'}. Review class subject scores, customize Form Master remarks, and print official terminal evaluation slips.
-                  </p>
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (classStudents.length > 0) setSelectedReportStudent(classStudents[0]);
-                    }}
-                    style={{
-                      padding: '10px 18px', background: '#881337', color: '#fff', border: 'none',
-                      borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(136, 19, 55, 0.25)'
-                    }}
-                  >
-                    <Printer size={15} /> Preview Terminal Report
-                  </button>
-                </div>
-              </div>
-
-              {/* Class Summary Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
-                <div style={{ background: '#fff', padding: '14px 18px', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Assigned Class</div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: TEACHER_GREEN, marginTop: 4 }}>{classAssignedLabel || 'General Roster'}</div>
-                </div>
-                <div style={{ background: '#fff', padding: '14px 18px', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Total Students in Class</div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: '#0f172a', marginTop: 4 }}>{classStudents.length} Students</div>
-                </div>
-                <div style={{ background: '#fff', padding: '14px 18px', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Academic Session</div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: '#0284c7', marginTop: 4 }}>Term 1 · 2026/2027</div>
-                </div>
-                <div style={{ background: '#fff', padding: '14px 18px', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Designation Status</div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: '#166534', marginTop: 4 }}>👑 Class Teacher</div>
-                </div>
-              </div>
-
-              {/* Search & Student List */}
-              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-                  <h3 style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', margin: 0 }}>
-                    Class Student Roster & Terminal Slips ({classStudents.length})
-                  </h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type="text"
-                        placeholder="Search student by name or ID..."
-                        value={reportSearchTerm}
-                        onChange={(e) => setReportSearchTerm(e.target.value)}
-                        style={{
-                          padding: '8px 12px 8px 32px', borderRadius: 6, border: '1px solid #cbd5e1',
-                          fontSize: 12, width: 240
-                        }}
-                      />
-                      <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
-                    <thead>
-                      <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569' }}>
-                        <th style={{ padding: '10px 12px', textAlign: 'left' }}>Position</th>
-                        <th style={{ padding: '10px 12px', textAlign: 'left' }}>Student ID</th>
-                        <th style={{ padding: '10px 12px', textAlign: 'left' }}>Full Name</th>
-                        <th style={{ padding: '10px 12px', textAlign: 'left' }}>Class / Sub-Class</th>
-                        <th style={{ padding: '10px 12px', textAlign: 'center' }}>Gender</th>
-                        <th style={{ padding: '10px 12px', textAlign: 'right' }}>Class Average</th>
-                        <th style={{ padding: '10px 12px', textAlign: 'right' }}>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {classStudents
-                        .filter(s => {
-                          if (!reportSearchTerm) return true;
-                          const q = reportSearchTerm.toLowerCase();
-                          return (s.fullName || s.name || '').toLowerCase().includes(q) ||
-                            (s.studentId || s.id || '').toLowerCase().includes(q);
-                        })
-                        .map((st, idx) => {
-                          const tData = buildStudentTranscriptData(st, terminalResults);
-                          const subCls = st.subClass || st.subClassLevel || st.classSection || '';
-                          return (
-                            <tr key={st.id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                              <td style={{ padding: '10px 12px', fontWeight: 800, color: idx < 3 ? '#b45309' : '#64748b' }}>
-                                {'Not ranked'}
-                              </td>
-                              <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontWeight: 700, color: '#334155' }}>
-                                {st.studentId || st.id || `REMALJ-2026-${String(idx + 1).padStart(3, '0')}`}
-                              </td>
-                              <td style={{ padding: '10px 12px', fontWeight: 800, color: '#0f172a' }}>
-                                {st.fullName || st.name}
-                              </td>
-                              <td style={{ padding: '10px 12px', color: '#475569' }}>
-                                {st.level || st.classLevel || classAssignedLabel || 'Basic 1'} {subCls ? `(${subCls})` : ''}
-                              </td>
-                              <td style={{ padding: '10px 12px', textAlign: 'center', color: '#64748b' }}>
-                                {st.gender || '-'}
-                              </td>
-                              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#0284c7' }}>
-                                {tData?.averageScore != null ? `${tData.averageScore}%` : 'Not available'}
-                              </td>
-                              <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedReportStudent(st)}
-                                  style={{
-                                    padding: '6px 14px', background: '#881337', color: '#fff', border: 'none',
-                                    borderRadius: 6, fontWeight: 800, fontSize: 11.5, cursor: 'pointer',
-                                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                                    boxShadow: '0 2px 6px rgba(136, 19, 55, 0.2)'
-                                  }}
-                                >
-                                  <Printer size={13} /> Print Report Card
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+          {activeNav === 'Reports' && !isClassTeacher && <TeacherReports />}
+          {isClassTeacher && ['Reports', 'Terminal Report Cards'].includes(activeNav) && (
+            <ClassTeacherReports classes={[classAssignedLabel, ...assignedClasses]} students={classStudents} />
           )}
-          {activeNav === 'Operations' && isClassTeacher && <OperationsCentre />}
-          {activeNav === 'Settings' && isClassTeacher && <PortalSettings portal="teacher" />}
-
-          {/* ── MODAL: PRINT STUDENT'S PROGRESSIVE REPORT (MATCHING USER SCREENSHOT) ── */}
-          {selectedReportStudent && isClassTeacher && (() => {
-            const st = selectedReportStudent;
-            const studentIdx = classStudents.findIndex(s => (s.id && s.id === st.id) || (s.studentId && s.studentId === st.studentId));
-            const rankStr = st.classPosition || 'Not available';
-            const transcript = buildStudentTranscriptData(st, recordedResults);
-            const reportSubjects = transcript.subjects.map(subject => ({
-              subject: subject.name,
-              classScore: subject.classScore ?? 'N/A',
-              examScore: subject.examScore ?? 'N/A',
-              score: subject.total != null ? `${subject.total}%` : 'Not available',
-              grade: subject.grade,
-              remarks: subject.remark,
-            }));
-
-            return (
-              <ViewportModal onClose={() => setSelectedReportStudent(null)} style={{
-                position: 'fixed', inset: 0, zIndex: 10000,
-                background: 'rgba(15,23,42,0.7)', backdropFilter: 'blur(4px)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: '24px 16px', overflowY: 'auto'
-              }}>
-                <div style={{
-                  background: '#fff', borderRadius: 12, width: '100%', maxWidth: 840,
-                  maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)',
-                  border: '1px solid #334155'
-                }}>
-                  {/* Top Bar matching screenshot */}
-                  <div style={{
-                    background: '#0f3a4b', color: '#fff', padding: '12px 20px',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    borderTopLeftRadius: 11, borderTopRightRadius: 11
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <img src="/remalj-carewell-logo.jpg" alt="Logo" style={{ height: 26, width: 26, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
-                      <div>
-                        <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', color: '#7dd3fc', textTransform: 'uppercase' }}>
-                          SIMS V2025 MODULE / STUDENT'S PROGRESSIVE REPORTS
-                        </div>
-                        <div style={{ fontSize: 14, fontWeight: 900, color: '#fff' }}>
-                          Print Student's Progressive Report
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedReportStudent(null)}
-                      style={{
-                        background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%',
-                        width: 28, height: 28, color: '#fff', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 14, fontWeight: 800
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-
-                  {/* Body: Official Report Card Preview */}
-                  <div style={{ padding: 24 }}>
-                    <div className="printable-area terminal-report-paper" style={{ background: '#fff', padding: '16px', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-                      {/* School Crest & Header */}
-                      <div style={{ textAlign: 'center', marginBottom: 14 }}>
-                        <SchoolPrintHeader />
-                        <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', margin: '2px 0' }}>
-                          OFFICIAL STUDENT PROGRESSIVE TERMINAL REPORT
-                        </p>
-                        <small style={{ color: '#9ca3af', fontSize: 10.5 }}>
-                          Saved assessment records
-                        </small>
-                        <div style={{ height: 2, background: '#0f3a4b', width: '100%', marginTop: 8 }} />
-                      </div>
-
-                      {/* Student Details Grid */}
-                      <div style={{
-                        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px',
-                        background: '#f8fafc', padding: 12, borderRadius: 6,
-                        border: '1px solid #e2e8f0', marginBottom: 14, fontSize: 12
-                      }}>
-                        <div><strong style={{ color: '#334155' }}>Student Name:</strong> <span style={{ fontWeight: 700, color: '#0f172a' }}>{st.fullName || st.name}</span></div>
-                        <div><strong style={{ color: '#334155' }}>Student ID:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{st.studentId || st.id || 'Not available'}</span></div>
-                        <div><strong style={{ color: '#334155' }}>Class / Level:</strong> <span style={{ fontWeight: 700 }}>{st.level || st.classLevel || classAssignedLabel || 'Basic 1'}</span></div>
-                        <div><strong style={{ color: '#334155' }}>Class Position:</strong> <span style={{ fontWeight: 800, color: '#0f3a4b' }}>{rankStr}</span></div>
-                      </div>
-
-                      {/* Subjects Table */}
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, marginBottom: 14 }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid #cbd5e1', textAlign: 'left', color: '#64748b' }}>
-                            <th style={{ padding: '8px 10px', fontWeight: 800 }}>SUBJECT</th>
-                            <th style={{ padding: '8px 10px', fontWeight: 800 }}>CLASS SCORE</th>
-                            <th style={{ padding: '8px 10px', fontWeight: 800 }}>EXAM SCORE</th>
-                            <th style={{ padding: '8px 10px', fontWeight: 800 }}>TOTAL</th>
-                            <th style={{ padding: '8px 10px', fontWeight: 800 }}>GRADE</th>
-                            <th style={{ padding: '8px 10px', fontWeight: 800, width: '30%' }}>REMARKS</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {reportSubjects.map((sub, i) => (
-                            <tr key={sub.subject || i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                              <td style={{ padding: '8px 10px', color: '#1e293b', fontWeight: 600 }}>{sub.subject}</td>
-                              <td style={{ padding: '8px 10px' }}>{sub.classScore}</td>
-                              <td style={{ padding: '8px 10px' }}>{sub.examScore}</td>
-                              <td style={{ padding: '8px 10px', color: '#0f172a', fontWeight: 700 }}>{sub.score}</td>
-                              <td style={{ padding: '8px 10px', fontWeight: 800, color: sub.grade === '1' ? '#166534' : '#0284c7' }}>{sub.grade}</td>
-                              <td style={{ padding: '8px 10px', color: '#475569' }}>{sub.remarks}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-
-                      {/* Comments & Endorsements */}
-                      <div style={{ marginTop: 14, borderTop: '1px dashed #cbd5e1', paddingTop: 10, fontSize: 11, color: '#334155', lineHeight: 1.6 }}>
-                        <div style={{ marginBottom: 6 }}>
-                          <strong>Class Master Comment:</strong> {classMasterComment || 'Not provided'}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Class Master Comment Customizer (Only visible on screen, not on print) */}
-                    <div className="no-print" style={{ marginTop: 16, background: '#f1f5f9', padding: 12, borderRadius: 8 }}>
-                      <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 4 }}>
-                        ✏️ Class Master Remark (Customizable by Form Tutor):
-                      </label>
-                      <input
-                        type="text"
-                        value={classMasterComment || ''}
-                        placeholder="Enter class teacher remarks"
-                        onChange={(e) => { setClassMasterComment(e.target.value); setReportRemarks(current=>({...current,[st.id || st.studentId]:e.target.value})); }}
-                        style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11.5 }}
-                      />
-                    </div>
-
-                    {/* Actions matching screenshot */}
-                    <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedReportStudent(null)}
-                        style={{
-                          padding: '9px 20px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1',
-                          borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: 'pointer'
-                        }}
-                      >
-                        Close
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          document.body.classList.add('printing-terminal-report');
-                          const cleanup = () => document.body.classList.remove('printing-terminal-report');
-                          window.addEventListener('afterprint', cleanup, { once: true });
-                          try { window.print(); } catch (error) { cleanup(); window.removeEventListener('afterprint', cleanup); throw error; }
-                        }}
-                        style={{
-                          padding: '9px 22px', background: '#881337', color: '#fff', border: 'none',
-                          borderRadius: 6, fontWeight: 800, fontSize: 13, cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(136, 19, 55, 0.25)'
-                        }}
-                      >
-                        <Printer size={14} /> Print Terminal Report
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </ViewportModal>
-            );
-          })()}
 
           {/* ── OTHER VIEWS placeholder ── */}
           {!['Dashboard', 'Transport', 'Score Sheet [Entry]', 'Students', 'Exam Registration', 'Admissions', 'Assignments', 'Schedule', 'Academic Calendar', 'Grades', 'Messages', 'Contacts', 'Reports', 'Terminal Report Cards', 'Operations', 'Settings'].includes(activeNav) && (
