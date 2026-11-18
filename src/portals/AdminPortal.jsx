@@ -2640,7 +2640,7 @@ export default function AdminPortal({ onSignOut, initialAdminRole }) {
                 </div>
 
                 {/* Column 2: Print Assessments Reports */}
-                <div style={{ background: '#0f172a', borderRadius: 12, border: '1px solid #334155', padding: 20 }}>
+                <div className="assessment-report-menu" style={{ background: '#0f172a', borderRadius: 12, border: '1px solid #334155', padding: 20 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #334155', paddingBottom: 12, marginBottom: 14 }}>
                     <span style={{ fontSize: 18 }}>🖨️</span>
                     <div>

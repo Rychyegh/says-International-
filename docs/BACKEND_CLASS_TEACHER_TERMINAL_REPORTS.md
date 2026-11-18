@@ -95,3 +95,23 @@ Use foreign keys, school-scoped authorization and indexes matching the school/ye
 7. Refresh and sign in again to prove report scores/comments come from persisted data. Check the final printed page against the reference using a designated test learner.
 
 No live report data, backend migrations, or database persistence were verified by this frontend change.
+
+## 18 November 2026 integration repair
+
+The class viewer now uses `report_type=class` for group previews. A section label such as `Nursery 1A` is sent as class_level `Nursery 1` plus sub_class `Nursery 1A`, matching score-sheet storage. Section-specific assignments cannot be overridden with another subclass in this viewer. Loaded school period settings update the default filters until the user selects their own values.
+
+If the aggregate report endpoint returns an empty report list or HTTP 404/405/422, the client reads fresh persisted `/results` and `/sims/score-sheets` records for the selected period/class. It builds a preview only from explicit Approved/Published records matched by stable learner identity to the supplied roster, exact year/term and class/subclass. Pending, declined, unknown learners and other periods/sections are excluded. HTTP 401/403, network and server failures remain errors; the alternate sources never bypass a denied report request. Qualitative/Creche templates still require backend support.
+
+Ensure teacher read permissions and scope filtering are consistent on all three endpoints. The API must return full requested class records, or implement a coordinated pagination contract; the client must not advertise incomplete cohort ranks. Converted scores and totals come from server records and are not weighted again. Missing head comments, class positions and highest/lowest cohort figures remain blank when the aggregate report is unavailable; these require persisted server report data.
+
+Administration assessment popups now use dropdowns populated from configured/current academic settings, catalog classes/subjects, roster and saved result periods. Changing the class clears the selected student. No invented historical years are inserted. The popup and teacher report cards include the shared school logo/name/address/contact header.
+
+Local browser regression: two test learners submit scores through the real store action and mocked HTTP contract; an admin publishes the sheets; a fresh teacher store reads the published records; previews, school branding, navigation and printing are checked. All HTTP traffic in this regression is intercepted. This proves client behavior, not deployment or live database correctness. No real learner scores or live approvals are created by the regression.
+
+## Multiple assigned classes
+
+Grades previously displayed the static school-wide class catalogue under “classes taught”; that display was not evidence of a saved assignment. Teacher Portal now resolves all assignment rows by user/staff ID or email, combines their classes with saved account/directory classes, and supplies the same list to Grades and Terminal Report Cards. Report rosters cover all resolved assigned classes, rather than only the primary form class. Section assignments exclude sibling sections. A teacher with saved Basic 1A and Nursery 1A assignments can select and preview each; unrelated catalogue classes are not added automatically.
+
+Backend `/academic/teaching-assignments` records must include the canonical teacher `user_id` (or matching staff ID/email), plus their full classes array. Multiple rows per teacher are supported. Matching by display name alone is not used to grant class visibility. Persist all intended class assignments and enforce them server-side on results and roster endpoints.
+
+The roster adapter now preserves `sub_class`, `sub_class_level`, `class_section` and camelCase section aliases instead of dropping the section and inserting an assumed A. This is needed for section-specific report filtering when the backend sends a base class plus a separate subclass. A section must be explicitly recorded; unknown sections are not assigned automatically.

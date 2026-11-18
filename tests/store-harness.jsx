@@ -1,3 +1,6 @@
+import TeacherPortal from '../src/portals/TeacherPortal';
+import AssessmentReports from '../src/components/Academic/AssessmentReports';
+import ClassTeacherReports from '../src/components/Academic/ClassTeacherReports';
 import ParentPortal from '../src/portals/ParentPortal';
 import StudentPortal from '../src/portals/StudentPortal';
 import { ParentReports } from '../src/components/ReportWorkflow/ReportWorkflow';
@@ -24,12 +27,12 @@ function Probe() {
   const data = usePortalData();
   useEffect(() => { window.testStore = data; }, [data]);
   const view = new URLSearchParams(location.search).get('view');
-  return view === 'parent' ? <ParentPortal /> : view === 'student' ? <StudentPortal /> : view === 'reports' ? <ParentReports child={{name:'Learner',studentId:'CODE',databaseStudentId:'11111111-1111-4111-8111-111111111111'}} /> : view === 'transport' ? <BusTracker /> : view === 'attendance' ? <AttendanceControlTable /> : view === 'application' ? <OfficialApplicationForm /> : view === 'accounts-dialog' ? <AccountantDialogProbe /> : view === 'pay-pv' ? <PayPVForm /> : view === 'uac' ? <div style={{ transform: 'translateY(0)', minHeight: 3000 }}><UserAccessControl /></div> : view === 'accounts' ? <AccountantPortal /> : view === 'timetable' ? <TimetableManager /> : view === 'published-timetable' ? <PublishedTimetable /> : view === 'pv' ? <SubmitPVRequest /> : view === 'approve' ? <ApprovePVForm /> : view === 'settings' ? <AcademicSettingsManager inline /> : view === 'scores' ? <ScoreSheetEntryForm /> : <p>Database integration test harness</p>;
+  return view === 'teacher-classes' ? <TeacherPortal /> : view === 'assessment-reports' ? <AssessmentReports title="Print Subject Based Assessments" /> : view === 'terminal-reports' ? <ClassTeacherReports classes={['Nursery 1A']} students={data.onboardedStudents} /> : view === 'parent' ? <ParentPortal /> : view === 'student' ? <StudentPortal /> : view === 'reports' ? <ParentReports child={{name:'Learner',studentId:'CODE',databaseStudentId:'11111111-1111-4111-8111-111111111111'}} /> : view === 'transport' ? <BusTracker /> : view === 'attendance' ? <AttendanceControlTable /> : view === 'application' ? <OfficialApplicationForm /> : view === 'accounts-dialog' ? <AccountantDialogProbe /> : view === 'pay-pv' ? <PayPVForm /> : view === 'uac' ? <div style={{ transform: 'translateY(0)', minHeight: 3000 }}><UserAccessControl /></div> : view === 'accounts' ? <AccountantPortal /> : view === 'timetable' ? <TimetableManager /> : view === 'published-timetable' ? <PublishedTimetable /> : view === 'pv' ? <SubmitPVRequest /> : view === 'approve' ? <ApprovePVForm /> : view === 'settings' ? <AcademicSettingsManager inline /> : view === 'scores' ? <ScoreSheetEntryForm /> : <p>Database integration test harness</p>;
 }
 let mountVersion = 0;
 const root = createRoot(document.getElementById('root'));
-window.mountStore = (role = 'accountant', enabled = true, userId = 'test-user') => {
-  setAuthToken('eyJ-test-token');setAuthUser({id:userId,role});
+window.mountStore = (role = 'accountant', enabled = true, userId = 'test-user', userData = {}) => {
+  setAuthToken('eyJ-test-token');setAuthUser({...userData,id:userId,role});
   root.render(<PortalDataProvider key={`${role}-${enabled}-${++mountVersion}`} enabled={enabled}><Probe /></PortalDataProvider>);
 };
 window.mountStore('accountant', new URLSearchParams(location.search).has('enabled'));

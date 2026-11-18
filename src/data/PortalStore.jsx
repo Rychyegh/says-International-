@@ -1,3 +1,4 @@
+import { classLabelMatches } from '../lib/classLabelMatch.js';
 import { savedBillItems } from '../lib/savedBillItems';
 import { saveReportRequest } from '../lib/reportRecords.js';
 import { catalogNames } from '../lib/catalogNames.js';
@@ -33,15 +34,7 @@ function persistSnapshot(data) {
   } catch { /* Storage may be disabled or full; API reads still work. */ }
 }
 
-export function classLabelsMatch(assigned, target) {
-  const left = String(assigned || '').trim().toLowerCase();
-  const right = String(target || '').trim().toLowerCase();
-  if (!left || !right) return false;
-  if (left === right) return true;
-  if (left.startsWith(right) && !/\d/.test(left.slice(right.length))) return true;
-  if (right.startsWith(left) && !/\d/.test(right.slice(left.length))) return true;
-  return false;
-}
+export const classLabelsMatch = classLabelMatches;
 
 export function findTeachingAssignment(assignments = [], person = {}) {
   const keys = [person.staffId, person.staff_id, person.id, person.userId, person.email, person.name, person.fullName, person.teacherName]
@@ -881,7 +874,8 @@ export function mapStudentFromApi(s = {}, fallback = {}) {
     dob: s.dob || fallback.dob || '',
     gender: s.gender || fallback.gender || 'Not Specified',
     level: formatClassToBasic(s.level || s.class_level || fallback.level || 'Basic 1'),
-    classSection: s.classSection || s.class_section || fallback.classSection || 'A',
+    classSection: s.classSection || s.class_section || s.subClass || s.sub_class || s.sub_class_level || s.section || fallback.classSection || '',
+    subClass: s.subClass || s.sub_class || s.sub_class_level || s.classSection || s.class_section || s.section || fallback.subClass || fallback.classSection || '',
     guardianName: blankGuardianText(s.guardianName || s.guardian_name || fallback.guardianName)
       || blankGuardianText(s.fatherName || s.father_name || fallback.fatherName)
       || blankGuardianText(s.motherName || s.mother_name || fallback.motherName)

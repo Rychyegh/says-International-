@@ -1,3 +1,5 @@
+import { teacherAssignedClasses, studentInAssignedClass } from '../../lib/teacherClassAssignments';
+import { reportClass } from '../../lib/terminalReportRecords';
 import ViewportModal from '../Modal/ViewportModal';
 import { SCHOOL_GRADING_BANDS, proficiencyGrade, proficiencyRemark } from '../../lib/schoolGrading';
 import React, { useMemo, useState, useRef, useEffect } from 'react';
@@ -49,16 +51,22 @@ export const SCHOOL_SUBJECTS = [
   'Physical Education'
 ];
 
-export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
-  const { results, publishResult, onboardedStudents, academicSettings, teacherDirectory, timetable } = usePortalData();
+export function LecturerGrades({ initialTarget, onOpenScoreSheet, assignedClasses: suppliedClasses }) {
+  const { results, publishResult, onboardedStudents, academicSettings, teacherDirectory, timetable, teachingAssignments } = usePortalData();
   const authUser = enrichTeacherSession(getAuthUser() || {});
   const lecturerName = getUserFullName(authUser) || authUser?.name || 'Staff';
 
   // Determine assigned classes for this teacher
-  const teacherAssignedClass = authUser?.classAssigned || authUser?.class_assigned || '';
+  const assignedClasses = suppliedClasses || teacherAssignedClasses({user:authUser,assignments:teachingAssignments || [],directory:teacherDirectory || []});
+  const teacherAssignedClass = assignedClasses[0] || '';
+  const assignedTarget = target => {
+    const key=value=>String(value || '').replace(/\s+/g,'').toLowerCase();
+    const section=target?.subClass || reportClass(target?.classLevel).section;
+    return assignedClasses.find(cls=>key(cls)===key(section)) || assignedClasses.find(cls=>key(reportClass(cls).level)===key(reportClass(target?.classLevel).level)) || teacherAssignedClass;
+  };
   const isClassTeacher = isClassTeacherAccount(authUser);
 
-  const [selectedClass, setSelectedClass] = useState(() => initialTarget?.classLevel || teacherAssignedClass || 'Basic 1');
+  const [selectedClass, setSelectedClass] = useState(() => assignedTarget(initialTarget) || '');
   const [selectedSubClass, setSelectedSubClass] = useState(() => initialTarget?.subClass || 'All');
   const [selectedSubject, setSelectedSubject] = useState(() => initialTarget?.subject || 'Mathematics');
   const [selectedTerm, setSelectedTerm] = useState(() => initialTarget?.term || academicSettings?.academicTerm || 'Term 3');
@@ -77,7 +85,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
   // Sync when initialTarget arrives (e.g. from "View Test Roll" in ScoreSheetEntryForm)
   useEffect(() => {
     if (!initialTarget) return;
-    if (initialTarget.classLevel) setSelectedClass(initialTarget.classLevel);
+    if (initialTarget.classLevel) setSelectedClass(assignedTarget(initialTarget));
     if (initialTarget.subClass) setSelectedSubClass(initialTarget.subClass);
     if (initialTarget.subject) setSelectedSubject(initialTarget.subject);
     if (initialTarget.term) setSelectedTerm(initialTarget.term);
@@ -96,27 +104,19 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
     }
   }, [initialTarget]);
 
-  // Subclasses for active class
+  const assignedKey = JSON.stringify(assignedClasses);
+  useEffect(()=>{
+    if (!assignedClasses.includes(selectedClass)) {setSelectedClass(assignedTarget(initialTarget) || '');setSelectedSubClass('All');}
+  },[assignedKey,selectedClass]);
   const availableSubClasses = useMemo(() => {
-    return ['All', ...getMappedSubClasses(selectedClass)];
+    const section=reportClass(selectedClass).section;
+    return section ? ['All',section] : ['All', ...getMappedSubClasses(selectedClass)];
   }, [selectedClass]);
-
-  // Students belonging to the active class and subclass
   const studentsInClass = useMemo(() => {
-    return (onboardedStudents || []).filter((s) => {
-      const sCls = (s.level || s.classLevel || s.class || '').trim().toLowerCase();
-      const targetCls = selectedClass.toLowerCase().trim();
-      const classMatch = sCls === targetCls || sCls.includes(targetCls) || targetCls.includes(sCls);
-      if (!classMatch) return false;
-
-      if (selectedSubClass && selectedSubClass !== 'All') {
-        const sSub = (s.classSection || s.subClass || s.section || '').trim().toLowerCase();
-        const targetSub = selectedSubClass.toLowerCase().trim();
-        return sSub === targetSub || sSub.includes(targetSub) || targetSub.includes(sSub);
-      }
-      return true;
-    });
-  }, [onboardedStudents, selectedClass, selectedSubClass]);
+    if (!assignedClasses.includes(selectedClass)) return [];
+    return (onboardedStudents || []).filter(s=>studentInAssignedClass(s,selectedClass) &&
+      (selectedSubClass==='All' || studentInAssignedClass(s,selectedSubClass)));
+  }, [onboardedStudents, selectedClass, selectedSubClass, assignedKey]);
 
   // Filter students by search term
   const filteredStudents = useMemo(() => {
@@ -167,7 +167,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
         student,
         studentId: student.studentId || student.id || MISSING_SCORE,
         studentName: student.fullName || student.name || 'Student',
-        subClass: student.classSection || student.subClass || `${selectedClass}A`,
+        subClass: student.classSection || student.subClass || reportClass(selectedClass).section || 'Not recorded',
         subject: entry?.subject || selectedSubject,
         hasScore,
         hasClass,
@@ -288,7 +288,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
           {onOpenScoreSheet && (
             <button
               type="button"
-              onClick={() => onOpenScoreSheet({ classLevel: selectedClass, subClass: selectedSubClass !== 'All' ? selectedSubClass : undefined, subject: selectedSubject })}
+              onClick={() => onOpenScoreSheet({ classLevel: reportClass(selectedClass).level, subClass: selectedSubClass !== 'All' ? selectedSubClass : (reportClass(selectedClass).section || undefined), subject: selectedSubject })}
               style={{
                 padding: '8px 16px',
                 background: '#0f3a4b',
@@ -354,11 +354,12 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
           </span>
         </div>
 
+        {!assignedClasses.length && <p>No classes are assigned to this teacher. Ask the administrator to update the teaching assignments.</p>}
         {/* Class Pills / Tabs */}
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6 }}>
-          {SCHOOL_CLASSES.map((cls) => {
+          {assignedClasses.map((cls) => {
             const isSelected = selectedClass === cls;
-            const count = (onboardedStudents || []).filter(s => (s.level || s.classLevel || s.class || '').trim().toLowerCase().includes(cls.toLowerCase())).length;
+            const count = (onboardedStudents || []).filter(s => studentInAssignedClass(s,cls)).length;
 
             return (
               <button
@@ -692,7 +693,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet }) {
                               student: row.student,
                               studentId: row.studentId,
                               studentName: row.studentName,
-                              classLevel: selectedClass,
+                              classLevel: reportClass(selectedClass).level,
                               subClass: row.subClass,
                               subject: row.subject
                             })}

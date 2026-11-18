@@ -1,3 +1,4 @@
+import { teacherAssignedClasses, studentInAssignedClass } from '../lib/teacherClassAssignments';
 import { proficiencyGrade, proficiencyRemark } from '../lib/schoolGrading';
 import ClassTeacherReports from '../components/Academic/ClassTeacherReports';
 import AcademicSettingsManager from '../components/Academic/AcademicSettingsManager';
@@ -187,7 +188,8 @@ export default function TeacherPortal() {
     name: teacherLabel,
     fullName: teacherLabel,
   });
-  const assignedClasses = myAssignment?.classes || [];
+  const assignedClasses = teacherAssignedClasses({user:authUser,assignments:store?.teachingAssignments || [],directory:store?.teacherDirectory || [],primaryClass:classLabel});
+  const reportStudents = onboardedStudents.filter(student=>assignedClasses.some(cls=>studentInAssignedClass(student,cls)));
   const assignedSubjects = myAssignment?.subjects || [];
 
   useEffect(() => {
@@ -644,6 +646,7 @@ export default function TeacherPortal() {
                 </button>
               </div>
               <LecturerGrades
+                assignedClasses={assignedClasses}
                 initialTarget={gradesTarget}
                 onOpenScoreSheet={(target) => {
                   setScoreSheetTarget(target);
@@ -665,7 +668,7 @@ export default function TeacherPortal() {
           {activeNav === 'Contacts' && <ContactDirectory />}
           {activeNav === 'Reports' && !isClassTeacher && <TeacherReports />}
           {isClassTeacher && ['Reports', 'Terminal Report Cards'].includes(activeNav) && (
-            <ClassTeacherReports classes={[classAssignedLabel, ...assignedClasses]} students={classStudents} />
+            <ClassTeacherReports classes={assignedClasses} students={reportStudents} />
           )}
 
           {/* ── OTHER VIEWS placeholder ── */}
