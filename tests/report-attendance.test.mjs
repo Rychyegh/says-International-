@@ -14,3 +14,10 @@ test('saved attendance logs fill only missing report attendance for the selected
  assert.equal(reportAttendanceText(result),'50% (1 attended / 2 recorded days)');
  assert.equal(withReportAttendance([{...report,attendance_percentage:80}],logs,[],{} )[0].attendance_percentage,80);
 });
+
+test('RFID check-in and check-out count as one attended day, including when history uses student codes',()=>{
+ const students=[{id:'student-uuid',studentId:'TEST-CARD'}];
+ const logs=[{studentId:'TEST-CARD',date:'2026-11-23',status:'Check In',time:'08:00'},{student_id:'student-uuid',date:'2026-11-23',status:'Check Out',time:'15:00'},{student_id:'student-uuid',date:'2026-11-22',status:'Absent'}];
+ const [report]=withReportAttendance([{student_id:'student-uuid'}],logs,students,{academic_year:'2026/2027',term:'Term 1'});
+ assert.equal(reportAttendanceText(report),'50% (1 attended / 2 recorded days)');
+});

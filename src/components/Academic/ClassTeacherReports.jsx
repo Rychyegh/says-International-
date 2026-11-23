@@ -25,7 +25,6 @@ function ReportPaper({ report, scope }) {
       <span><b>Class:</b> {report.sub_class || scope.sub_class || report.class_level || scope.class_level}</span>
       <span><b>Academic year:</b> {scope.academic_year}</span>
       <span><b>Term:</b> {scope.term}</span>
-      <span><b>Position:</b> {shown(report.class_position)}</span>
       <span><b>Attendance:</b> {reportAttendanceText(report)}</span>
       <span><b>Next term begins:</b> {shown(report.resumption_date)}</span>
     </div>
