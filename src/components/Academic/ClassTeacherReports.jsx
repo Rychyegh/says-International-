@@ -1,3 +1,6 @@
+import { reportAttendanceText, withReportAttendance } from '../../lib/reportAttendance';
+import { attendanceRows } from '../../lib/attendanceRecords';
+import { terminalReportScope } from '../../lib/terminalReportRecords';
 import TerminalReportRemarks from './TerminalReportRemarks';
 import { mergeApprovedRemarks } from '../../lib/terminalReportRemarks';
 import React, { useEffect, useRef, useState } from 'react';
@@ -23,7 +26,7 @@ function ReportPaper({ report, scope }) {
       <span><b>Academic year:</b> {scope.academic_year}</span>
       <span><b>Term:</b> {scope.term}</span>
       <span><b>Position:</b> {shown(report.class_position)}</span>
-      <span><b>Date of birth:</b> {shown(report.date_of_birth)}</span>
+      <span><b>Attendance:</b> {reportAttendanceText(report)}</span>
       <span><b>Next term begins:</b> {shown(report.resumption_date)}</span>
     </div>
     <table><thead><tr>{['No. of subjects','Total score','Highest score','Lowest score','Average score','Grade'].map(x=><th key={x}>{x}</th>)}</tr></thead>
@@ -42,6 +45,7 @@ export default function ClassTeacherReports({ classes = [], students = [] }) {
   const { academicSettings = {} } = usePortalData();
   const allowedClasses = [...new Set(classes.filter(Boolean))];
   const [scope,setScope] = useState({ department:'',class_level:allowedClasses[0] || '',sub_class:'',academic_year:academicSettings.academicYear || '',term:academicSettings.academicTerm || '',preview_creche:false });
+  const [attendanceError,setAttendanceError]=useState('');
   const [reports,setReports] = useState(null), [index,setIndex] = useState(0), [busy,setBusy] = useState(false), [error,setError] = useState('');
   const allowedKey = JSON.stringify(allowedClasses);
   useEffect(()=>{setScope(current=>allowedClasses.includes(current.class_level)?current:{...current,class_level:allowedClasses[0] || '',sub_class:''});setReports(null);setIndex(0);},[allowedKey]);
@@ -60,13 +64,21 @@ export default function ClassTeacherReports({ classes = [], students = [] }) {
   const lock = useRef(false);
   const selectedClass = reportClass(scope.class_level);
   const subclasses = selectedClass.section ? [selectedClass.section] : [...new Set([selectedClass.section, ...students.filter(s=>reportClass(s.level || s.classLevel || s.class).level.replace(/\s/g,'').toLowerCase() === selectedClass.level.replace(/\s/g,'').toLowerCase()).map(s=>s.subClass || s.subClassLevel || s.classSection || reportClass(s.level || s.classLevel).section)].filter(Boolean))];
-  const change = (key,value) => {touched.current.add(key);setScope(s=>({...s,[key]:value,...(key==='class_level'?{sub_class:''}:{})}));setReports(null);setIndex(0);setError('');};
+  const change = (key,value) => {touched.current.add(key);setScope(s=>({...s,[key]:value,...(key==='class_level'?{sub_class:''}:{})}));setReports(null);setIndex(0);setError('');setAttendanceError('');};
   const preview = async event => {
     event.preventDefault(); if(lock.current) return;
-    lock.current=true; setBusy(true);setError('');setReports(null);setIndex(0);
+    lock.current=true; setBusy(true);setError('');setAttendanceError('');setReports(null);setIndex(0);
     try {
       const response = await loadClassTerminalReports({api, scope, students, settings:academicSettings});
-      setReports(validateTerminalReports(response.data || response));
+      let saved=validateTerminalReports(response.data || response);
+      if(saved.some(report=>reportAttendanceText(report)==='—')) {
+        try {
+          const filter=terminalReportScope(scope);
+          const history=await api.getAttendanceLogs({class_level:filter.class_level,academic_year:filter.academic_year,term:filter.term,...(filter.sub_class?{sub_class:filter.sub_class}:{})});
+          saved=withReportAttendance(saved,attendanceRows(history),students,scope);
+        } catch(failure) {setAttendanceError(`Report loaded, but attendance is unavailable: ${failure.message}`);}
+      }
+      setReports(saved);
     } catch(err) {setError(err.message || 'Reports could not be loaded.');}
     finally {lock.current=false;setBusy(false);}
   };
@@ -93,6 +105,7 @@ export default function ClassTeacherReports({ classes = [], students = [] }) {
     </fieldset></form>
     <section className="class-report-viewer"><div className="class-report-toolbar"><strong>Main Report</strong><button disabled={!reports?.length || index===0} onClick={()=>setIndex(i=>i-1)}>Previous</button><span>{reports?.length?`${index+1} / ${reports.length}`:'0 / 0'}</span><button disabled={!reports?.length || index===reports.length-1} onClick={()=>setIndex(i=>i+1)}>Next</button><button disabled={!reports?.length} onClick={()=>print(false)}>Print this report</button><button disabled={!reports?.length} onClick={()=>print(true)}>Print all reports</button></div>
       {error && <p role="alert" className="class-report-error">{error}</p>}
+      {attendanceError && <p role="status" className="class-report-error no-print">{attendanceError}</p>}
       {reports?.length ? <ReportPaper report={reports[index]} scope={scope} /> : <p className="class-report-empty">{busy?'Loading saved reports…':reports?'No approved reports match this class, subclass, year and term. Check that these match the submitted score sheet, then select Preview again.':'Choose the academic period, then select Preview.'}</p>}
       {reports?.length > 0 && <TerminalReportRemarks key={`${remarkPeriod}|${reports[index].student_id}`} reports={[reports[index]]} scope={scope} onRecords={onRemarkRecords} />}
     </section></div>

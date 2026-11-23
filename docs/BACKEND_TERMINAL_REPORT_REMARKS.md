@@ -2,6 +2,34 @@
 
 Date: 23 November 2026
 
+## Current blocker — please check this first
+
+The live class-teacher screen shows **“The server did not return saved report remarks.”** and disables Save remark. This error means the frontend did not find a remarks array in the authenticated GET response; it does not prove that the database table or save routes are missing. The public schema advertises save/approve routes, but does not specify their response bodies.
+
+Please capture the authenticated response from `GET /api/v1/academic/report-setup` for the affected class-teacher account, using a designated test learner. Compare the payload with the contract below. Do not share the bearer token or real learner information in screenshots/logs.
+
+- If remarks are already returned under a different envelope/key, provide a redacted example so the frontend adapter can be corrected. Do not create duplicate tables or rewrite working persistence solely to fit a mistaken frontend mapping.
+- If remarks are not returned, add the authorized remarks collection, including draft and approved records, to the response or implement a separate teacher-readable endpoint and coordinate the frontend route change.
+- If there are no remarks yet, return an empty array, **not** null, an omitted field, or a generic success object.
+- Keep all existing report-setup fields intact. If the response uses a `data` object, place the collection inside that object; the current adapter reads `data` when it is present.
+- Do not give teachers access to administrative report configuration just to read remarks. A narrower class-scoped read endpoint is preferable if report-setup is admin-only.
+
+Minimal accepted empty response:
+
+```json
+{"remarks": []}
+```
+
+Accepted wrapped response:
+
+```json
+{"data": {"remarks": []}}
+```
+
+A populated response must wrap the complete saved row shown later in this document in the same remarks array. An empty result must mean a successful authorized lookup with no matching remarks; return an actual HTTP error when reading fails.
+
+The adapter that needs coordinating is `src/services/api.js` → `getTerminalReportRemarks`; collection parsing is in `src/lib/terminalReportRemarks.js` → `extractReportRemarks`. No live response payload was captured during this handoff, so the exact mismatch remains unconfirmed.
+
 ## User locations
 
 - Class Teacher Portal → Terminal Report Cards → choose period/class → Preview → Class teacher's report-card remark → Save remark.
@@ -60,3 +88,14 @@ If class teachers cannot read the remarks collection through report-setup, expos
 ## Verification
 
 Local browser test `tests/terminal-report-remarks-integration.mjs` uses synthetic HTTP fixtures for teacher save, failed conflicting edit, headteacher save, both approvals, fresh teacher reload, and print visibility. The pure contract tests are in tests/terminal-report-remarks.test.mjs. All traffic in these tests is intercepted. No real school remarks were written and no backend migration/deployment was performed. Public route/schema availability was checked; live authenticated persistence and response shape still need verification after deployment.
+
+## Backend developer delivery checklist
+
+1. Confirm whether the failure is response shape, teacher read permission, missing collection, or missing persistence. Supply a redacted response and applicable HTTP status.
+2. Reuse the existing remark model/routes where present. If persistence is missing, store UUID id/student/school identifiers, academic year, term, class/subclass, teacher/head kind, comment, draft/approved state, positive integer version, author/approver and timestamps. Enforce the identity uniqueness and version conflict rules above.
+3. Demonstrate first save with expected_version 0 → draft version 1 → authenticated read-back with the same comment. Then update using version 1 → version 2; stale version 1 must return 409 without losing the existing comment.
+4. Demonstrate headteacher approval using the actual current version, followed by a read showing approved status and an increased version. A teacher must not approve remarks or save a headteacher comment by editing a request.
+5. Verify student, school, year and term isolation on reads/writes. A teacher must not retrieve another class's remarks; another student's comment must never populate the selected report.
+6. Return approved text as teacher_comment/head_comment on assessment reports. Do not expose drafts as official comments or replace the last approved report text with an unapproved edit.
+7. Test through the real class-teacher UI and headteacher UI, refresh/sign in again, and print the report. Confirm the input survives 403/409/422/server errors and no false “saved” message appears.
+8. Provide the final deployed route/response example, authorization policy and any migration/backfill notes. If a new read route is introduced, notify the frontend developer before rollout so the adapter and fixtures can be updated together.
