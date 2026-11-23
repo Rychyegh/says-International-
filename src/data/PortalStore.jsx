@@ -867,6 +867,7 @@ export function mapStudentFromApi(s = {}, fallback = {}) {
     ),
     parentCardCode: s.parentCardCode || s.parent_card_code || s.pickup_card_code || fallback.parentCardCode || '',
     dailyLimit: s.dailyLimit || s.daily_limit || s.spending_limit || fallback.dailyLimit || '',
+    attendancePercent: s.attendancePercent ?? s.attendance_percent ?? s.attendancePercentage ?? s.attendance_percentage ?? fallback.attendancePercent ?? null,
     fullName: fullComputed,
     firstName: s.firstName || fallback.firstName || '',
     otherNames: s.otherNames || s.other_names || fallback.otherNames || '',

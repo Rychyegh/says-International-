@@ -1,3 +1,6 @@
+import { teacherDashboardRows } from '../lib/teacherDashboardRecords';
+import { attendanceRows } from '../lib/attendanceRecords';
+import { reportClass } from '../lib/terminalReportRecords';
 import { teacherAssignedClasses, studentInAssignedClass } from '../lib/teacherClassAssignments';
 import { proficiencyGrade, proficiencyRemark } from '../lib/schoolGrading';
 import ClassTeacherReports from '../components/Academic/ClassTeacherReports';
@@ -6,7 +9,7 @@ import ViewportModal from '../components/Modal/ViewportModal';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   LayoutDashboard, Users, BookOpen, Calendar, ClipboardList,
-  MessageSquare, Settings, TrendingUp, Award, Bell, Bus, ClipboardCheck, FileCheck,
+  MessageSquare, Settings, TrendingUp, Award, Bus, ClipboardCheck, FileCheck,
   FileText, X
 } from 'lucide-react';
 import '../components/Portal/Portal.css';
@@ -47,19 +50,9 @@ const NAV = [
 
 const FALLBACK_STUDENTS = [];
 
-const ACTIVITY = [];
-
 const SUBJECTS = [];
 
 const SUBJECT_COLORS = [TEACHER_ACCENT, '#3a72c8', '#c89a3a', '#c8703a', '#7c3ac8'];
-const ACTIVITY_COLORS = {
-  success: TEACHER_ACCENT,
-  info: '#3a72c8',
-  warning: '#c89a3a',
-  danger: '#c84a4a',
-};
-
-const FALLBACK_TRANSPORT = null;
 
 function asList(res, keys) {
   if (Array.isArray(res)) return res;
@@ -145,14 +138,6 @@ export default function TeacherPortal() {
   const teacherDirectory = store?.teacherDirectory || [];
   const recordedResults = store?.results || [];
   const portalMessages = store?.messages || [];
-
-  const subjectGradeFor = (student, needle) => {
-    const row = resultsForStudent(recordedResults, student).find((r) =>
-      String(r.subject || '').toLowerCase().includes(needle)
-    );
-    if (!row || !hasRecordedClassScore(row) || !hasRecordedExamScore(row)) return MISSING_SCORE;
-    return proficiencyGrade(row.score);
-  };
 
   const terminalReadyNotices = (portalMessages || []).filter((m) =>
     m.type === 'terminal-report' || String(m.subject || '') === 'Terminal Report is ready'
@@ -241,6 +226,23 @@ export default function TeacherPortal() {
     return saved;
   });
 
+  const [dashboardAttendance,setDashboardAttendance]=useState([]);
+  const [dashboardAttendanceError,setDashboardAttendanceError]=useState('');
+  const dashboardClassesKey=JSON.stringify(assignedClasses);
+  const dashboardYear=store?.academicSettings?.academicYear || '';
+  const dashboardTerm=store?.academicSettings?.academicTerm || '';
+  useEffect(()=>{
+    if(activeNav!=='Dashboard' || !isClassTeacher || !assignedClasses.length || !dashboardYear || !dashboardTerm || !store?.lastSyncedAt || store?.showingCachedData) return;
+    if(store?.syncErrors?.settingsRes) {setDashboardAttendance([]);setDashboardAttendanceError('Attendance cannot be loaded until the current academic period settings are available.');return;}
+    let cancelled=false;
+    setDashboardAttendance([]);setDashboardAttendanceError('');
+    const levels=[...new Set(assignedClasses.map(cls=>reportClass(cls).level))];
+    Promise.all(levels.map(class_level=>api.getAttendanceLogs({class_level,academic_year:dashboardYear,term:dashboardTerm})))
+      .then(responses=>{if(!cancelled)setDashboardAttendance(responses.flatMap(response=>attendanceRows(response)));})
+      .catch(error=>{if(!cancelled)setDashboardAttendanceError(`Attendance history could not be loaded: ${error.message}`);});
+    return ()=>{cancelled=true;};
+  },[activeNav,isClassTeacher,dashboardClassesKey,dashboardYear,dashboardTerm,store?.lastSyncedAt,store?.showingCachedData,store?.syncErrors?.settingsRes]);
+
   const [gradesTarget, setGradesTarget] = useState(null);
   const [scoreSheetTarget, setScoreSheetTarget] = useState(null);
   const [gradingOpen, setGradingOpen] = useState(false);
@@ -303,14 +305,6 @@ export default function TeacherPortal() {
   const scoreTrend = averageClassScore == null
     ? 'No recorded scores'
     : (averageScoreDelta == null ? 'From recorded results' : `${Number(averageScoreDelta) >= 0 ? '+' : ''}${averageScoreDelta}% vs last`);
-  const liveTransport = (isClassTeacher && classDashboard?.transport) ? classDashboard.transport : FALLBACK_TRANSPORT;
-  const activityFeed = classDashboard?.activity?.length
-    ? classDashboard.activity.map((item) => ({
-      text: item.text,
-      time: item.time,
-      color: ACTIVITY_COLORS[item.tone] || TEACHER_ACCENT,
-    }))
-    : ACTIVITY;
   const subjectRows = classDashboard?.subjects?.length
     ? classDashboard.subjects.map((row, index) => ({
       subject: row.subject,
@@ -319,29 +313,8 @@ export default function TeacherPortal() {
     }))
     : SUBJECTS;
 
-  const rosterFromStore = onboardedStudents.length > 0 ? onboardedStudents.map(s => ({
-    name: s.fullName,
-    class: s.level,
-    score: null,
-    id: s.studentId,
-    attendance: s.attendancePercent ?? s.attendance_percent ?? null,
-    mathGrade: subjectGradeFor(s, 'math'),
-    sciGrade: subjectGradeFor(s, 'science'),
-    color: TEACHER_GREEN,
-    email: s.studentEmail || '',
-    status: 'Enrolled',
-  })) : FALLBACK_STUDENTS;
-
-  const assignedKey = classAssignedLabel.trim().toLowerCase();
-  const classRoster = rosterFromStore.filter((student) => {
-    const studentClass = student.class || student.classSection || student.level || '';
-    if (assignedKey && classLabelsMatch(studentClass, classAssignedLabel)) return true;
-    return assignedClasses.some((name) => classLabelsMatch(name, studentClass));
-  });
-  const displayStudents = Array.isArray(classDashboard?.students)
-    ? classDashboard.students.map((student) => ({ ...student, color: TEACHER_GREEN }))
-    : classRoster;
-  const usingLiveRoster = Boolean(classDashboard?.students?.length) || onboardedStudents.length > 0;
+  const displayStudents=teacherDashboardRows({students:onboardedStudents,dashboardStudents:classDashboard?.students || [],classes:assignedClasses,results:recordedResults,attendance:dashboardAttendance,scope:{year:dashboardYear,term:dashboardTerm},settings:store?.academicSettings || {}}).map(student=>({...student,color:TEACHER_GREEN}));
+  const usingLiveRoster = displayStudents.length>0;
 
   const STATS = [
     { label: 'Total Students',  value: String(dashboardStats.totalStudents ?? displayStudents.length), trend: 'Active enrolled roster',  up: true,  icon: '👥', bg: '#dcfce7', ic: '#166534' },
@@ -505,12 +478,13 @@ export default function TeacherPortal() {
                   </div>
                 ))}
               </div>
-              <div className="content-grid">
+              <div className="content-grid" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
                 {/* Students table */}
                 <div className="panel">
                   <div className="panel__header">
                     <h2 className="panel__title">{classAssignedLabel ? `${classAssignedLabel} Student Ledger` : 'Class Student Ledger'}</h2>
                   </div>
+                  {dashboardAttendanceError && <p role="alert" style={{padding:'0 16px',color:'#991b1b',fontSize:12}}>{dashboardAttendanceError}</p>}
                   <table className="data-table">
                     <thead><tr><th>Student Name</th><th>ID Number</th><th>Attendance</th><th>Maths Grade</th><th>Science Grade</th><th>Status</th></tr></thead>
                     <tbody>
@@ -532,7 +506,7 @@ export default function TeacherPortal() {
                               <div style={{ width: 40, height: 4, background: 'var(--gray-200)', borderRadius: 9999, overflow: 'hidden' }}>
                                 <div style={{ height: '100%', width: `${s.attendance ?? 0}%`, background: s.attendance >= 90 ? '#16a34a' : s.attendance >= 75 ? '#d97706' : '#dc2626', borderRadius: 9999 }} />
                               </div>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: s.attendance >= 90 ? '#166534' : '#78350f' }}>{s.attendance == null ? 'Not available' : `${s.attendance}%`}</span>
+                              <span title={s.attendanceNote} style={{ fontSize: 12, fontWeight: 700, color: s.attendance >= 90 ? '#166534' : '#78350f' }}>{s.attendance == null ? 'Not recorded' : `${s.attendance}%`}</span>
                             </div>
                           </td>
                           <td><span style={{ background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 800 }}>{s.mathGrade}</span></td>
@@ -548,53 +522,7 @@ export default function TeacherPortal() {
                     </div>
                   )}
                 </div>
-                {/* Activity */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <div className="panel">
-                    <div className="panel__header"><h2 className="panel__title">Recent Activity</h2><Bell size={15} color="var(--gray-400)"/></div>
-                    <div className="panel__body">
-                      <div className="activity-feed">
-                        {activityFeed.length === 0 && <p>No recorded activity.</p>}
-                        {activityFeed.map((a, i) => (
-                          <div className="activity-item" key={i}>
-                            <div className="activity-item__dot" style={{ background: a.color }}/>
-                            <div className="activity-item__content">
-                              <p className="activity-item__text">{a.text}</p>
-                              <p className="activity-item__time">{a.time}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  {/* Transport mini */}
-                  {liveTransport ? <>
-                  <div
-                    className="transport-widget"
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => setActiveNav('Transport')}
-                    title="View full transport tracker"
-                  >
-                    <div className="transport-widget__label">Transport — Live</div>
-                    <div className="transport-widget__route">{liveTransport.routeLabel} &nbsp;•&nbsp; {liveTransport.studentsOnBoard}/{liveTransport.capacity} students</div>
-                    <div className="transport-widget__row">
-                      <div>
-                        <div className="transport-widget__stop-label">Next Stop</div>
-                        <div className="transport-widget__stop">🚌 {liveTransport.nextStop}</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div className="transport-widget__eta">{liveTransport.eta}</div>
-                        <div className="transport-widget__eta-label">ETA</div>
-                      </div>
-                    </div>
-                    <div className="transport-track">
-                      <div className="transport-track__fill" style={{ width: `${liveTransport.progressPercent}%` }}/>
-                      <div className="transport-track__bus" style={{ left: `calc(${liveTransport.progressPercent}% - 7px)` }}/>
-                    </div>
-                    <div className="transport-stops"><span>School</span><span>{liveTransport.stopsLeft} stops left</span><span>{liveTransport.nextStop}</span></div>
-                    <div style={{ marginTop: 10, fontSize: 11, color: 'rgba(255,255,255,.5)', textAlign: 'center' }}>Click to open full tracker →</div>
-                  </div></> : <div className="panel"><p>Transport updates are not available.</p></div>}
-                </div>
+
               </div>
               {/* Subject bars */}
               <div className="panel" style={{ marginTop: 18 }}>
