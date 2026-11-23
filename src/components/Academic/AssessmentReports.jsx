@@ -1,6 +1,8 @@
+import TerminalReportRemarks from './TerminalReportRemarks';
+import { mergeApprovedRemarks } from '../../lib/terminalReportRemarks';
 import React, { useEffect, useRef, useState } from 'react';
 import { CalendarDays, GraduationCap, BookOpen, Printer, Search } from 'lucide-react';
-import { api } from '../../services/api';
+import { api, getAuthUser } from '../../services/api';
 import { usePortalData } from '../../data/PortalStore';
 import { PrintDocument, printDocument, Table } from '../Finance/AccountingUI';
 import SchoolPrintHeader from '../School/SchoolPrintHeader';
@@ -14,6 +16,10 @@ export default function AssessmentReports({ title }) {
   const [scope, setScope] = useState({ academic_year:academicSettings.academicYear || '', term:academicSettings.academicTerm || '', class_level:'', student_id:'', subject:'' });
   const [report, setReport] = useState(null), [error,setError] = useState(''), [busy,setBusy] = useState(false);
   const lock = useRef(false);
+  const canReview=['admin','head_admin'].includes(String(getAuthUser()?.role || '').toLowerCase());
+  const remarkPeriod=JSON.stringify([scope.academic_year,scope.term,scope.class_level]);
+  const activeRemarkPeriod=useRef(remarkPeriod);activeRemarkPeriod.current=remarkPeriod;
+  const onRemarkRecords=records=>{if(activeRemarkPeriod.current===remarkPeriod)setReport(current=>current?{...current,reports:mergeApprovedRemarks(current.reports,records,scope)}:current);};
   const touched = useRef(new Set());
   useEffect(()=>{setScope(s=>({...s,
     academic_year:touched.current.has('academic_year')?s.academic_year:(academicSettings.academicYear || academicSettings.academic_year || s.academic_year),
@@ -52,6 +58,6 @@ export default function AssessmentReports({ title }) {
       <div className="assessment-report-actions"><span>Only approved results appear on reports.</span><button className="assessment-preview-button" disabled={busy}><Search size={16}/>{busy?'Loading results…':'Preview report'}</button></div>
     </fieldset></form>
     {error && <p role="alert" className="assessment-report-error">{error}</p>}
-    {report ? <><div className="assessment-report-result-toolbar"><strong>{report.reports.length} report{report.reports.length===1?'':'s'} ready</strong><button disabled={!report.reports.length} onClick={printDocument}><Printer size={16}/> Print / Save PDF</button></div>{report.reports.length?content:<p className="assessment-report-empty">No approved assessments match this selection.</p>}<PrintDocument>{content}</PrintDocument></> : !error && <div className="assessment-report-placeholder"><BookOpen size={28}/><strong>Your report preview will appear here</strong><span>Select your filters above to get started.</span></div>}
+    {report ? <><div className="assessment-report-result-toolbar"><strong>{report.reports.length} report{report.reports.length===1?'':'s'} ready</strong><button disabled={!report.reports.length} onClick={printDocument}><Printer size={16}/> Print / Save PDF</button></div>{report.reports.length?content:<p className="assessment-report-empty">No approved assessments match this selection.</p>}{canReview && report.reports.some(item=>item.student_id) && <TerminalReportRemarks key={remarkPeriod} reports={report.reports.filter(item=>item.student_id)} scope={scope} canReview onRecords={onRemarkRecords} />}<PrintDocument>{content}</PrintDocument></> : !error && <div className="assessment-report-placeholder"><BookOpen size={28}/><strong>Your report preview will appear here</strong><span>Select your filters above to get started.</span></div>}
   </div>;
 }

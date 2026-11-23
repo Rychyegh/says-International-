@@ -1,3 +1,4 @@
+import { extractReportRemarks } from '../lib/terminalReportRemarks.js';
 import { assertCompulsoryInitialBill } from '../lib/initialBillRules.js';
 import { hasConfirmedPayment } from '../lib/pvPaymentHistory.js';
 import { feeTemplateSnapshot } from '../lib/feeTemplateContract.js';
@@ -838,6 +839,9 @@ export const api = {
     method: 'PUT', body: JSON.stringify({ subjects }),
   }),
   getAssessmentReport: (scope) => request(`/academic/assessment-reports?${new URLSearchParams(scope)}`),
+  getTerminalReportRemarks: async () => extractReportRemarks(await request('/academic/report-setup')),
+  saveTerminalReportRemark: (studentId,payload) => request(`/academic/terminal-report-remarks/${encodeURIComponent(studentId)}`,{method:'PUT',body:JSON.stringify(payload)}),
+  approveTerminalReportRemark: (remarkId,payload) => request(`/academic/terminal-report-remarks/${encodeURIComponent(remarkId)}/approve`,{method:'POST',body:JSON.stringify(payload)}),
   reviseBillItems: async (id, payload, key) => {
     if (!id || payload.expected_version == null || !key) throw new Error('A saved invoice, version and revision key are required.');
     // Optional-service read metadata is not accepted by the invoice revision schema.

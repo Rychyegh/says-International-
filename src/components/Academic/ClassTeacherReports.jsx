@@ -1,3 +1,5 @@
+import TerminalReportRemarks from './TerminalReportRemarks';
+import { mergeApprovedRemarks } from '../../lib/terminalReportRemarks';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { api } from '../../services/api';
@@ -43,6 +45,9 @@ export default function ClassTeacherReports({ classes = [], students = [] }) {
   const [reports,setReports] = useState(null), [index,setIndex] = useState(0), [busy,setBusy] = useState(false), [error,setError] = useState('');
   const allowedKey = JSON.stringify(allowedClasses);
   useEffect(()=>{setScope(current=>allowedClasses.includes(current.class_level)?current:{...current,class_level:allowedClasses[0] || '',sub_class:''});setReports(null);setIndex(0);},[allowedKey]);
+  const remarkPeriod=JSON.stringify([scope.academic_year,scope.term,scope.class_level,scope.sub_class]);
+  const activeRemarkPeriod=useRef(remarkPeriod);activeRemarkPeriod.current=remarkPeriod;
+  const onRemarkRecords=records=>{if(activeRemarkPeriod.current===remarkPeriod)setReports(current=>mergeApprovedRemarks(current,records,scope));};
   const [printAll, setPrintAll] = useState(false);
   useEffect(() => () => document.body.classList.remove('printing-class-teacher-report'), []);
   const touched = useRef(new Set());
@@ -89,6 +94,7 @@ export default function ClassTeacherReports({ classes = [], students = [] }) {
     <section className="class-report-viewer"><div className="class-report-toolbar"><strong>Main Report</strong><button disabled={!reports?.length || index===0} onClick={()=>setIndex(i=>i-1)}>Previous</button><span>{reports?.length?`${index+1} / ${reports.length}`:'0 / 0'}</span><button disabled={!reports?.length || index===reports.length-1} onClick={()=>setIndex(i=>i+1)}>Next</button><button disabled={!reports?.length} onClick={()=>print(false)}>Print this report</button><button disabled={!reports?.length} onClick={()=>print(true)}>Print all reports</button></div>
       {error && <p role="alert" className="class-report-error">{error}</p>}
       {reports?.length ? <ReportPaper report={reports[index]} scope={scope} /> : <p className="class-report-empty">{busy?'Loading saved reports…':reports?'No approved reports match this class, subclass, year and term. Check that these match the submitted score sheet, then select Preview again.':'Choose the academic period, then select Preview.'}</p>}
+      {reports?.length > 0 && <TerminalReportRemarks key={`${remarkPeriod}|${reports[index].student_id}`} reports={[reports[index]]} scope={scope} onRecords={onRemarkRecords} />}
     </section></div>
     {reports?.length > 0 && createPortal(
       <div className="class-report-print-root">
