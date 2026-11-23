@@ -1,3 +1,4 @@
+import { canonicalSchoolClass } from './classLabelMatch.js';
 import { reportClass } from './terminalReportRecords.js';
 
 const identity = row => [row.id,row.userId,row.user_id,row.staffId,row.staff_id,row.staff_code,row.email].filter(Boolean).map(value=>String(value).trim().toLowerCase());
@@ -16,7 +17,7 @@ export function teacherAssignedClasses({ user = {}, assignments = [], directory 
   return [...unique.values()];
 }
 export function studentInAssignedClass(student, assigned) {
-  const clean = value => String(value || '').replace(/\s+/g,'').toLowerCase();
+  const clean = value => canonicalSchoolClass(value).replace(/\s+/g,'').toLowerCase();
   const target=reportClass(assigned), actual=reportClass(student.level || student.classLevel || student.class);
   if (!target.level || clean(target.level)!==clean(actual.level)) return false;
   if (!target.section) return true;

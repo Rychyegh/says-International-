@@ -1,3 +1,5 @@
+import { findGradeEntry, gradeMarks, gradeRollStats } from '../../lib/gradeRoll';
+import { catalogNames } from '../../lib/catalogNames';
 import { teacherAssignedClasses, studentInAssignedClass } from '../../lib/teacherClassAssignments';
 import { reportClass } from '../../lib/terminalReportRecords';
 import ViewportModal from '../Modal/ViewportModal';
@@ -52,7 +54,7 @@ export const SCHOOL_SUBJECTS = [
 ];
 
 export function LecturerGrades({ initialTarget, onOpenScoreSheet, assignedClasses: suppliedClasses }) {
-  const { results, publishResult, onboardedStudents, academicSettings, teacherDirectory, timetable, teachingAssignments } = usePortalData();
+  const { results, publishResult, onboardedStudents, academicSettings, teacherDirectory, timetable, teachingAssignments, subjects = [] } = usePortalData();
   const authUser = enrichTeacherSession(getAuthUser() || {});
   const lecturerName = getUserFullName(authUser) || authUser?.name || 'Staff';
 
@@ -69,8 +71,13 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet, assignedClasse
   const [selectedClass, setSelectedClass] = useState(() => assignedTarget(initialTarget) || '');
   const [selectedSubClass, setSelectedSubClass] = useState(() => initialTarget?.subClass || 'All');
   const [selectedSubject, setSelectedSubject] = useState(() => initialTarget?.subject || 'Mathematics');
+  const periodTouched=useRef({year:Boolean(initialTarget?.year),term:Boolean(initialTarget?.term)});
   const [selectedTerm, setSelectedTerm] = useState(() => initialTarget?.term || academicSettings?.academicTerm || 'Term 3');
   const [selectedYear, setSelectedYear] = useState(() => initialTarget?.year || academicSettings?.academicYear || '2025/2026');
+  useEffect(()=>{
+    if (academicSettings?.academicYear && !periodTouched.current.year) setSelectedYear(academicSettings.academicYear);
+    if (academicSettings?.academicTerm && !periodTouched.current.term) setSelectedTerm(academicSettings.academicTerm);
+  },[academicSettings?.academicYear,academicSettings?.academicTerm]);
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightedStudentId, setHighlightedStudentId] = useState(initialTarget?.studentId || null);
   const [targetNotice, setTargetNotice] = useState(null);
@@ -88,8 +95,8 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet, assignedClasse
     if (initialTarget.classLevel) setSelectedClass(assignedTarget(initialTarget));
     if (initialTarget.subClass) setSelectedSubClass(initialTarget.subClass);
     if (initialTarget.subject) setSelectedSubject(initialTarget.subject);
-    if (initialTarget.term) setSelectedTerm(initialTarget.term);
-    if (initialTarget.year) setSelectedYear(initialTarget.year);
+    if (initialTarget.term) {periodTouched.current.term=true;setSelectedTerm(initialTarget.term);}
+    if (initialTarget.year) {periodTouched.current.year=true;setSelectedYear(initialTarget.year);}
     if (initialTarget.studentId) {
       setHighlightedStudentId(initialTarget.studentId);
       setTargetNotice(
@@ -135,32 +142,8 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet, assignedClasse
       const sid = String(student.studentId || student.id || '').toLowerCase().trim();
       const sname = (student.fullName || student.name || '').toLowerCase().trim();
 
-      // Find matching score in results
-      const entry = resultsForStudent(results || [], student).find((r) => {
-
-        if (selectedSubject && selectedSubject !== 'All Subjects') {
-          const rSubj = String(r.subject || '').toLowerCase().trim();
-          if (rSubj !== selectedSubject.toLowerCase().trim()) return false;
-        }
-        const normalizeTerm = value => String(value || '').trim().toLowerCase().replace(/^term\s*/, '');
-        if (selectedTerm && r.term && normalizeTerm(r.term) !== normalizeTerm(selectedTerm)) return false;
-        const year = r.year || r.academicYear;
-        if (selectedYear && year && String(year).trim() !== String(selectedYear).trim()) return false;
-        return true;
-      });
-
-      const hasClass = hasRecordedClassScore(entry);
-      const hasExam = hasRecordedExamScore(entry);
-      const classScore = hasClass
-        ? (entry.classScore != null ? Number(entry.classScore) : (entry.classTestTotal != null ? (Number(entry.classTestTotal) / 400) * 50 : null))
-        : null;
-      const examScore = hasExam
-        ? (entry.examScoreConverted != null ? Number(entry.examScoreConverted) : (entry.examScore != null ? (Number(entry.examScore) / 100) * 50 : null))
-        : null;
-      const totalScore = (classScore != null && examScore != null)
-        ? (entry.score != null ? Number(entry.score) : (classScore + examScore))
-        : null;
-      const hasScore = hasClass || hasExam;
+      const entry = findGradeEntry(resultsForStudent(results || [], student),{subject:selectedSubject,term:selectedTerm,year:selectedYear,classLevel:selectedClass});
+      const {hasClass,hasExam,classScore,examScore,totalScore,hasScore}=gradeMarks(entry,academicSettings);
 
       return {
         index: index + 1,
@@ -182,20 +165,10 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet, assignedClasse
         entry
       };
     });
-  }, [filteredStudents, results, selectedSubject, selectedTerm, selectedYear, selectedClass, academicSettings?.gradingBands]);
+  }, [filteredStudents, results, selectedSubject, selectedTerm, selectedYear, selectedClass, academicSettings]);
 
-  // Statistics
-  const stats = useMemo(() => {
-    const scored = studentGradeRows.filter((r) => r.totalScore != null);
-    const totalCount = studentGradeRows.length;
-    const scoredCount = scored.length;
-    const avgClass = scored.length > 0 ? (scored.reduce((acc, r) => acc + (r.classScore || 0), 0) / scored.length).toFixed(1) : MISSING_SCORE;
-    const avgExam = scored.length > 0 ? (scored.reduce((acc, r) => acc + (r.examScore || 0), 0) / scored.length).toFixed(1) : MISSING_SCORE;
-    const avgTotal = scored.length > 0 ? (scored.reduce((acc, r) => acc + (r.totalScore || 0), 0) / scored.length).toFixed(1) : MISSING_SCORE;
-    const topScore = scored.length > 0 ? Math.max(...scored.map(r => r.totalScore || 0)).toFixed(1) : MISSING_SCORE;
-
-    return { totalCount, scoredCount, avgClass, avgExam, avgTotal, topScore };
-  }, [studentGradeRows]);
+  // Each metric uses the same displayed rows; class-only saves count as entered.
+  const stats = useMemo(()=>gradeRollStats(studentGradeRows,MISSING_SCORE),[studentGradeRows]);
 
   const updateManualResult = (key) => (event) => setResult((current) => ({ ...current, [key]: event.target.value }));
 
@@ -441,7 +414,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet, assignedClasse
             style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff', fontWeight: 800, color: '#0f3a4b' }}
           >
             <option value="All Subjects">All Subjects</option>
-            {SCHOOL_SUBJECTS.map((sub) => (
+            {[...new Set([...catalogNames(subjects),...SCHOOL_SUBJECTS,...(results || []).map(r=>r.subject).filter(Boolean)])].map((sub) => (
               <option key={sub} value={sub}>{sub}</option>
             ))}
           </select>
@@ -454,7 +427,7 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet, assignedClasse
           </label>
           <select
             value={selectedTerm}
-            onChange={(e) => setSelectedTerm(e.target.value)}
+            onChange={(e) => {periodTouched.current.term=true;setSelectedTerm(e.target.value);}}
             style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
           >
             <option value="Term 1">Term 1</option>
@@ -470,12 +443,10 @@ export function LecturerGrades({ initialTarget, onOpenScoreSheet, assignedClasse
           </label>
           <select
             value={selectedYear}
-            onChange={(e) => setSelectedYear(e.target.value)}
+            onChange={(e) => {periodTouched.current.year=true;setSelectedYear(e.target.value);}}
             style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
           >
-            <option value="2025/2026">2025/2026</option>
-            <option value="2024/2025">2024/2025</option>
-            <option value="2026/2027">2026/2027</option>
+            {[...new Set([selectedYear,academicSettings?.academicYear,...(results || []).map(r=>r.year || r.academicYear)].filter(Boolean))].sort().reverse().map(year=><option key={year}>{year}</option>)}
           </select>
         </div>
 

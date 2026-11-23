@@ -1,9 +1,19 @@
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { build } from 'esbuild';
 import { api, request, getAuthToken, setAuthToken, setAuthUser, hasLiveDatabaseSession } from '../src/services/api.js';
 function storage(){ const items=new Map(); return {getItem:k=>items.get(k)||null,setItem:(k,v)=>items.set(k,String(v)),removeItem:k=>items.delete(k)}; }
 beforeEach(()=>{globalThis.localStorage=storage();globalThis.sessionStorage=storage();globalThis.window=new EventTarget();});
 const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});
+// Build the same API module with Vite's compile-time flag explicitly enabled.
+// No project env file is changed and every HTTP request remains mocked.
+let enabledApiPromise;
+function paymentApiEnabled() {
+  return enabledApiPromise ||= build({
+    entryPoints:['src/services/api.js'],bundle:true,write:false,format:'esm',platform:'node',
+    define:{'import.meta.env':JSON.stringify({VITE_ENABLE_PAYMENT_ALLOCATIONS:'true'})},
+  }).then(result=>import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)).then(module=>module.api);
+}
 test('unreadable network responses preserve uncertainty and never replay a payment', async () => {
   let calls = 0;
   globalThis.fetch = async () => { calls += 1; throw new TypeError('Load failed'); };
@@ -51,11 +61,17 @@ test('voucher status update no longer recursively calls itself',async()=>{
   let calls=0;globalThis.fetch=async()=>{calls++;return json({id:'v',status:'REJECTED'});};
   await api.updatePaymentVoucherStatus('v',{status:'REJECTED'});assert.equal(calls,1);
 });
-test('fee and disbursement requests carry idempotency keys',async()=>{
+test('voucher disbursement requests carry the original idempotency key',async()=>{
   const seen=[];globalThis.fetch=async(url,options)=>{seen.push(options.headers['Idempotency-Key']);return json({id:'ok'});};
-  await api.recordFeePayment('invoice',{paidAmount:10,idempotencyKey:'fee-key'});
   await api.disbursePaymentVoucher('voucher',{idempotencyKey:'pv-key'});
-  assert.deepEqual(seen,['fee-key','pv-key']);
+  assert.deepEqual(seen,['pv-key']);
+});
+test('disabled fee allocation payments never reach the backend',async()=>{
+  let calls=0;globalThis.fetch=async()=>{calls++;return json({id:'must-not-save'});};
+  for(const allocations of [undefined,[{accountName:'Tuition',accountCode:'10012',amount:10}]]) {
+    await assert.rejects(api.recordFeePayment('invoice',{paidAmount:10,allocations,idempotencyKey:'fee-key'}),/disabled pending deployed backend verification/);
+  }
+  assert.equal(calls,0);
 });
 test('SMS uses only the backend and preserves the requested message',async()=>{
   let called;globalThis.fetch=async(url,options)=>{called={url,body:JSON.parse(options.body)};return json({id:'sms-1',status:'queued'});};
@@ -376,7 +392,8 @@ test('complete applications read supports envelopes and fails on repeated or inc
  await assert.rejects(api.getAllApplications(), /incomplete/);
 });
 
-test('split-account fee payment uses one request with the original total and key', async () => {
+test('enabled split-account payment sends structured amounts once with the original total and key', async () => {
+ const enabledApi=await paymentApiEnabled();
  setAuthToken('opaque-token');
  const allocations=[{accountName:'Tuition',accountCode:'10012',amount:75},{accountName:'PTA',accountCode:'10124',amount:25}];
  let calls=0;
@@ -384,16 +401,23 @@ test('split-account fee payment uses one request with the original total and key
   calls++;
   assert.ok(url.endsWith('/finance/fees/invoice-1/pay'));
   const body=JSON.parse(options.body);
-  assert.equal('allocations' in body,false);
+  assert.deepEqual(body.allocations,[{accountCode:'10012',amount:'75.00'},{accountCode:'10124',amount:'25.00'}]);
   assert.equal('receivingAccount' in body,false);
   assert.match(body.notes,/Tuition \[10012\]: GHS 75.00/);
   assert.match(body.notes,/PTA \[10124\]: GHS 25.00/);
-  assert.equal(body.paidAmount,100);
+  assert.equal(body.paidAmount,'100.00');
+  assert.equal(body.idempotencyKey,'split-payment-key');
   assert.equal(options.headers['Idempotency-Key'],'split-payment-key');
   return json({updatedFee:{id:'invoice-1'},receipt_number:'ONE-RECEIPT'});
  };
- const response=await api.recordFeePayment('invoice-1',{paidAmount:100,allocations,receivingAccount:'Tuition / PTA',idempotencyKey:'split-payment-key'});
+ const response=await enabledApi.recordFeePayment('invoice-1',{paidAmount:100,allocations,receivingAccount:'Tuition / PTA',idempotencyKey:'split-payment-key'});
  assert.equal(calls,1);assert.equal(response.receipt_number,'ONE-RECEIPT');
+});
+test('enabled fee payment failure is not replayed or replaced with a success',async()=>{
+ const enabledApi=await paymentApiEnabled();let calls=0;
+ globalThis.fetch=async(url,options)=>{calls++;assert.equal(options.headers['Idempotency-Key'],'same-fee-key');return json({detail:'Payment not saved'},500);};
+ await assert.rejects(enabledApi.recordFeePayment('invoice-1',{paidAmount:10,allocations:[{accountName:'Tuition',accountCode:'10012',amount:10}],idempotencyKey:'same-fee-key'}),/Payment not saved/);
+ assert.equal(calls,1);
 });
 
 test('bill posts use each learner period instead of an old shared year', async () => {

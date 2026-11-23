@@ -1307,8 +1307,8 @@ export const api = {
     const notes = String(paymentData.notes || '').includes('Payment account breakdown:')
       ? paymentData.notes
       : allocationNotes(paymentData.notes, paymentData.allocations);
-    // FeePaymentRequest rejects additional properties. Preserve the account
-    // breakdown in supported notes until structured allocations are supported.
+    // This structured contract is gated until backend allocations are verified.
+    // Keep the readable breakdown in notes for receipts alongside the ledger rows.
     const payload = { payerName: paymentData.payerName?.trim(), paidAmount: Number(paidAmount).toFixed(2), paymentMethod, paymentDate, transactionRef, notes, idempotencyKey, allocations: paymentData.allocations.map(line => ({ accountCode: line.accountCode, amount: Number(line.amount).toFixed(2) })) };
     // A stable idempotency key prevents duplicate ledger entries on retry.
     return await request(`/finance/fees/${encodeURIComponent(feeId)}/pay`, {

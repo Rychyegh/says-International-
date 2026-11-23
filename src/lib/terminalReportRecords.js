@@ -1,3 +1,4 @@
+import { canonicalSchoolClass } from './classLabelMatch.js';
 import { normalizeAssessment } from './assessmentRules.js';
 import { proficiencyGrade, proficiencyRemark } from './schoolGrading.js';
 
@@ -5,15 +6,14 @@ const text = value => String(value || '').trim();
 const key = value => text(value).toLowerCase().replace(/[^a-z0-9]/g, '');
 const number = value => value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
 export function reportClass(value) {
-  const names = {nursery:'Nursery',basic:'Basic',kindergarten:'Kindergarten',kg:'KG',shs:'SHS'};
-  const label = text(value).replace(/\s+/g, ' ').replace(/^(nursery|basic|kindergarten|kg|shs)\s*(\d)/i,(_,prefix,digit)=>`${names[prefix.toLowerCase()]} ${digit}`);
+  const label = canonicalSchoolClass(value);
   const match = label.match(/^(.*?\d)\s*([a-z])(?:\s*[-–].*)?$/i);
   return match ? { level: match[1].trim(), section: label } : { level: label, section: '' };
 }
 export function terminalReportScope(scope) {
   const cls = reportClass(scope.class_level);
-  if (cls.section && scope.sub_class && key(cls.section)!==key(scope.sub_class)) throw new Error('Choose the subclass assigned to the selected class.');
-  return { ...scope, class_level: cls.level, sub_class: scope.sub_class || cls.section, report_type: 'class', preview_creche: String(Boolean(scope.preview_creche === true || scope.preview_creche === 'true')) };
+  if (cls.section && scope.sub_class && key(cls.section)!==key(canonicalSchoolClass(scope.sub_class))) throw new Error('Choose the subclass assigned to the selected class.');
+  return { ...scope, class_level: cls.level, sub_class: canonicalSchoolClass(scope.sub_class || cls.section), report_type: 'class', preview_creche: String(Boolean(scope.preview_creche === true || scope.preview_creche === 'true')) };
 }
 const termKey = value => key(value).replace(/^(1st|2nd|3rd)term$/,(_,n)=>`term${n[0]}`).replace(/^term0*/, 'term');
 const ids = row => [row.id,row.studentId,row.student_id,row.studentUuid,row.student_uuid,row.studentCode,row.student_code,row.student_id_code].filter(Boolean).map(String);
@@ -31,7 +31,8 @@ export function terminalReportsFromRecords({ records, students, scope, settings 
     // Only known learners in the teacher's supplied roster may enter the report.
     if (!student) continue;
     const cls = reportClass(entry.classLevel || student.level || student.classLevel);
-    const section = entry.subClass || cls.section || student.subClass || student.subClassLevel || student.classSection || reportClass(student.level || student.classLevel).section;
+    const rawSection = entry.subClass || cls.section || student.subClass || student.subClassLevel || student.classSection || reportClass(student.level || student.classLevel).section;
+    const section = canonicalSchoolClass(/^[a-z]$/i.test(rawSection)?`${cls.level}${rawSection}`:rawSection);
     if (key(cls.level) !== key(filter.class_level)) continue;
     if (filter.sub_class && key(section) !== key(filter.sub_class)) continue;
     if (filter.department && key(student.department || student.department_name || '') !== key(filter.department)) {

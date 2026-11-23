@@ -1126,9 +1126,7 @@ export function hasRecordedClassScore(entry) {
   if (!entry) return false;
   if (entry.hasClassScore === true || entry.classSubmitted === true) return true;
   if (entry.hasClassScore === false) return false;
-  return Number(entry.classScore) > 0 || Number(entry.classTestTotal) > 0
-    || Number(entry.arrivalTest) > 0 || Number(entry.test1) > 0
-    || Number(entry.test2) > 0 || Number(entry.test3) > 0;
+  return [entry.classScore,entry.classTestTotal,entry.arrivalTest,entry.test1,entry.test2,entry.test3].some(value=>value!=null && value!=='' && Number.isFinite(Number(value)));
 }
 
 export function hasRecordedExamScore(entry) {
@@ -1617,33 +1615,10 @@ export function PortalDataProvider({ children, enabled = false }) {
         // Results
         if (resultsRes.status === 'fulfilled' && resultsRes.value != null && Array.isArray(resultsRes.value)) {
           const mapped = resultsRes.value.map(r => ({
-            id: r.id,
-            backendId: r.id,
-            studentId: r.student_id || r.studentId,
-            studentCode: r.student_code || r.studentCode || r.student_id_code,
-            studentUuid: r.student_uuid || r.studentUuid,
-            studentName: r.student_name || r.studentName,
-            subject: r.subject,
+            ...mapScoreSheetEntry(r),
             classLevel: formatClassToBasic(r.class_level || r.classLevel),
-            term: r.term,
-            year: r.academic_year || r.academicYear,
-            score: r.score,
-            grade: proficiencyGrade(r.total_score ?? r.score),
-            remarks: proficiencyRemark(r.total_score ?? r.score),
             lecturer: r.teacher_name || r.teacherName || r.instructor_name || r.lecturer || r.instructor,
-            teacherId: r.teacher_id || r.teacherId || r.instructor_id || r.created_by,
-            arrivalTest: r.arrival_test ?? r.arrivalTest,
-            test1: r.class_test_1 ?? r.test1,
-            test2: r.class_test_2 ?? r.test2,
-            test3: r.class_test_3 ?? r.test3,
-            classTestTotal: r.class_test_total ?? r.classTestTotal,
-            classScore: r.class_score ?? r.classScore,
-            examScore: r.exam_score ?? r.examScore,
-            teacherNote: r.teacher_note ?? r.teacherNote ?? '',
-            status: r.status || 'Approved',
-            declineNote: r.decline_note || r.declineNote,
             approvedBy: r.approved_by || r.approvedBy,
-            updatedAt: r.updated_at || r.updatedAt
           }));
           const merged = mergeByKey(current.results || [], mapped, r => scoreSheetEntryKey(r) || r.id);
           if (!isDeepEqual(current.results, merged)) {

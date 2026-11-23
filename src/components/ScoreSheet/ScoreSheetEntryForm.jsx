@@ -1,3 +1,4 @@
+import { canonicalSchoolClass } from '../../lib/classLabelMatch';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { proficiencyGrade, proficiencyRemark } from '../../lib/schoolGrading';
 import { usePortalData, scoreSheetEntryKey } from '../../data/PortalStore';
@@ -37,21 +38,15 @@ function detectStudentClassAndSub(student) {
 }
 
 function compactLabel(value) {
-  return String(value || '').replace(/\s+/g, '').toLowerCase();
+  return canonicalSchoolClass(value).replace(/\s+/g, '').toLowerCase();
 }
 
 function canonicalClassLevel(value) {
-  const lower = String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
-  if (lower === 'kg 1' || lower === 'kindergarten 1') return 'kg 1';
-  if (lower === 'kg 2' || lower === 'kindergarten 2') return 'kg 2';
-  if (lower === 'jhs 1') return 'basic 7';
-  if (lower === 'jhs 2') return 'basic 8';
-  if (lower === 'jhs 3') return 'basic 9';
-  return lower;
+  return canonicalSchoolClass(value).toLowerCase();
 }
 
 function splitEmbeddedClass(value) {
-  const raw = String(value || '').trim();
+  const raw = canonicalSchoolClass(value);
   const match = raw.match(/^(Creche|Nursery \d|Kindergarten \d|KG \d|Basic \d|JHS \d)\s*([A-Z])$/i);
   if (!match) return { level: raw, section: '' };
   return { level: match[1], section: match[2] };
@@ -103,15 +98,15 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
   const initialDetected = detectStudentClassAndSub(initialStudent);
 
   const [selectedStudent, setSelectedStudent] = useState(initialStudent);
-  const [cls, setCls] = useState(initialDetected.classLevel || 'Basic 1');
+  const [cls, setCls] = useState(canonicalSchoolClass(initialDetected.classLevel || 'Basic 1'));
   const [subClass, setSubClass] = useState(normalizeSubClass(initialDetected.classLevel || 'Basic 1', initialDetected.subClassLevel || 'A'));
   const [customSubClasses, setCustomSubClasses] = useState([]);
 
   // Sync when initialTarget is passed (e.g. from Grades view "Edit in Score Sheet")
   useEffect(() => {
     if (!initialTarget) return;
-    if (initialTarget.classLevel) setCls(initialTarget.classLevel);
-    if (initialTarget.subClass) setSubClass(initialTarget.subClass);
+    if (initialTarget.classLevel) setCls(canonicalSchoolClass(initialTarget.classLevel));
+    if (initialTarget.subClass) setSubClass(canonicalSchoolClass(initialTarget.subClass));
     if (initialTarget.subject) setSubject(initialTarget.subject);
     if (initialTarget.studentId || initialTarget.studentName) {
       const matches = students.filter(s => initialTarget.studentId
@@ -121,11 +116,12 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
     }
   }, [initialTarget, students]);
 
+  const periodTouched = useRef({year:false,term:false});
   const [year, setYear] = useState(academicSettings?.academicYear || '');
   const [term, setTerm] = useState(academicSettings?.academicTerm || '');
   useEffect(() => {
-    if (academicSettings?.academicYear) setYear(current => current || academicSettings.academicYear);
-    if (academicSettings?.academicTerm) setTerm(current => current || academicSettings.academicTerm);
+    if (academicSettings?.academicYear && !periodTouched.current.year) setYear(academicSettings.academicYear);
+    if (academicSettings?.academicTerm && !periodTouched.current.term) setTerm(academicSettings.academicTerm);
   }, [academicSettings?.academicYear, academicSettings?.academicTerm]);
   const [subject, setSubject] = useState('Mathematics');
   const [category, setCategory] = useState('Core');
@@ -164,10 +160,10 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
   }, [cls, subClass, customSubClasses, selectedStudent]);
 
   const handleClassChange = (newCls) => {
-    setCls(newCls);
+    setCls(canonicalSchoolClass(newCls));
     // Smoothly convert subclass if it matched old class prefix (e.g. Basic 1A -> Basic 2A)
-    const oldClean = cls.replace(/\s+/g, '').toLowerCase();
-    const subClean = subClass.replace(/\s+/g, '').toLowerCase();
+    const oldClean = compactLabel(cls);
+    const subClean = compactLabel(subClass);
     if (subClean.startsWith(oldClean)) {
       const suffix = subClean.slice(oldClean.length).toUpperCase() || 'A';
       setSubClass(`${newCls}${suffix.length === 1 ? suffix : ` ${suffix}`}`);
@@ -213,11 +209,12 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
   useEffect(() => {
     if (!studentSearch.trim() || !(selectedStudent?.id || selectedStudent?.studentId)) return;
     const detected = detectStudentClassAndSub(selectedStudent);
-    setCls(detected.classLevel);
+    setCls(canonicalSchoolClass(detected.classLevel));
     setSubClass(normalizeSubClass(detected.classLevel, detected.subClassLevel));
   }, [studentSearch, selectedStudent]);
 
   const studentKey = selectedStudent.id || selectedStudent.studentId;
+  const studentSelectKey = selectedStudent.studentId || selectedStudent.id;
 
   // Reopen a previously saved sheet for this student / subject / term / year so it can be edited
   const savedEntry = useMemo(() => {
@@ -262,10 +259,10 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
       submitKind,
       studentId: selectedStudent.id || selectedStudent.studentId,
       studentName: selectedStudent.fullName || selectedStudent.name,
-      classLevel: cls,
-      subClass,
-      subClassLevel: subClass,
-      classSection: subClass,
+      classLevel: canonicalSchoolClass(cls),
+      subClass: canonicalSchoolClass(subClass),
+      subClassLevel: canonicalSchoolClass(subClass),
+      classSection: canonicalSchoolClass(subClass),
       subject,
       category,
       examDate,
@@ -319,7 +316,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Class</label>
             <select value={cls} onChange={(e) => handleClassChange(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }}>
-              <option>Creche</option><option>Nursery 1</option><option>Nursery 2</option><option>KG 1</option><option>KG 2</option><option>Basic 1</option><option>Basic 2</option><option>Basic 3</option><option>Basic 4</option><option>Basic 5</option><option>Basic 6</option><option>Basic 7</option><option>Basic 8</option><option>Basic 9</option>
+              <option>Creche</option><option>Nursery 1</option><option>Nursery 2</option><option>Kindergarten 1</option><option>Kindergarten 2</option><option>Basic 1</option><option>Basic 2</option><option>Basic 3</option><option>Basic 4</option><option>Basic 5</option><option>Basic 6</option><option>Basic 7</option><option>Basic 8</option><option>Basic 9</option>
             </select>
           </div>
           <div style={{ marginBottom: 8 }}>
@@ -349,13 +346,13 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
           </div>
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Academic year</label>
-            <select value={year} onChange={(e) => setYear(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }}>
+            <select value={year} onChange={(e) => {periodTouched.current.year=true;setYear(e.target.value);}} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }}>
               {Array.from(new Set([academicSettings?.academicYear, year, ...(results || []).map(r => r.year)].filter(Boolean))).map(value => <option key={value}>{value}</option>)}
             </select>
           </div>
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Academic term</label>
-            <select value={term} onChange={(e) => setTerm(e.target.value)} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }}>
+            <select value={term} onChange={(e) => {periodTouched.current.term=true;setTerm(e.target.value);}} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #cbd5e1' }}>
               {Array.from(new Set([academicSettings?.academicTerm, term, ...(results || []).map(r => r.term)].filter(Boolean))).map(value => <option key={value}>{value}</option>)}
             </select>
           </div>
@@ -418,7 +415,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
                 style={{ width: '100%', padding: '3px 6px', border: '1px solid #0f3a4b', borderRadius: 4, fontSize: 11, marginBottom: 4, background: '#f8fafc' }}
               />
               <select
-                value={filteredStudents.some(student => String(student.studentId || student.id) === String(studentKey)) ? studentKey : ''}
+                value={filteredStudents.some(student => String(student.studentId || student.id) === String(studentSelectKey)) ? studentSelectKey : ''}
                 onChange={(e) => {
                   const s = filteredStudents.find(x => String(x.studentId || x.id) === e.target.value);
                   if (s) setSelectedStudent(s);
@@ -545,7 +542,7 @@ export default function ScoreSheetEntryForm({ setM, students: propStudents, onVi
                   onClick={() => {
                     if (typeof onViewTestRoll === 'function') {
                       onViewTestRoll({
-                        classLevel: cls,
+                        classLevel: canonicalSchoolClass(cls),
                         subClass,
                         studentId: selectedStudent.studentId || selectedStudent.id,
                         studentName: selectedStudent.fullName || selectedStudent.name,

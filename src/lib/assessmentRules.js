@@ -22,6 +22,8 @@ export function normalizeAssessment(raw = {}) {
   const convertedExam = field('exam_score_converted', 'examScoreConverted') ?? field('exam_score', 'examScore');
   const hasExam = field('has_exam_score', 'hasExamScore') ?? [rawExam, convertedExam].some(value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)));
   const subClass = field('sub_class', 'subClass') || raw.sub_class_level || '';
+  const finalTotalKnown = ['approved','published'].includes(String(score.status || raw.status || '').trim().toLowerCase()) && field('has_exam_score','hasExamScore') !== false;
+  const total = hasExam || finalTotalKnown ? field('total_score','score') ?? null : null;
   return {
     id: score.id || score._id,
     backendId: score.id || score._id,
@@ -44,15 +46,16 @@ export function normalizeAssessment(raw = {}) {
     classTestMax: breakdown.class_test_max ?? field('class_test_max', 'classTestMax') ?? 100,
     classTestTotal: field('class_test_total', 'classTestTotal') ?? null,
     rawClassScore: numberOrNull(rawClass), rawExamScore: numberOrNull(rawExam),
-    classScore: field('class_score', 'classScore') ?? null,
+    classScore: field('class_score_converted', 'classScoreConverted') ?? field('class_score', 'classScore') ?? null,
+    classScoreConverted: field('class_score_converted', 'classScoreConverted') ?? null,
     examScore: hasExam ? numberOrNull(rawExam ?? convertedExam) : null,
     examScoreConverted: hasExam ? (field('exam_score_converted', 'examScoreConverted') ?? score.exam_score ?? null) : null,
-    score: hasExam ? (field('total_score', 'score') ?? null) : null,
-    grade: hasExam ? proficiencyGrade(field('total_score', 'score')) : '',
-    remarks: hasExam ? proficiencyRemark(field('total_score', 'score')) : '',
+    score: total,
+    grade: total!==null ? proficiencyGrade(total) : '',
+    remarks: total!==null ? proficiencyRemark(total) : '',
     teacherNote: field('teacher_note', 'teacherNote') || '',
     declineNote: field('decline_note', 'declineNote') || field('rejection_reason', 'rejectionReason') || '',
-    hasClassScore: field('has_class_score', 'hasClassScore') ?? true,
+    hasClassScore: field('has_class_score', 'hasClassScore') ?? [field('class_score_converted', 'classScoreConverted'),field('class_score', 'classScore'),rawClass].some(value=>value!=null && value!=='' && Number.isFinite(Number(value))),
     hasExamScore: Boolean(hasExam),
     status: score.status || raw.status || (hasExam ? 'Pending Approval' : 'Class Score Recorded'),
     updatedAt: field('updated_at', 'updatedAt'),

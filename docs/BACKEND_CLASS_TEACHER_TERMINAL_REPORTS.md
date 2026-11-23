@@ -115,3 +115,15 @@ Grades previously displayed the static school-wide class catalogue under “clas
 Backend `/academic/teaching-assignments` records must include the canonical teacher `user_id` (or matching staff ID/email), plus their full classes array. Multiple rows per teacher are supported. Matching by display name alone is not used to grant class visibility. Persist all intended class assignments and enforce them server-side on results and roster endpoints.
 
 The roster adapter now preserves `sub_class`, `sub_class_level`, `class_section` and camelCase section aliases instead of dropping the section and inserting an assumed A. This is needed for section-specific report filtering when the backend sends a base class plus a separate subclass. A section must be explicitly recorded; unknown sections are not assigned automatically.
+
+## 23 November 2026 Kindergarten alias regression
+
+Frontend class identities now canonicalize KG 1/KG 2 and their section aliases to Kindergarten 1/Kindergarten 2 across score entry, assigned rosters and terminal report filtering. A/B sections remain distinct. New score submissions use the canonical full label; persisted legacy KG records are recognized when returned by the server. The score-entry year/term defaults follow loaded school settings until manually selected, avoiding stale initial defaults.
+
+Backend queries should resolve both aliases to the same catalog class ID, including historical records, rather than filtering exact display text. The isolated browser regression submits marks through the actual score-entry UI for Kindergarten 2A, checks that pending results remain hidden, approves through the store's admin operation, then opens a fresh teacher session and previews the approved 82/100 report with school branding. Every API call in that test is intercepted; no live marks, backend migrations or deployment were performed. The captured demonstration is output/kindergarten-2-test-report.png and is labelled as an isolated test run.
+
+## Grades table and summary cards
+
+The results list and score-sheet list now share assessment normalization so persisted `total_score`, zero marks, converted exam/class contributions and raw-score aliases are preserved. The Grades screen follows loaded academic settings until the user selects a period, and recognizes equivalent term/year spellings. Numeric cards are calculated from the displayed learner rows: entered count includes partial saved marks; class/exam averages each use their available component marks; total average and highest score use recorded complete totals. Missing values never become zero. Existing converted exam scores are not weighted a second time. Approved legacy totals remain displayable when individual component marks are absent; those components remain missing.
+
+Local browser regression tests/grades-scores-integration.mjs verifies eight synthetic learners, 3/8 entered records, a complete 40 + 42 = 82 record, a saved zero, a partial class score, and correct summary calculations. Screenshot: output/kindergarten-grades-test.png. No live school scores were changed.

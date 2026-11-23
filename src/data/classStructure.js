@@ -1,3 +1,4 @@
+import { canonicalSchoolClass } from '../lib/classLabelMatch.js';
 export const CLASS_SUBCLASS_MAP = {
   Creche: ['Creche'],
   'Nursery 1': ['Nursery 1A', 'Nursery 1B'],
@@ -149,6 +150,8 @@ export function normalizeSubClass(classLevel, subClass) {
   const mapped = getMappedSubClasses(classLevel);
   const raw = String(subClass || '').trim();
   if (mapped.includes(raw)) return raw;
+  const aliasMatch=mapped.find(item=>canonicalSchoolClass(item).replace(/\s/g,'').toLowerCase()===canonicalSchoolClass(raw).replace(/\s/g,'').toLowerCase());
+  if (aliasMatch) return aliasMatch;
   if (!raw || isLegacySectionLabel(raw)) {
     const letter = String(raw).match(/([ab])\b/i)?.[1];
     if (letter && mapped.length) {
@@ -159,5 +162,5 @@ export function normalizeSubClass(classLevel, subClass) {
   }
   const glued = `${classLevel || ''}${raw}`.replace(/\s+/g, ' ').trim();
   const match = mapped.find((item) => item.toLowerCase() === glued.toLowerCase() || item.toLowerCase().endsWith(raw.toLowerCase()));
-  return match || mapped[0] || raw;
+  return match || raw;
 }
